@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput, IFileEditorInputOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -29,15 +29,6 @@ const enum ForceOpenAs {
 	None,
 	Text,
 	Binary
-}
-
-export interface IFileEditorInputResolveOptions {
-
-	/**
-	 * If provided, the size of the file will be checked against the limits
-	 * and an error will be thrown if any limit is exceeded.
-	 */
-	readonly limits?: IFileReadLimits;
 }
 
 /**
@@ -314,7 +305,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
-	override resolve(options?: IFileEditorInputResolveOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	override resolve(options?: IFileEditorInputOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
@@ -325,7 +316,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.doResolveAsText(options);
 	}
 
-	private async doResolveAsText(options?: IFileEditorInputResolveOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	private async doResolveAsText(options?: IFileEditorInputOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
 		try {
 
 			// Unset preferred contents after having applied it once
@@ -376,7 +367,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 	}
 
-	private ensureLimits(options?: IFileEditorInputResolveOptions): IFileReadLimits | undefined {
+	private ensureLimits(options?: IFileEditorInputOptions): IFileReadLimits | undefined {
 		if (options?.limits) {
 			return options.limits; // respect passed in limits if any
 		}

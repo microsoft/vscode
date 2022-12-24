@@ -10,11 +10,11 @@ import { IAction, toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextCodeEditor } from 'vs/workbench/browser/parts/editor/textCodeEditor';
-import { IEditorOpenContext, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION, createEditorOpenError } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION, createEditorOpenError, IFileEditorInputOptions, createTooLargeFileError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileEditorInput, IFileEditorInputResolveOptions } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation, ByteSize, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -33,7 +33,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import Severity from 'vs/base/common/severity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 /**
@@ -95,7 +94,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		return this._input as FileEditorInput;
 	}
 
-	override async setInput(input: FileEditorInput, options: ITextEditorOptions & IFileEditorInputResolveOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: FileEditorInput, options: IFileEditorInputOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -153,10 +152,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 
 	protected async handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
 
-		// In case we tried to open a file inside the text editor and the response
-		// indicates that this is not a text file, reopen the file through the binary
-		// editor.
-
+		// Handle case where content appears to be binary
 		if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
 			return this.openAsBinary(input, options);
 		}
@@ -193,31 +189,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 				message = localize('fileTooLargeForHeapErrorWithoutSize', "The file is not displayed in the text editor because it is very large.");
 			}
 
-			throw createEditorOpenError(message, [
-				toAction({
-					id: 'workbench.window.action.openLargeFile', label: localize('openLargeFile', "Open Anyway"), run: () => {
-						const fileEditorOptions: ITextEditorOptions & IFileEditorInputResolveOptions = {
-							...options,
-							limits: {
-								size: Number.MAX_VALUE
-							}
-						};
-
-						this.editorService.openEditor({
-							resource: input.preferredResource,
-							options: fileEditorOptions
-						});
-					}
-				}),
-				toAction({
-					id: 'workbench.window.action.configureEditorLargeFileConfirmation', label: localize('configureEditorLargeFileConfirmation', "Configure Limit"), run: () => {
-						return this.preferencesService.openUserSettings({ query: 'workbench.editorLargeFileConfirmation' });
-					}
-				}),
-			], {
-				forceMessage: true,
-				forceSeverity: Severity.Warning
-			});
+			throw createTooLargeFileError(this.group, input, options, message, this.preferencesService);
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid

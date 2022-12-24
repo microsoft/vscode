@@ -196,7 +196,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
 			// so that others synchronously receive a notebook editor with the correct widget being set
 			await super.setInput(input, options, context, token);
-			const model = await input.resolve(perf);
+			const model = await input.resolve(options, perf);
 			perf.mark('inputLoaded');
 
 			// Check for cancellation
