@@ -4046,7 +4046,7 @@ export interface ISuggestOptions {
 	/**
 	 * Select suggestions when triggered via quick suggest or trigger characters
 	 */
-	selectQuickSuggestions?: boolean;
+	selectionMode?: 'always' | 'never' | 'whenTriggerCharacter' | 'whenQuickSuggestion';
 	/**
 	 * Enable or disable icons in suggestions. Defaults to true.
 	 */
@@ -4199,7 +4199,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			snippetsPreventQuickSuggestions: true,
 			localityBonus: false,
 			shareSuggestSelections: false,
-			selectQuickSuggestions: true,
+			selectionMode: 'always',
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
@@ -4263,10 +4263,17 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					default: defaults.shareSuggestSelections,
 					markdownDescription: nls.localize('suggest.shareSuggestSelections', "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`).")
 				},
-				'editor.suggest.selectQuickSuggestions': {
-					type: 'boolean',
-					default: defaults.selectQuickSuggestions,
-					markdownDescription: nls.localize('suggest.selectQuickSuggestions', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters.")
+				'editor.suggest.selectionMode': {
+					type: 'string',
+					enum: ['always', 'never', 'whenTriggerCharacter', 'whenQuickSuggestion'],
+					enumDescriptions: [
+						nls.localize('suggest.insertMode.always', "Always activate the suggest widget when triggering IntelliSense automatically."),
+						nls.localize('suggest.insertMode.never', "Never activate the suggest when when triggering IntelliSense automatically."),
+						nls.localize('suggest.insertMode.whenTriggerCharacter', "Activate the suggest widget only when triggering IntelliSense from a trigger character."),
+						nls.localize('suggest.insertMode.whenQuickSuggestion', "Activate the suggest widget only when triggering IntelliSense as you type."),
+					],
+					default: defaults.selectionMode,
+					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters. Note that the widget is always active when explicitly invoked, e.g via `Ctrl+Space`.")
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
@@ -4466,7 +4473,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
-			selectQuickSuggestions: boolean(input.selectQuickSuggestions, this.defaultValue.selectQuickSuggestions),
+			selectionMode: stringSet(input.selectionMode, this.defaultValue.selectionMode, ['always', 'never', 'whenQuickSuggestion', 'whenTriggerCharacter']),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),

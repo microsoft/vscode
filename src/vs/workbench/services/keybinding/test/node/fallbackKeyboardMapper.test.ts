@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, createKeybinding, ScanCodeBinding, UserKeybinding } from 'vs/base/common/keybindings';
+import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
-import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertResolveKeyboardEvent, assertResolveKeybinding } from 'vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils';
 
 suite('keyboardMapper - MAC fallback', () => {
 
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
+		assertResolveKeybinding(mapper, decodeKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
 
 	test('resolveKeybinding Cmd+Z', () => {
@@ -26,7 +26,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: 'Cmd+Z',
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['meta+Z'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -42,7 +42,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+k cmd+=',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['meta+K', 'meta+='],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -68,7 +68,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: 'Cmd+Z',
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['meta+Z'],
 				singleModifierDispatchParts: [null],
 			}
@@ -76,10 +76,10 @@ suite('keyboardMapper - MAC fallback', () => {
 	});
 
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
-		assertResolveUserBinding(
-			mapper, new UserKeybinding([
-				new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-				new SimpleKeybinding(false, false, false, true, KeyCode.Slash),
+		assertResolveKeybinding(
+			mapper, new Keybinding([
+				new ScanCodeChord(false, false, false, true, ScanCode.Comma),
+				new KeyCodeChord(false, false, false, true, KeyCode.Slash),
 			]),
 			[{
 				label: '⌘, ⌘/',
@@ -87,7 +87,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+, cmd+/',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['meta+,', 'meta+/'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -113,7 +113,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['meta'],
 			}
@@ -139,7 +139,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'shift',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['shift'],
 			}
@@ -165,7 +165,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'alt',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['alt'],
 			}
@@ -191,7 +191,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+shift',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: [null],
 			}
@@ -219,7 +219,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				electronAccelerator: 'Ctrl+Alt+Z',
 				userSettingsLabel: 'ctrl+alt+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+alt+Z'],
 				singleModifierDispatchParts: [null],
 			}
@@ -232,7 +232,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 	const mapper = new FallbackKeyboardMapper(false, OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
+		assertResolveKeybinding(mapper, decodeKeybinding(k, OperatingSystem.Linux)!, expected);
 	}
 
 	test('resolveKeybinding Ctrl+Z', () => {
@@ -244,7 +244,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+Z'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -260,7 +260,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+=',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+='],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -286,7 +286,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+Z'],
 				singleModifierDispatchParts: [null],
 			}
@@ -294,10 +294,10 @@ suite('keyboardMapper - LINUX fallback', () => {
 	});
 
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
-		assertResolveUserBinding(
-			mapper, new UserKeybinding([
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-				new SimpleKeybinding(true, false, false, false, KeyCode.Slash),
+		assertResolveKeybinding(
+			mapper, new Keybinding([
+				new ScanCodeChord(true, false, false, false, ScanCode.Comma),
+				new KeyCodeChord(true, false, false, false, KeyCode.Slash),
 			]),
 			[{
 				label: 'Ctrl+, Ctrl+/',
@@ -305,7 +305,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+, ctrl+/',
 				isWYSIWYG: true,
-				isChord: true,
+				isMultiChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
 				singleModifierDispatchParts: [null, null],
 			}]
@@ -313,9 +313,9 @@ suite('keyboardMapper - LINUX fallback', () => {
 	});
 
 	test('resolveUserBinding Ctrl+[Comma]', () => {
-		assertResolveUserBinding(
-			mapper, new UserKeybinding([
-				new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+		assertResolveKeybinding(
+			mapper, new Keybinding([
+				new ScanCodeChord(true, false, false, false, ScanCode.Comma),
 			]),
 			[{
 				label: 'Ctrl+,',
@@ -323,7 +323,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: 'Ctrl+,',
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+,'],
 				singleModifierDispatchParts: [null],
 			}]
@@ -349,7 +349,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: [null],
 				singleModifierDispatchParts: ['ctrl'],
 			}
@@ -377,7 +377,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				electronAccelerator: 'Ctrl+Alt+Z',
 				userSettingsLabel: 'ctrl+alt+z',
 				isWYSIWYG: true,
-				isChord: false,
+				isMultiChord: false,
 				dispatchParts: ['ctrl+alt+Z'],
 				singleModifierDispatchParts: [null],
 			}

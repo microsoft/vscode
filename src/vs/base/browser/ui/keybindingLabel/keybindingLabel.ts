@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import 'vs/css!./keybindingLabel';
@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
-export interface PartMatches {
+export interface ChordMatches {
 	ctrlKey?: boolean;
 	shiftKey?: boolean;
 	altKey?: boolean;
@@ -22,8 +22,8 @@ export interface PartMatches {
 }
 
 export interface Matches {
-	firstPart: PartMatches;
-	chordPart: PartMatches;
+	firstPart: ChordMatches;
+	chordPart: ChordMatches;
 }
 
 export interface KeybindingLabelOptions extends IKeybindingLabelStyles {
@@ -93,13 +93,13 @@ export class KeybindingLabel {
 		this.clear();
 
 		if (this.keybinding) {
-			const [firstPart, chordPart] = this.keybinding.getParts();
-			if (firstPart) {
-				this.renderPart(this.domNode, firstPart, this.matches ? this.matches.firstPart : null);
+			const [firstChord, secondChord] = this.keybinding.getChords();// TODO@chords
+			if (firstChord) {
+				this.renderChord(this.domNode, firstChord, this.matches ? this.matches.firstPart : null);
 			}
-			if (chordPart) {
+			if (secondChord) {
 				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
-				this.renderPart(this.domNode, chordPart, this.matches ? this.matches.chordPart : null);
+				this.renderChord(this.domNode, secondChord, this.matches ? this.matches.chordPart : null);
 			}
 			this.domNode.title = this.keybinding.getAriaLabel() || '';
 		} else if (this.options && this.options.renderUnboundKeybindings) {
@@ -114,21 +114,21 @@ export class KeybindingLabel {
 		this.keyElements.clear();
 	}
 
-	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches | null) {
+	private renderChord(parent: HTMLElement, chord: ResolvedChord, match: ChordMatches | null) {
 		const modifierLabels = UILabelProvider.modifierLabels[this.os];
-		if (part.ctrlKey) {
+		if (chord.ctrlKey) {
 			this.renderKey(parent, modifierLabels.ctrlKey, Boolean(match?.ctrlKey), modifierLabels.separator);
 		}
-		if (part.shiftKey) {
+		if (chord.shiftKey) {
 			this.renderKey(parent, modifierLabels.shiftKey, Boolean(match?.shiftKey), modifierLabels.separator);
 		}
-		if (part.altKey) {
+		if (chord.altKey) {
 			this.renderKey(parent, modifierLabels.altKey, Boolean(match?.altKey), modifierLabels.separator);
 		}
-		if (part.metaKey) {
+		if (chord.metaKey) {
 			this.renderKey(parent, modifierLabels.metaKey, Boolean(match?.metaKey), modifierLabels.separator);
 		}
-		const keyLabel = part.keyLabel;
+		const keyLabel = chord.keyLabel;
 		if (keyLabel) {
 			this.renderKey(parent, keyLabel, Boolean(match?.keyCode), '');
 		}
