@@ -222,7 +222,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && await this.pathService.hasValidBasename(input.preferredResource)) {
-			const fileNotFoundError = createEditorOpenError(new FileOperationError(localize('fileNotFoundError', "File not found"), FileOperationResult.FILE_NOT_FOUND), [
+			const fileNotFoundError = createEditorOpenError(new FileOperationError(localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found."), FileOperationResult.FILE_NOT_FOUND), [
 				toAction({
 					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {
 						await this.textFileService.create([{ resource: input.preferredResource }]);
