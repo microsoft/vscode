@@ -181,7 +181,7 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 		}
 
 		// Handle case where a file is too large to open without confirmation
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
 			let message: string;
 			if (error instanceof TooLargeFileOperationError) {
 				message = localize('fileTooLargeForHeapErrorWithSize', "The file is not displayed in the text editor because it is very large ({0}).", ByteSize.formatSize(error.size));

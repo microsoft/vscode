@@ -909,7 +909,7 @@ export interface IFileEditorInputOptions extends ITextEditorOptions {
 	readonly limits?: IFileReadLimits;
 }
 
-export function createTooLargeFileError(group: IEditorGroup | undefined, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
+export function createTooLargeFileError(group: IEditorGroup, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
 	return createEditorOpenError(message, [
 		toAction({
 			id: 'workbench.action.openLargeFile', label: localize('openLargeFile', "Open Anyway"), run: () => {
@@ -920,7 +920,7 @@ export function createTooLargeFileError(group: IEditorGroup | undefined, input: 
 					}
 				};
 
-				group?.openEditor(input, fileEditorOptions);
+				group.openEditor(input, fileEditorOptions);
 			}
 		}),
 		toAction({
