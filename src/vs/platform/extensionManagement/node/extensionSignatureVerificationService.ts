@@ -19,7 +19,7 @@ export interface IExtensionSignatureVerificationService {
 	 * @param { string } signatureArchiveFilePath The signature archive file path.
 	 * @returns { Promise<boolean> } A promise with `true` if the extension is validly signed and trusted;
 	 * otherwise, `false` because verification is not enabled (e.g.:  in the OSS version of VS Code).
-	 * @throws { ExtensionVerificationError } An error with a code indicating the validity, integrity, or trust issue
+	 * @throws { ExtensionSignatureVerificationError } An error with a code indicating the validity, integrity, or trust issue
 	 * found during verification or a more fundamental issue (e.g.:  a required dependency was not found).
 	 */
 	verify(vsixFilePath: string, signatureArchiveFilePath: string): Promise<boolean>;
