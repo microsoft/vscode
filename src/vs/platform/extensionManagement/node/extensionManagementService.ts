@@ -183,7 +183,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
 		if (!this.galleryService.isEnabled()) {
 			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
@@ -201,7 +201,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		} catch (e) {
 			throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
 		}
-		await this.installFromGallery(galleryExtension);
+		return this.installFromGallery(galleryExtension);
 	}
 
 	markAsUninstalled(...extensions: IExtension[]): Promise<void> {
