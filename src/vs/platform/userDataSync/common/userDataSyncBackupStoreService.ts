@@ -27,9 +27,30 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
+		this.cleanUp();
+	}
+
+	private async cleanUp(): Promise<void> {
 		for (const profile of this.userDataProfilesService.profiles) {
 			for (const resource of ALL_SYNC_RESOURCES) {
-				this.cleanUpBackup(this.getResourceBackupHome(profile, resource));
+				try {
+					await this.cleanUpBackup(this.getResourceBackupHome(profile, resource));
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+		}
+		const stat = await this.fileService.resolve(this.environmentService.userDataSyncHome);
+		if (stat.children) {
+			for (const child of stat.children) {
+				if (child.isDirectory && !this.userDataProfilesService.profiles.some(profile => profile.id === child.name)) {
+					try {
+						this.logService.info('Deleting non existing profile from backup', child.resource.path);
+						await this.fileService.del(child.resource, { recursive: true });
+					} catch (error) {
+						this.logService.error(error);
+					}
+				}
 			}
 		}
 	}
