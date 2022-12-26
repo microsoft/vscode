@@ -656,7 +656,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
-	abstract reinstallFromGallery(extension: ILocalExtension): Promise<void>;
+	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 
 	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
