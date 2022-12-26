@@ -947,7 +947,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return elementBottom < this.scrollTop;
 	}
 
-	updateElementHeight2(element: ICellViewModel, size: number): void {
+	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex: number | null = null): void {
 		const index = this._getViewIndexUpperBound(element);
 		if (index === undefined || index < 0 || index >= this.length) {
 			return;
@@ -972,29 +972,30 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					}
 				});
 			}
-			this.view.updateElementHeight(index, size, null);
+			this.view.updateElementHeight(index, size, anchorElementIndex);
 			return;
+		}
+
+		if (anchorElementIndex !== null) {
+			return this.view.updateElementHeight(index, size, anchorElementIndex);
 		}
 
 		const focused = this.getFocus();
 		if (!focused.length) {
-			this.view.updateElementHeight(index, size, null);
-			return;
+			return this.view.updateElementHeight(index, size, null);
 		}
 
 		const focus = focused[0];
 
 		if (focus <= index) {
-			this.view.updateElementHeight(index, size, focus);
-			return;
+			return this.view.updateElementHeight(index, size, focus);
 		}
 
 		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change.
 
 		if (this.view.elementTop(index) >= this.view.scrollTop) {
-			this.view.updateElementHeight(index, size, index);
-			return;
+			return this.view.updateElementHeight(index, size, index);
 		}
 
 		this.view.updateElementHeight(index, size, focus);

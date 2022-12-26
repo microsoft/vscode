@@ -54,6 +54,7 @@ import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platfo
 import { ILogService } from 'vs/platform/log/common/log';
 import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1920,6 +1921,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const { width, height, top, left } = this.lastLayout;
 			this.layout(width, height, top, left);
 		}
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.editorPane.setBoundarySashes(sashes);
 	}
 
 	toJSON(): ISerializedEditorGroupModel {

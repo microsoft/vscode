@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from 'vs/base/browser/dom';
-import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -33,13 +33,6 @@ interface IRelativeBoundarySashes {
 	readonly end?: Sash;
 	readonly orthogonalStart?: Sash;
 	readonly orthogonalEnd?: Sash;
-}
-
-export interface IBoundarySashes {
-	readonly top?: Sash;
-	readonly right?: Sash;
-	readonly bottom?: Sash;
-	readonly left?: Sash;
 }
 
 /**

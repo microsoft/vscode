@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
+import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum Constants {
 	/**
@@ -82,14 +83,17 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	// - Linux max length: 4096 ($PATH_MAX)
 	readonly maxLinkLength = 500;
 
+	private _os: OperatingSystem;
+
 	constructor(
 		readonly xterm: Terminal,
 		private readonly _capabilities: ITerminalCapabilityStore,
-		private readonly _os: OperatingSystem,
-		private readonly _resolvePath: (link: string) => Promise<ResolvedLink>,
+		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
+		@ITerminalLinkResolverService private readonly _terminalLinkResolverService: ITerminalLinkResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
+		this._os = _processManager.os || OS;
 	}
 
 	async detect(lines: IBufferLine[], startLine: number, endLine: number): Promise<ITerminalSimpleLink[]> {
@@ -310,7 +314,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
-			const result = await this._resolvePath(link);
+			const result = await this._terminalLinkResolverService.resolveLink(this._processManager, link);
 			if (result) {
 				return result;
 			}
