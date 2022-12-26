@@ -86,15 +86,15 @@ class CallsModel implements SymbolItemNavigation<CallItem>, SymbolItemEditorHigh
 	private async _resolveCalls(call: CallItem): Promise<CallItem[]> {
 		if (this.direction === CallsDirection.Incoming) {
 			const calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', call.item);
-			let callItemOut : CallItem[] = [];
+			const callItemOut : CallItem[] = [];
 			calls.forEach(item => { 
 				item.fromRanges.forEach((locs, idx) => {
-					var loc = new vscode.Location(call.item.uri, locs);
-					var detail = item.from.uri.fsPath.replace(/.*\//, '') + " ("+ (loc.range.start.line + 1) + ")";
+					const loc = new vscode.Location(call.item.uri, locs);
+					const detail = item.from.uri.fsPath.replace(/.*\//, '') + ' ('+ (loc.range.start.line + 1) + ')';
 					if (0 === idx) {
 						item.from.detail = detail;
 					}
-					var itemOut = (0 === idx) ? item.from : new vscode.CallHierarchyItem(item.from.kind, item.from.name, detail + CallItemCollapsibleStateSym, item.from.uri, item.from.range, item.from.selectionRange);
+					const itemOut = (0 === idx) ? item.from : new vscode.CallHierarchyItem(item.from.kind, item.from.name, detail + CallItemCollapsibleStateSym, item.from.uri, item.from.range, item.from.selectionRange);
 					callItemOut.push(new CallItem(this, itemOut, call, [loc]));
 				}, this);
 			}, this);
@@ -222,7 +222,7 @@ class CallItemDataProvider implements vscode.TreeDataProvider<CallItem> {
 			arguments: openArgs
 		};
 		const description = element.item.detail?.indexOf(CallItemCollapsibleStateSym);
-		if (description != -1) {
+		if (description !== -1) {
 			item.description = item.description?.substring(0, description);
 			item.collapsibleState = vscode.TreeItemCollapsibleState.None;
 		}
