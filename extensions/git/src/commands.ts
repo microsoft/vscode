@@ -382,15 +382,6 @@ export class CommandCenter {
 		await repository.status();
 	}
 
-	@command('git.manageUntrackedFolder', { repository: true })
-	async manageUntrackedFolder(repository: Repository): Promise<void> {
-		// if (!resource?.resourceUri) {
-		// 	return;
-		// }
-
-		// await repository.expandUntrackedFolder(resource.resourceUri);
-	}
-
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
 		const repository = this.model.getRepository(resource.resourceUri);
@@ -1081,6 +1072,13 @@ export class CommandCenter {
 		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
 			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 		const uris = resources.map(r => r.resourceUri);
+
+		await repository.add(uris);
+	}
+
+	@command('git.stageAllUntrackedFolders', { repository: true })
+	async stageAllUntrackedFolders(repository: Repository): Promise<void> {
+		const uris = repository.untrackedFoldersGroup.resourceStates.map(r => r.resourceUri);
 
 		await repository.add(uris);
 	}
@@ -3281,6 +3279,53 @@ export class CommandCenter {
 			await this.model.openRepository(unsafeRepository);
 			this.model.unsafeRepositories.delete(unsafeRepository);
 		}
+	}
+
+	@command('git.manageUntrackedFolders', { repository: true })
+	async manageUntrackedFolders(repository: Repository): Promise<void> {
+		const items: QuickPickItem[] = [];
+		repository.untrackedFolders.forEach((value: boolean, key: string) => {
+			items.push({
+				label: relativePath(repository.root, key),
+				description: path.basename(repository.root),
+				picked: value
+			});
+		});
+
+		const title = l10n.t('Manage Untracked Folders');
+		const placeHolder = l10n.t('Select a folder to start tracking it. Unselect a folder to stop tracking it.');
+
+		const result = await window.showQuickPick(items, { title, canPickMany: true, placeHolder, });
+		if (!result) {
+			return;
+		}
+
+		const trackedFolders = result.map(item => path.join(repository.root, item.label));
+		for (const key of repository.untrackedFolders.keys()) {
+			repository.untrackedFolders.set(key, trackedFolders.includes(key));
+		}
+		repository.status();
+	}
+
+	@command('git.trackUntrackedFolder')
+	async trackUntrackedFolders(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = resourceStates.map(r => r.resourceUri);
+		await this.runByRepository(resources, async (repository, resources) => {
+			for (const resource of resources) {
+				repository.untrackedFolders.set(resource.fsPath, true);
+			}
+
+			repository.status();
+		});
+	}
+
+	@command('git.trackAllUntrackedFolders', { repository: true })
+	async trackAllUntrackedFolders(repository: Repository): Promise<void> {
+		for (const key of repository.untrackedFolders.keys()) {
+			repository.untrackedFolders.set(key, true);
+		}
+
+		repository.status();
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

@@ -716,18 +716,19 @@
       {
         "command": "git.trackAllUntrackedFolders",
         "title": "%command.trackAllUntrackedFolders%",
-        "icon": "$(target)",
+        "icon": "$(new-folder)",
         "category": "Git"
       },
       {
         "command": "git.trackUntrackedFolder",
         "title": "%command.trackUntrackedFolder%",
-        "icon": "$(target)",
+        "icon": "$(new-folder)",
         "category": "Git"
       },
       {
         "command": "git.manageUntrackedFolders",
         "title": "%command.manageUntrackedFolders%",
+        "icon": "$(settings-gear)",
         "category": "Git"
       }
     ],
@@ -1341,9 +1342,14 @@
           "group": "inline@1"
         },
         {
-          "command": "git.stageAllUntrackedFolders",
+          "command": "git.manageUntrackedFolders",
           "when": "scmProvider == git && scmResourceGroup == untrackedFolders",
           "group": "inline@2"
+        },
+        {
+          "command": "git.stageAllUntrackedFolders",
+          "when": "scmProvider == git && scmResourceGroup == untrackedFolders",
+          "group": "inline@3"
         }
       ],
       "scm/resourceFolder/context": [

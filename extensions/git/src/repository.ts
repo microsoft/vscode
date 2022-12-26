@@ -740,6 +740,9 @@ export class Repository implements Disposable {
 	private _operations = new OperationManager(this.logger);
 	get operations(): OperationManager { return this._operations; }
 
+	private _untrackedFolders: Map<string, boolean> = new Map<string, boolean>();
+	get untrackedFolders(): Map<string, boolean> { return this._untrackedFolders; }
+
 	private _state = RepositoryState.Idle;
 	get state(): RepositoryState { return this._state; }
 	set state(state: RepositoryState) {
@@ -771,7 +774,6 @@ export class Repository implements Disposable {
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
-	private untrackedFolders: Map<string, boolean> = new Map<string, boolean>();
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -2052,13 +2054,19 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
-		const untrackedFolders = Array.from(this.untrackedFolders.keys());
+
+		const trackedFolders: string[] = [];
+		this.untrackedFolders.forEach((value, key) => {
+			if (value) {
+				trackedFolders.push(key);
+			}
+		});
 
 		const start = new Date().getTime();
 		const [statusResult, statusUntrackedResult] = await Promise.all([
 			this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken }),
-			untrackedFolders.length === 0 ? Promise.resolve({ status: [], statusLength: 0, didHitLimit: false }) :
-				this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, untrackedFolders, cancellationToken })
+			trackedFolders.length === 0 ? Promise.resolve({ status: [], statusLength: 0, didHitLimit: false }) :
+				this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, trackedFolders, cancellationToken })
 		]);
 		const totalTime = new Date().getTime() - start;
 
@@ -2144,36 +2152,42 @@ export class Repository implements Disposable {
 			workingTreeGroup: Resource[] = [];
 
 		const trackedPaths = new Set<string>(statusResult.status.map(s => s.path));
-		[...statusResult.status, ...statusUntrackedResult.status.filter(s => !trackedPaths.has(s.path))].forEach(raw => {
+		[...statusResult.status, ...statusUntrackedResult.status.filter(r => !trackedPaths.has(r.path))].forEach(raw => {
 			// TODO@lszomoru - Find a better way to do this
 			const isFolder = raw.path.endsWith('/');
+			const isUntrackedFolder = (raw.x.concat(raw.y) === '??' || raw.x.concat(raw.y) === '!!') && isFolder;
 
-			// If the path is an untracked folder that is being
-			// tracked then ignore it, as its contents are listed.
-			if (isFolder && this.untrackedFolders.get(raw.path)) {
-				return;
-			}
-
-			const uri = Uri.file(path.join(this.repository.root, raw.path));
+			const uri = Uri.file(path.join(this.repository.root, isFolder ? raw.path.substring(0, raw.path.length - 1) : raw.path));
 			const renameUri = raw.rename
 				? Uri.file(path.join(this.repository.root, raw.rename))
 				: undefined;
 
+			// Tracked Folder - the path is an tracked folder
+			// then ignore it, as its contents are listed.
+			if (isFolder && this.untrackedFolders.get(uri.fsPath)) {
+				return;
+			}
+
+			// Untracked Folder
+			if (isUntrackedFolder && !this.untrackedFolders.has(uri.fsPath)) {
+				this.untrackedFolders.set(uri.fsPath, false);
+			}
+
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
-					case 'mixed': return isFolder ?
+					case 'mixed': return isUntrackedFolder ?
 						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.UNTRACKED, useIcons)) :
 						workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
-					case 'separate': return isFolder ?
+					case 'separate': return isUntrackedFolder ?
 						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.UNTRACKED, useIcons)) :
 						untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
 				case '!!': switch (untrackedChanges) {
-					case 'mixed': return isFolder ?
+					case 'mixed': return isUntrackedFolder ?
 						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.IGNORED, useIcons)) :
 						workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
-					case 'separate': return isFolder ?
+					case 'separate': return isUntrackedFolder ?
 						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.IGNORED, useIcons)) :
 						untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
 					default: return undefined;

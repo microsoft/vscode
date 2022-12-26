@@ -1988,7 +1988,7 @@ export class Repository {
 		}
 	}
 
-	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; untrackedFolders?: string[]; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; trackedFolders?: string[]; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2000,7 +2000,7 @@ export class Repository {
 
 		if (opts?.untrackedChanges === 'hidden') {
 			args.push('-uno');
-		} else if (opts?.untrackedFolders?.length) {
+		} else if (opts?.trackedFolders?.length) {
 			args.push('-uall');
 		} else {
 			args.push('-unormal');
@@ -2010,7 +2010,7 @@ export class Repository {
 			args.push('--ignore-submodules');
 		}
 
-		args.push(...opts?.untrackedFolders || []);
+		args.push(...opts?.trackedFolders || []);
 
 		const child = this.stream(args, { env });
 
