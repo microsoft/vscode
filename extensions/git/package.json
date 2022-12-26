@@ -145,8 +145,22 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stageAllUntrackedFolders",
+        "title": "%command.stageAllUntrackedFolders%",
+        "category": "Git",
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.stageAllMerge",
         "title": "%command.stageAllMerge%",
+        "category": "Git",
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.stageUntrackedFolder",
+        "title": "%command.stageUntrackedFolder%",
         "category": "Git",
         "icon": "$(add)",
         "enablement": "!operationInProgress"
@@ -698,6 +712,23 @@
         "command": "git.manageUnsafeRepositories",
         "title": "%command.manageUnsafeRepositories%",
         "category": "Git"
+      },
+      {
+        "command": "git.trackAllUntrackedFolders",
+        "title": "%command.trackAllUntrackedFolders%",
+        "icon": "$(target)",
+        "category": "Git"
+      },
+      {
+        "command": "git.trackUntrackedFolder",
+        "title": "%command.trackUntrackedFolder%",
+        "icon": "$(target)",
+        "category": "Git"
+      },
+      {
+        "command": "git.manageUntrackedFolders",
+        "title": "%command.manageUntrackedFolders%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -772,6 +803,10 @@
         },
         {
           "command": "git.stageAllUntracked",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllUntrackedFolders",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1299,6 +1334,16 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "command": "git.trackAllUntrackedFolders",
+          "when": "scmProvider == git && scmResourceGroup == untrackedFolders",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.stageAllUntrackedFolders",
+          "when": "scmProvider == git && scmResourceGroup == untrackedFolders",
+          "group": "inline@2"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1593,6 +1638,16 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.trackUntrackedFolder",
+          "when": "scmProvider == git && scmResourceGroup == untrackedFolders",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.stageUntrackedFolder",
+          "when": "scmProvider == git && scmResourceGroup == untrackedFolders",
+          "group": "inline@2"
         }
       ],
       "editor/title": [

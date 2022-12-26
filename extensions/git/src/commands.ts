@@ -382,13 +382,13 @@ export class CommandCenter {
 		await repository.status();
 	}
 
-	@command('git.expandUntrackedFolder', { repository: true })
-	async expandUntrackedFolder(repository: Repository, resource?: Resource): Promise<void> {
-		if (!resource?.resourceUri) {
-			return;
-		}
+	@command('git.manageUntrackedFolder', { repository: true })
+	async manageUntrackedFolder(repository: Repository): Promise<void> {
+		// if (!resource?.resourceUri) {
+		// 	return;
+		// }
 
-		await repository.expandUntrackedFolder(resource.resourceUri);
+		// await repository.expandUntrackedFolder(resource.resourceUri);
 	}
 
 	@command('git.openResource')

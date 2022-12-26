@@ -111,6 +111,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.untrackedGroup, newDecorations);
+		this.collectDecorationData(this.repository.untrackedFoldersGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
 		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
 

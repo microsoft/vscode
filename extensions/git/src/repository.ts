@@ -40,7 +40,8 @@ export const enum ResourceGroupType {
 	Merge,
 	Index,
 	WorkingTree,
-	Untracked
+	Untracked,
+	UntrackedFolder
 }
 
 export class Resource implements SourceControlResourceState {
@@ -311,6 +312,7 @@ interface GitResourceGroups {
 	indexGroup?: Resource[];
 	mergeGroup?: Resource[];
 	untrackedGroup?: Resource[];
+	untrackedFoldersGroup?: Resource[];
 	workingTreeGroup?: Resource[];
 }
 
@@ -467,12 +469,11 @@ class ResourceCommandResolver {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const openDiffOnClick = config.get<boolean>('openDiffOnClick', true);
 
-		if (resource.resourceUri.fsPath.endsWith('/')) {
+		// Untracked Folders Group
+		if (resource.resourceGroupType === ResourceGroupType.UntrackedFolder) {
 			return {
-				command: 'git.expandUntrackedFolder',
-				title: l10n.t('Expand Untracked Folder'),
-				// HACK HACK HACK
-				arguments: [resource, resource]
+				command: 'git.manageUntrackedFolders',
+				title: l10n.t('Manage Untracked Folder')
 			};
 		}
 
@@ -653,6 +654,9 @@ export class Repository implements Disposable {
 	private _workingTreeGroup: SourceControlResourceGroup;
 	get workingTreeGroup(): GitResourceGroup { return this._workingTreeGroup as GitResourceGroup; }
 
+	private _untrackedFoldersGroup: SourceControlResourceGroup;
+	get untrackedFoldersGroup(): GitResourceGroup { return this._untrackedFoldersGroup as GitResourceGroup; }
+
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
 
@@ -767,7 +771,7 @@ export class Repository implements Disposable {
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
-	private untrackedFolders: Set<string> = new Set();
+	private untrackedFolders: Map<string, boolean> = new Map<string, boolean>();
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -823,6 +827,7 @@ export class Repository implements Disposable {
 		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'));
 		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'));
+		this._untrackedFoldersGroup = this._sourceControl.createResourceGroup('untrackedFolders', l10n.t('Untracked Folders'));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -859,11 +864,13 @@ export class Repository implements Disposable {
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
+		this.untrackedFoldersGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
+		this.disposables.push(this.untrackedFoldersGroup);
 
 		// Don't allow auto-fetch in untrusted workspaces
 		if (workspace.isTrusted) {
@@ -2027,6 +2034,7 @@ export class Repository implements Disposable {
 		// set resource groups
 		if (resourcesGroups.indexGroup) { this.indexGroup.resourceStates = resourcesGroups.indexGroup; }
 		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
+		if (resourcesGroups.untrackedFoldersGroup) { this.untrackedFoldersGroup.resourceStates = resourcesGroups.untrackedFoldersGroup; }
 		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
 		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
 
@@ -2044,7 +2052,7 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
-		const untrackedFolders = Array.from(this.untrackedFolders.values());
+		const untrackedFolders = Array.from(this.untrackedFolders.keys());
 
 		const start = new Date().getTime();
 		const [statusResult, statusUntrackedResult] = await Promise.all([
@@ -2132,12 +2140,17 @@ export class Repository implements Disposable {
 		const indexGroup: Resource[] = [],
 			mergeGroup: Resource[] = [],
 			untrackedGroup: Resource[] = [],
+			untrackedFoldersGroup: Resource[] = [],
 			workingTreeGroup: Resource[] = [];
 
 		const trackedPaths = new Set<string>(statusResult.status.map(s => s.path));
 		[...statusResult.status, ...statusUntrackedResult.status.filter(s => !trackedPaths.has(s.path))].forEach(raw => {
-			// If the path is in the untracked folders, ignore it since it will be expanded
-			if (untrackedFolders.includes(raw.path)) {
+			// TODO@lszomoru - Find a better way to do this
+			const isFolder = raw.path.endsWith('/');
+
+			// If the path is an untracked folder that is being
+			// tracked then ignore it, as its contents are listed.
+			if (isFolder && this.untrackedFolders.get(raw.path)) {
 				return;
 			}
 
@@ -2148,13 +2161,21 @@ export class Repository implements Disposable {
 
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
-					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
-					case 'separate': return untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
+					case 'mixed': return isFolder ?
+						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.UNTRACKED, useIcons)) :
+						workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+					case 'separate': return isFolder ?
+						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.UNTRACKED, useIcons)) :
+						untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
 				case '!!': switch (untrackedChanges) {
-					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
-					case 'separate': return untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
+					case 'mixed': return isFolder ?
+						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.IGNORED, useIcons)) :
+						workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+					case 'separate': return isFolder ?
+						untrackedFoldersGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.UntrackedFolder, uri, Status.IGNORED, useIcons)) :
+						untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
 					default: return undefined;
 				}
 				case 'DD': return mergeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
@@ -2183,7 +2204,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
+		return { indexGroup, mergeGroup, untrackedFoldersGroup, untrackedGroup, workingTreeGroup };
 	}
 
 	private setCountBadge(): void {
@@ -2429,11 +2450,6 @@ export class Repository implements Disposable {
 
 	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
 		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
-	}
-
-	public async expandUntrackedFolder(resourceUri: Uri): Promise<void> {
-		this.untrackedFolders.add(relativePath(this.root, resourceUri.fsPath));
-		await this.status();
 	}
 
 	dispose(): void {
