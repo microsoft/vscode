@@ -170,6 +170,7 @@
 .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
 	background-size: 16px;
+	font-size: 16px;
 	width: 26px;
 	height: 16px;
 	background-repeat: no-repeat;

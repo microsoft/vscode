@@ -343,7 +343,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 						{
 							actionViewItemProvider: action => this.actionViewItemProvider(action as Action),
 							actionRunner: this.actionRunner,
-							classNames: 'toolbar-toggle-pickReactions',
+							classNames: ['toolbar-toggle-pickReactions', ...Codicon.reactions.classNamesArray],
 							anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 						}
 					);
