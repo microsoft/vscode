@@ -209,7 +209,14 @@ class CallItemDataProvider implements vscode.TreeDataProvider<CallItem> {
 			title: vscode.l10n.t('Open Call'),
 			arguments: openArgs
 		};
-		item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		const description = element.item.detail?.indexOf(CallItemCollapsibleStateSym);
+		if (description !== -1) {
+			item.description = item.description?.substring(0, description);
+			item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+		}
+		else {
+			item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		}
 		return item;
 	}
 
