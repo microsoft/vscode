@@ -41,13 +41,19 @@ Language server host for typescript using vscode's sync-api in the browser
 - [x] Cancellation code in vscode is suspiciously prototypey.
    - Specifically, it adds the vscode-wasm cancellation to original cancellation code, but should actually switch to the former for web only.
    - looks like `isWeb()` is a way to check for being on the web
-- [ ] create multiple watchers
+- [x] create multiple watchers
    - on-demand instead of watching everything and checking on watch firing
+- [ ] get file watching to work
+   - it could *already* work, I just don't know how to test it
+   - look at extensions/markdown-language-features/src/client/fileWatchingManager.ts to see if I can use that
+   - later: it is OK. its main difference is that you can watch files in not-yet-created directories, and it maintains
+     a web of directory watches that then check whether the file is eventually created.
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
-- [ ] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
+- [x] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
 - [ ] clear out TODOs
 - [ ] think about implementing all the other ServerHost methods
   - also copy details from previous implementation (although it's syntax-only so only covers part)
+  - also copy details from node implementation in typescript proper
 - [ ] organise webServer.ts into multiple files
 - [ ] add semicolons everywhere; vscode's lint doesn't seem to complain, but the code clearly uses them
 

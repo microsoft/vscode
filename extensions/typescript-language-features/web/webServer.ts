@@ -17,6 +17,24 @@ let session: WorkerSession | undefined;
 const indent: (str: string) => string = (ts as any).server.indent;
 const setSys: (s: ts.System) => void = (ts as any).setSys;
 // End misc internals
+// BEGIN tsserver/nodeServer.ts
+function parseServerMode(args: string[]): ts.LanguageServiceMode | string | undefined {
+	const mode = findArgument(args, "--serverMode");
+	if (!mode) return undefined;
+
+	switch (mode.toLowerCase()) {
+		case "semantic":
+			return ts.LanguageServiceMode.Semantic;
+		case "partialsemantic":
+			return ts.LanguageServiceMode.PartialSemantic;
+		case "syntactic":
+			return ts.LanguageServiceMode.Syntactic;
+		default:
+			return mode;
+	}
+}
+// END tsserver/nodeServer.ts
+
 // BEGIN webServer/webServer.ts
 function fromResource(extensionUri: URI, uri: URI) {
 	if (uri.scheme === extensionUri.scheme && uri.authority === extensionUri.authority && uri.path.startsWith(extensionUri.path + '/dist/browser/typescript/lib.') && uri.path.endsWith('.d.ts')) {
@@ -427,17 +445,15 @@ serverLogger.startGroup = () => { }
 serverLogger.endGroup = () => { }
 serverLogger.getLogFileName = () => "tsserver.log"
 function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>, fsWatcher: MessagePort): void {
-	// TODO: Parse args for partial semantic mode -- need to have both but right now both start in semantic mode.
-	// webServer.ts
-	// getWebPath
-	// ScriptInfo.ts:isDynamicFilename <-- better predicate than trimHat
-	const serverMode = ts.LanguageServiceMode.Semantic
-	const unknownServerMode = undefined
+	const modeOrUnknown = parseServerMode(args);
+	const serverMode = typeof modeOrUnknown === "number" ? modeOrUnknown : undefined;
+	const unknownServerMode = typeof modeOrUnknown === "string" ? modeOrUnknown : undefined;
+	const syntaxOnly = hasArgument(args, "--syntaxOnly");
 	serverLogger.info(`Starting TS Server`);
 	serverLogger.info(`Version: 0.0.0`);
 	serverLogger.info(`Arguments: ${args.join(" ")}`);
 	serverLogger.info(`Platform: ${platform} CaseSensitive: true`);
-	serverLogger.info(`ServerMode: ${serverMode} syntaxOnly: false hasUnknownServerMode: ${unknownServerMode}`);
+	serverLogger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} unknownServerMode: ${unknownServerMode}`);
 	startSession({
 		globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
 		pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
@@ -446,7 +462,7 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 		useInferredProjectPerProjectRoot: hasArgument(args, "--useInferredProjectPerProjectRoot"),
 		suppressDiagnosticEvents: hasArgument(args, "--suppressDiagnosticEvents"),
 		noGetErrOnBackgroundUpdate: hasArgument(args, "--noGetErrOnBackgroundUpdate"),
-		syntaxOnly: false,
+		syntaxOnly,
 		serverMode
 	},
 		extensionUri,
