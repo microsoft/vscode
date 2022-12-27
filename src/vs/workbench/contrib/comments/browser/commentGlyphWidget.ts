@@ -8,11 +8,12 @@ import { Color } from 'vs/base/common/color';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { darken, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { darken, editorForeground, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 
 export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: listInactiveSelectionBackground, light: darken(listInactiveSelectionBackground, .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
+registerColor('editorGutter.commentGlyphForground', { dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white }, nls.localize('editorGutterCommentGlyphForeground', 'Editor gutter decoration color for commenting glyphs.'));
 
 export class CommentGlyphWidget {
 	public static description = 'comment-glyph-widget';
