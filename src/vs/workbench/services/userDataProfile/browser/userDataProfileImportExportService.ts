@@ -410,25 +410,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (this.profileContentHandlers.size === 1) {
 			return this.profileContentHandlers.values().next().value;
 		}
-		const linkHandlers: { id: string; label: string }[] = [];
-		const fileHandlers: { id: string; label: string }[] = [];
-		for (const [id, profileContentHandler] of this.profileContentHandlers) {
-			if (profileContentHandler.extensionId) {
-				linkHandlers.push({ id, label: profileContentHandler.name });
-			} else {
-				fileHandlers.push({ id, label: profileContentHandler.name });
-			}
-		}
 		const options: QuickPickItem[] = [];
-		if (linkHandlers.length) {
-			options.push({ label: localize('link', "link"), type: 'separator' });
-			options.push(...linkHandlers);
+		for (const [id, profileContentHandler] of this.profileContentHandlers) {
+			options.push({ id, label: profileContentHandler.name, description: profileContentHandler.description });
 		}
-		if (fileHandlers.length) {
-			options.push({ label: localize('file', "file"), type: 'separator' });
-			options.push(...fileHandlers);
-		}
-		const result = await this.quickInputService.pick(options,
+		const result = await this.quickInputService.pick(options.reverse(),
 			{
 				title: localize('select profile content handler', "Export '{0}' profile as...", name),
 				hideInput: true
@@ -599,6 +585,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 class FileUserDataProfileContentHandler implements IUserDataProfileContentHandler {
 
 	readonly name = localize('local', "Local");
+	readonly description = localize('file', "file");
 
 	constructor(
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,

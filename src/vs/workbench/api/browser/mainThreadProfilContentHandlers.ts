@@ -26,9 +26,10 @@ export class MainThreadProfileContentHandlers extends Disposable implements Main
 		this.proxy = context.getProxy(ExtHostContext.ExtHostProfileContentHandlers);
 	}
 
-	async $registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void> {
+	async $registerProfileContentHandler(id: string, name: string, description: string | undefined, extensionId: string): Promise<void> {
 		this.registeredHandlers.set(id, this.userDataProfileImportExportService.registerProfileContentHandler(id, {
 			name,
+			description,
 			extensionId,
 			saveProfile: async (name: string, content: string, token: CancellationToken) => {
 				const result = await this.proxy.$saveProfile(id, name, content, token);

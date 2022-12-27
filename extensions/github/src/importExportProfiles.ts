@@ -13,6 +13,7 @@ import { URL } from 'url';
 class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 
 	readonly name = vscode.l10n.t('GitHub');
+	readonly description = vscode.l10n.t('gist');
 
 	private _octokit: Promise<Octokit> | undefined;
 	private getOctokit(): Promise<Octokit> {

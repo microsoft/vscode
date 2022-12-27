@@ -37,7 +37,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		}
 
 		this.handlers.set(id, handler);
-		this.proxy.$registerProfileContentHandler(id, handler.name, extension.identifier.value);
+		this.proxy.$registerProfileContentHandler(id, handler.name, handler.description, extension.identifier.value);
 
 		return toDisposable(() => {
 			this.handlers.delete(id);
