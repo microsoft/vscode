@@ -17,24 +17,6 @@ let session: WorkerSession | undefined;
 const indent: (str: string) => string = (ts as any).server.indent;
 const setSys: (s: ts.System) => void = (ts as any).setSys;
 // End misc internals
-// BEGIN tsserver/nodeServer.ts
-function parseServerMode(args: string[]): ts.LanguageServiceMode | string | undefined {
-	const mode = findArgument(args, "--serverMode");
-	if (!mode) return undefined;
-
-	switch (mode.toLowerCase()) {
-		case "semantic":
-			return ts.LanguageServiceMode.Semantic;
-		case "partialsemantic":
-			return ts.LanguageServiceMode.PartialSemantic;
-		case "syntactic":
-			return ts.LanguageServiceMode.Syntactic;
-		default:
-			return mode;
-	}
-}
-// END tsserver/nodeServer.ts
-
 // BEGIN webServer/webServer.ts
 function fromResource(extensionUri: URI, uri: URI) {
 	if (uri.scheme === extensionUri.scheme && uri.authority === extensionUri.authority && uri.path.startsWith(extensionUri.path + '/dist/browser/typescript/lib.') && uri.path.endsWith('.d.ts')) {
@@ -42,7 +24,7 @@ function fromResource(extensionUri: URI, uri: URI) {
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`
 }
-function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any) => void), apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ts.server.ServerHost {
+function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ts.server.ServerHost {
 	/**
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
@@ -132,7 +114,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.readFile`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return undefined
 			}
 		},
@@ -143,7 +125,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.getFileSize`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return -1 // TODO: Find out what the failure return value is in the normal host.
 			}
 		},
@@ -154,7 +136,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.writeFile`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 			}
 		},
 		/** If TS' webServer/webServer.ts is good enough to copy here, this is just identity */
@@ -170,7 +152,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.fileExists for ${path}`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return false
 			}
 		},
@@ -182,7 +164,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.directoryExists for ${path}`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return false
 			}
 		},
@@ -194,7 +176,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.createDirectory`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 			}
 		},
 		getExecutingFilePath(): string {
@@ -212,7 +194,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.getDirectory`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return []
 			}
 		},
@@ -231,7 +213,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.readDirectory`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return []
 			}
 		},
@@ -242,7 +224,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.getModifiedTime`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 				return undefined
 			}
 		},
@@ -254,7 +236,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 			}
 			catch (e) {
 				logger.info(`Error fs.deleteFile`)
-				logger(e)
+				logger.info(JSON.stringify(e))
 			}
 		},
 		/**
@@ -300,7 +282,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger & ((x: any
 	}
 }
 
-function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), fsWatcher: MessagePort) {
+function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort) {
 	logger.info("in createWebSystem")
 	// TODO: Why is args empty?
 	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), [], fsWatcher)
@@ -427,33 +409,39 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger & ((x: any) => void), fsWatcher: MessagePort) {
+function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort) {
 	session = new WorkerSession(createWebSystem(extensionUri, connection, logger, fsWatcher), options, tsserver, logger, hrtime)
 	session.listen(tsserver)
 }
 // END tsserver/webServer.ts
+// BEGIN tsserver/nodeServer.ts
+function parseServerMode(args: string[]): ts.LanguageServiceMode | string | undefined {
+	const mode = findArgument(args, "--serverMode");
+	if (!mode) return undefined;
+
+	switch (mode.toLowerCase()) {
+		case "semantic":
+			return ts.LanguageServiceMode.Semantic;
+		case "partialsemantic":
+			return ts.LanguageServiceMode.PartialSemantic;
+		case "syntactic":
+			return ts.LanguageServiceMode.Syntactic;
+		default:
+			return mode;
+	}
+}
+// END tsserver/nodeServer.ts
 // BEGIN tsserver/server.ts
-// TODO: 1. Get rid of function signature and inline JSON.stringifys 2. Make a createLogger and call it inside initializeSession
-const serverLogger: ts.server.Logger & ((x: any) => void) = (x: any) => postMessage({ type: "log", body: JSON.stringify(x) + '\n' }) as any
-serverLogger.close = () => { }
-serverLogger.hasLevel = level => level <= ts.server.LogLevel.verbose
-serverLogger.loggingEnabled = () => true
-serverLogger.perftrc = () => { }
-serverLogger.info = s => postMessage({ type: "log", body: s + '\n' })
-serverLogger.msg = s => postMessage({ type: "log", body: s + '\n' })
-serverLogger.startGroup = () => { }
-serverLogger.endGroup = () => { }
-serverLogger.getLogFileName = () => "tsserver.log"
-function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>, fsWatcher: MessagePort): void {
+function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort): void {
 	const modeOrUnknown = parseServerMode(args);
 	const serverMode = typeof modeOrUnknown === "number" ? modeOrUnknown : undefined;
 	const unknownServerMode = typeof modeOrUnknown === "string" ? modeOrUnknown : undefined;
 	const syntaxOnly = hasArgument(args, "--syntaxOnly");
-	serverLogger.info(`Starting TS Server`);
-	serverLogger.info(`Version: 0.0.0`);
-	serverLogger.info(`Arguments: ${args.join(" ")}`);
-	serverLogger.info(`Platform: ${platform} CaseSensitive: true`);
-	serverLogger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} unknownServerMode: ${unknownServerMode}`);
+	logger.info(`Starting TS Server`);
+	logger.info(`Version: 0.0.0`);
+	logger.info(`Arguments: ${args.join(" ")}`);
+	logger.info(`Platform: ${platform} CaseSensitive: true`);
+	logger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} unknownServerMode: ${unknownServerMode}`);
 	startSession({
 		globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
 		pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
@@ -468,7 +456,7 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 		extensionUri,
 		tsserver,
 		connection,
-		serverLogger,
+		logger,
 		fsWatcher);
 }
 function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
@@ -513,11 +501,22 @@ let initial: Promise<any> | undefined;
 const listener = async (e: any) => {
 	if (!initial) {
 		if ('args' in e.data) {
+			const logger: ts.server.Logger = {
+				close: () => { },
+				hasLevel: level => level <= ts.server.LogLevel.verbose,
+				loggingEnabled: () => true,
+				perftrc: () => { },
+				info: s => postMessage({ type: "log", body: s + '\n' }),
+				msg: s => postMessage({ type: "log", body: s + '\n' }),
+				startGroup: () => { },
+				endGroup: () => { },
+				getLogFileName: () => "tsserver.log",
+			};
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			const extensionUri = URI.from(e.data.extensionUri);
-			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri, serverLogger);
+			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri, logger);
 			const connection = new ClientConnection<Requests>(sync);
-			initial = connection.serviceReady().then(() => initializeSession(e.data.args, extensionUri, "vscode-web", tsserver, connection, watcher));
+			initial = connection.serviceReady().then(() => initializeSession(e.data.args, extensionUri, "vscode-web", tsserver, connection, logger, watcher));
 		}
 		else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
