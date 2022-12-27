@@ -92,7 +92,7 @@ suite('QuickFixAddon', () => {
 					strictEqual(await (getQuickFixesForCommand([], terminal, createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), undefined);
 				});
 			});
-			suite('returns undefined when', () => {
+			suite('returns actions when', () => {
 				test('expected unix exit code', async () => {
 					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), actions);
 				});
@@ -166,7 +166,7 @@ suite('QuickFixAddon', () => {
 					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(`gt sttatus`, output, GitTwoDashesRegex, exitCode), expectedMap, openerService, labelService)), undefined);
 				});
 			});
-			suite('returns undefined when', () => {
+			suite('returns actions when', () => {
 				test('expected unix exit code', async () => {
 					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitTwoDashesRegex, exitCode), expectedMap, openerService, labelService)), actions);
 				});
