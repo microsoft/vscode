@@ -54,7 +54,7 @@ export const enum CallsDirection {
 	Outgoing
 }
 
-
+export const CallItemCollapsibleStateSym = ':-';
 
 export class CallItem {
 
