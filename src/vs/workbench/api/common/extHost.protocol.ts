@@ -1087,7 +1087,7 @@ export interface ExtHostUriOpenersShape {
 }
 
 export interface MainThreadProfileContentHandlersShape {
-	$registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void>;
+	$registerProfileContentHandler(id: string, name: string, description: string | undefined, extensionId: string): Promise<void>;
 	$unregisterProfileContentHandler(id: string): Promise<void>;
 }
 

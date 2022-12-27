@@ -112,6 +112,7 @@ export interface ISaveProfileResult {
 
 export interface IUserDataProfileContentHandler {
 	readonly name: string;
+	readonly description?: string;
 	readonly extensionId?: string;
 	saveProfile(name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null>;
 	readProfile(idOrUri: string | URI, token: CancellationToken): Promise<string | null>;
