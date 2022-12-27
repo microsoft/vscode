@@ -89,6 +89,10 @@ class CallsModel implements SymbolItemNavigation<CallItem>, SymbolItemEditorHigh
 			const callItemOut: CallItem[] = [];
 			calls.forEach(item => {
 				item.fromRanges.forEach((locs, idx) => {
+					const loc = new vscode.Location(call.item.uri, locs);
+					if (0 === idx) {
+						item.from.detail = loc.range.start.line + ')';
+					}
 				}, this);
 			}, this);
 			return callItemOut;
