@@ -86,7 +86,12 @@ class CallsModel implements SymbolItemNavigation<CallItem>, SymbolItemEditorHigh
 	private async _resolveCalls(call: CallItem): Promise<CallItem[]> {
 		if (this.direction === CallsDirection.Incoming) {
 			const calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', call.item);
-			return calls ? calls.map(item => new CallItem(this, item.from, call, item.fromRanges.map(range => new vscode.Location(item.from.uri, range)))) : [];
+			const callItemOut: CallItem[] = [];
+			calls.forEach(item => { 
+				item.fromRanges.forEach((locs, idx) => {
+				}, this);
+			}, this);
+			return callItemOut;
 		} else {
 			const calls = await vscode.commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', call.item);
 			return calls ? calls.map(item => new CallItem(this, item.to, call, item.fromRanges.map(range => new vscode.Location(call.item.uri, range)))) : [];
