@@ -1566,11 +1566,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					this._onChange.fire(extension);
 				}
 				const local = await installTask();
-				return this.waitAndGetInstalledExtension(local.identifier);
+				return await this.waitAndGetInstalledExtension(local.identifier);
 			} finally {
 				if (!(extension instanceof URI)) {
 					this.installing = this.installing.filter(e => e !== extension);
-					this._onChange.fire(extension);
+					// Trigger the change without passing the extension because it is replaced by a new instance.
+					this._onChange.fire(undefined);
 				}
 			}
 		});
