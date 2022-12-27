@@ -90,9 +90,12 @@ class CallsModel implements SymbolItemNavigation<CallItem>, SymbolItemEditorHigh
 			calls.forEach(item => {
 				item.fromRanges.forEach((locs, idx) => {
 					const loc = new vscode.Location(call.item.uri, locs);
+					const detail = item.from.uri.fsPath.replace(/.*\//, '') + ' (' + (loc.range.start.line + 1) + ')';
 					if (0 === idx) {
-						item.from.detail = loc.range.start.line + ')';
+						item.from.detail = detail;
 					}
+					const itemOut = (0 === idx) ? item.from : new vscode.CallHierarchyItem(item.from.kind, item.from.name, detail + CallItemCollapsibleStateSym, item.from.uri, item.from.range, item.from.selectionRange);
+					callItemOut.push(new CallItem(this, itemOut, call, [loc]));
 				}, this);
 			}, this);
 			return callItemOut;
