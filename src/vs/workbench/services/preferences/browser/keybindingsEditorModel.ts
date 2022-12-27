@@ -19,6 +19,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingItem } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
+import { isEmptyObject } from 'vs/base/common/types';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
@@ -348,8 +349,13 @@ class KeybindingItemMatches {
 		if (matchedWords.length !== words.length) {
 			return null;
 		}
-		if (completeMatch && (!this.isCompleteMatch(firstPart, firstPartMatch) || !this.isCompleteMatch(chordPart, chordPartMatch))) {
-			return null;
+		if (completeMatch) {
+			if (!this.isCompleteMatch(firstPart, firstPartMatch)) {
+				return null;
+			}
+			if (!isEmptyObject(chordPartMatch) && !this.isCompleteMatch(chordPart, chordPartMatch)) {
+				return null;
+			}
 		}
 		return this.hasAnyMatch(firstPartMatch) || this.hasAnyMatch(chordPartMatch) ? { firstPart: firstPartMatch, chordPart: chordPartMatch } : null;
 	}
