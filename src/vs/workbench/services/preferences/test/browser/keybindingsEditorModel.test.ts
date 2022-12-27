@@ -18,7 +18,8 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/preferences';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -31,13 +32,17 @@ suite('KeybindingsEditorModel', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditorModel;
+	let extensions: Partial<IExtensionDescription>[] = [];
 
 	setup(() => {
+		extensions = [];
 		instantiationService = new TestInstantiationService();
 
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IExtensionService, {}, 'whenInstalledExtensionsRegistered', () => Promise.resolve(null));
-
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
+			get extensions() { return extensions; }
+		});
 		testObject = instantiationService.createInstance(KeybindingsEditorModel, OS);
 
 		CommandsRegistry.registerCommand('command_without_keybinding', () => { });
@@ -227,13 +232,13 @@ suite('KeybindingsEditorModel', () => {
 		assert.ok(actual);
 	});
 
-	test('filter by default source', async () => {
+	test('filter by system source', async () => {
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
 		prepareKeybindingService(expected);
 
 		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('default').filter(element => element.keybindingItem.command === command)[0];
+		const actual = testObject.fetch('system').filter(element => element.keybindingItem.command === command)[0];
 		assert.ok(actual);
 	});
 
@@ -672,11 +677,29 @@ suite('KeybindingsEditorModel', () => {
 		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
 	});
 
+	test('filter by extension', async () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const command1 = `command.${uuid.generateUuid()}`;
+		const command2 = `command.${uuid.generateUuid()}`;
+		extensions.push({ identifier: new ExtensionIdentifier('foo'), displayName: 'foo bar' }, { identifier: new ExtensionIdentifier('bar'), displayName: 'bar foo' });
+		MenuRegistry.addCommand({ id: command2, title: 'title', category: 'category', source: { id: extensions[1].identifier!.value, title: extensions[1].displayName! } });
+		const expected = aResolvedKeybindingItem({ command: command1, firstChord: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: true, extensionId: extensions[0].identifier!.value });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: command2, isDefault: true }));
+
+		await testObject.resolve(new Map<string, string>());
+		let actual = testObject.fetch('@ext:foo');
+		assert.strictEqual(1, actual.length);
+		assert.deepStrictEqual(actual[0].keybindingItem.command, command1);
+
+		actual = testObject.fetch('@ext:"bar foo"');
+		assert.strictEqual(1, actual.length);
+		assert.deepStrictEqual(actual[0].keybindingItem.command, command2);
+	});
+
 	function prepareKeybindingService(...keybindingItems: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		instantiationService.stub(IKeybindingService, 'getKeybindings', () => keybindingItems);
 		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => keybindingItems);
 		return keybindingItems;
-
 	}
 
 	function registerCommandWithTitle(command: string, title: string): void {
@@ -717,7 +740,7 @@ suite('KeybindingsEditorModel', () => {
 		}
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord, extensionId }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers }; extensionId?: string }): ResolvedKeybindingItem {
 		const aSimpleKeybinding = function (chord: { keyCode: KeyCode; modifiers?: Modifiers }): KeyCodeChord {
 			const { ctrlKey, shiftKey, altKey, metaKey } = chord.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new KeyCodeChord(ctrlKey!, shiftKey!, altKey!, metaKey!, chord.keyCode);
@@ -730,7 +753,7 @@ suite('KeybindingsEditorModel', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, extensionId ?? null, false);
 	}
 
 	function asResolvedKeybindingItems(keybindingEntries: IKeybindingItemEntry[], keepUnassigned: boolean = false): ResolvedKeybindingItem[] {

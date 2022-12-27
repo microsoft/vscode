@@ -1024,7 +1024,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return null;
 	}
 
-	async open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void> {
+	async open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void> {
+		if (typeof extension === 'string') {
+			const id = extension;
+			extension = this.installed.find(e => areSameExtensions(e.identifier, { id })) ?? (await this.getExtensions([{ id: extension }], CancellationToken.None))[0];
+		}
+		if (!extension) {
+			throw new Error(`Extension not found. ${extension}`);
+		}
 		const editor = await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
 		if (options?.tab && editor instanceof ExtensionEditor) {
 			await editor.openTab(options.tab);
