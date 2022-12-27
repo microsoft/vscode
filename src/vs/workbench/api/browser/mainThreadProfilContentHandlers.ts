@@ -5,10 +5,11 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, ExtHostProfileContentHandlersShape, MainContext, MainThreadProfileContentHandlersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IUserDataProfileImportExportService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { ISaveProfileResult, IUserDataProfileImportExportService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 @extHostNamedCustomer(MainContext.MainThreadProfileContentHandlers)
 export class MainThreadProfileContentHandlers extends Disposable implements MainThreadProfileContentHandlersShape {
@@ -31,7 +32,7 @@ export class MainThreadProfileContentHandlers extends Disposable implements Main
 			extensionId,
 			saveProfile: async (name: string, content: string, token: CancellationToken) => {
 				const result = await this.proxy.$saveProfile(id, name, content, token);
-				return result ? URI.revive(result) : null;
+				return result ? revive<ISaveProfileResult>(result) : null;
 			},
 			readProfile: async (uri: URI, token: CancellationToken) => {
 				return this.proxy.$readProfile(id, uri, token);

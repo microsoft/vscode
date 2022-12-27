@@ -8,7 +8,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as DOM from 'vs/base/browser/dom';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TTILE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TTILE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -87,6 +87,7 @@ const EXPORT_PROFILE_PREVIEW_VIEW = 'workbench.views.profiles.export.preview';
 export class UserDataProfileImportExportService extends Disposable implements IUserDataProfileImportExportService, IURLHandler {
 
 	private static readonly PROFILE_URL_AUTHORITY_PREFIX = 'profile-';
+	private static readonly PROFILE_URL_AUTHORITY = 'profile';
 
 	readonly _serviceBrand: undefined;
 
@@ -116,6 +117,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		@IRequestService private readonly requestService: IRequestService,
 		@IURLService urlService: IURLService,
 		@IProductService private readonly productService: IProductService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -139,7 +141,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private isProfileURL(uri: URI): boolean {
-		return new RegExp(`^${UserDataProfileImportExportService.PROFILE_URL_AUTHORITY_PREFIX}`).test(uri.authority);
+		return uri.authority === UserDataProfileImportExportService.PROFILE_URL_AUTHORITY || new RegExp(`^${UserDataProfileImportExportService.PROFILE_URL_AUTHORITY_PREFIX}`).test(uri.authority);
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {
@@ -322,14 +324,24 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				location: ProgressLocation.Window,
 				title: localize('profiles.exporting', "{0}: Exporting...", PROFILES_CATEGORY.value),
 			}, async progress => {
-				const saveResult = await this.saveProfileContent(profile.name, JSON.stringify(profile));
-				if (saveResult) {
-					const profileHandler = this.profileContentHandlers.get(saveResult.id);
-					const buttons = profileHandler?.extensionId ? [localize('copy', "Copy Link"), localize('open', "Open in {0}", profileHandler?.name), localize('close', "Close")] : undefined;
+				const id = await this.pickProfileContentHandler(profile.name);
+				if (!id) {
+					return;
+				}
+				const profileContentHandler = this.profileContentHandlers.get(id);
+				if (!profileContentHandler) {
+					return;
+				}
+				const saveResult = await profileContentHandler.saveProfile(profile.name, JSON.stringify(profile), CancellationToken.None);
+				if (!saveResult) {
+					return;
+				}
+				const message = localize('export success', "Profile '{0}' is exported successfully.", profile.name);
+				if (profileContentHandler.extensionId) {
 					const result = await this.dialogService.show(
 						Severity.Info,
-						localize('export success', "Profile '{0}' is exported successfully.", profile.name),
-						buttons,
+						message,
+						[localize('copy', "Copy Link"), localize('open', "Open in {0}", profileContentHandler.name), localize('close', "Close")],
 						{ cancelId: 2 }
 					);
 					switch (result.choice) {
@@ -337,33 +349,22 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 							await this.clipboardService.writeText(
 								URI.from({
 									scheme: this.productService.urlProtocol,
-									authority: `${UserDataProfileImportExportService.PROFILE_URL_AUTHORITY_PREFIX}${saveResult.id}`,
-									path: `/${saveResult.resource.toString()}`
+									authority: `${UserDataProfileImportExportService.PROFILE_URL_AUTHORITY}`,
+									path: `/${id}/${saveResult.id}`
 								}).toString());
 							break;
 						case 1:
-							await this.openerService.open(saveResult.resource.toString());
+							await this.openerService.open(saveResult.link.toString());
 							break;
 
 					}
+				} else {
+					await this.dialogService.show(Severity.Info, message);
 				}
 			});
 		} finally {
 			disposables.dispose();
 		}
-	}
-
-	private async saveProfileContent(name: string, content: string): Promise<{ resource: URI; id: string } | null> {
-		const id = await this.pickProfileContentHandler(name);
-		if (!id) {
-			return null;
-		}
-		const profileContentHandler = this.profileContentHandlers.get(id);
-		if (!profileContentHandler) {
-			return null;
-		}
-		const resource = await profileContentHandler.saveProfile(name, content, CancellationToken.None);
-		return resource ? { resource, id } : null;
 	}
 
 	private async resolveProfileContent(resource: URI): Promise<string | null> {
@@ -372,11 +373,18 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 
 		if (this.isProfileURL(resource)) {
-			const handlerId = resource.authority.substring(UserDataProfileImportExportService.PROFILE_URL_AUTHORITY_PREFIX.length);
+			let handlerId: string, idOrUri: string | URI;
+			if (resource.authority === UserDataProfileImportExportService.PROFILE_URL_AUTHORITY) {
+				idOrUri = this.uriIdentityService.extUri.basename(resource);
+				handlerId = this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(resource));
+			} else {
+				handlerId = resource.authority.substring(UserDataProfileImportExportService.PROFILE_URL_AUTHORITY_PREFIX.length);
+				idOrUri = URI.parse(resource.path.substring(1));
+			}
 			await this.extensionService.activateByEvent(`onProfile:${handlerId}`);
 			const profileContentHandler = this.profileContentHandlers.get(handlerId);
 			if (profileContentHandler) {
-				return profileContentHandler.readProfile(URI.parse(resource.path.substring(1)), CancellationToken.None);
+				return profileContentHandler.readProfile(idOrUri, CancellationToken.None);
 			}
 		}
 
@@ -599,17 +607,17 @@ class FileUserDataProfileContentHandler implements IUserDataProfileContentHandle
 		@ITextFileService private readonly textFileService: ITextFileService,
 	) { }
 
-	async saveProfile(name: string, content: string, token: CancellationToken): Promise<URI | null> {
-		const profileLocation = await this.fileDialogService.showSaveDialog({
+	async saveProfile(name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null> {
+		const link = await this.fileDialogService.showSaveDialog({
 			title: localize('export profile dialog', "Save Profile"),
 			filters: PROFILE_FILTER,
 			defaultUri: this.uriIdentityService.extUri.joinPath(await this.fileDialogService.defaultFilePath(), `${name}.${PROFILE_EXTENSION}`),
 		});
-		if (!profileLocation) {
+		if (!link) {
 			return null;
 		}
-		await this.textFileService.create([{ resource: profileLocation, value: content, options: { overwrite: true } }]);
-		return profileLocation;
+		await this.textFileService.create([{ resource: link, value: content, options: { overwrite: true } }]);
+		return { link, id: link.toString() };
 	}
 
 	async readProfile(uri: URI, token: CancellationToken): Promise<string | null> {
