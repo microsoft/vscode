@@ -30,7 +30,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { Change, IRemoteUserData, ISyncData, ISyncExtension, ISyncExtensionWithVersion, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, ISyncData, ISyncExtension, ISyncExtensionWithVersion, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, EXTENSIONS_SYNC_CONTEXT_KEY } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
@@ -385,22 +385,14 @@ export class LocalExtensionsProvider {
 
 	async updateLocalExtensions(added: ISyncExtension[], removed: IExtensionIdentifier[], updated: ISyncExtension[], skippedExtensions: ISyncExtension[], profile: IUserDataProfile): Promise<ISyncExtension[]> {
 		const syncResourceLogLabel = getSyncResourceLogLabel(SyncResource.Extensions, profile);
-		return this.withProfileScopedServices(profile, async (extensionEnablementService, extensionStorageService) => {
-			const removeFromSkipped: IExtensionIdentifier[] = [];
-			const addToSkipped: ISyncExtension[] = [];
-			const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
+		const extensionsToInstall: [ISyncExtension, IGalleryExtension][] = [];
+		const removeFromSkipped: IExtensionIdentifier[] = [];
+		const addToSkipped: ISyncExtension[] = [];
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
 
-			if (removed.length) {
-				const extensionsToRemove = installedExtensions.filter(({ identifier, isBuiltin }) => !isBuiltin && removed.some(r => areSameExtensions(identifier, r)));
-				await Promises.settled(extensionsToRemove.map(async extensionToRemove => {
-					this.logService.trace(`${syncResourceLogLabel}: Uninstalling local extension...`, extensionToRemove.identifier.id);
-					await this.extensionManagementService.uninstall(extensionToRemove, { donotIncludePack: true, donotCheckDependents: true, profileLocation: profile.extensionsResource });
-					this.logService.info(`${syncResourceLogLabel}: Uninstalled local extension.`, extensionToRemove.identifier.id);
-					removeFromSkipped.push(extensionToRemove.identifier);
-				}));
-			}
-
-			if (added.length || updated.length) {
+		// 1. Sync extensions state first so that the storage is flushed and updated in all opened windows
+		if (added.length || updated.length) {
+			await this.withProfileScopedServices(profile, async (extensionEnablementService, extensionStorageService) => {
 				await Promises.settled([...added, ...updated].map(async e => {
 					const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
 
@@ -458,10 +450,7 @@ export class LocalExtensionsProvider {
 								|| installedExtension.preRelease !== e.preRelease // Install if the extension pre-release preference has changed
 							) {
 								if (await this.extensionManagementService.canInstall(extension)) {
-									this.logService.trace(`${syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
-									await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: e.preRelease, profileLocation: profile.extensionsResource } /* set isMachineScoped value to prevent install and sync dialog in web */);
-									this.logService.info(`${syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
-									removeFromSkipped.push(extension.identifier);
+									extensionsToInstall.push([e, extension]);
 								} else {
 									this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
 									addToSkipped.push(e);
@@ -469,33 +458,58 @@ export class LocalExtensionsProvider {
 							}
 						} catch (error) {
 							addToSkipped.push(e);
-							if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatiblePreRelease, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
-								this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, extension.displayName || extension.identifier.id);
-							} else {
-								this.logService.error(error);
-								this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
-							}
+							this.logService.error(error);
+							this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
 						}
 					} else {
 						addToSkipped.push(e);
 						this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the extension is not found.`, e.identifier.id);
 					}
 				}));
-			}
+			});
+		}
 
-			const newSkippedExtensions: ISyncExtension[] = [];
-			for (const skippedExtension of skippedExtensions) {
-				if (!removeFromSkipped.some(e => areSameExtensions(e, skippedExtension.identifier))) {
-					newSkippedExtensions.push(skippedExtension);
+		// 2. Next uninstall the removed extensions
+		if (removed.length) {
+			const extensionsToRemove = installedExtensions.filter(({ identifier, isBuiltin }) => !isBuiltin && removed.some(r => areSameExtensions(identifier, r)));
+			await Promises.settled(extensionsToRemove.map(async extensionToRemove => {
+				this.logService.trace(`${syncResourceLogLabel}: Uninstalling local extension...`, extensionToRemove.identifier.id);
+				await this.extensionManagementService.uninstall(extensionToRemove, { donotIncludePack: true, donotCheckDependents: true, profileLocation: profile.extensionsResource });
+				this.logService.info(`${syncResourceLogLabel}: Uninstalled local extension.`, extensionToRemove.identifier.id);
+				removeFromSkipped.push(extensionToRemove.identifier);
+			}));
+		}
+
+		// 3. Install extensions at the end
+		for (const [e, extension] of extensionsToInstall) {
+			try {
+				this.logService.trace(`${syncResourceLogLabel}: Installing extension...`, extension.identifier.id, extension.version);
+				await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false/* set isMachineScoped value to prevent install and sync dialog in web */, donotIncludePackAndDependencies: true, installPreReleaseVersion: e.preRelease, profileLocation: profile.extensionsResource, context: { [EXTENSIONS_SYNC_CONTEXT_KEY]: true } });
+				this.logService.info(`${syncResourceLogLabel}: Installed extension.`, extension.identifier.id, extension.version);
+				removeFromSkipped.push(extension.identifier);
+			} catch (error) {
+				addToSkipped.push(e);
+				if (error instanceof ExtensionManagementError && [ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatiblePreRelease, ExtensionManagementErrorCode.IncompatibleTargetPlatform].includes(error.code)) {
+					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, extension.displayName || extension.identifier.id);
+				} else {
+					this.logService.error(error);
+					this.logService.info(`${syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
 				}
 			}
-			for (const skippedExtension of addToSkipped) {
-				if (!newSkippedExtensions.some(e => areSameExtensions(e.identifier, skippedExtension.identifier))) {
-					newSkippedExtensions.push(skippedExtension);
-				}
+		}
+
+		const newSkippedExtensions: ISyncExtension[] = [];
+		for (const skippedExtension of skippedExtensions) {
+			if (!removeFromSkipped.some(e => areSameExtensions(e, skippedExtension.identifier))) {
+				newSkippedExtensions.push(skippedExtension);
 			}
-			return newSkippedExtensions;
-		});
+		}
+		for (const skippedExtension of addToSkipped) {
+			if (!newSkippedExtensions.some(e => areSameExtensions(e.identifier, skippedExtension.identifier))) {
+				newSkippedExtensions.push(skippedExtension);
+			}
+		}
+		return newSkippedExtensions;
 	}
 
 	private updateExtensionState(state: IStringDictionary<any>, extension: ILocalExtension | IGalleryExtension, version: string | undefined, extensionStorageService: IExtensionStorageService): void {
