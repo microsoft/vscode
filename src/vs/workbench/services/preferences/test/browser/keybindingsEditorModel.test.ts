@@ -620,6 +620,18 @@ suite('KeybindingsEditorModel', () => {
 		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
 	});
 
+	test('filter exact matches also return chords', async () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.KeyK, modifiers: { ctrlKey: true } }, secondChord: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+
+		await testObject.resolve(new Map<string, string>());
+		const actual = testObject.fetch('"control+k"').filter(element => element.keybindingItem.command === command);
+		assert.strictEqual(1, actual.length);
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
+	});
+
 	test('filter modifiers are not matched when not completely matched (prefix)', async () => {
 		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
 		const term = `alt.${uuid.generateUuid()}`;
