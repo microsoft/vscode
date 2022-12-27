@@ -68,10 +68,10 @@ vscode-textmate@8.0.0:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-8.0.0.tgz#2c7a3b1163ef0441097e0b5d6389cd5504b59e5d"
   integrity sha512-AFbieoL7a5LMqcnOF04ji+rpXadgOXnZsxQr//r83kLPr7biP7am3g9zbaZIaBGwBRWeSvoMD4mgPdX3e4NWBg==
 
-xterm-addon-canvas@0.3.0-beta.27:
-  version "0.3.0-beta.27"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.3.0-beta.27.tgz#8b530a71473b2c2497e04ae27aa06aba213fef7c"
-  integrity sha512-8NZYm8mZXQms4aIMZFBwufakQQomnvzkwCUw3cPlJ5emErGD7OmXvV9zgJbSmhD1rnLOF5Z8AAIUqIvM3e+KUw==
+xterm-addon-canvas@0.4.0-beta.1:
+  version "0.4.0-beta.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.4.0-beta.1.tgz#f2742b88cd3eb1840b9e7f986c4bfe31e0f4684f"
+  integrity sha512-EfjaN0ujHJ4D8CsVpBig3xPvfRhbzAyOh8piAbNpePZmTpBzc2OQQQvEeklPriKVNDv28WbmY0Zzl5tgYM7vwg==
 
 xterm-addon-search@0.11.0-beta.7:
   version "0.11.0-beta.7"
@@ -83,12 +83,12 @@ xterm-addon-unicode11@0.5.0-beta.5:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0-beta.5.tgz#6992a6f56349e67b903201d52b1ad41ba3469d93"
   integrity sha512-MaqnU34WTHCUAo7moB4KhynGn03RckI0JJ8E/gXe96EzuCP6bVJIKSc5pc9iFeLF4BX1SuemOqIHYl2Q3u3NTA==
 
-xterm-addon-webgl@0.14.0-beta.40:
-  version "0.14.0-beta.40"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.14.0-beta.40.tgz#8152b293c07f921db3a7cd3c4996dfd4d90f340c"
-  integrity sha512-6E3KGqAFkTU6A32c6gUjkwCX+DfohN6y+j1IcTjwh5Cu92TWn4tMr5KwJlaULfmtO0e9BKZlhmucmuHTWi1F9w==
+xterm-addon-webgl@0.15.0-beta.1:
+  version "0.15.0-beta.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.15.0-beta.1.tgz#bc3f784c3c467a70542b8a9a8998dbe996287796"
+  integrity sha512-8f4cNXG0+dBMqp+Nvk/ZQ8Wo8s4/KbF24b2VTHTt8DuY5QXt4wSA6+NEdnABV98VYDoHl+KfXl9yyFqkcJYr8Q==
 
-xterm@5.1.0-beta.63:
-  version "5.1.0-beta.63"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0-beta.63.tgz#c811680494922eab873bd36ac6fd9f5404a9e944"
-  integrity sha512-ar7SMARh6j3GUXb4tRgbqAO+kiNu4JTPx5FYXSDHr+HHt0jBgZ+lPh4AqIFwwG1pc90lRx2cvczpE5cJhG9sdw==
+xterm@5.2.0-beta.2:
+  version "5.2.0-beta.2"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.0-beta.2.tgz#67369235a54f41179922e662df40ff4c7c974787"
+  integrity sha512-MRAdWRfV80ae0Q3Caq/mfmCwnZZZ89Z8i/sAleio5g5dpsst9IXc0zeFpPnOvUWmtVy5P1LbfU9YCy47449DWw==

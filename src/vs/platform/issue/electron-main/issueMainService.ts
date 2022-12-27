@@ -28,7 +28,11 @@ import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
 
+import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
+const processExplorerWindowState = 'issue.processExplorerWindowState';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -36,6 +40,8 @@ interface IBrowserWindowOptions {
 	zoomLevel: number;
 	alwaysOnTop: boolean;
 }
+
+type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
 
 export interface IIssueMainService extends ICommonIssueService {
 	stopTracing(): Promise<void>;
@@ -62,7 +68,8 @@ export class IssueMainService implements IIssueMainService {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		this.registerListeners();
 	}
@@ -196,6 +203,14 @@ export class IssueMainService implements IIssueMainService {
 		}
 	}
 
+	private safeParseJson(text: string | undefined, defaultObject: any) {
+		try {
+			return text ? JSON.parse(text) || defaultObject : defaultObject;
+		} catch (e) {
+			return defaultObject;
+		}
+	}
+
 	async openReporter(data: IssueReporterData): Promise<void> {
 		if (!this.issueReporterWindow) {
 			this.issueReporterParentWindow = BrowserWindow.getFocusedWindow();
@@ -260,7 +275,14 @@ export class IssueMainService implements IIssueMainService {
 				const processExplorerDisposables = new DisposableStore();
 
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
-				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
+
+				const savedPosition = this.safeParseJson(this.applicationStorageMainService.get(processExplorerWindowState, StorageScope.APPLICATION), undefined);
+				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
+
+				// Correct dimensions to take scale/dpr into account
+				const displayToUse = screen.getDisplayNearestPoint({ x: position.x!, y: position.y! });
+				position.width /= displayToUse.scaleFactor;
+				position.height /= displayToUse.scaleFactor;
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
@@ -295,6 +317,27 @@ export class IssueMainService implements IIssueMainService {
 						processExplorerDisposables.dispose();
 					}
 				});
+
+				const storeState = () => {
+					if (!this.processExplorerWindow) {
+						return;
+					}
+					const size = this.processExplorerWindow.getSize();
+					const position = this.processExplorerWindow.getPosition();
+					if (!size || !position) {
+						return;
+					}
+					const state: IWindowState = {
+						width: size[0],
+						height: size[1],
+						x: position[0],
+						y: position[1]
+					};
+					this.applicationStorageMainService.store(processExplorerWindowState, JSON.stringify(state), StorageScope.APPLICATION, StorageTarget.MACHINE);
+				};
+
+				this.processExplorerWindow.on('moved', storeState);
+				this.processExplorerWindow.on('resized', storeState);
 			}
 		}
 
@@ -349,7 +392,7 @@ export class IssueMainService implements IIssueMainService {
 		return this.diagnosticsService.getDiagnostics(info, remoteData);
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IStrictWindowState {
 
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Display | undefined;
@@ -380,14 +423,14 @@ export class IssueMainService implements IIssueMainService {
 			}
 		}
 
-		const state: IWindowState = {
-			width: defaultWidth,
-			height: defaultHeight
-		};
-
 		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
+
+		const state: IStrictWindowState = {
+			width: defaultWidth,
+			height: defaultHeight,
+			x: displayBounds.x + (displayBounds.width / 2) - (defaultWidth / 2),
+			y: displayBounds.y + (displayBounds.height / 2) - (defaultHeight / 2)
+		};
 
 		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
 			if (state.x < displayBounds.x) {
@@ -450,4 +493,16 @@ export class IssueMainService implements IIssueMainService {
 		// Show item in explorer
 		this.nativeHostMainService.showItemInFolder(undefined, path);
 	}
+}
+
+function isStrictWindowState(obj: unknown): obj is IStrictWindowState {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	return (
+		'x' in obj &&
+		'y' in obj &&
+		'width' in obj &&
+		'height' in obj
+	);
 }

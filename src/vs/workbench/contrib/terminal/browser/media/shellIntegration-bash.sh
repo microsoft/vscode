@@ -37,6 +37,27 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+__vsc_get_trap() {
+	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
+	# The terms are quoted literals, but are not guaranteed to be on a single line.
+	# (Consider a trap like $'echo foo\necho \'bar\'').
+	# To parse, we splice those terms into an expression capturing them into an array.
+	# This preserves the quoting of those terms: when we `eval` that expression, they are preserved exactly.
+	# This is different than simply exploding the string, which would split everything on IFS, oblivious to quoting.
+	builtin local -a terms
+	builtin eval "terms=( $(trap -p "${1:-DEBUG}") )"
+	#                    |________________________|
+	#                            |
+	#        \-------------------*--------------------/
+	# terms=( trap  --  '…arbitrary shellcode…'  DEBUG )
+	#        |____||__| |_____________________| |_____|
+	#          |    |            |                |
+	#          0    1            2                3
+	#                            |
+	#                   \--------*----/
+	builtin printf '%s' "${terms[2]:-}"
+}
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
@@ -181,16 +202,8 @@ if [[ -n "${bash_preexec_imported:-}" ]]; then
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG)"
-	if [[ "$__vsc_dbg_trap" =~ .*\[\[.* ]]; then
-		#HACK - is there a better way to do this?
-		__vsc_dbg_trap=${__vsc_dbg_trap#'trap -- '*}
-		__vsc_dbg_trap=${__vsc_dbg_trap%' DEBUG'}
-		__vsc_dbg_trap=${__vsc_dbg_trap#"'"*}
-		__vsc_dbg_trap=${__vsc_dbg_trap%"'"}
-	else
-		__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
-	fi
+	__vsc_dbg_trap="$(__vsc_get_trap DEBUG)"
+
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
@@ -203,7 +216,7 @@ else
 		__vsc_preexec_all() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
 				__vsc_in_command_execution="1"
-				builtin eval ${__vsc_dbg_trap}
+				builtin eval "${__vsc_dbg_trap}"
 				__vsc_preexec
 			fi
 		}

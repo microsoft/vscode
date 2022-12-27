@@ -160,6 +160,14 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			return { newArgs, envMixin };
 		}
+		case 'fish': {
+			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
+			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
+			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
+			return { newArgs: undefined, envMixin };
+		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
@@ -188,7 +196,13 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
-			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-${productService.applicationName}-zsh`);
+			let username: string;
+			try {
+				username = os.userInfo().username;
+			} catch {
+				username = 'unknown';
+			}
+			const zdotdir = path.join(os.tmpdir(), `${username}-${productService.applicationName}-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;

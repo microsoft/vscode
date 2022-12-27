@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { asPromise, Barrier, timeout } from 'vs/base/common/async';
+import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -41,6 +41,7 @@ import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -753,10 +754,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
-		this._logService.info(`$resolveAuthority invoked for authority (${getRemoteAuthorityPrefix(remoteAuthority)})`);
+		const sw = StopWatch.create(false);
+		const prefix = () => `[resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
+		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
 
+		logInfo(`activating resolver...`);
 		const { authorityPrefix, resolver } = await this._activateAndGetResolver(remoteAuthority);
 		if (!resolver) {
+			logError(`no resolver`);
 			return {
 				type: 'error',
 				error: {
@@ -767,11 +773,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			};
 		}
 
+		const intervalLogger = new IntervalTimer();
 		try {
+			logInfo(`setting tunnel factory...`);
 			this._register(await this._extHostTunnelService.setTunnelFactory(resolver));
+
+			intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
+			logInfo(`invoking resolve()...`);
 			performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 			const result = await resolver.resolve(remoteAuthority, { resolveAttempt });
 			performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
+			intervalLogger.dispose();
+			logInfo(`returned ${result.host}:${result.port}`);
 
 			// Split merged API result into separate authority/options
 			const authority: ResolvedAuthority = {
@@ -799,6 +812,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			};
 		} catch (err) {
 			performance.mark(`code/extHost/didResolveAuthorityError/${authorityPrefix}`);
+			intervalLogger.dispose();
+			logError(`returned an error`, err);
 			if (err instanceof RemoteAuthorityResolverError) {
 				return {
 					type: 'error',

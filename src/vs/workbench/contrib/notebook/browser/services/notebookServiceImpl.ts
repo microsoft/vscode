@@ -534,7 +534,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		updateOrder();
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf(NotebookSetting.displayOrder) >= 0) {
+			if (e.affectsConfiguration(NotebookSetting.displayOrder)) {
 				updateOrder();
 			}
 		}));
