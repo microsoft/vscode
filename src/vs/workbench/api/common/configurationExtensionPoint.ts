@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -46,10 +46,6 @@ const configurationEntrySchema: IJSONSchema = {
 					{
 						type: 'object',
 						properties: {
-							isExecutable: {
-								type: 'boolean',
-								markdownDeprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
-							},
 							scope: {
 								type: 'string',
 								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
@@ -110,7 +106,11 @@ const configurationEntrySchema: IJSONSchema = {
 							order: {
 								type: 'integer',
 								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
-							}
+							},
+							ignoreSync: {
+								type: 'boolean',
+								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
+							},
 						}
 					}
 				]
@@ -118,6 +118,10 @@ const configurationEntrySchema: IJSONSchema = {
 		}
 	}
 };
+
+// build up a delta across two ext points and only apply it once
+let _configDelta: IConfigurationDelta | undefined;
+
 
 // BEGIN VSCode extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
@@ -127,9 +131,24 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
+
+	if (_configDelta) {
+		// HIGHLY unlikely, but just in case
+		configurationRegistry.deltaConfiguration(_configDelta);
+	}
+
+	const configNow = _configDelta = {};
+	// schedule a HIGHLY unlikely task in case only the default configurations EXT point changes
+	queueMicrotask(() => {
+		if (_configDelta === configNow) {
+			configurationRegistry.deltaConfiguration(_configDelta);
+			_configDelta = undefined;
+		}
+	});
+
 	if (removed.length) {
 		const removedDefaultConfigurations = removed.map<IConfigurationDefaults>(extension => ({ overrides: objects.deepClone(extension.value), source: { id: extension.description.identifier.value, displayName: extension.description.displayName } }));
-		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
+		_configDelta.removedDefaults = removedDefaultConfigurations;
 	}
 	if (added.length) {
 		const registeredProperties = configurationRegistry.getConfigurationProperties();
@@ -147,7 +166,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 			}
 			return { overrides, source: { id: extension.description.identifier.value, displayName: extension.description.displayName } };
 		});
-		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
+		_configDelta.addedDefaults = addedDefaultConfigurations;
 	}
 });
 // END VSCode extension point `configurationDefaults`
@@ -173,6 +192,9 @@ const extensionConfigurations: Map<string, IConfigurationNode[]> = new Map<strin
 
 configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
+	// HIGHLY unlikely (only configuration but not defaultConfiguration EXT point changes)
+	_configDelta ??= {};
+
 	if (removed.length) {
 		const removedConfigurations: IConfigurationNode[] = [];
 		for (const extension of removed) {
@@ -180,7 +202,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			removedConfigurations.push(...(extensionConfigurations.get(key) || []));
 			extensionConfigurations.delete(key);
 		}
-		configurationRegistry.deregisterConfigurations(removedConfigurations);
+		_configDelta.removedConfigurations = removedConfigurations;
 	}
 
 	const seenProperties = new Set<string>();
@@ -271,9 +293,11 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 			addedConfigurations.push(...configurations);
 		}
 
-		configurationRegistry.registerConfigurations(addedConfigurations, false);
+		_configDelta.addedConfigurations = addedConfigurations;
 	}
 
+	configurationRegistry.deltaConfiguration(_configDelta);
+	_configDelta = undefined;
 });
 // END VSCode extension point `configuration`
 

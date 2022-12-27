@@ -199,11 +199,7 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		if (apiVersion.gte(API.v250)) {
-			args.push('--useInferredProjectPerProjectRoot');
-		} else {
-			args.push('--useSingleInferredProject');
-		}
+		args.push('--useInferredProjectPerProjectRoot');
 
 		if (configuration.disableAutomaticTypeAcquisition || kind === TsServerProcessKind.Syntax || kind === TsServerProcessKind.Diagnostics) {
 			args.push('--disableAutomaticTypingAcquisition');

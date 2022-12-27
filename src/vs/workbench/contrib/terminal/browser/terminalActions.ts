@@ -116,8 +116,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	});
 };
 
-const terminalIndexRe = /^([0-9]+): /;
-
 export class TerminalLaunchHelpAction extends Action {
 
 	constructor(
@@ -155,26 +153,6 @@ export function registerTerminalActions() {
 				terminalService.setActiveInstance(instance);
 			}
 			await terminalGroupService.showPanel(true);
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.QuickFix,
-				title: { value: localize('workbench.action.terminal.quickFix', "Quick Fix"), original: 'Quick Fix' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.Period,
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
 		}
 	});
 
@@ -609,7 +587,7 @@ export function registerTerminalActions() {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
-			instance.sendText(text, true);
+			instance.sendText(text, true, true);
 			if (instance.target === TerminalLocation.Editor) {
 				await terminalEditorService.revealActiveEditor();
 			} else {
@@ -1073,11 +1051,13 @@ export function registerTerminalActions() {
 				return;
 			}
 
+			terminalService.setEditingTerminal(instance);
 			terminalService.setEditable(instance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
 					terminalService.setEditable(instance, null);
+					terminalService.setEditingTerminal(undefined);
 					if (success) {
 						try {
 							await instance.rename(value);
@@ -1233,7 +1213,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.xterm?.markTracker.scrollToPreviousMark();
+				t.xterm?.markTracker.scrollToPreviousMark(undefined, undefined, t.capabilities.has(TerminalCapability.CommandDetection));
 			});
 		}
 	});
@@ -2227,6 +2207,23 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ShowQuickFixes,
+				title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
+				category,
+				precondition: TerminalContextKeys.focus,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Period,
+					weight: KeybindingWeight.EditorContrib
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ShowTextureAtlas,
 				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
 				f1: true,
@@ -2316,9 +2313,8 @@ export function registerTerminalActions() {
 					// TODO: Why is copy still showing up when text isn't selected?
 					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected),
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KeyC,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC },
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
+						mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
 					}]
@@ -2326,6 +2322,27 @@ export function registerTerminalActions() {
 			}
 			async run(accessor: ServicesAccessor) {
 				await accessor.get(ITerminalService).activeInstance?.copySelection();
+			}
+		});
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TerminalCommandId.CopyAndClearSelection,
+					title: { value: localize('workbench.action.terminal.copyAndClearSelection', "Copy and Clear Selection"), original: 'Copy and Clear Selection' },
+					f1: true,
+					category,
+					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected),
+					keybinding: [{
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
+					}]
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				const instance = accessor.get(ITerminalService).activeInstance;
+				await instance?.copySelection();
+				instance?.clearSelection();
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -2416,6 +2433,8 @@ export function registerTerminalActions() {
 				accessor.get(IConfigurationService).updateValue(TerminalSettingId.TabsEnabled, true);
 				return;
 			}
+
+			const terminalIndexRe = /^([0-9]+): /;
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
 				terminalGroupService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);

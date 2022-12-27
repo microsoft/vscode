@@ -71,7 +71,7 @@ export class GlobalStateResource implements IProfileResource {
 	}
 }
 
-abstract class GlobalStateResourceTreeItem implements IProfileResourceTreeItem {
+export abstract class GlobalStateResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.GlobalState;
 	readonly handle = 'globalState';

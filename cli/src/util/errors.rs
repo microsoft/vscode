@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use std::fmt::Display;
 
-use crate::constants::{APPLICATION_NAME, CONTROL_PORT, QUALITYLESS_PRODUCT_NAME};
+use crate::constants::{
+	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+};
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -169,7 +171,8 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at https://code.visualstudio.com/docs/remote/linux",
+			"{}\r\n\r\nMore info at {}/remote/linux",
+			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
 	}
@@ -399,6 +402,23 @@ impl std::fmt::Display for MissingHomeDirectory {
 }
 
 #[derive(Debug)]
+pub struct OAuthError {
+	pub error: String,
+	pub error_description: Option<String>,
+}
+
+impl std::fmt::Display for OAuthError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Error getting authorization: {} {}",
+			self.error,
+			self.error_description.as_deref().unwrap_or("")
+		)
+	}
+}
+
+#[derive(Debug)]
 pub struct CommandFailed {
 	pub output: std::process::Output,
 	pub command: String,
@@ -484,7 +504,8 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed
+	CommandFailed,
+	OAuthError
 );
 
 impl From<reqwest::Error> for AnyError {

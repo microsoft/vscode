@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, ExtHostProfileContentHandlersShape, MainContext, MainThreadProfileContentHandlersShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -15,7 +15,7 @@ export class MainThreadProfileContentHandlers extends Disposable implements Main
 
 	private readonly proxy: ExtHostProfileContentHandlersShape;
 
-	private readonly registeredHandlers = new Set<string>();
+	private readonly registeredHandlers = this._register(new DisposableMap<string, IDisposable>());
 
 	constructor(
 		context: IExtHostContext,
@@ -23,16 +23,10 @@ export class MainThreadProfileContentHandlers extends Disposable implements Main
 	) {
 		super();
 		this.proxy = context.getProxy(ExtHostContext.ExtHostProfileContentHandlers);
-		this._register(toDisposable(() => {
-			for (const id of this.registeredHandlers) {
-				this.userDataProfileImportExportService.unregisterProfileContentHandler(id);
-			}
-			this.registeredHandlers.clear();
-		}));
 	}
 
 	async $registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void> {
-		this.userDataProfileImportExportService.registerProfileContentHandler(id, {
+		this.registeredHandlers.set(id, this.userDataProfileImportExportService.registerProfileContentHandler(id, {
 			name,
 			extensionId,
 			saveProfile: async (name: string, content: string, token: CancellationToken) => {
@@ -42,11 +36,11 @@ export class MainThreadProfileContentHandlers extends Disposable implements Main
 			readProfile: async (uri: URI, token: CancellationToken) => {
 				return this.proxy.$readProfile(id, uri, token);
 			},
-		});
+		}));
 	}
 
 	async $unregisterProfileContentHandler(id: string): Promise<void> {
-		this.userDataProfileImportExportService.unregisterProfileContentHandler(id);
+		this.registeredHandlers.deleteAndDispose(id);
 	}
 
 }

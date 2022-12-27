@@ -120,7 +120,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const indents = this.getGuidesByLine(
 			visibleStartLineNumber,
-			visibleEndLineNumber,
+			Math.min(visibleEndLineNumber + 1, this._context.viewModel.getLineCount()),
 			activeCursorPosition
 		);
 

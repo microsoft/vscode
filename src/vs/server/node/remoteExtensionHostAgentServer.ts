@@ -280,12 +280,12 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	/**
 	 * NOTE: Avoid using await in this method!
 	 * The problem is that await introduces a process.nextTick due to the implicit Promise.then
-	 * This can lead to some bytes being interpreted and a control message being emitted before the next listener has a chance to be registered.
+	 * This can lead to some bytes being received and interpreted and a control message being emitted before the next listener has a chance to be registered.
 	 */
 	private _handleWebSocketConnection(socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string): void {
 		const remoteAddress = this._getRemoteAddress(socket);
 		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0, 8)}]`;
-		const protocol = new PersistentProtocol(socket);
+		const protocol = new PersistentProtocol({ socket });
 
 		const validator = this._vsdaMod ? new this._vsdaMod.validator() : null;
 		const signer = this._vsdaMod ? new this._vsdaMod.signer() : null;

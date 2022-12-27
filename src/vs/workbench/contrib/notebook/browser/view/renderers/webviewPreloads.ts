@@ -1641,7 +1641,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 				const error = document.createElement('div');
 				error.className = 'no-renderer-error';
-				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
+				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', () => info.mime);
 				error.innerText = errorText;
 
 				const cellText = document.createElement('div');

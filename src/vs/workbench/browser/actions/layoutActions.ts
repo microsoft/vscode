@@ -359,12 +359,29 @@ class ToggleSidebarVisibilityAction extends Action2 {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
 			title: { value: localize('toggleSidebar', "Toggle Primary Side Bar Visibility"), original: 'Toggle Primary Side Bar Visibility' },
+			toggled: {
+				condition: SideBarVisibleContext,
+				title: localize('primary sidebar', "Primary Side Bar"),
+				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
+			},
 			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyB
-			}
+			},
+			menu: [
+				{
+					id: MenuId.LayoutControlMenuSubmenu,
+					group: '0_workbench_layout',
+					order: 0
+				},
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					group: '2_workbench_layout',
+					order: 1
+				}
+			]
 		});
 	}
 
@@ -399,28 +416,6 @@ MenuRegistry.appendMenuItems([
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
-		}
-	}, {
-		id: MenuId.MenubarAppearanceMenu,
-		item: {
-			group: '2_workbench_layout',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
-				toggled: SideBarVisibleContext
-			},
-			order: 1
-		}
-	}, {
-		id: MenuId.LayoutControlMenuSubmenu,
-		item: {
-			group: '0_workbench_layout',
-			command: {
-				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('miSidebarNoMnnemonic', "Primary Side Bar"),
-				toggled: SideBarVisibleContext
-			},
-			order: 0
 		}
 	}, {
 		id: MenuId.LayoutControlMenu,
@@ -526,7 +521,7 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.toggleZenMode',
 			title: {
 				value: localize('toggleZenMode', "Toggle Zen Mode"),
-				mnemonicTitle: localize('miToggleZenMode', "Zen Mode"),
+				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
 			category: Categories.View,

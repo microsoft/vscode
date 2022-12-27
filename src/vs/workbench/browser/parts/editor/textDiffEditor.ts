@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
 import { isObject, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -34,6 +34,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -42,7 +43,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
-	private diffEditorControl: IDiffEditor | undefined = undefined;
+	private diffEditorControl: DiffEditorWidget | undefined = undefined;
 
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
@@ -132,7 +133,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 			// Diff navigator
 			this.diffNavigator = new DiffNavigator(control, {
-				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
+				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState, // only reveal first change if we had no options or viewstate
+				findResultLoop: this.getMainControl()?.getOption(EditorOption.find).loop
 			});
 			this.diffNavigatorDisposables.add(this.diffNavigator);
 
@@ -306,6 +308,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	override layout(dimension: Dimension): void {
 		this.diffEditorControl?.layout(dimension);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this.diffEditorControl?.setBoundarySashes(sashes);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {

@@ -156,8 +156,8 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<void>('uninstall', [extension!, options]));
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		return Promise.resolve(this.channel.call<void>('reinstallFromGallery', [extension]));
+	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call<ILocalExtension>('reinstallFromGallery', [extension])).then(local => transformIncomingExtension(local, null));
 	}
 
 	getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI): Promise<ILocalExtension[]> {
@@ -205,7 +205,6 @@ export class ExtensionTipsChannel implements IServerChannel {
 			case 'getConfigBasedTips': return this.service.getConfigBasedTips(URI.revive(args[0]));
 			case 'getImportantExecutableBasedTips': return this.service.getImportantExecutableBasedTips();
 			case 'getOtherExecutableBasedTips': return this.service.getOtherExecutableBasedTips();
-			case 'getAllWorkspacesTips': return this.service.getAllWorkspacesTips();
 		}
 
 		throw new Error('Invalid call');

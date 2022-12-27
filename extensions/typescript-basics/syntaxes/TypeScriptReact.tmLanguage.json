@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/c2744520e325330d0608fc1d1993d7fe98e66202",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/359e091c0a83a45e20aefc13111ed4a19e201f97",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
 	"patterns": [
@@ -1862,7 +1862,7 @@
 		},
 		"property-accessor": {
 			"name": "storage.type.property.tsx",
-			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(get|set)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(accessor|get|set)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"async-modifier": {
 			"name": "storage.modifier.async.tsx",

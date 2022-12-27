@@ -81,7 +81,8 @@ export interface ISourceAction {
 }
 
 export interface INotebookSourceActionChangeEvent {
-	notebook: URI;
+	notebook?: URI;
+	viewType: string;
 }
 
 export interface IKernelSourceActionProvider {
