@@ -227,7 +227,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-stream,
 	.traceback {
 		display: inline-block;
-		white-space: pre-wrap;
 		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
