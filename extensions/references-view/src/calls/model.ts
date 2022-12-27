@@ -87,7 +87,7 @@ class CallsModel implements SymbolItemNavigation<CallItem>, SymbolItemEditorHigh
 		if (this.direction === CallsDirection.Incoming) {
 			const calls = await vscode.commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', call.item);
 			const callItemOut: CallItem[] = [];
-			calls.forEach(item => { 
+			calls.forEach(item => {
 				item.fromRanges.forEach((locs, idx) => {
 					const loc = new vscode.Location(call.item.uri, locs);
 					const detail = item.from.uri.fsPath.replace(/.*\//, '') + ' (' + (loc.range.start.line + 1) + ')';
