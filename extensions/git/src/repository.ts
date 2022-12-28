@@ -2070,6 +2070,12 @@ export class Repository implements Disposable {
 		]);
 		const totalTime = new Date().getTime() - start;
 
+		// Remove untracked resources that are already tracked. Resources can appear
+		// as tracked and untracked when a file from an untracked folder is added to
+		// the index.
+		const trackedPaths = new Set(statusResult.status.map(s => s.path));
+		statusUntrackedResult.status = statusUntrackedResult.status.filter(r => !trackedPaths.has(r.path));
+
 		const didHitLimit = statusResult.didHitLimit || statusUntrackedResult.didHitLimit;
 		const statusLength = statusResult.statusLength + statusUntrackedResult.statusLength;
 
@@ -2151,24 +2157,21 @@ export class Repository implements Disposable {
 			untrackedFoldersGroup: Resource[] = [],
 			workingTreeGroup: Resource[] = [];
 
-		const trackedPaths = new Set<string>(statusResult.status.map(s => s.path));
-		[...statusResult.status, ...statusUntrackedResult.status.filter(r => !trackedPaths.has(r.path))].forEach(raw => {
+		[...statusResult.status, ...statusUntrackedResult.status].forEach(raw => {
 			// TODO@lszomoru - Find a better way to do this
 			const isFolder = raw.path.endsWith('/');
 			const isUntrackedFolder = (raw.x.concat(raw.y) === '??' || raw.x.concat(raw.y) === '!!') && isFolder;
 
 			const uri = Uri.file(path.join(this.repository.root, isFolder ? raw.path.substring(0, raw.path.length - 1) : raw.path));
-			const renameUri = raw.rename
-				? Uri.file(path.join(this.repository.root, raw.rename))
-				: undefined;
+			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
-			// Tracked Folder - the path is an tracked folder
-			// then ignore it, as its contents are listed.
+			// This is a folder that is marked to be tracked
+			// so we ignore it as its contents are listed explicitly.
 			if (isFolder && this.untrackedFolders.get(uri.fsPath)) {
 				return;
 			}
 
-			// Untracked Folder
+			// This is a folder that is untracked
 			if (isUntrackedFolder && !this.untrackedFolders.has(uri.fsPath)) {
 				this.untrackedFolders.set(uri.fsPath, false);
 			}
@@ -2217,6 +2220,14 @@ export class Repository implements Disposable {
 
 			return undefined;
 		});
+
+		// Clean-up untracked folders
+		const resources = [...indexGroup, ...mergeGroup, ...untrackedFoldersGroup, ...untrackedGroup, ...workingTreeGroup];
+		for (const key of this.untrackedFolders.keys()) {
+			if (!resources.some(r => isDescendant(key, r.resourceUri.fsPath))) {
+				this.untrackedFolders.delete(key);
+			}
+		}
 
 		return { indexGroup, mergeGroup, untrackedFoldersGroup, untrackedGroup, workingTreeGroup };
 	}
