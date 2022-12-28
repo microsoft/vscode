@@ -223,11 +223,11 @@ export class TerminalProfileQuickpick {
 				Severity.Warning,
 				nls.localize('unsafePathWarning', 'This profile uses the potentially unsafe path {0} that another user can write to. Are you sure you want to use it?', `"${profile.path}"`),
 				[{
-					label: nls.localize('cancel', 'Cancel'),
-					run: () => r(false)
-				}, {
 					label: nls.localize('yes', 'Yes'),
 					run: () => r(true)
+				}, {
+					label: nls.localize('cancel', 'Cancel'),
+					run: () => r(false)
 				}]
 			);
 			handle.onDidClose(() => r(false));
