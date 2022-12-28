@@ -3283,14 +3283,12 @@ export class CommandCenter {
 
 	@command('git.manageUntrackedFolders', { repository: true })
 	async manageUntrackedFolders(repository: Repository): Promise<void> {
-		const items: QuickPickItem[] = [];
-		repository.untrackedFolders.forEach((value: boolean, key: string) => {
-			items.push({
+		const items: QuickPickItem[] = Array.from(repository.untrackedFolders.keys()).sort()
+			.map(key => ({
 				label: relativePath(repository.root, key),
 				description: path.basename(repository.root),
-				picked: value
-			});
-		});
+				picked: repository.untrackedFolders.get(key)
+			}));
 
 		const title = l10n.t('Manage Untracked Folders');
 		const placeHolder = l10n.t('Select a folder to start tracking it. Unselect a folder to stop tracking it.');

@@ -2221,7 +2221,7 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
-		// Clean-up untracked folders
+		// Untracked folder clean-up
 		const resources = [...indexGroup, ...mergeGroup, ...untrackedFoldersGroup, ...untrackedGroup, ...workingTreeGroup];
 		for (const key of this.untrackedFolders.keys()) {
 			if (!resources.some(r => isDescendant(key, r.resourceUri.fsPath))) {
