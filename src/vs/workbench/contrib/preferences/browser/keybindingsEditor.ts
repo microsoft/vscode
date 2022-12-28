@@ -957,7 +957,7 @@ interface ISourceColumnTemplateData {
 }
 
 function onClick(element: HTMLElement, callback: () => void): IDisposable {
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = new DisposableStore();
 	disposables.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, DOM.finalHandler(callback)));
 	disposables.add(DOM.addDisposableListener(element, DOM.EventType.KEY_UP, e => {
 		const keyboardEvent = new StandardKeyboardEvent(e);

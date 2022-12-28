@@ -518,7 +518,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
-		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult);
+		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult, this._fontInfo);
 		const isSame = this._isViewModelTheSame(viewModels);
 
 		if (!isSame) {
@@ -607,7 +607,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	static computeDiff(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, diffResult: INotebookDiffResult) {
+	static computeDiff(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, diffResult: INotebookDiffResult, fontInfo: FontInfo | undefined) {
 		const cellChanges = diffResult.cellsDiff.changes;
 		const diffElementViewModels: DiffElementViewModelBase[] = [];
 		const originalModel = model.original.notebook;
@@ -618,7 +618,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		let firstChangeIndex = -1;
 		const initData = {
 			metadataStatusHeight: configurationService.getValue('notebook.diff.ignoreMetadata') ? 0 : 25,
-			outputStatusHeight: configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25
+			outputStatusHeight: configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25,
+			fontInfo
 		};
 
 		for (let i = 0; i < cellChanges.length; i++) {
@@ -686,6 +687,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	static computeModifiedLCS(instantiationService: IInstantiationService, change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, eventDispatcher: NotebookDiffEditorEventDispatcher, initData: {
 		metadataStatusHeight: number;
 		outputStatusHeight: number;
+		fontInfo: FontInfo | undefined;
 	}) {
 		const result: DiffElementViewModelBase[] = [];
 		// modified cells
