@@ -1361,6 +1361,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 				} else {
 					this._outputEmptyElement!.style.display = 'none';
 				}
+				this._decorate();
 			}));
 
 			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
@@ -1376,14 +1377,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			if (outputModified && !outputMetadataChangeOnly) {
 				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-					if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
+					if (e.cell.uri.toString() === this.cell.original.uri.toString() && this.cell.checkIfOutputsModified()) {
 						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
 						originalOutputRenderListener.dispose();
 					}
 				});
 
 				const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-					if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
+					if (e.cell.uri.toString() === this.cell.modified.uri.toString() && this.cell.checkIfOutputsModified()) {
 						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
 						modifiedOutputRenderListener.dispose();
 					}
@@ -1451,6 +1452,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		if (this.cell.checkIfOutputsModified()) {
 			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
 			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
+		} else {
+			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, [], ['nb-cellDeleted']);
+			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, [], ['nb-cellAdded']);
 		}
 	}
 
