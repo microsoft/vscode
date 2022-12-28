@@ -28,6 +28,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
  * and keeps the available terminal profiles updated
  */
 export class TerminalProfileService implements ITerminalProfileService {
+	declare _serviceBrand: undefined;
+
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
@@ -91,8 +93,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 			}
 		});
 	}
-
-	_serviceBrand: undefined;
 
 	getDefaultProfileName(): string | undefined {
 		return this._defaultProfileName;
