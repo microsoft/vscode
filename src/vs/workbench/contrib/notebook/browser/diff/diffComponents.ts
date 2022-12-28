@@ -71,7 +71,8 @@ export const fixedEditorOptions: IEditorOptions = {
 	minimap: { enabled: false },
 	renderValidationDecorations: 'on',
 	renderLineHighlight: 'none',
-	readOnly: true
+	readOnly: true,
+	renderWhitespace: 'boundary'
 };
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
