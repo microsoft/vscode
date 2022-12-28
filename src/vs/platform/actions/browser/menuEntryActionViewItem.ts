@@ -29,6 +29,8 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { assertType } from 'vs/base/common/types';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
 	const groups = menu.getActions(options);
@@ -125,9 +127,15 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextKeyService protected _contextKeyService: IContextKeyService,
 		@IThemeService protected _themeService: IThemeService,
-		@IContextMenuService protected _contextMenuService: IContextMenuService
+		@IContextMenuService protected _contextMenuService: IContextMenuService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IHoverService _hoverService: IHoverService
 	) {
-		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding, hoverDelegate: options?.hoverDelegate });
+		const hoverDelegate = options?.hoverDelegate ?? {
+			showHover: (options: IHoverOptions) => _hoverService.showHover(options),
+			delay: <number>_configurationService.getValue('editor.hover.delay'),
+		};
+		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding, hoverDelegate });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -277,11 +285,19 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
-		@IThemeService protected _themeService: IThemeService
+		@IThemeService protected _themeService: IThemeService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IHoverService _hoverService: IHoverService,
 	) {
+		const hoverDelegate = options?.hoverDelegate ?? {
+			showHover: (options: IHoverOptions) => _hoverService.showHover(options),
+			delay: <number>_configurationService.getValue('editor.hover.delay'),
+		};
+
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
 			menuAsChild: options?.menuAsChild ?? false,
 			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
+			hoverDelegate
 		});
 
 		super(action, { getActions: () => action.actions }, _contextMenuService, dropdownOptions);

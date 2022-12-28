@@ -12,7 +12,7 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverAction } from 'vs/platform/hover/browser/hover';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put

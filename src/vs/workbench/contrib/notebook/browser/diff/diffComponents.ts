@@ -41,6 +41,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
@@ -88,6 +89,8 @@ class PropertyHeader extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 	}
@@ -119,7 +122,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new WorkbenchToolBar(cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.configurationService, this.hoverService);
 					return item;
 				}
 

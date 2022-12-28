@@ -5,7 +5,7 @@
 
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverAction } from 'vs/platform/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 

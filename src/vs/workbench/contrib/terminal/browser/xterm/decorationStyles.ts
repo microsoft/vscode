@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const enum DecorationStyles {
 	DefaultDimension = 16,

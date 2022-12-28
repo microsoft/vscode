@@ -21,7 +21,7 @@ import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerg
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/platform/hover/browser/hover';
 
 const $ = DOM.$;
 

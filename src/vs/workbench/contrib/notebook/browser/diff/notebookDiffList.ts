@@ -30,6 +30,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -169,6 +170,8 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IThemeService protected readonly themeService: IThemeService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) { }
 
 	get templateId() {
@@ -189,7 +192,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.configurationService, this.hoverService);
 					return item;
 				}
 

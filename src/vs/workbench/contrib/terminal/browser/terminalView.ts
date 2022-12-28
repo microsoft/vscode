@@ -43,6 +43,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class TerminalViewPane extends ViewPane {
 	private _fontStyleElement: HTMLElement | undefined;
@@ -73,7 +74,8 @@ export class TerminalViewPane extends ViewPane {
 		@IMenuService private readonly _menuService: IMenuService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
@@ -233,7 +235,7 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._newDropdown?.dispose();
-					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
+					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._configurationService, this._hoverService);
 					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
 					return this._newDropdown;
 				}
@@ -352,8 +354,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IHoverService _hoverService: IHoverService,
 	) {
-		super(action, { draggable: true }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
+		super(action, { draggable: true }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _configurationService, _hoverService);
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));

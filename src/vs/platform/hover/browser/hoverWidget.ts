@@ -7,7 +7,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverTarget, IHoverOptions } from 'vs/platform/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
