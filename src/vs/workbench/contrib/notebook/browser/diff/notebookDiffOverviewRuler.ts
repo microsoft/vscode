@@ -180,7 +180,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		for (let i = 0; i < this._diffElementViewModels.length; i++) {
 			const element = this._diffElementViewModels[i];
 
-			const cellHeight = (element.layoutInfo.totalHeight / scrollHeight) * ratio * height;
+			const cellHeight = Math.round((element.layoutInfo.totalHeight / scrollHeight) * ratio * height);
 
 			switch (element.type) {
 				case 'insert':
