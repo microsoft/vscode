@@ -161,17 +161,17 @@
 }
 
 /** Source column styling **/
-.keybindings-editor>.keybindings-body>.keybindings-table-container .monaco-table-tr .monaco-table-td .source a {
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .source a {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 }
 
-.keybindings-editor>.keybindings-body>.keybindings-table-container .monaco-table-tr .monaco-table-td .source a:hover {
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .source a:hover {
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.keybindings-editor>.keybindings-body>.keybindings-table-container .monaco-table-tr .monaco-table-td .source a:active {
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .source a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
