@@ -106,25 +106,8 @@ export class TerminalProfileQuickpick {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
 				// Get the user's explicit permission to use a potentially unsafe path
-				if ('isUnsafePath' in context.item.profile && context.item.profile.isUnsafePath) {
-					const typedProfile = context.item.profile;
-					const acceptedWarning = await new Promise<boolean>(r => {
-						const handle = this._notificationService.prompt(
-							Severity.Warning,
-							nls.localize('unsafePathWarning', 'This profile uses the potentially unsafe path {0} that another user can write to. Are you sure you want to use it?', `"${typedProfile.path}"`),
-							[{
-								label: nls.localize('cancel', 'Cancel'),
-								run: () => r(false)
-							}, {
-								label: nls.localize('yes', 'Yes'),
-								run: () => r(true)
-							}]
-						);
-						handle.onDidClose(() => r(false));
-					});
-					if (!acceptedWarning) {
-						return;
-					}
+				if (!await this._isProfileSafe(context.item.profile)) {
+					return;
 				}
 				if ('command' in context.item.profile) {
 					return;
@@ -220,10 +203,35 @@ export class TerminalProfileQuickpick {
 		if (!result) {
 			return undefined;
 		}
+		if (!await this._isProfileSafe(result.profile)) {
+			return undefined;
+		}
 		if (keyMods) {
 			result.keyMods = keyMods;
 		}
 		return result;
+	}
+
+	private async _isProfileSafe(profile: ITerminalProfile | IExtensionTerminalProfile): Promise<boolean> {
+		if (!('isUnsafePath' in profile)) {
+			return true;
+		}
+
+		// Get the user's explicit permission to use a potentially unsafe path
+		return await new Promise<boolean>(r => {
+			const handle = this._notificationService.prompt(
+				Severity.Warning,
+				nls.localize('unsafePathWarning', 'This profile uses the potentially unsafe path {0} that another user can write to. Are you sure you want to use it?', `"${profile.path}"`),
+				[{
+					label: nls.localize('cancel', 'Cancel'),
+					run: () => r(false)
+				}, {
+					label: nls.localize('yes', 'Yes'),
+					run: () => r(true)
+				}]
+			);
+			handle.onDidClose(() => r(false));
+		});
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
