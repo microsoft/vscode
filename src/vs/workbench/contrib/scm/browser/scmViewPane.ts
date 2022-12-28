@@ -422,7 +422,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const resourceOrFolder = node.element;
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
-		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) || uri.fsPath.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) || iconResource?.resourceGroup.label === 'Untracked Folders' ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
