@@ -567,13 +567,17 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		let followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
-		this._register(configurationService.onDidChangeConfiguration(() => {
-			followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TestingConfigKeys.FollowRunningTest)) {
+				followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
+			}
 		}));
 
 		let alwaysRevealTestAfterStateChange = getTestingConfiguration(configurationService, TestingConfigKeys.AlwaysRevealTestOnStateChange);
-		this._register(configurationService.onDidChangeConfiguration(() => {
-			alwaysRevealTestAfterStateChange = getTestingConfiguration(configurationService, TestingConfigKeys.AlwaysRevealTestOnStateChange);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TestingConfigKeys.AlwaysRevealTestOnStateChange)) {
+				alwaysRevealTestAfterStateChange = getTestingConfiguration(configurationService, TestingConfigKeys.AlwaysRevealTestOnStateChange);
+			}
 		}));
 
 		this._register(testResults.onTestChanged(evt => {
@@ -1027,7 +1031,7 @@ class TestExplorerActionRunner extends ActionRunner {
 }
 
 const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
-	let label = labelForTestInState(element.label, element.state);
+	let label = labelForTestInState(element.description || element.label, element.state);
 
 	if (element instanceof TestItemTreeElement) {
 		if (element.duration !== undefined) {

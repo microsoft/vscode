@@ -49,10 +49,7 @@ export class GhostTextController extends Disposable {
 			this.updateModelController();
 		}));
 		this._register(this.editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.suggest)) {
-				this.updateModelController();
-			}
-			if (e.hasChanged(EditorOption.inlineSuggest)) {
+			if (e.hasChanged(EditorOption.suggest) || e.hasChanged(EditorOption.inlineSuggest)) {
 				this.updateModelController();
 			}
 		}));

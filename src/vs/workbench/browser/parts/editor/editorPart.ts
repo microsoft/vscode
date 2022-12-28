@@ -28,11 +28,11 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -499,6 +499,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+		const shouldMaximize = this.groupViews.size > 1 && this.isGroupMaximized(locationView);
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
@@ -517,6 +518,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Notify group index change given a new group was added
 		this.notifyGroupIndexChange();
+
+		// Maximize new group, if the reference view was previously maximized
+		if (shouldMaximize) {
+			this.arrangeGroups(GroupsArrangement.MAXIMIZE, newGroupView);
+		}
 
 		return newGroupView;
 	}

@@ -71,7 +71,7 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _logger: Log,
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
-		private readonly _supportDeviceCodeFlow: boolean,
+		private readonly _extensionKind: vscode.ExtensionKind,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
@@ -164,8 +164,13 @@ export class GitHubServer implements IGitHubServer {
 			}
 		}
 
-		// Starting a local server isn't supported in web
-		if (vscode.env.uiKind === vscode.UIKind.Desktop) {
+		// Starting a local server is only supported if:
+		// 1. We are in a UI extension because we need to open a port on the machine that has the browser
+		// 2. We are in a node runtime because we need to open a port on the machine
+		if (
+			this._extensionKind === vscode.ExtensionKind.UI &&
+			typeof navigator === 'undefined'
+		) {
 			try {
 				await promptToContinue();
 				return await this.doLoginWithLocalServer(scopes);
@@ -175,7 +180,8 @@ export class GitHubServer implements IGitHubServer {
 			}
 		}
 
-		if (this._supportDeviceCodeFlow) {
+		// We only can use the Device Code flow when we have a full node environment because of CORS.
+		if (typeof navigator === 'undefined') {
 			try {
 				await promptToContinue();
 				return await this.doLoginDeviceCodeFlow(scopes);

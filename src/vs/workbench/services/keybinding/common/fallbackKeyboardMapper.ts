@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -12,37 +12,32 @@ import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMappe
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.
  */
-export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
+export class FallbackKeyboardMapper implements IKeyboardMapper {
 
-	/**
-	 * OS (can be Linux or Macintosh)
-	 */
-	private readonly _OS: OperatingSystem;
-
-	constructor(OS: OperatingSystem) {
-		this._OS = OS;
-	}
+	constructor(
+		private readonly _mapAltGrToCtrlAlt: boolean,
+		private readonly _OS: OperatingSystem,
+	) { }
 
 	public dumpDebugInfo(): string {
 		return 'FallbackKeyboardMapper dispatching on keyCode';
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, this._OS)];
-	}
-
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		const keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
+		const ctrlKey = keyboardEvent.ctrlKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const altKey = keyboardEvent.altKey || (this._mapAltGrToCtrlAlt && keyboardEvent.altGraphKey);
+		const chord = new KeyCodeChord(
+			ctrlKey,
 			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
+			altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
 		);
-		return new USLayoutResolvedKeybinding(keybinding.toChord(), this._OS);
+		const result = this.resolveKeybinding(new Keybinding([chord]));
+		return result[0];
 	}
 
-	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
-		return USLayoutResolvedKeybinding.resolveUserBinding(input, this._OS);
+	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
+		return USLayoutResolvedKeybinding.resolveKeybinding(keybinding, this._OS);
 	}
 }

@@ -150,7 +150,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
 	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
-	reinstallFromGallery(): Promise<void> { throw new Error('unsupported'); }
+	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = e.previous.extensionsResource;

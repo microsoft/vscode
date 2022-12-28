@@ -41,7 +41,7 @@ export class TogglePanelAction extends Action2 {
 			toggled: {
 				condition: PanelVisibleContext,
 				title: localize('toggle panel', "Panel"),
-				mnemonicTitle: localize('toggle panel mnemonic', "&&Panel"),
+				mnemonicTitle: localize({ key: 'toggle panel mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
 			},
 			f1: true,
 			category: Categories.View,

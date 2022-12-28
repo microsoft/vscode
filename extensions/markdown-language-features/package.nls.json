@@ -4,7 +4,7 @@
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the Markdown preview. Setting it to 'true' creates a <br> for newlines inside paragraphs.",
 	"markdown.preview.linkify": "Convert URL-like text to links in the Markdown preview.",
 	"markdown.preview.typographer": "Enable some language-neutral replacement and quotes beautification in the Markdown preview.",
-	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double click in the Markdown preview to switch to the editor.",
+	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double-click in the Markdown preview to switch to the editor.",
 	"markdown.preview.fontFamily.desc": "Controls the font family used in the Markdown preview.",
 	"markdown.preview.fontSize.desc": "Controls the font size in pixels used in the Markdown preview.",
 	"markdown.preview.lineHeight.desc": "Controls the line height used in the Markdown preview. This number is relative to the font size.",
@@ -49,5 +49,6 @@
 	"configuration.markdown.updateLinksOnFileMove.include.property": "The glob pattern to match file paths against. Set to true to enable the pattern.",
 	"configuration.markdown.updateLinksOnFileMove.enableForDirectories": "Enable updating links when a directory is moved or renamed in the workspace.",
 	"configuration.markdown.occurrencesHighlight.enabled": "Enable highlighting link occurrences in the current document.",
+	"configuration.markdown.copyFiles.destination": "Defines where files copied into a Markdown document should be created. This is a map from globs that match on the Markdown document to destinations.\n\nThe destinations may use the following variables:\n\n- `${documentFileName}` — The full filename of the Markdown document, for example `readme.md`.\n- `${documentBaseName}` — The basename of Markdown document, for example `readme`.\n- `${documentExtName}` — The extension of the Markdown document, for example `md`.\n- `${documentDirName}` — The name of the Markdown document's parent directory.\n- `${documentWorkspaceFolder}` — The workspace folder for the Markdown document, for examples, `/Users/me/myProject`. This is the same as `${documentDirName}` if the file is not part of in a workspace.\n- `${fileName}` — The file name of the dropped file, for example `image.png`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

@@ -13,7 +13,7 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IGlobalState {
 	storage: IStringDictionary<string>;
@@ -74,19 +74,26 @@ export class GlobalStateResource implements IProfileResource {
 export abstract class GlobalStateResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.GlobalState;
-	readonly handle = 'globalState';
+	readonly handle = ProfileResourceType.GlobalState;
 	readonly label = { label: localize('globalState', "UI State") };
-	readonly collapsibleState = TreeItemCollapsibleState.None;
+	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
 	checkbox: ITreeItemCheckboxState = { isChecked: true };
-	readonly command = {
-		id: API_OPEN_EDITOR_COMMAND_ID,
-		title: '',
-		arguments: [this.resource, undefined, undefined]
-	};
 
 	constructor(private readonly resource: URI) { }
 
-	async getChildren(): Promise<undefined> { return undefined; }
+	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
+		return [{
+			handle: this.resource.toString(),
+			resourceUri: this.resource,
+			collapsibleState: TreeItemCollapsibleState.None,
+			parent: this,
+			command: {
+				id: API_OPEN_EDITOR_COMMAND_ID,
+				title: '',
+				arguments: [this.resource, undefined, undefined]
+			}
+		}];
+	}
 
 	abstract getContent(): Promise<string>;
 }

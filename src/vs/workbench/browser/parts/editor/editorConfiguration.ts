@@ -7,13 +7,15 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
+import { isWeb } from 'vs/base/common/platform';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 
@@ -51,10 +53,12 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	private autoLockConfigurationNode: IConfigurationNode | undefined;
 	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
 	private editorAssociationsConfigurationNode: IConfigurationNode | undefined;
+	private editorLargeFileConfirmationConfigurationNode: IConfigurationNode | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -144,16 +148,33 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			}
 		};
 
+		// Registers setting for large file confirmation based on environment
+		const oldEditorLargeFileConfirmationConfigurationNode = this.editorLargeFileConfirmationConfigurationNode;
+		this.editorLargeFileConfirmationConfigurationNode = {
+			...workbenchConfigurationNodeBase,
+			properties: {
+				'workbench.editorLargeFileConfirmation': {
+					type: 'number',
+					default: isWeb ? 10 : this.environmentService.remoteAuthority ? 50 : 1024,
+					minimum: 1,
+					scope: ConfigurationScope.RESOURCE,
+					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor."),
+				}
+			}
+		};
+
 		this.configurationRegistry.updateConfigurations({
 			add: [
 				this.autoLockConfigurationNode,
 				this.defaultBinaryEditorConfigurationNode,
-				this.editorAssociationsConfigurationNode
+				this.editorAssociationsConfigurationNode,
+				this.editorLargeFileConfirmationConfigurationNode
 			],
 			remove: coalesce([
 				oldAutoLockConfigurationNode,
 				oldDefaultBinaryEditorConfigurationNode,
-				oldEditorAssociationsConfigurationNode
+				oldEditorAssociationsConfigurationNode,
+				oldEditorLargeFileConfirmationConfigurationNode
 			])
 		});
 	}

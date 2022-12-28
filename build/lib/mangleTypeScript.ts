@@ -7,6 +7,8 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 import { argv } from 'process';
+import { Mapping, SourceMapGenerator } from 'source-map';
+import { pathToFileURL } from 'url';
 
 class ShortIdent {
 
@@ -320,6 +322,11 @@ class StaticLanguageServiceHost implements ts.LanguageServiceHost {
 	realpath = ts.sys.realpath;
 }
 
+export interface MangleOutput {
+	out: string;
+	sourceMap?: string;
+}
+
 /**
  * TypeScript2TypeScript transformer that mangles all private and protected fields
  *
@@ -339,7 +346,7 @@ export class Mangler {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
-	computeNewFileContents(): Map<string, string> {
+	computeNewFileContents(): Map<string, MangleOutput> {
 
 		// STEP: find all classes and their field info
 
@@ -360,7 +367,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
+		this.log(`Done collecting classes: ${this.allClassDataByKey.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -416,7 +423,7 @@ export class Mangler {
 		for (const data of this.allClassDataByKey.values()) {
 			ClassData.fillInReplacement(data);
 		}
-		this.log(`done creating REPLACEMENTS`);
+		this.log(`Done creating replacements`);
 
 		// STEP: prepare rename edits
 		type Edit = { newText: string; offset: number; length: number };
@@ -464,13 +471,20 @@ export class Mangler {
 			}
 		}
 
-		this.log(`done preparing EDITS for ${editsByFile.size} files`);
+		this.log(`Done preparing edits: ${editsByFile.size} files`);
 
 		// STEP: apply all rename edits (per file)
-		const result = new Map<string, string>();
+		const result = new Map<string, MangleOutput>();
 		let savedBytes = 0;
 
 		for (const item of this.service.getProgram()!.getSourceFiles()) {
+
+			const { mapRoot, sourceRoot } = this.service.getProgram()!.getCompilerOptions();
+			const projectDir = path.dirname(this.projectPath);
+			const sourceMapRoot = mapRoot ?? pathToFileURL(sourceRoot ?? projectDir).toString();
+
+			// source maps
+			let generator: SourceMapGenerator | undefined;
 
 			let newFullText: string;
 			const edits = editsByFile.get(item.fileName);
@@ -479,6 +493,10 @@ export class Mangler {
 				newFullText = item.getFullText();
 
 			} else {
+				// source map generator
+				const relativeFileName = path.relative(projectDir, item.fileName);
+				const mappingsByLine = new Map<number, Mapping[]>();
+
 				// apply renames
 				edits.sort((a, b) => b.offset - a.offset);
 				const characters = item.getFullText().split('');
@@ -486,27 +504,60 @@ export class Mangler {
 				let lastEdit: Edit | undefined;
 
 				for (const edit of edits) {
-					if (lastEdit) {
-						if (lastEdit.offset === edit.offset) {
-							//
-							if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
-								this.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
-								throw new Error('OVERLAPPING edit');
-							} else {
-								continue;
-							}
+					if (lastEdit && lastEdit.offset === edit.offset) {
+						//
+						if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
+							this.log('ERROR: Overlapping edit', item.fileName, edit.offset, edits);
+							throw new Error('OVERLAPPING edit');
+						} else {
+							continue;
 						}
 					}
 					lastEdit = edit;
-					const removed = characters.splice(edit.offset, edit.length, edit.newText);
-					savedBytes += removed.length - edit.newText.length;
+					const mangledName = characters.splice(edit.offset, edit.length, edit.newText).join('');
+					savedBytes += mangledName.length - edit.newText.length;
+
+					// source maps
+					const pos = item.getLineAndCharacterOfPosition(edit.offset);
+
+
+					let mappings = mappingsByLine.get(pos.line);
+					if (!mappings) {
+						mappings = [];
+						mappingsByLine.set(pos.line, mappings);
+					}
+					mappings.unshift({
+						source: relativeFileName,
+						original: { line: pos.line + 1, column: pos.character },
+						generated: { line: pos.line + 1, column: pos.character },
+						name: mangledName
+					}, {
+						source: relativeFileName,
+						original: { line: pos.line + 1, column: pos.character + edit.length },
+						generated: { line: pos.line + 1, column: pos.character + edit.newText.length },
+					});
 				}
+
+				// source map generation, make sure to get mappings per line correct
+				generator = new SourceMapGenerator({ file: path.basename(item.fileName), sourceRoot: sourceMapRoot });
+				generator.setSourceContent(relativeFileName, item.getFullText());
+				for (const [, mappings] of mappingsByLine) {
+					let lineDelta = 0;
+					for (const mapping of mappings) {
+						generator.addMapping({
+							...mapping,
+							generated: { line: mapping.generated.line, column: mapping.generated.column - lineDelta }
+						});
+						lineDelta += mapping.original.column - mapping.generated.column;
+					}
+				}
+
 				newFullText = characters.join('');
 			}
-			result.set(item.fileName, newFullText);
+			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
 		}
 
-		this.log(`DONE saved ${savedBytes / 1000}kb`);
+		this.log(`Done: ${savedBytes / 1000}kb saved`);
 		return result;
 	}
 }
@@ -523,12 +574,15 @@ async function _run() {
 
 	const projectPath = path.join(__dirname, '../../src/tsconfig.json');
 	const projectBase = path.dirname(projectPath);
-	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '-mangle');
+	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
 
 	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents()) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
 		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
-		await fs.promises.writeFile(newFilePath, contents);
+		await fs.promises.writeFile(newFilePath, contents.out);
+		if (contents.sourceMap) {
+			await fs.promises.writeFile(newFilePath + '.map', contents.sourceMap);
+		}
 	}
 }
 

@@ -150,7 +150,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
 			await this.checkForWorkspaceTrust(extension.manifest);

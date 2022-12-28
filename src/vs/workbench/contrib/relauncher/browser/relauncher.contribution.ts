@@ -34,6 +34,22 @@ interface IConfiguration extends IWindowsConfiguration {
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
+	private static SETTINGS = [
+		'window.titleBarStyle',
+		'window.experimental.windowControlsOverlay.enabled',
+		'window.experimental.useSandbox',
+		'extensions.experimental.useUtilityProcess',
+		'window.nativeTabs',
+		'window.nativeFullScreen',
+		'window.clickThroughInactive',
+		'update.mode',
+		'editor.accessibilitySupport',
+		'security.workspace.trust.enabled',
+		'workbench.experimental.settingsProfiles.enabled',
+		'workbench.enableExperiments',
+		'_extensionsGallery.enablePPE'
+	];
+
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
@@ -56,17 +72,23 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), undefined);
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), e)));
+		this.onConfigurationChange(undefined);
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 	}
 
-	private onConfigurationChange(config: IConfiguration, e: IConfigurationChangeEvent | undefined): void {
+	private onConfigurationChange(e: IConfigurationChangeEvent | undefined): void {
+		if (e && !SettingsChangeRelauncher.SETTINGS.some(key => e.affectsConfiguration(key))) {
+			return;
+		}
+
+
 		let changed = false;
 
 		function processChanged(didChange: boolean) {
 			changed = changed || didChange;
 		}
 
+		const config = this.configurationService.getValue<IConfiguration>();
 		if (isNative) {
 
 			// Titlebar style
@@ -90,7 +112,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// macOS: Click through (accept first mouse)
 			processChanged(isMacintosh && this.clickThroughInactive.handleChange(config.window?.clickThroughInactive));
 
-			// Update channel
+			// Update mode
 			processChanged(this.updateMode.handleChange(config.update?.mode));
 
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
