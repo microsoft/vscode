@@ -116,7 +116,14 @@ async function detectAvailableWindowsProfiles(
 			args: ['--login'],
 			isAutoDetected: true
 		});
-		// isUnsafePath
+		detectedProfiles.set('bash (MSYS2)', {
+			path: [
+				{ path: `${process.env['HOMEDRIVE']}\\msys64\\usr\\bin\\bash.exe`, isUnsafe: true },
+			],
+			args: ['--login', '-i'],
+			icon: Codicon.terminalBash,
+			isAutoDetected: true
+		});
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
