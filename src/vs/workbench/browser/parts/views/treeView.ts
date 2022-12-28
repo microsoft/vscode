@@ -69,6 +69,7 @@ import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/par
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1473,7 +1474,7 @@ export class CustomTreeView extends AbstractTreeView {
 	protected activate() {
 		if (!this.activated) {
 			type ExtensionViewTelemetry = {
-				extensionId: string;
+				extensionId: TrustedTelemetryValue<string>;
 				id: string;
 			};
 			type ExtensionViewTelemetryMeta = {
@@ -1483,7 +1484,7 @@ export class CustomTreeView extends AbstractTreeView {
 				comment: 'Helps to gain insights on what extension contributed views are most popular';
 			};
 			this.telemetryService.publicLog2<ExtensionViewTelemetry, ExtensionViewTelemetryMeta>('Extension:ViewActivate', {
-				extensionId: this.extensionId,
+				extensionId: new TrustedTelemetryValue(this.extensionId),
 				id: this.id,
 			});
 			this.createTree();

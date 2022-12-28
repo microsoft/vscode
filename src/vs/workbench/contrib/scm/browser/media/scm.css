@@ -201,7 +201,7 @@
 }
 
 .scm-view .scm-editor-container .monaco-editor {
-	border-radius: 2px !important;
+	border-radius: 2px;
 }
 
 .scm-view .scm-editor-container .monaco-editor .focused .selected-text {
@@ -229,9 +229,7 @@
 	flex-wrap: wrap;
 	padding: 0 4px;
 	overflow: hidden;
-	height: 30px;
-	line-height: 20px;
-	border: 1px solid var(--vscode-button-background);
+	height: 28px;
 }
 
 .scm-view .button-container .monaco-description-button:hover {
@@ -257,15 +255,13 @@
 
 .scm-view .button-container .codicon.codicon-cloud-upload,
 .scm-view .button-container .codicon.codicon-sync {
-	line-height: 20px;
-	margin: 0 0.4em 0 0;
+	margin: 0 4px 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,
 .scm-view .button-container .codicon.codicon-arrow-down {
-	line-height: 20px;
 	font-size: small !important;
-	margin: 0 0.2em 0 0;
+	margin: 0 4px 0 0;
 }
 
 .scm-view .button-container > .monaco-button-dropdown {
@@ -301,13 +297,13 @@
 .scm-view .scm-editor-container {
 	position: relative;
 	box-sizing: border-box;
-	padding: 1px;
-	outline-offset: -1px;
-	outline: 1px solid var(--vscode-input-border);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 2px;
 }
 
-.scm-view .scm-editor-container.synthetic-focus {
+.scm-view .scm-editor-container.synthetic-focus,
+.monaco-workbench .part.panel .scm-view .scm-editor-container.synthetic-focus {
 	outline: 1px solid var(--vscode-focusBorder);
 }
 
@@ -384,7 +380,7 @@
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;
-	padding: 3px 6px;
+	padding: 2px 6px;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;
@@ -399,9 +395,12 @@
 
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
-.scm-view .scm-editor-container .monaco-editor .margin {
+.scm-view .scm-editor-container .monaco-editor .margin,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .margin,
+.monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .monaco-editor-background {
 	color: inherit;
-	background-color: var(--vscode-input-background);
+	background-color: unset
 }
 
 .scm-view .scm-editor-container .mtk1 {

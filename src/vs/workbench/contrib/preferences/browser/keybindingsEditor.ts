@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { isIOS, OS } from 'vs/base/common/platform';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -49,6 +49,9 @@ import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browse
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { isString } from 'vs/base/common/types';
 
 const $ = DOM.$;
 
@@ -435,14 +438,14 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				{
 					label: localize('when', "When"),
 					tooltip: '',
-					weight: 0.4,
+					weight: 0.35,
 					templateId: WhenColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
 				{
 					label: localize('source', "Source"),
 					tooltip: '',
-					weight: 0.1,
+					weight: 0.15,
 					templateId: SourceColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
@@ -777,10 +780,11 @@ class Delegate implements ITableVirtualDelegate<IKeybindingItemEntry> {
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			const commandIdMatched = (<IKeybindingItemEntry>element).keybindingItem.commandLabel && (<IKeybindingItemEntry>element).commandIdMatches;
 			const commandDefaultLabelMatched = !!(<IKeybindingItemEntry>element).commandDefaultLabelMatches;
+			const extensionIdMatched = !!(<IKeybindingItemEntry>element).extensionIdMatches;
 			if (commandIdMatched && commandDefaultLabelMatched) {
 				return 60;
 			}
-			if (commandIdMatched || commandDefaultLabelMatched) {
+			if (extensionIdMatched || commandIdMatched || commandDefaultLabelMatched) {
 				return 40;
 			}
 		}
@@ -944,7 +948,26 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 }
 
 interface ISourceColumnTemplateData {
-	highlightedLabel: HighlightedLabel;
+	sourceColumn: HTMLElement;
+	sourceLabel: HighlightedLabel;
+	extensionContainer: HTMLElement;
+	extensionLabel: HTMLAnchorElement;
+	extensionId: HighlightedLabel;
+	disposables: DisposableStore;
+}
+
+function onClick(element: HTMLElement, callback: () => void): IDisposable {
+	const disposables = new DisposableStore();
+	disposables.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, DOM.finalHandler(callback)));
+	disposables.add(DOM.addDisposableListener(element, DOM.EventType.KEY_UP, e => {
+		const keyboardEvent = new StandardKeyboardEvent(e);
+		if (keyboardEvent.equals(KeyCode.Space) || keyboardEvent.equals(KeyCode.Enter)) {
+			e.preventDefault();
+			e.stopPropagation();
+			callback();
+		}
+	}));
+	return disposables;
 }
 
 class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISourceColumnTemplateData> {
@@ -953,17 +976,49 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	readonly templateId: string = SourceColumnRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) { }
+
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
-		const highlightedLabel = new HighlightedLabel(sourceColumn);
-		return { highlightedLabel };
+		const sourceLabel = new HighlightedLabel(DOM.append(sourceColumn, $('.source-label')));
+		const extensionContainer = DOM.append(sourceColumn, $('.extension-container'));
+		const extensionLabel = DOM.append<HTMLAnchorElement>(extensionContainer, $('a.extension-label', { tabindex: 0 }));
+		const extensionId = new HighlightedLabel(DOM.append(extensionContainer, $('.extension-id-container.code')));
+		return { sourceColumn, sourceLabel, extensionLabel, extensionContainer, extensionId, disposables: new DisposableStore() };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: ISourceColumnTemplateData, height: number | undefined): void {
-		templateData.highlightedLabel.set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+
+		if (isString(keybindingItemEntry.keybindingItem.source)) {
+			templateData.extensionContainer.classList.add('hide');
+			templateData.sourceLabel.element.classList.remove('hide');
+			templateData.sourceColumn.title = '';
+			templateData.sourceLabel.set(keybindingItemEntry.keybindingItem.source || '-', keybindingItemEntry.sourceMatches);
+		} else {
+			templateData.extensionContainer.classList.remove('hide');
+			templateData.sourceLabel.element.classList.add('hide');
+			const extension = keybindingItemEntry.keybindingItem.source;
+			const extensionLabel = extension.displayName ?? extension.identifier.value;
+			templateData.sourceColumn.title = localize('extension label', "Extension ({0})", extensionLabel);
+			templateData.extensionLabel.textContent = extensionLabel;
+			templateData.disposables.add(onClick(templateData.extensionLabel, () => {
+				this.extensionsWorkbenchService.open(extension.identifier.value);
+			}));
+			if (keybindingItemEntry.extensionIdMatches) {
+				templateData.extensionId.element.classList.remove('hide');
+				templateData.extensionId.set(extension.identifier.value, keybindingItemEntry.extensionIdMatches);
+			} else {
+				templateData.extensionId.element.classList.add('hide');
+				templateData.extensionId.set(undefined);
+			}
+		}
 	}
 
-	disposeTemplate(templateData: ISourceColumnTemplateData): void { }
+	disposeTemplate(templateData: ISourceColumnTemplateData): void {
+		templateData.disposables.dispose();
+	}
 }
 
 interface IWhenColumnTemplateData {
@@ -1123,8 +1178,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
 		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
 		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.source;
 		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
+		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
 		return ariaLabel;
 	}
 }

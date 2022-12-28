@@ -351,7 +351,7 @@
 	max-width: 20px;
 	max-height: 20px;
 	position: relative;
-	top: 2px;
+	top: auto;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category img.category-icon {
@@ -802,7 +802,7 @@
 	top: 0px;
 }
 
-.monaco-workbench .part.editor>.content .getting-started-category .codicon::before {
+.monaco-workbench .part.editor>.content .getting-started-category .codicon-star-full::before {
 	vertical-align: middle;
 }
 

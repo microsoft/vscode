@@ -11,15 +11,18 @@ import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
-import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -264,6 +267,70 @@ registerAction2(class extends ToggleRenderAction {
 		);
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.action.previous',
+				title: localize('notebook.diff.action.previous.title', "Show Previous Change"),
+				icon: previousChangeIcon,
+				f1: false,
+				keybinding: {
+					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor) {
+		const editorService: IEditorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_DIFF_EDITOR_ID) {
+			return;
+		}
+
+		const editor = editorService.activeEditorPane.getControl() as INotebookTextDiffEditor | undefined;
+		editor?.previousChange();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.action.next',
+				title: localize('notebook.diff.action.next.title', "Show Next Change"),
+				icon: nextChangeIcon,
+				f1: false,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.F3,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor) {
+		const editorService: IEditorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_DIFF_EDITOR_ID) {
+			return;
+		}
+
+		const editor = editorService.activeEditorPane.getControl() as INotebookTextDiffEditor | undefined;
+		editor?.nextChange();
+	}
+});
+
+
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'notebook',

@@ -40,6 +40,7 @@ suite('NotebookCellList', () => {
 			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
+					cellLineNumberStates: {},
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
 					collapsedInputCells: {},
@@ -88,6 +89,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -131,6 +133,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -167,6 +170,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -208,6 +212,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -260,6 +265,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -295,6 +301,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -343,6 +350,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false],
 					editorViewStates: [null],
 					cellTotalHeights: [50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});

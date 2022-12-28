@@ -1108,10 +1108,17 @@ export class SearchResult extends Disposable {
 	}
 
 	batchRemove(elementsToRemove: RenderableMatch[]) {
+		// need to check that we aren't trying to remove elements twice
+		const removedElems: RenderableMatch[] = [];
+
 		try {
 			this._onChange.pause();
-			elementsToRemove.forEach((currentElement) =>
-				currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
+			elementsToRemove.forEach((currentElement) => {
+				if (!arrayContainsElementOrParent(currentElement, removedElems)) {
+					currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement);
+					removedElems.push(currentElement);
+				}
+			}
 			);
 		} finally {
 			this._onChange.resume();

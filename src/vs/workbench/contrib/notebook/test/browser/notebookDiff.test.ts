@@ -56,7 +56,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 		});
@@ -88,7 +88,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
@@ -119,7 +119,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 		});
@@ -157,7 +157,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 		});
@@ -178,7 +178,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 3);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
@@ -201,7 +201,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 3);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
@@ -229,7 +229,7 @@ suite('NotebookCommon', () => {
 					}],
 					quitEarly: false
 				}
-			});
+			}, undefined);
 
 			assert.strictEqual(diffResult.firstChangeIndex, 0);
 			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
@@ -274,7 +274,7 @@ suite('NotebookCommon', () => {
 					}],
 					quitEarly: false
 				}
-			});
+			}, undefined);
 
 			assert.strictEqual(diffResult.firstChangeIndex, 0);
 			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
@@ -385,7 +385,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'unchanged');
 			assert.strictEqual(diffViewModels.viewModels[0].checkIfOutputsModified(), false);
@@ -406,7 +406,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].original!.textModel.equal(diffViewModels.viewModels[0].modified!.textModel), true);
 			assert.strictEqual(diffViewModels.viewModels[1].original!.textModel.equal(diffViewModels.viewModels[1].modified!.textModel), false);
