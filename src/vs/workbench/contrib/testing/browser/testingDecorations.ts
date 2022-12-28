@@ -704,6 +704,7 @@ abstract class RunTestDecoration {
 		this.tests = newTests;
 		this.visible = visible;
 		this.editorDecoration.options = createRunTestDecoration(newTests.map(t => t.test), newTests.map(t => t.resultItem), visible).options;
+		this.editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
 		return true;
 	}
 
