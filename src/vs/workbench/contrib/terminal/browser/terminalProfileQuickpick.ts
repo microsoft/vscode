@@ -16,6 +16,7 @@ import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contri
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { basename } from 'vs/base/common/path';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 
 type DefaultProfileName = string;
@@ -25,7 +26,8 @@ export class TerminalProfileQuickpick {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) { }
 
 	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IQuickPickTerminalObject | DefaultProfileName | undefined> {
@@ -103,6 +105,27 @@ export class TerminalProfileQuickpick {
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
+				// Get the user's explicit permission to use a potentially unsafe path
+				if ('isUnsafePath' in context.item.profile && context.item.profile.isUnsafePath) {
+					const typedProfile = context.item.profile;
+					const acceptedWarning = await new Promise<boolean>(r => {
+						const handle = this._notificationService.prompt(
+							Severity.Warning,
+							nls.localize('unsafePathWarning', 'This profile uses the potentially unsafe path {0} that another user can write to. Are you sure you want to use it?', `"${typedProfile.path}"`),
+							[{
+								label: nls.localize('cancel', 'Cancel'),
+								run: () => r(false)
+							}, {
+								label: nls.localize('yes', 'Yes'),
+								run: () => r(true)
+							}]
+						);
+						handle.onDidClose(() => r(false));
+					});
+					if (!acceptedWarning) {
+						return;
+					}
+				}
 				if ('command' in context.item.profile) {
 					return;
 				}
@@ -210,7 +233,7 @@ export class TerminalProfileQuickpick {
 		}];
 		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
-		const friendlyPath = profile.isFromPath ? basename(profile.path) : profile.path;
+		const friendlyPath = (profile.isFromPath ? basename(profile.path) : profile.path) + (profile.isUnsafePath ? ` $(${Codicon.warning.id})` : '');
 		const colorClass = getColorClass(profile);
 		const iconClasses = [];
 		if (colorClass) {
