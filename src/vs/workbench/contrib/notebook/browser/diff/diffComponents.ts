@@ -1493,6 +1493,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._editorContainer.style.height = `${editorHeight}px`;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
+			if (this._editorLayoutInProgress) {
+				return;
+			}
+
 			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
 				this.cell.editorHeight = e.contentHeight;
 			}
@@ -1573,7 +1577,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		const editorViewState = this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
 		if (editorViewState) {
-			console.log('restore view state', this.cell.modified.handle, editorViewState);
 			this._editor!.restoreViewState(editorViewState);
 		}
 
@@ -1581,8 +1584,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.editorHeight = contentHeight;
 	}
 
+	private _editorLayoutInProgress = false;
+
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
+			this._editorLayoutInProgress = true;
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor!.layout({
@@ -1617,6 +1623,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 
 
+			this._editorLayoutInProgress = false;
 			this.layoutNotebookCell();
 		});
 	}
