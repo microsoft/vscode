@@ -112,7 +112,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 
 	private _scheduleRender(): void {
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
+			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 16);
 		}
 	}
 
@@ -160,8 +160,8 @@ export class NotebookDiffOverviewRuler extends Themable {
 		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
 		const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
-		const computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
-		const computedSliderPosition = Math.floor(scrollTop * computedRatio);
+		const computedSliderSize = Math.max(0, Math.round(layoutInfo.height * computedRatio));
+		const computedSliderPosition = Math.round(scrollTop * computedRatio);
 
 		return {
 			height: computedSliderSize,
