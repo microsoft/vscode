@@ -68,7 +68,6 @@ import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TreeViewPane extends ViewPane {
@@ -1052,9 +1051,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		};
 
 		this._actionHoverDelegate = {
-			placement: 'element',
 			showHover: (options: IHoverDelegateOptions) => {
-				options.hoverPosition = HoverPosition.ABOVE;
 				return this.hoverService.showHover(options);
 			},
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
