@@ -5,11 +5,12 @@
 
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { lastIndex } from 'vs/base/common/arrays';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
-import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { getDefaultNotebookCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -791,6 +792,68 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list.triggerScrollFromMouseWheelEvent(event);
 	}
 
+	previousChange(): void {
+		let currFocus = this._list.getFocus()[0];
+
+		if (isNaN(currFocus) || currFocus < 0) {
+			currFocus = 0;
+		}
+
+		// find the index of previous change
+		let prevChangeIndex = currFocus - 1;
+		while (prevChangeIndex >= 0) {
+			const vm = this._diffElementViewModels[prevChangeIndex];
+			if (vm.type !== 'unchanged') {
+				break;
+			}
+
+			prevChangeIndex--;
+		}
+
+		if (prevChangeIndex >= 0) {
+			this._list.setFocus([prevChangeIndex]);
+			this._list.reveal(prevChangeIndex);
+		} else {
+			// go to the last one
+			const index = lastIndex(this._diffElementViewModels, vm => vm.type !== 'unchanged');
+			if (index >= 0) {
+				this._list.setFocus([index]);
+				this._list.reveal(index);
+			}
+		}
+	}
+
+	nextChange(): void {
+		let currFocus = this._list.getFocus()[0];
+
+		if (isNaN(currFocus) || currFocus < 0) {
+			currFocus = 0;
+		}
+
+		// find the index of next change
+		let nextChangeIndex = currFocus + 1;
+		while (nextChangeIndex < this._diffElementViewModels.length) {
+			const vm = this._diffElementViewModels[nextChangeIndex];
+			if (vm.type !== 'unchanged') {
+				break;
+			}
+
+			nextChangeIndex++;
+		}
+
+		if (nextChangeIndex < this._diffElementViewModels.length) {
+			this._list.setFocus([nextChangeIndex]);
+			this._list.reveal(nextChangeIndex);
+		} else {
+			// go to the first one
+			const index = this._diffElementViewModels.findIndex(vm => vm.type !== 'unchanged');
+			if (index >= 0) {
+				this._list.setFocus([index]);
+				this._list.reveal(index);
+			}
+		}
+	}
+
 	createOutput(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
 			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
@@ -886,8 +949,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return this._overflowContainer;
 	}
 
-	override getControl(): NotebookEditorWidget | undefined {
-		return undefined;
+	override getControl(): INotebookTextDiffEditor | undefined {
+		return this;
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
