@@ -66,9 +66,9 @@
   integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
 
 "@vscode/emmet-helper@^2.3.0":
-  version "2.8.5"
-  resolved "https://registry.yarnpkg.com/@vscode/emmet-helper/-/emmet-helper-2.8.5.tgz#2178aa5545ad1c5b62053f0189c1c3a0576ead28"
-  integrity sha512-mvQdlE3cEn66eWqOOSvYaPEzig4YQVG3xluFwmcDmuWVLCwoY2a3uyUJraSj1fTyrZm8D1hkGrCnvpdobXeO2A==
+  version "2.8.6"
+  resolved "https://registry.yarnpkg.com/@vscode/emmet-helper/-/emmet-helper-2.8.6.tgz#ee2fa52321d6af8a40310fd9d37b8590a4dabb18"
+  integrity sha512-IIB8jbiKy37zN8bAIHx59YmnIelY78CGHtThnibD/d3tQOKRY83bYVi9blwmZVUZh6l9nfkYH3tvReaiNxY9EQ==
   dependencies:
     emmet "^2.3.0"
     jsonc-parser "^2.3.0"
