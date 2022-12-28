@@ -288,6 +288,51 @@ suite('NotebookCommon', () => {
 		});
 	});
 
+	test('diff insert 3', async () => {
+
+		await withTestNotebookDiffModel([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], [
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var h = 8;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], async (model, accessor) => {
+			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
+				cellsDiff: {
+					changes: [{
+						originalStart: 4,
+						originalLength: 0,
+						modifiedStart: 4,
+						modifiedLength: 1
+					}],
+					quitEarly: false
+				}
+			}, undefined);
+
+			// assert.strictEqual(diffResult.firstChangeIndex, 4);
+			assert.strictEqual(diffResult.viewModels[0].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[1].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[3].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[4].type, 'insert');
+			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
+		});
+	});
+
 	test('LCS', async () => {
 		await withTestNotebookDiffModel([
 			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
@@ -368,6 +413,43 @@ suite('NotebookCommon', () => {
 				originalLength: 1,
 				modifiedStart: 7,
 				modifiedLength: 0
+			}]);
+		});
+	});
+
+	test('LCS 3', async () => {
+		await withTestNotebookDiffModel([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], [
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var h = 8;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], async (model) => {
+			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
+			const diffResult = diff.ComputeDiff(false);
+			NotebookTextDiffEditor.prettyChanges(model, diffResult);
+
+			assert.deepStrictEqual(diffResult.changes.map(change => ({
+				originalStart: change.originalStart,
+				originalLength: change.originalLength,
+				modifiedStart: change.modifiedStart,
+				modifiedLength: change.modifiedLength
+			})), [{
+				originalStart: 4,
+				originalLength: 0,
+				modifiedStart: 4,
+				modifiedLength: 1
 			}]);
 		});
 	});
