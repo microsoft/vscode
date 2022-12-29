@@ -2328,8 +2328,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 class TerminalInstanceDragAndDropController extends Disposable implements dom.IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
-	private readonly _onDropFile = new Emitter<string>();
-	get onDropFile(): Event<string> { return this._onDropFile.event; }
+	private readonly _onDropFile = new Emitter<string | URI>();
+	get onDropFile(): Event<string | URI> { return this._onDropFile.event; }
 	private readonly _onDropTerminal = new Emitter<IRequestAddInstanceToGroupEvent>();
 	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
 
@@ -2410,20 +2410,20 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		}
 
 		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
+		let path: URI | undefined;
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+			path = URI.parse(JSON.parse(rawResources)[0]);
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
 		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
 		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+			path = URI.file(e.dataTransfer.files[0].path);
 		}
 
 		if (!path) {
