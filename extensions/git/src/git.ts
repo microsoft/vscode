@@ -2077,17 +2077,22 @@ export class Repository {
 		}
 	}
 
-	async getHEADBranch(): Promise<Branch | undefined> {
+	async getHEADRef(): Promise<Branch | undefined> {
 		let HEAD: Branch | undefined;
 
 		try {
 			HEAD = await this.getHEAD();
 
 			if (HEAD.name) {
-				try {
-					HEAD = await this.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
+				// Branch
+				HEAD = await this.getBranch(HEAD.name);
+			} else if (HEAD.commit) {
+				// Tag || Commit
+				const tags = await this.getRefs({ pattern: 'refs/tags/*' });
+				const tag = tags.find(tag => tag.commit === HEAD!.commit);
+
+				if (tag) {
+					HEAD = { ...HEAD, name: tag.name, type: RefType.Tag };
 				}
 			}
 		} catch (err) {
