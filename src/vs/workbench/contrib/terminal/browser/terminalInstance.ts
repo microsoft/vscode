@@ -2678,22 +2678,18 @@ async function preparePathForShell(resource: string | URI, executable: string | 
 			else if (shellType === WindowsShellType.Wsl) {
 				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
 			}
-
 			else if (hasSpace) {
 				return `"${originalPath}"`;
-			} else {
-				return originalPath;
 			}
-		} else {
-			const lowerExecutable = executable.toLowerCase();
-			if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-			} else if (hasSpace) {
-				return `"${originalPath}"`;
-			} else {
-				return originalPath;
-			}
+			return originalPath;
 		}
+		const lowerExecutable = executable.toLowerCase();
+		if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
+			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+		} else if (hasSpace) {
+			return `"${originalPath}"`;
+		}
+		return originalPath;
 	}
 
 	return escapeNonWindowsPath(originalPath);
