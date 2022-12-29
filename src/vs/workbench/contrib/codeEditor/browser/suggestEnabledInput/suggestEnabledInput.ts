@@ -108,6 +108,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private readonly _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
+	private readonly _onEscape = new Emitter<void>();
+	readonly onEscape: Event<void> = this._onEscape.event;
+
 	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
@@ -185,6 +188,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
 		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this));
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Escape).on(e => { e.preventDefault(); this._onEscape.fire(); }, this));
 		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();

@@ -23,11 +23,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { DefineKeybindingWidget, KeybindingsSearchWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
 import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, CONTEXT_WHEN_FOCUS } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -51,7 +51,8 @@ import { defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyle
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { isString } from 'vs/base/common/types';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { CompletionItemKind } from 'vs/editor/common/languages';
 
 const $ = DOM.$;
 
@@ -1023,7 +1024,7 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 class WhenInputWidget extends Disposable {
 
-	private readonly input: InputBox;
+	private readonly input: SuggestEnabledInput;
 	readonly el: HTMLElement;
 
 	private readonly _onDidAccept = this._register(new Emitter<string>());
@@ -1033,69 +1034,49 @@ class WhenInputWidget extends Disposable {
 	readonly onDidReject = this._onDidReject.event;
 
 	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super();
-
-		this.input = new InputBox(this.el = DOM.$('.when-input'), contextViewService, {
-			validationOptions: {
-				validation: (value) => {
-					try {
-						ContextKeyExpr.deserialize(value, true);
-					} catch (error) {
-						return {
-							content: error.message,
-							formatContent: true,
-							type: MessageType.ERROR
-						};
-					}
-					return null;
+		this.input = instantiationService.createInstance(SuggestEnabledInput, 'keyboardshortcutseditor#wheninput', this.el = DOM.$('.when-input'), {
+			provideResults: () => {
+				const result = [];
+				for (const contextKey of RawContextKey.all()) {
+					result.push({ label: contextKey.key, documentation: contextKey.description, detail: contextKey.type, kind: CompletionItemKind.Constant });
 				}
+				return result;
 			},
-			ariaLabel: localize('whenContextInputAriaLabel', "Type when context. Press Enter to confirm or Escape to cancel."),
-			inputBoxStyles: defaultInputBoxStyles
-		});
+			triggerCharacters: ['!'],
+		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey: CONTEXT_WHEN_FOCUS.bindTo(contextKeyService) });
 
-		this._register(DOM.addStandardDisposableListener(this.input.inputElement, DOM.EventType.KEY_DOWN, e => {
-			let handled = false;
-			if (e.equals(KeyCode.Enter)) {
-				this._onDidAccept.fire(this.input.value);
-				handled = true;
-			} else if (e.equals(KeyCode.Escape)) {
-				this._onDidReject.fire();
-				handled = true;
-			}
-			if (handled) {
+		this._register(attachSuggestEnabledInputBoxStyler(this.input, themeService, {}));
+
+		this._register(Event.any(this.input.onEnter, this.input.onDidBlur)(() => this._onDidAccept.fire(this.input.getValue())));
+		this._register(this.input.onEscape(() => this._onDidReject.fire()));
+
+		this._register((DOM.addDisposableListener(this.el, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
+		this._register(DOM.addStandardDisposableListener(this.el, DOM.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Escape)) {
 				e.preventDefault();
 				e.stopPropagation();
 			}
 		}));
-
-		const whenFocusContextKey = CONTEXT_WHEN_FOCUS.bindTo(contextKeyService);
-		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.FOCUS, () => whenFocusContextKey.set(true))));
-		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.BLUR, () => {
-			whenFocusContextKey.set(false);
-			this._onDidReject.fire();
-		})));
-
-		// stop double click action on the input #148493
-		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this.input.element.style.height = `${dimension.height}px`;
+		this.input.layout(dimension);
 	}
 
 	show(value: string): void {
 		DOM.show(this.el);
-		this.input.value = value;
-		this.input.focus();
-		this.input.select();
+		this.input.setValue(value);
+		this.input.focus(true);
 	}
 
 	hide(): void {
 		DOM.hide(this.el);
+		this.input.onHide();
 	}
 }
 
@@ -1146,7 +1127,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				templateData.element.classList.add('input-mode');
 				DOM.append(templateData.whenInputContainer, this.whenInputWidget.el);
 				this.whenInputWidget.show(keybindingItemEntry.keybindingItem.when || '');
-				this.whenInputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, 24));
+				this.whenInputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, 18));
 
 				const hideInputWidget = () => {
 					whenInputDisposables.clear();
