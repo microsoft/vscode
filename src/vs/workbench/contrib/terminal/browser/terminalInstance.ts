@@ -23,7 +23,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { isString, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
@@ -1327,7 +1327,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && text[text.length - 1] !== '\r') {
+		if (addNewLine && !text.endsWith('\r')) {
 			text += '\r';
 		}
 
@@ -1337,11 +1337,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.scrollToBottom();
 	}
 
-	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
+	async sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void> {
 		return this.sendText(await this.preparePathForShell(originalPath), addNewLine);
 	}
 
-	preparePathForShell(originalPath: string): Promise<string> {
+	preparePathForShell(originalPath: string | URI): Promise<string> {
 		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
@@ -2328,8 +2328,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 class TerminalInstanceDragAndDropController extends Disposable implements dom.IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
-	private readonly _onDropFile = new Emitter<string>();
-	get onDropFile(): Event<string> { return this._onDropFile.event; }
+	private readonly _onDropFile = new Emitter<string | URI>();
+	get onDropFile(): Event<string | URI> { return this._onDropFile.event; }
 	private readonly _onDropTerminal = new Emitter<IRequestAddInstanceToGroupEvent>();
 	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
 
@@ -2410,20 +2410,20 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		}
 
 		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
+		let path: URI | undefined;
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+			path = URI.parse(JSON.parse(rawResources)[0]);
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
 		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
 		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+			path = URI.file(e.dataTransfer.files[0].path);
 		}
 
 		if (!path) {
@@ -2633,62 +2633,65 @@ export function parseExitResult(
  * @param backend The backend for the terminal.
  * @returns An escaped version of the path to be execuded in the terminal.
  */
-async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
-	return new Promise<string>(c => {
-		if (!executable) {
-			c(originalPath);
-			return;
+async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
+	let originalPath: string;
+	if (isString(resource)) {
+		originalPath = resource;
+	} else {
+		originalPath = resource.fsPath;
+		// Apply backend OS-specific formatting to the path since URI.fsPath uses the frontend's OS
+		if (isWindows && os !== OperatingSystem.Windows) {
+			originalPath = originalPath.replace(/\\/g, '\/');
+		} else if (!isWindows && os === OperatingSystem.Windows) {
+			originalPath = originalPath.replace(/\//g, '\\');
 		}
+	}
 
-		const hasSpace = originalPath.includes(' ');
-		const hasParens = originalPath.includes('(') || originalPath.includes(')');
+	if (!executable) {
+		return originalPath;
+	}
 
-		const pathBasename = path.basename(executable, '.exe');
-		const isPowerShell = pathBasename === 'pwsh' ||
-			title === 'pwsh' ||
-			pathBasename === 'powershell' ||
-			title === 'powershell';
+	const hasSpace = originalPath.includes(' ');
+	const hasParens = originalPath.includes('(') || originalPath.includes(')');
 
-		if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
-			c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
-			return;
-		}
+	const pathBasename = path.basename(executable, '.exe');
+	const isPowerShell = pathBasename === 'pwsh' ||
+		title === 'pwsh' ||
+		pathBasename === 'powershell' ||
+		title === 'powershell';
 
-		if (hasParens && isPowerShell) {
-			c(`& '${originalPath}'`);
-			return;
-		}
 
-		if (os === OperatingSystem.Windows) {
-			// 17063 is the build number where wsl path was introduced.
-			// Update Windows uriPath to be executed in WSL.
-			if (shellType !== undefined) {
-				if (shellType === WindowsShellType.GitBash) {
-					c(originalPath.replace(/\\/g, '/'));
-				}
-				else if (shellType === WindowsShellType.Wsl) {
-					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
-				}
+	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
+		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
+	}
 
-				else if (hasSpace) {
-					c('"' + originalPath + '"');
-				} else {
-					c(originalPath);
-				}
-			} else {
-				const lowerExecutable = executable.toLowerCase();
-				if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
-					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
-				} else if (hasSpace) {
-					c('"' + originalPath + '"');
-				} else {
-					c(originalPath);
-				}
+	if (hasParens && isPowerShell) {
+		return `& '${originalPath}'`;
+	}
+
+	if (os === OperatingSystem.Windows) {
+		// 17063 is the build number where wsl path was introduced.
+		// Update Windows uriPath to be executed in WSL.
+		if (shellType !== undefined) {
+			if (shellType === WindowsShellType.GitBash) {
+				return originalPath.replace(/\\/g, '/');
 			}
-
-			return;
+			else if (shellType === WindowsShellType.Wsl) {
+				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+			}
+			else if (hasSpace) {
+				return `"${originalPath}"`;
+			}
+			return originalPath;
 		}
+		const lowerExecutable = executable.toLowerCase();
+		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
+			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+		} else if (hasSpace) {
+			return `"${originalPath}"`;
+		}
+		return originalPath;
+	}
 
-		c(escapeNonWindowsPath(originalPath));
-	});
+	return escapeNonWindowsPath(originalPath);
 }
