@@ -23,7 +23,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { isString, withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
@@ -48,7 +48,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMarkProperties, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -79,7 +78,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { IEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -91,6 +90,7 @@ import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 const enum Constants {
 	/**
@@ -2620,78 +2620,4 @@ export function parseExitResult(
 	}
 
 	return { code, message };
-}
-
-/**
- * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
- * included trying to prepare the path for WSL if needed.
- *
- * @param originalPath The path to be escaped and formatted.
- * @param executable The executable off the shellLaunchConfig.
- * @param title The terminal's title.
- * @param shellType The type of shell the path is being sent to.
- * @param backend The backend for the terminal.
- * @returns An escaped version of the path to be execuded in the terminal.
- */
-async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
-	let originalPath: string;
-	if (isString(resource)) {
-		originalPath = resource;
-	} else {
-		originalPath = resource.fsPath;
-		// Apply backend OS-specific formatting to the path since URI.fsPath uses the frontend's OS
-		if (isWindows && os !== OperatingSystem.Windows) {
-			originalPath = originalPath.replace(/\\/g, '\/');
-		} else if (!isWindows && os === OperatingSystem.Windows) {
-			originalPath = originalPath.replace(/\//g, '\\');
-		}
-	}
-
-	if (!executable) {
-		return originalPath;
-	}
-
-	const hasSpace = originalPath.includes(' ');
-	const hasParens = originalPath.includes('(') || originalPath.includes(')');
-
-	const pathBasename = path.basename(executable, '.exe');
-	const isPowerShell = pathBasename === 'pwsh' ||
-		title === 'pwsh' ||
-		pathBasename === 'powershell' ||
-		title === 'powershell';
-
-
-	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
-		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
-	}
-
-	if (hasParens && isPowerShell) {
-		return `& '${originalPath}'`;
-	}
-
-	if (os === OperatingSystem.Windows) {
-		// 17063 is the build number where wsl path was introduced.
-		// Update Windows uriPath to be executed in WSL.
-		if (shellType !== undefined) {
-			if (shellType === WindowsShellType.GitBash) {
-				return originalPath.replace(/\\/g, '/');
-			}
-			else if (shellType === WindowsShellType.Wsl) {
-				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-			}
-			else if (hasSpace) {
-				return `"${originalPath}"`;
-			}
-			return originalPath;
-		}
-		const lowerExecutable = executable.toLowerCase();
-		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
-			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-		} else if (hasSpace) {
-			return `"${originalPath}"`;
-		}
-		return originalPath;
-	}
-
-	return escapeNonWindowsPath(originalPath);
 }
