@@ -555,9 +555,7 @@ export class SuggestWidget implements IDisposable {
 			this._list.splice(0, this._list.length, this._completionModel.items);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
-			if (!noFocus) {
-				this._list.setFocus([selectionIndex]);
-			}
+			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			this._onDidFocus.resume();
 			this._onDidSelect.resume();

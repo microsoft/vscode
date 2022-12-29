@@ -14,7 +14,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
@@ -65,7 +65,16 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		this._updateTelemetryLevel();
-		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			// Check on the telemetry settings and update the state if changed
+			const affectsTelemetryConfig =
+				e.affectsConfiguration(TELEMETRY_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID);
+			if (affectsTelemetryConfig) {
+				this._updateTelemetryLevel();
+			}
+		}));
 	}
 
 	setExperimentProperty(name: string, value: string): void {

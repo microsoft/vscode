@@ -284,6 +284,21 @@ export interface IFileAtomicReadOptions {
 	readonly atomic: true;
 }
 
+export interface IFileReadLimits {
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_TOO_LARGE` will be thrown.
+	 */
+	size?: number;
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
+	 */
+	memory?: number;
+}
+
 export interface IFileReadStreamOptions {
 
 	/**
@@ -299,12 +314,10 @@ export interface IFileReadStreamOptions {
 	readonly length?: number;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
@@ -1155,6 +1168,17 @@ export class FileOperationError extends Error {
 		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
 	) {
 		super(message);
+	}
+}
+
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
 	}
 }
 

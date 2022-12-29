@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { URI } from 'vs/base/common/uri';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { IBufferLine } from 'xterm';
-import { Schemas } from 'vs/base/common/network';
 
 export async function assertLinkHelper(
 	text: string,
@@ -44,12 +42,4 @@ export async function assertLinkHelper(
 		};
 	});
 	deepStrictEqual(actualLinks, expectedLinks);
-}
-
-export async function resolveLinkForTest(link: string, uri?: URI): Promise<ResolvedLink> {
-	return {
-		link,
-		uri: URI.from({ scheme: Schemas.file, path: link }),
-		isDirectory: false,
-	};
 }

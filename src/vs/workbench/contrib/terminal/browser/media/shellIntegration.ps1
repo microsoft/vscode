@@ -20,17 +20,12 @@ $Global:__LastHistoryId = -1
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, '[^a-zA-Z0-9]', { param($match)
-		# Backslashes must be doubled.
-		if ($match.Value -eq '\') {
-			'\\'
-		} else {
-			# Any other characters are encoded as their UTF-8 hex values.
-			-Join (
-				[System.Text.Encoding]::UTF8.GetBytes($match.Value)
-				| ForEach-Object { '\x{0:x2}' -f $_ }
-			)
-		}
+	[regex]::Replace($value, '[\\\n;]', { param($match)
+		# Encode the (ascii) matches as `\x<hex>`
+		-Join (
+			[System.Text.Encoding]::UTF8.GetBytes($match.Value)
+			| ForEach-Object { '\x{0:x2}' -f $_ }
+		)
 	})
 }
 

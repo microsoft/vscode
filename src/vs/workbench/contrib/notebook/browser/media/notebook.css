@@ -21,6 +21,10 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div {
+	white-space: normal;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div {
 	/* @rebornix: larger than the editor title bar */
 	z-index: 600 !important;
 }

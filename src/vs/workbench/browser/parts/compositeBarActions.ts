@@ -415,10 +415,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 		}, true));
 
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-			ActivityActionViewItem.hoverLeaveTime = Date.now();
-			this.hoverService.hideHover();
-			this.showHoverScheduler.cancel();
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
+			if (e.target === this.container) {
+				ActivityActionViewItem.hoverLeaveTime = Date.now();
+				this.hoverService.hideHover();
+				this.showHoverScheduler.cancel();
+			}
 		}, true));
 
 		this.hoverDisposables.add(toDisposable(() => {

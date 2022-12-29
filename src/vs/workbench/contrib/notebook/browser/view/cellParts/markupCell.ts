@@ -445,12 +445,15 @@ export class MarkupCell extends Disposable {
 	private layoutFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
+				this.templateData.foldingIndicator.style.display = 'none';
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
 				break;
 			case CellFoldingState.Expanded:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
 				break;
 

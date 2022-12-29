@@ -79,7 +79,7 @@ export interface INotebookCellList {
 	focusView(): void;
 	getAbsoluteTopOfElement(element: ICellViewModel): number;
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
-	updateElementHeight2(element: ICellViewModel, size: number): void;
+	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
 	focusContainer(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;

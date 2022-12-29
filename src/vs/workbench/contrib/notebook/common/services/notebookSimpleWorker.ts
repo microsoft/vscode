@@ -68,12 +68,7 @@ class MirrorCell {
 
 	getValue(): string {
 		const fullRange = this.getFullModelRange();
-		const eol = this.textBuffer.getEOL();
-		if (eol === '\n') {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
-		} else {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
-		}
+		return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
 	}
 
 	getComparisonValue(): number {

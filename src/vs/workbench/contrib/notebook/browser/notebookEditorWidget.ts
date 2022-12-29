@@ -190,10 +190,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
-	private _isVisible = false;
 	private readonly _uuid = generateUuid();
 	private _focusTracker!: DOM.IFocusTracker;
 	private _webviewFocused: boolean = false;
+	private _isVisible = false;
+	get isVisible() {
+		return this._isVisible;
+	}
 
 	private _isDisposed: boolean = false;
 
@@ -2115,6 +2118,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const relayout = (cell: ICellViewModel, height: number) => {
 			if (this._isDisposed) {
 				return;
+			}
+
+			if (!this.hasEditorFocus()) {
+				const cellIndex = this.viewModel?.getCellIndex(cell);
+				const visibleRanges = this.visibleRanges;
+				if (cellIndex !== undefined
+					&& visibleRanges && visibleRanges.length && visibleRanges[0].start === cellIndex
+					// cell is partially visible
+					&& this._list.scrollTop > this.getAbsoluteTopOfElement(cell)
+				) {
+					return this._list.updateElementHeight2(cell, height, Math.min(cellIndex + 1, this.getLength() - 1));
+				}
 			}
 
 			this._list.updateElementHeight2(cell, height);

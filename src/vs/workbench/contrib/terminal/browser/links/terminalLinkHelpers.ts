@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBuffer } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
@@ -145,6 +145,53 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 		}
 	}
 	return content;
+}
+
+export function getXtermRangesByAttr(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): IBufferRange[] {
+	let bufferRangeStart: IBufferCellPosition | undefined = undefined;
+	let lastFgAttr: number = -1;
+	let lastBgAttr: number = -1;
+	const ranges: IBufferRange[] = [];
+	for (let y = lineStart; y <= lineEnd; y++) {
+		const line = buffer.getLine(y);
+		if (!line) {
+			continue;
+		}
+		for (let x = 0; x < cols; x++) {
+			const cell = line.getCell(x);
+			if (!cell) {
+				break;
+			}
+			// HACK: Re-construct the attributes from fg and bg, this is hacky as it relies
+			// upon the internal buffer bit layout
+			const thisFgAttr = (
+				cell.isBold() |
+				cell.isInverse() |
+				cell.isStrikethrough() |
+				cell.isUnderline()
+			);
+			const thisBgAttr = (
+				cell.isDim() |
+				cell.isItalic()
+			);
+			if (lastFgAttr === -1 || lastBgAttr === -1) {
+				bufferRangeStart = { x, y };
+			} else {
+				if (lastFgAttr !== thisFgAttr || lastBgAttr !== thisBgAttr) {
+					// TODO: x overflow
+					const bufferRangeEnd = { x, y };
+					ranges.push({
+						start: bufferRangeStart!,
+						end: bufferRangeEnd
+					});
+					bufferRangeStart = { x, y };
+				}
+			}
+			lastFgAttr = thisFgAttr;
+			lastBgAttr = thisBgAttr;
+		}
+	}
+	return ranges;
 }
 
 

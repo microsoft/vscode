@@ -773,7 +773,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					continueEditSessionOptions.push(new ContinueEditSessionItem(
 						ThemeIcon.isThemeIcon(icon) ? `$(${icon.id}) ${title}` : title,
 						command.id,
-						command.source,
+						command.source?.title,
 						when,
 						contribution.documentation
 					));
