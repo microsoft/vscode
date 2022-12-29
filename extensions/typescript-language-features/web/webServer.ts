@@ -93,17 +93,15 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			// clearImmediate(timeoutId)
 			this.clearTimeout(timeoutId)
 		},
-		// gc?(): void {}, // afaict this isn't available in the browser
 		trace: logger.info,
 		// require?(initialPath: string, moduleName: string): ModuleImportResult {},
-		// TODO: This definitely needs to be imlemented
+		// TODO: This definitely needs to be implemented
 		// importServicePlugin?(root: string, moduleName: string): Promise<ModuleImportResult> {},
-		// System
 		args,
 		newLine: '\n',
 		useCaseSensitiveFileNames: true,
-		write: apiClient.vscode.terminal.write, // TODO: MAYBE
-		writeOutputIsTTY(): boolean { return true }, // TODO: Maybe
+		write: apiClient.vscode.terminal.write,
+		writeOutputIsTTY(): boolean { return true },
 		// getWidthOfTerminal?(): number {},
 		readFile(path) {
 			try {
@@ -126,7 +124,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			catch (e) {
 				logger.info(`Error fs.getFileSize`)
 				logger.info(JSON.stringify(e))
-				return -1 // TODO: Find out what the failure return value is in the normal host.
+				return 0
 			}
 		},
 		writeFile(path, data) {
@@ -147,7 +145,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		fileExists(path: string): boolean {
 			try {
 				logger.info(`calling fileExists on ${path} (as ${toResource(path)})`)
-				// TODO: FileType.File might be correct! (need to learn about vscode's FileSystem.stat)
 				return fs.stat(toResource(path)).type === FileType.File
 			}
 			catch (e) {
@@ -159,7 +156,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		directoryExists(path: string): boolean {
 			try {
 				logger.info(`calling directoryExists on ${path} (as ${toResource(path)})`)
-				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
 				return fs.stat(toResource(path)).type === FileType.Directory
 			}
 			catch (e) {
@@ -171,7 +167,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		createDirectory(path: string): void {
 			try {
 				logger.info(`calling createDirectory on ${path} (as ${toResource(path)})`)
-				// TODO: FileType.Directory might be correct! (need to learn about vscode's FileSystem.stat)
 				fs.createDirectory(toResource(path))
 			}
 			catch (e) {
@@ -180,11 +175,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 		},
 		getExecutingFilePath(): string {
-			logger.info('calling getExecutingFilePath')
-			return '/' // TODO: Might be correct! Or it might be /scheme/authority. Or /typescript. Or /scheme/authority/typescript. Or dist/browser/typescript
+			return '/'
 		},
 		getCurrentDirectory(): string {
-			return '/' // TODO: Might still need to be /scheme/authority
+			return '/'
 		},
 		getDirectories(path: string): string[] {
 			try {
@@ -246,9 +240,8 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		/** This must be cryptographically secure. Only implement this method using `crypto.createHash("sha256")`. */
 		// createSHA256Hash?(data: string): string { },
 		// getMemoryUsage?(): number {},
-		exit(exitCode?: number): void {
-			logger.info("EXCITING!" + exitCode)
-			removeEventListener("message", listener) // TODO: Not sure this is right (and there might be other cleanup)
+		exit(): void {
+			removeEventListener("message", listener)
 		},
 		/** For module resolution only; symlinks aren't supported yet. */
 		realpath(path: string): string {
@@ -282,10 +275,9 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	}
 }
 
-function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort) {
+function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, args: string[], logger: ts.server.Logger, fsWatcher: MessagePort) {
 	logger.info("in createWebSystem")
-	// TODO: Why is args empty?
-	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), [], fsWatcher)
+	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, fsWatcher)
 	setSys(sys)
 	logger.info("finished creating web system")
 	return sys
@@ -323,6 +315,7 @@ interface StartSessionOptions {
 }
 class WorkerSession extends ts.server.Session<{}> {
 	wasmCancellationToken: WasmCancellationToken
+	listener: (message: any) => void
 	constructor(
 		host: ts.server.ServerHost,
 		options: StartSessionOptions,
@@ -342,6 +335,24 @@ class WorkerSession extends ts.server.Session<{}> {
 			canUseEvents: true,
 		});
 		this.wasmCancellationToken = cancellationToken
+		this.listener = (message: any) => {
+			// TEMP fix since Cancellation.retrieveCheck is not correct
+			function retrieveCheck2(data: any) {
+				if (!(data.$cancellationData instanceof SharedArrayBuffer)) {
+					return () => false;
+				}
+				const typedArray = new Int32Array(data.$cancellationData, 0, 1);
+				return () => {
+					return Atomics.load(typedArray, 0) === 1;
+				};
+			}
+
+			const shouldCancel = retrieveCheck2(message.data)
+			if (shouldCancel) {
+				this.wasmCancellationToken.shouldCancel = shouldCancel;
+			}
+			this.onMessage(message.data)
+		};
 		this.logger.info('done constructing WorkerSession')
 	}
 	public override send(msg: ts.server.protocol.Message) {
@@ -364,31 +375,13 @@ class WorkerSession extends ts.server.Session<{}> {
 	}
 	override exit() {
 		this.logger.info("Exiting...");
+		this.port.removeEventListener("message", this.listener)
 		this.projectService.closeLog();
 		close();
 	}
-	listen(port: MessagePort) {
+	listen() {
 		this.logger.info('webServer.ts: tsserver starting to listen for messages on "message"...')
-		port.onmessage = (message: any) => {
-
-			// TODO: Is this still needed?
-			// TEMP fix since Cancellation.retrieveCheck is not correct
-			function retrieveCheck2(data: any) {
-				if (!(data.$cancellationData instanceof SharedArrayBuffer)) {
-					return () => false;
-				}
-				const typedArray = new Int32Array(data.$cancellationData, 0, 1);
-				return () => {
-					return Atomics.load(typedArray, 0) === 1;
-				};
-			}
-
-			const shouldCancel = retrieveCheck2(message.data)
-			if (shouldCancel) {
-				this.wasmCancellationToken.shouldCancel = shouldCancel;
-			}
-			this.onMessage(message.data)
-		};
+		this.port.onmessage = this.listener
 	}
 }
 // END webServer/webServer.ts
@@ -409,9 +402,9 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(options: StartSessionOptions, extensionUri: URI, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort) {
-	session = new WorkerSession(createWebSystem(extensionUri, connection, logger, fsWatcher), options, tsserver, logger, hrtime)
-	session.listen(tsserver)
+function startSession(extensionUri: URI, connection: ClientConnection<Requests>, args: string[], logger: ts.server.Logger, fsWatcher: MessagePort, tsserver: MessagePort, options: StartSessionOptions) {
+	session = new WorkerSession(createWebSystem(extensionUri, connection, args, logger, fsWatcher), options, tsserver, logger, hrtime)
+	session.listen()
 }
 // END tsserver/webServer.ts
 // BEGIN tsserver/nodeServer.ts
@@ -442,22 +435,25 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 	logger.info(`Arguments: ${args.join(" ")}`);
 	logger.info(`Platform: ${platform} CaseSensitive: true`);
 	logger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} unknownServerMode: ${unknownServerMode}`);
-	startSession({
-		globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
-		pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
-		allowLocalPluginLoads: hasArgument(args, "--allowLocalPluginLoads"),
-		useSingleInferredProject: hasArgument(args, "--useSingleInferredProject"),
-		useInferredProjectPerProjectRoot: hasArgument(args, "--useInferredProjectPerProjectRoot"),
-		suppressDiagnosticEvents: hasArgument(args, "--suppressDiagnosticEvents"),
-		noGetErrOnBackgroundUpdate: hasArgument(args, "--noGetErrOnBackgroundUpdate"),
-		syntaxOnly,
-		serverMode
-	},
+	startSession(
 		extensionUri,
-		tsserver,
 		connection,
+		args,
 		logger,
-		fsWatcher);
+		fsWatcher,
+		tsserver,
+		{
+			globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
+			pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
+			allowLocalPluginLoads: hasArgument(args, "--allowLocalPluginLoads"),
+			useSingleInferredProject: hasArgument(args, "--useSingleInferredProject"),
+			useInferredProjectPerProjectRoot: hasArgument(args, "--useInferredProjectPerProjectRoot"),
+			suppressDiagnosticEvents: hasArgument(args, "--suppressDiagnosticEvents"),
+			noGetErrOnBackgroundUpdate: hasArgument(args, "--noGetErrOnBackgroundUpdate"),
+			syntaxOnly,
+			serverMode
+		},
+	);
 }
 function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
 	const arg = findArgument(args, name)
@@ -473,8 +469,7 @@ function findArgument(args: readonly string[], name: string): string | undefined
 		: undefined;
 }
 function updateWatch(event: "create" | "change" | "delete", uri: URI, extensionUri: URI, logger: ts.server.Logger) {
-	// TODO: Commit this, then roll it back and test file watches using the old way
-	// 1. creating watches seem to use the correct paths, BUT file watches never fire
+	// TODO: creating watches seem to use the correct paths, BUT file watches never fire. This is also true with a single **/* watch
 	logger.info(`checking for watch on ${uri.toString()}: event=${event}`)
 	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
 		: event === 'change' ? ts.FileWatcherEventKind.Changed
