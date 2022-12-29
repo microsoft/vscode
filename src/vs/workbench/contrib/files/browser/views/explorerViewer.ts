@@ -1371,6 +1371,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (source.isDirectory && await this.fileService.exists(newResource)) {
 				// Recurse into the children of the directories so that we can merge them with the source
 				resourceFileEdits.push(...await this.mergeDirectories(Array.from(source.children.values()), newResource));
+				// Delete the source folder since it's contents have been moved to the target folder
 				resourceFileEdits.push(new ResourceFileEdit(source.resource, undefined, { skipTrashBin: true, overwrite: true, recursive: true, folder: true }));
 			} else {
 				resourceFileEdits.push(new ResourceFileEdit(source.resource, newResource));
