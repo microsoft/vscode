@@ -1325,7 +1325,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Do not allow moving readonly items
-		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
+		sources = sources.filter(s => !s.isReadonly);
+		const resourceFileEdits = await this.mergeDirectories(sources, target.resource);
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
@@ -1360,6 +1361,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				throw error;
 			}
 		}
+	}
+
+	private async mergeDirectories(sources: ExplorerItem[], targetResource: URI): Promise<ResourceFileEdit[]> {
+		const resourceFileEdits: ResourceFileEdit[] = [];
+		for (const source of sources) {
+			const newResource = joinPath(targetResource, source.name);
+			// If the directory matches then we should recurse on the children because we want to merge them
+			if (source.isDirectory && await this.fileService.exists(newResource)) {
+				// Recurse into the children of the directories so that we can merge them with the source
+				resourceFileEdits.push(...await this.mergeDirectories(Array.from(source.children.values()), newResource));
+				resourceFileEdits.push(new ResourceFileEdit(source.resource, undefined, { skipTrashBin: true, overwrite: true, recursive: true, folder: true }));
+			} else {
+				resourceFileEdits.push(new ResourceFileEdit(source.resource, newResource));
+			}
+		}
+		return resourceFileEdits;
 	}
 
 	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
