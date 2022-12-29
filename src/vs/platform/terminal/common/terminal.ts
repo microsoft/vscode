@@ -756,12 +756,16 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	/**
-	 * Whether the terminal profile contains a potentially unsafe path. For example, the path
-	 *  `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
+	 * Whether the terminal profile contains a potentially unsafe {@link path}. For example, the path
+	 * `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
 	 * user in a multi-user environment. As such, we don't want to blindly present it as a profile
 	 * without a warning.
 	 */
 	isUnsafePath?: boolean;
+	/**
+	 * An additional unsafe path that must exist, for example a script that appears in {@link args}.
+	 */
+	requiresUnsafePath?: string;
 	isAutoDetected?: boolean;
 	/**
 	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be

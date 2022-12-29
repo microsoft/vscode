@@ -7,6 +7,7 @@ import * as cp from 'child_process';
 import { Codicon } from 'vs/base/common/codicons';
 import { basename, delimiter, normalize } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
@@ -211,7 +212,26 @@ async function transformToTerminalProfiles(
 		} else {
 			paths = originalPaths.slice();
 		}
-		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
+
+		let requiresUnsafePath: string | undefined;
+		if (profile.requiresPath) {
+			// Validate requiresPath exists
+			let actualRequiredPath: string;
+			if (isString(profile.requiresPath)) {
+				actualRequiredPath = profile.requiresPath;
+			} else {
+				actualRequiredPath = profile.requiresPath.path;
+				if (profile.requiresPath.isUnsafe) {
+					requiresUnsafePath = actualRequiredPath;
+				}
+			}
+			const result = await fsProvider.existsFile(actualRequiredPath);
+			if (!result) {
+				continue;
+			}
+		}
+
+		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, requiresUnsafePath);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
@@ -371,7 +391,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 	}
 }
 
-async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: (string | ITerminalUnsafePath)[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: (string | ITerminalUnsafePath)[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, requiresUnsafePath?: string): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -390,7 +410,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		overrideName,
 		isAutoDetected,
 		isDefault: profileName === defaultProfileName,
-		isUnsafePath
+		isUnsafePath,
+		requiresUnsafePath
 	};
 
 	// For non-absolute paths, check if it's available on $PATH
