@@ -2634,61 +2634,54 @@ export function parseExitResult(
  * @returns An escaped version of the path to be execuded in the terminal.
  */
 async function preparePathForShell(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
-	return new Promise<string>(c => {
-		if (!executable) {
-			c(originalPath);
-			return;
-		}
+	if (!executable) {
+		return originalPath;
+	}
 
-		const hasSpace = originalPath.indexOf(' ') !== -1;
-		const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
+	const hasSpace = originalPath.indexOf(' ') !== -1;
+	const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
 
-		const pathBasename = path.basename(executable, '.exe');
-		const isPowerShell = pathBasename === 'pwsh' ||
-			title === 'pwsh' ||
-			pathBasename === 'powershell' ||
-			title === 'powershell';
+	const pathBasename = path.basename(executable, '.exe');
+	const isPowerShell = pathBasename === 'pwsh' ||
+		title === 'pwsh' ||
+		pathBasename === 'powershell' ||
+		title === 'powershell';
 
-		if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
-			c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
-			return;
-		}
+	if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
+	}
 
-		if (hasParens && isPowerShell) {
-			c(`& '${originalPath}'`);
-			return;
-		}
+	if (hasParens && isPowerShell) {
+		return `& '${originalPath}'`;
+	}
 
-		if (os === OperatingSystem.Windows) {
-			// 17063 is the build number where wsl path was introduced.
-			// Update Windows uriPath to be executed in WSL.
-			if (shellType !== undefined) {
-				if (shellType === WindowsShellType.GitBash) {
-					c(originalPath.replace(/\\/g, '/'));
-				}
-				else if (shellType === WindowsShellType.Wsl) {
-					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
-				}
-
-				else if (hasSpace) {
-					c('"' + originalPath + '"');
-				} else {
-					c(originalPath);
-				}
-			} else {
-				const lowerExecutable = executable.toLowerCase();
-				if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
-				} else if (hasSpace) {
-					c('"' + originalPath + '"');
-				} else {
-					c(originalPath);
-				}
+	if (os === OperatingSystem.Windows) {
+		// 17063 is the build number where wsl path was introduced.
+		// Update Windows uriPath to be executed in WSL.
+		if (shellType !== undefined) {
+			if (shellType === WindowsShellType.GitBash) {
+				return originalPath.replace(/\\/g, '/');
+			}
+			else if (shellType === WindowsShellType.Wsl) {
+				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
 			}
 
-			return;
+			else if (hasSpace) {
+				return `"${originalPath}"`;
+			} else {
+				return originalPath;
+			}
+		} else {
+			const lowerExecutable = executable.toLowerCase();
+			if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
+				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+			} else if (hasSpace) {
+				return `"${originalPath}"`;
+			} else {
+				return originalPath;
+			}
 		}
+	}
 
-		c(escapeNonWindowsPath(originalPath));
-	});
+	return escapeNonWindowsPath(originalPath);
 }
