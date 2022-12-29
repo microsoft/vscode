@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, SortOrder, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -1369,8 +1369,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const newResource = joinPath(targetResource, source.name);
 			// If the directory matches then we should recurse on the children because we want to merge them
 			if (source.isDirectory && await this.fileService.exists(newResource)) {
+				// Resolve the children regardless of expansion
+				const children = await source.fetchChildren(SortOrder.Default);
 				// Recurse into the children of the directories so that we can merge them with the source
-				resourceFileEdits.push(...await this.mergeDirectories(Array.from(source.children.values()), newResource));
+				resourceFileEdits.push(...await this.mergeDirectories(children, newResource));
 				// Delete the source folder since it's contents have been moved to the target folder
 				resourceFileEdits.push(new ResourceFileEdit(source.resource, undefined, { skipTrashBin: true, overwrite: true, recursive: true, folder: true }));
 			} else {
