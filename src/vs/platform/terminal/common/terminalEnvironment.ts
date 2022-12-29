@@ -7,7 +7,7 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 
 export function escapeNonWindowsPath(path: string): string {
 	let newPath = path;
-	if (newPath.indexOf('\\') !== 0) {
+	if (newPath.includes('\\')) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;

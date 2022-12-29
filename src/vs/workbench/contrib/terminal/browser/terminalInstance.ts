@@ -1857,7 +1857,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setCommandsToSkipShell(commands: string[]): void {
 		const excludeCommands = commands.filter(command => command[0] === '-').map(command => command.slice(1));
 		this._skipTerminalCommands = DEFAULT_COMMANDS_TO_SKIP_SHELL.filter(defaultCommand => {
-			return excludeCommands.indexOf(defaultCommand) === -1;
+			return !excludeCommands.includes(defaultCommand);
 		}).concat(commands);
 	}
 
@@ -2640,8 +2640,8 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			return;
 		}
 
-		const hasSpace = originalPath.indexOf(' ') !== -1;
-		const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
+		const hasSpace = originalPath.includes(' ');
+		const hasParens = originalPath.includes('(') || originalPath.includes(')');
 
 		const pathBasename = path.basename(executable, '.exe');
 		const isPowerShell = pathBasename === 'pwsh' ||
@@ -2649,7 +2649,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 			pathBasename === 'powershell' ||
 			title === 'powershell';
 
-		if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
+		if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
 			c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
 			return;
 		}
@@ -2677,7 +2677,7 @@ async function preparePathForShell(originalPath: string, executable: string | un
 				}
 			} else {
 				const lowerExecutable = executable.toLowerCase();
-				if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
+				if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
 					c(backend?.getWslPath(originalPath, 'win-to-unix') || originalPath);
 				} else if (hasSpace) {
 					c('"' + originalPath + '"');

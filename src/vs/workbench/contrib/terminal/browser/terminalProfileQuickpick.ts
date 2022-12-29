@@ -213,7 +213,7 @@ export class TerminalProfileQuickpick {
 	}
 
 	private async _isProfileSafe(profile: ITerminalProfile | IExtensionTerminalProfile): Promise<boolean> {
-		if (!('isUnsafePath' in profile)) {
+		if (!('isUnsafePath' in profile) || profile.isUnsafePath === false) {
 			return true;
 		}
 
