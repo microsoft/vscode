@@ -98,8 +98,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				show(this.resizer);
 			}
 		}
-
-		this.adjustTitleMarginToCenter();
 	}
 
 	private onMenubarFocusChanged(focused: boolean): void {
@@ -165,15 +163,15 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.windowControls) {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
 			// Minimize
-			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
+			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.nativeHostService.minimizeWindow();
 			}));
 
 			// Restore
-			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore'));
+			this.maxRestoreControl = append(this.primaryWindowControls, $('div.window-icon.window-max-restore'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
 				if (maximized) {
@@ -184,7 +182,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.windowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
+			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
 			}));
