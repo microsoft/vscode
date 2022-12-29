@@ -42,7 +42,6 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 
-
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
 		isSimpleWidget: false,
@@ -1362,6 +1361,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 				} else {
 					this._outputEmptyElement!.style.display = 'none';
 				}
+				this._decorate();
 			}));
 
 			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
@@ -1377,14 +1377,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			if (outputModified && !outputMetadataChangeOnly) {
 				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-					if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
+					if (e.cell.uri.toString() === this.cell.original.uri.toString() && this.cell.checkIfOutputsModified()) {
 						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
 						originalOutputRenderListener.dispose();
 					}
 				});
 
 				const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-					if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
+					if (e.cell.uri.toString() === this.cell.modified.uri.toString() && this.cell.checkIfOutputsModified()) {
 						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
 						modifiedOutputRenderListener.dispose();
 					}
@@ -1452,6 +1452,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		if (this.cell.checkIfOutputsModified()) {
 			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
 			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
+		} else {
+			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, [], ['nb-cellDeleted']);
+			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, [], ['nb-cellAdded']);
 		}
 	}
 
@@ -1494,6 +1497,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._editorContainer.style.height = `${editorHeight}px`;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
+			if (this._editorLayoutInProgress) {
+				return;
+			}
+
 			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
 				this.cell.editorHeight = e.contentHeight;
 			}
@@ -1574,7 +1581,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		const editorViewState = this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
 		if (editorViewState) {
-			console.log('restore view state', this.cell.modified.handle, editorViewState);
 			this._editor!.restoreViewState(editorViewState);
 		}
 
@@ -1582,8 +1588,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.editorHeight = contentHeight;
 	}
 
+	private _editorLayoutInProgress = false;
+
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
+			this._editorLayoutInProgress = true;
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor!.layout({
@@ -1618,6 +1627,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 
 
+			this._editorLayoutInProgress = false;
 			this.layoutNotebookCell();
 		});
 	}

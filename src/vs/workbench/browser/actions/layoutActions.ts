@@ -16,7 +16,7 @@ import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
@@ -1126,8 +1126,8 @@ const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label:
 		visualIcon,
 		activeIcon: Codicon.eye,
 		inactiveIcon: Codicon.eyeClosed,
-		activeAriaLabel: localize('visible', "Visible"),
-		inactiveAriaLabel: localize('hidden', "Hidden"),
+		activeAriaLabel: localize('selectToHide', "Select to Hide"),
+		inactiveAriaLabel: localize('selectToShow', "Select to Show"),
 		useButtons: true,
 	};
 };
@@ -1184,6 +1184,9 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 }
 
 registerAction2(class CustomizeLayoutAction extends Action2 {
+
+	private _currentQuickPick?: IQuickPick<IQuickPickItem>;
+
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
@@ -1262,10 +1265,17 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		if (this._currentQuickPick) {
+			this._currentQuickPick.hide();
+			return;
+		}
+
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const quickPick = quickInputService.createQuickPick();
+
+		this._currentQuickPick = quickPick;
 		quickPick.items = this.getItems(contextKeyService);
 		quickPick.ignoreFocusOut = true;
 		quickPick.hideInput = true;
@@ -1311,7 +1321,14 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			quickPick.hide();
 		});
 
-		quickPick.onDispose(() => disposables.dispose());
+		quickPick.onDidHide(() => {
+			quickPick.dispose();
+		});
+
+		quickPick.onDispose(() => {
+			this._currentQuickPick = undefined;
+			disposables.dispose();
+		});
 
 		quickPick.show();
 	}
