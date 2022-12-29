@@ -1126,8 +1126,8 @@ const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label:
 		visualIcon,
 		activeIcon: Codicon.eye,
 		inactiveIcon: Codicon.eyeClosed,
-		activeAriaLabel: localize('visible', "Visible"),
-		inactiveAriaLabel: localize('hidden', "Hidden"),
+		activeAriaLabel: localize('selectToHide', "Select to Hide"),
+		inactiveAriaLabel: localize('selectToShow', "Select to Show"),
 		useButtons: true,
 	};
 };
