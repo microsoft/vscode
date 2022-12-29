@@ -221,7 +221,7 @@ export class TerminalProfileQuickpick {
 		return await new Promise<boolean>(r => {
 			const handle = this._notificationService.prompt(
 				Severity.Warning,
-				nls.localize('unsafePathWarning', 'This profile uses the potentially unsafe path {0} that another user can write to. Are you sure you want to use it?', `"${profile.path}"`),
+				nls.localize('unsafePathWarning', 'This profile uses a potentially unsafe path that can be modified by another user: {0}. Are you use you want to use it?', `"${profile.path}"`),
 				[{
 					label: nls.localize('yes', 'Yes'),
 					run: () => r(true)
