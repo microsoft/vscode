@@ -5,6 +5,11 @@
 
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 
+/**
+ * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
+ * escaping inaccurately to be careful about possible script injection via the file path. For
+ * example, we're trying to prevent this sort of attack: `/foo/file$(echo evil)`.
+ */
 export function escapeNonWindowsPath(path: string): string {
 	let newPath = path;
 	if (newPath.indexOf('\\') !== 0) {
