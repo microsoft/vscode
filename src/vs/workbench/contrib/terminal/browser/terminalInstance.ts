@@ -1327,7 +1327,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && text[text.length - 1] !== '\r') {
+		if (addNewLine && !text.endsWith('\r')) {
 			text += '\r';
 		}
 
