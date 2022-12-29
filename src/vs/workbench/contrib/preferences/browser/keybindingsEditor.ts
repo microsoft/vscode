@@ -1139,6 +1139,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: IWhenColumnTemplateData, height: number | undefined): void {
+		templateData.disposables.clear();
 		const whenInputDisposables = templateData.disposables.add(new DisposableStore());
 		templateData.disposables.add(this.keybindingsEditor.onDefineWhenExpression(e => {
 			if (keybindingItemEntry === e) {
