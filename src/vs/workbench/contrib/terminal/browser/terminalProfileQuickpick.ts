@@ -241,7 +241,7 @@ export class TerminalProfileQuickpick {
 		}];
 		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
-		const friendlyPath = (profile.isFromPath ? basename(profile.path) : profile.path) + (profile.isUnsafePath ? ` $(${Codicon.warning.id})` : '');
+		const friendlyPath = profile.isFromPath ? basename(profile.path) : profile.path;
 		const colorClass = getColorClass(profile);
 		const iconClasses = [];
 		if (colorClass) {
