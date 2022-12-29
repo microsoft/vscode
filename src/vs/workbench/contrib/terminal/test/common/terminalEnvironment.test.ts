@@ -287,7 +287,6 @@ suite('Workbench - TerminalEnvironment', () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.Wsl, wslPathBackend, OperatingSystem.Windows, true), '/mnt/c/foo/bar');
 			});
 		});
-		// NOTE: This isn't implemented currently
 		suite('Windows frontend, Linux backend', () => {
 			test('Bash', async () => {
 				strictEqual(await preparePathForShell('/foo/bar', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar'`);
