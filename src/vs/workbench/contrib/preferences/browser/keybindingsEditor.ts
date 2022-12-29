@@ -1078,6 +1078,9 @@ class WhenInputWidget extends Disposable {
 			whenFocusContextKey.set(false);
 			this._onDidReject.fire();
 		})));
+
+		// stop double click action on the input #148493
+		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
 	}
 
 	layout(dimension: DOM.Dimension): void {
