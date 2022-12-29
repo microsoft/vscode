@@ -124,6 +124,14 @@ async function detectAvailableWindowsProfiles(
 			icon: Codicon.terminalBash,
 			isAutoDetected: true
 		});
+		const cmderPath = `${process.env['CMDER_ROOT'] || `${process.env['HOMEDRIVE']}\\cmder`}\\vendor\\bin\\vscode_init.cmd`;
+		detectedProfiles.set('Cmder', {
+			path: `${system32Path}\\cmd.exe`,
+			args: ['/K', cmderPath],
+			// The path is safe if it was derived from CMDER_ROOT
+			requiresPath: process.env['CMDER_ROOT'] ? cmderPath : { path: cmderPath, isUnsafe: true },
+			isAutoDetected: true
+		});
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);

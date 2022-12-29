@@ -794,6 +794,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
+	requiresPath?: string | ITerminalUnsafePath;
 }
 
 type OneOrN<T> = T | T[];
