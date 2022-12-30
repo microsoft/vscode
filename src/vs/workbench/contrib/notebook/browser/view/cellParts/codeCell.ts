@@ -57,6 +57,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
+		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
 
@@ -112,7 +113,8 @@ export class CodeCell extends Disposable {
 		this.updateForOutputFocus();
 
 		// Render Outputs
-		this._outputContainerRenderer.render(editorHeight);
+		this.viewCell.editorHeight = editorHeight;
+		this._outputContainerRenderer.render();
 		// Need to do this after the intial renderOutput
 		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
 			this.initialViewUpdateExpanded();
