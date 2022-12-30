@@ -160,13 +160,12 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		}
 		if (e.preserveData) {
 			await this.webExtensionsScannerService.copyExtensions(previousProfileLocation, currentProfileLocation, e => !e.metadata?.isApplicationScoped);
+			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
 			const newExtensions = await this.webExtensionsScannerService.scanUserExtensions(currentProfileLocation);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			if (added.length || removed.length) {
-				this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
-			}
+			this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
 		}
 	}
 }
