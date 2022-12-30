@@ -285,7 +285,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			id: SelectionToWatchExpressionsAction.ID,
 			label: SelectionToWatchExpressionsAction.LABEL,
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1
