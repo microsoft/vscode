@@ -671,6 +671,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	// Set the unexpected error handler after the services have been initialized, to avoid having
 	// the telemetry service overwrite our handler
+	let didLogAboutSIGPIPE = false;
 	instantiationService.invokeFunction((accessor) => {
 		const logService = accessor.get(ILogService);
 		setUnexpectedErrorHandler(err => {
@@ -688,7 +689,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			// We would normally install a SIGPIPE listener in bootstrap.js
 			// But in certain situations, the console itself can be in a broken pipe state
 			// so logging SIGPIPE to the console will cause an infinite async loop
-			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+			if (!didLogAboutSIGPIPE) {
+				didLogAboutSIGPIPE = true;
+				onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+			}
 		});
 	});
 
