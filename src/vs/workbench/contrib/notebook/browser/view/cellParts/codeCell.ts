@@ -261,6 +261,12 @@ export class CodeCell extends Disposable {
 			const selections = this.templateData.editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = this.templateData.editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
 			}
