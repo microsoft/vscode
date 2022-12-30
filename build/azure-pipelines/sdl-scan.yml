@@ -30,7 +30,8 @@ variables:
     value: x64
   - name: VSCODE_ARCH
     value: x64
-  Codeql.enabled: true
+  - name: Codeql.enabled
+    value: true
 
 stages:
   - stage: Windows
