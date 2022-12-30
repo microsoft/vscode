@@ -250,7 +250,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	return { merge, resolved, unresolved, deletionConflicts };
 }
 
-function createCheckoutItems(repository: Repository): CheckoutItem[] {
+function createCheckoutItems(repository: Repository, detached = false): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
 	let checkoutTypes: string[];
@@ -261,6 +261,11 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 		checkoutTypes = [checkoutTypeConfig];
 	} else {
 		checkoutTypes = checkoutTypeConfig;
+	}
+
+	if (detached) {
+		// Remove tags when in detached mode
+		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
 	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
@@ -2020,12 +2025,12 @@ export class CommandCenter {
 			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
-		picks.push(...createCheckoutItems(repository));
+		picks.push(...createCheckoutItems(repository, opts?.detached));
 
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
 		quickpick.placeholder = opts?.detached
-			? l10n.t('Select a branch or tag to checkout in detached mode')
+			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickpick.show();
