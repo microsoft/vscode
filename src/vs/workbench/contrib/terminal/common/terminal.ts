@@ -80,6 +80,7 @@ export interface ITerminalProfileService {
 	getPlatformKey(): Promise<string>;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
+	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;

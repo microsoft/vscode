@@ -755,6 +755,13 @@ export interface ITerminalProfile {
 	profileName: string;
 	path: string;
 	isDefault: boolean;
+	/**
+	 * Whether the terminal profile contains a potentially unsafe path. For example, the path
+	 *  `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
+	 * user in a multi-user environment. As such, we don't want to blindly present it as a profile
+	 * without a warning.
+	 */
+	isUnsafePath?: boolean;
 	isAutoDetected?: boolean;
 	/**
 	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
@@ -789,8 +796,15 @@ export interface IBaseUnresolvedTerminalProfile {
 	env?: ITerminalEnvironment;
 }
 
+type OneOrN<T> = T | T[];
+
+export interface ITerminalUnsafePath {
+	path: string;
+	isUnsafe: true;
+}
+
 export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: string | string[];
+	path: OneOrN<string | ITerminalUnsafePath>;
 }
 
 export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {

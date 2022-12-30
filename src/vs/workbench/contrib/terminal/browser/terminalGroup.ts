@@ -19,7 +19,7 @@ const enum Constants {
 	/**
 	 * The minimum size in pixels of a split pane.
 	 */
-	SplitPaneMinSize = 180,
+	SplitPaneMinSize = 80,
 	/**
 	 * The number of cells the terminal gets added or removed when asked to increase or decrease
 	 * the view size.

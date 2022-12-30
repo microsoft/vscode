@@ -243,12 +243,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			return this._terminalProfileService.availableProfiles.find(e => e.profileName === defaultProfileName);
-		}
-
-		return undefined;
+		return this._terminalProfileService.getDefaultProfile(os);
 	}
 
 	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
