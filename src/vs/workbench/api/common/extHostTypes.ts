@@ -2808,12 +2808,34 @@ export class SourceBreakpoint extends Breakpoint {
 }
 
 @es5ClassCompat
+export class SourceBreakpointWithId extends SourceBreakpoint {
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
+		super(location, enabled, condition, hitCondition, logMessage);
+	}
+
+	override get id(): string {
+		return this._internalId ?? super.id;
+	}
+}
+
+@es5ClassCompat
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		super(enabled, condition, hitCondition, logMessage);
 		this.functionName = functionName;
+	}
+}
+
+@es5ClassCompat
+export class FunctionBreakpointWithId extends FunctionBreakpoint {
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
+		super(functionName, enabled, condition, hitCondition, logMessage);
+	}
+
+	override get id(): string {
+		return this._internalId ?? super.id;
 	}
 }
 
@@ -2831,6 +2853,17 @@ export class DataBreakpoint extends Breakpoint {
 		this.label = label;
 		this.dataId = dataId;
 		this.canPersist = canPersist;
+	}
+}
+
+@es5ClassCompat
+export class DataBreakpointWithId extends DataBreakpoint {
+	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
+		super(label, dataId, canPersist, enabled, condition, hitCondition, logMessage);
+	}
+
+	override get id(): string {
+		return this._internalId ?? super.id;
 	}
 }
 
