@@ -56,6 +56,9 @@
 .test-output-peek-tree .test-peek-item {
 	display: flex;
 	align-items: center;
+}
+
+.test-output-peek-tree {
 	color: var(--vscode-editor-foreground);
 }
 
