@@ -1403,7 +1403,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
+		const refLabel = opts?.detached ? treeish.substring(0, 8) : treeish;
 
 		await this.run(Operation.Checkout(refLabel),
 			async () => {
@@ -1421,7 +1421,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
+		const refLabel = opts.detached ? treeish.substring(0, 8) : treeish;
 		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -2384,13 +2384,6 @@ export class Repository implements Disposable {
 		// Force fetch tags
 		await this.repository.fetchTags({ remote, tags, force: true });
 		return true;
-	}
-
-	private checkoutRefLabel(treeish: string, detached?: boolean): string {
-		if (!detached) { return treeish; }
-
-		const ref = this.refs.filter(r => r.name === treeish);
-		return ref[0]?.commit?.substring(0, 8) ?? treeish;
 	}
 
 	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
