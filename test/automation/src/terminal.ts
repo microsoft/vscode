@@ -10,9 +10,9 @@ import { IElement } from './driver';
 
 export enum Selector {
 	TerminalView = `#terminal`,
-	CommandDecorationPlaceholder = `.terminal-command-decoration.codicon-circle-outline`,
-	CommandDecorationSuccess = `.terminal-command-decoration.codicon-primitive-dot`,
-	CommandDecorationError = `.terminal-command-decoration.codicon-error-small`,
+	CommandDecorationPlaceholder = `.terminal-command-decoration.codicon-terminal-decoration-incomplete`,
+	CommandDecorationSuccess = `.terminal-command-decoration.codicon-terminal-decoration-success`,
+	CommandDecorationError = `.terminal-command-decoration.codicon-terminal-decoration-error`,
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
@@ -25,7 +25,8 @@ export enum Selector {
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal',
 	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
-	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper',
+	Hide = '.hide'
 }
 
 /**
@@ -92,7 +93,14 @@ export class Terminal {
 				await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
 				break;
 			case TerminalCommandId.KillAll:
-				await this.code.waitForElements(Selector.Xterm, true, e => e.length === 0);
+				// HACK: Attempt to kill all terminals to clean things up, this is known to be flaky
+				// but the reason why isn't known. This is typically called in the after each hook,
+				// Since it's not actually required that all terminals are killed just continue on
+				// after 2 seconds.
+				await Promise.race([
+					this.code.waitForElements(Selector.Xterm, true, e => e.length === 0),
+					new Promise<void>(r => setTimeout(r, 2000))
+				]);
 				break;
 		}
 	}
@@ -226,14 +234,18 @@ export class Terminal {
 		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
 	}
 
-	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customConfig?: { updatedIcon: string; count: number }): Promise<void> {
+	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customIcon?: { updatedIcon: string; count: number }, showDecorations?: 'both' | 'gutter' | 'overviewRuler' | 'never'): Promise<void> {
 		if (expectedCounts) {
-			await this.code.waitForElements(Selector.CommandDecorationPlaceholder, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
-			await this.code.waitForElements(Selector.CommandDecorationSuccess, true, decorations => decorations && decorations.length === expectedCounts.success);
-			await this.code.waitForElements(Selector.CommandDecorationError, true, decorations => decorations && decorations.length === expectedCounts.error);
+			const placeholderSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationPlaceholder}${Selector.Hide}` : Selector.CommandDecorationPlaceholder;
+			await this.code.waitForElements(placeholderSelector, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
+			const successSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationSuccess}${Selector.Hide}` : Selector.CommandDecorationSuccess;
+			await this.code.waitForElements(successSelector, true, decorations => decorations && decorations.length === expectedCounts.success);
+			const errorSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationError}${Selector.Hide}` : Selector.CommandDecorationError;
+			await this.code.waitForElements(errorSelector, true, decorations => decorations && decorations.length === expectedCounts.error);
 		}
-		if (customConfig) {
-			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customConfig.updatedIcon}`, true, decorations => decorations && decorations.length === customConfig.count);
+
+		if (customIcon) {
+			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customIcon.updatedIcon}`, true, decorations => decorations && decorations.length === customIcon.count);
 		}
 	}
 

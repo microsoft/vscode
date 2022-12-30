@@ -7,14 +7,14 @@ import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWri
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -76,6 +76,11 @@ export interface ITestResult {
 	getOutput(): Promise<VSBufferReadableStream>;
 
 	/**
+	 * Loads an output of the result.
+	 */
+	getOutputRange(offset: number, length: number): Promise<VSBuffer>;
+
+	/**
 	 * Serializes the test result. Used to save and restore results
 	 * in the workspace.
 	 */
@@ -83,10 +88,8 @@ export interface ITestResult {
 }
 
 export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
-	let i: TestResultItem | undefined = item;
-	while (i) {
-		yield i;
-		i = i.parent ? results.getStateById(i.parent) : undefined;
+	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
+		yield results.getStateById(id.toString())!;
 	}
 };
 
@@ -125,6 +128,8 @@ export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	return TestResultState.Unset;
 };
 
+const getMarkCode = (marker: number, start: boolean) => `\x1b]633;SetMark;Id=${getMarkId(marker, start)};Hidden\x07`;
+
 /**
  * Deals with output of a {@link LiveTestResult}. By default we pass-through
  * data into the underlying write stream, but if a client requests to read it
@@ -150,14 +155,23 @@ export class LiveOutputController {
 	constructor(
 		private readonly writer: Lazy<[VSBufferWriteableStream, Promise<void>]>,
 		private readonly reader: () => Promise<VSBufferReadableStream>,
+		private readonly rangeReader: (offset: number, length: number) => Promise<VSBuffer>,
 	) { }
 
 	/**
 	 * Appends data to the output.
 	 */
-	public append(data: VSBuffer): Promise<void> | void {
+	public append(data: VSBuffer, marker?: number): Promise<void> | void {
 		if (this.closed) {
 			return this.closed;
+		}
+
+		if (marker !== undefined) {
+			data = VSBuffer.concat([
+				VSBuffer.fromString(getMarkCode(marker, true)),
+				data,
+				VSBuffer.fromString(getMarkCode(marker, false)),
+			]);
 		}
 
 		this.previouslyWritten?.push(data);
@@ -165,6 +179,34 @@ export class LiveOutputController {
 		this._offset += data.byteLength;
 
 		return this.writer.getValue()[0].write(data);
+	}
+
+	/**
+	 * Reads a range of data from the output.
+	 */
+	public getRange(offset: number, length: number) {
+		if (!this.previouslyWritten) {
+			return this.rangeReader(offset, length);
+		}
+
+		const buffer = VSBuffer.alloc(length);
+		let pos = 0;
+		for (const chunk of this.previouslyWritten) {
+			if (pos + chunk.byteLength < offset) {
+				// no-op
+			} else if (pos > offset + length) {
+				break;
+			} else {
+				const cs = Math.max(0, offset - pos);
+				const bs = Math.max(0, pos - offset);
+				buffer.set(chunk.slice(cs, cs + Math.min(length - bs, chunk.byteLength - cs)), bs);
+			}
+
+			pos += chunk.byteLength;
+		}
+
+		const trailing = (offset + length) - pos;
+		return Promise.resolve(trailing > 0 ? buffer.slice(0, -trailing) : buffer);
 	}
 
 	/**
@@ -222,7 +264,6 @@ interface TestResultItemWithChildren extends TestResultItem {
 }
 
 const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
-	parent,
 	controllerId,
 	expand: TestItemExpandState.NotExpandable,
 	item: { ...item },
@@ -250,6 +291,7 @@ export class LiveTestResult implements ITestResult {
 	private readonly completeEmitter = new Emitter<void>();
 	private readonly changeEmitter = new Emitter<TestResultItemChange>();
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
+	private testMarkerCounter = 0;
 	private _completedAt?: number;
 
 	public readonly onChange = this.changeEmitter.event;
@@ -284,14 +326,11 @@ export class LiveTestResult implements ITestResult {
 		getParents: i => {
 			const { testById: testByExtId } = this;
 			return (function* () {
-				for (let parentId = i.parent; parentId;) {
-					const parent = testByExtId.get(parentId);
-					if (!parent) {
-						break;
+				const parentId = TestId.fromString(i.item.extId).parentId;
+				if (parentId) {
+					for (const id of parentId.idsToRoot()) {
+						yield testByExtId.get(id.toString())!;
 					}
-
-					yield parent;
-					parentId = parent.parent;
 				}
 			})();
 		},
@@ -316,13 +355,25 @@ export class LiveTestResult implements ITestResult {
 	 * Appends output that occurred during the test run.
 	 */
 	public appendOutput(output: VSBuffer, taskId: string, location?: IRichLocation, testId?: string): void {
-		this.output.append(output);
+		const preview = output.byteLength > 100 ? output.slice(0, 100).toString() + '…' : output.toString();
+		let marker: number | undefined;
+
+		// currently, the UI only exposes jump-to-message from tests or locations,
+		// so no need to mark outputs that don't come from either of those.
+		if (testId || location) {
+			marker = this.testMarkerCounter++;
+		}
+
 		const message: ITestOutputMessage = {
 			location,
-			message: output.toString(),
+			message: removeAnsiEscapeCodes(preview),
 			offset: this.output.offset,
+			length: output.byteLength,
+			marker: marker,
 			type: TestMessageType.Output,
 		};
+
+		this.output.append(output, marker);
 
 		const index = this.mustGetTaskIndex(taskId);
 		if (testId) {
@@ -414,6 +465,13 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public getOutput() {
 		return this.output.read();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getOutputRange(offset: number, bytes: number) {
+		return this.output.getRange(offset, bytes);
 	}
 
 	/**
@@ -532,10 +590,10 @@ export class LiveTestResult implements ITestResult {
 	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
 		id: this.id,
 		completedAt: this.completedAt!,
-		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.otherMessages })),
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name })),
 		name: this.name,
 		request: this.request,
-		items: [...this.testById.values()].map(e => TestResultItem.serialize(e, [...e.children.map(c => c.item.extId)])),
+		items: [...this.testById.values()].map(TestResultItem.serializeWithoutMessages),
 	}));
 }
 
@@ -585,6 +643,7 @@ export class HydratedTestResult implements ITestResult {
 	constructor(
 		private readonly serialized: ISerializedTestResults,
 		private readonly outputLoader: () => Promise<VSBufferReadableStream>,
+		private readonly outputRangeLoader: (offset: number, length: number) => Promise<VSBuffer>,
 		private readonly persist = true,
 	) {
 		this.id = serialized.id;
@@ -594,35 +653,23 @@ export class HydratedTestResult implements ITestResult {
 			name: task.name,
 			running: false,
 			coverage: staticObservableValue(undefined),
-			otherMessages: task.messages.map(m => ({
-				message: m.message,
-				type: m.type,
-				offset: m.offset,
-				location: m.location && {
-					uri: URI.revive(m.location.uri),
-					range: Range.lift(m.location.range)
-				},
-			}))
+			otherMessages: []
 		}));
 		this.name = serialized.name;
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item } as any;
-			cast.item.uri = URI.revive(cast.item.uri);
-
-			for (const task of cast.tasks) {
-				for (const message of task.messages) {
-					if (message.location) {
-						message.location.uri = URI.revive(message.location.uri);
-						message.location.range = Range.lift(message.location.range);
-					}
-				}
-			}
-
-			this.counts[item.ownComputedState]++;
-			this.testById.set(item.item.extId, cast);
+			const de = TestResultItem.deserialize(item);
+			this.counts[de.ownComputedState]++;
+			this.testById.set(item.item.extId, de);
 		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getOutputRange(offset: number, bytes: number) {
+		return this.outputRangeLoader(offset, bytes);
 	}
 
 	/**

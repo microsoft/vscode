@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
-import { GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, TriggerInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { GhostTextController, AcceptNextWordOfInlineCompletion, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, TriggerInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextHoverParticipant';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-registerEditorContribution(GhostTextController.ID, GhostTextController);
+registerEditorContribution(GhostTextController.ID, GhostTextController, EditorContributionInstantiation.Eventually);
 registerEditorAction(TriggerInlineSuggestionAction);
 registerEditorAction(ShowNextInlineSuggestionAction);
 registerEditorAction(ShowPreviousInlineSuggestionAction);
+registerEditorAction(AcceptNextWordOfInlineCompletion);
+
 HoverParticipantRegistry.register(InlineCompletionsHoverParticipant);
 
 const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);

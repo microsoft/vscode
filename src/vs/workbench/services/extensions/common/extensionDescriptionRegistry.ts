@@ -14,6 +14,23 @@ export class DeltaExtensionsResult {
 }
 
 export class ExtensionDescriptionRegistry {
+
+	public static isHostExtension(extensionId: ExtensionIdentifier | string, myRegistry: ExtensionDescriptionRegistry, globalRegistry: ExtensionDescriptionRegistry): boolean {
+		if (myRegistry.getExtensionDescription(extensionId)) {
+			// I have this extension
+			return false;
+		}
+		const extensionDescription = globalRegistry.getExtensionDescription(extensionId);
+		if (!extensionDescription) {
+			// unknown extension
+			return false;
+		}
+		if ((extensionDescription.main || extensionDescription.browser) && extensionDescription.api === 'none') {
+			return true;
+		}
+		return false;
+	}
+
 	private readonly _onDidChange = new Emitter<void>();
 	public readonly onDidChange = this._onDidChange.event;
 
@@ -68,19 +85,16 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): DeltaExtensionsResult {
-		if (toAdd.length > 0) {
-			this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
-		}
+		// It is possible that an extension is removed, only to be added again at a different version
+		// so we will first handle removals
+		this._extensionDescriptions = removeExtensions(this._extensionDescriptions, toRemove);
+
+		// Then, handle the extensions to add
+		this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
 
 		// Immediately remove looping extensions!
 		const looping = ExtensionDescriptionRegistry._findLoopingExtensions(this._extensionDescriptions);
-		toRemove = toRemove.concat(looping.map(ext => ext.identifier));
-
-		if (toRemove.length > 0) {
-			const toRemoveSet = new Set<string>();
-			toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
-			this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
-		}
+		this._extensionDescriptions = removeExtensions(this._extensionDescriptions, looping.map(ext => ext.identifier));
 
 		this._initialize();
 		this._onDidChange.fire(undefined);
@@ -194,6 +208,22 @@ export class ExtensionDescriptionRegistry {
 		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
 		return extension ? extension : undefined;
 	}
+
+	public getExtensionDescriptionByUUID(uuid: string): IExtensionDescription | undefined {
+		for (const extensionDescription of this._extensionsArr) {
+			if (extensionDescription.uuid === uuid) {
+				return extensionDescription;
+			}
+		}
+		return undefined;
+	}
+
+	public getExtensionDescriptionByIdOrUUID(extensionId: ExtensionIdentifier | string, uuid: string | undefined): IExtensionDescription | undefined {
+		return (
+			this.getExtensionDescription(extensionId)
+			?? (uuid ? this.getExtensionDescriptionByUUID(uuid) : undefined)
+		);
+	}
 }
 
 const enum SortBucket {
@@ -225,4 +255,10 @@ function extensionCmp(a: IExtensionDescription, b: IExtensionDescription): numbe
 		return 1;
 	}
 	return 0;
+}
+
+function removeExtensions(arr: IExtensionDescription[], toRemove: ExtensionIdentifier[]): IExtensionDescription[] {
+	const toRemoveSet = new Set<string>();
+	toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
+	return arr.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
 }

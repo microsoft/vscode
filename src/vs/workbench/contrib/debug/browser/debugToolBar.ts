@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debugToolBar';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { ICommandAction } from 'vs/platform/action/common/action';
+import { ICommandAction, ICommandActionTitle } from 'vs/platform/action/common/action';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
@@ -48,7 +48,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable | undefined;
 	private yCoordinate = 0;
 
 	private isVisible = false;
@@ -100,21 +99,23 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden' || this.debugService.getViewModel().focusedSession?.isSimpleUI || (state === State.Initializing && this.debugService.initializingOptions?.debugUI?.simple)) {
+			if (
+				state === State.Inactive ||
+				toolBarLocation === 'docked' ||
+				toolBarLocation === 'hidden' ||
+				this.debugService.getModel().getSessions().every(s => s.suppressDebugToolbar) ||
+				(state === State.Initializing && this.debugService.initializingOptions?.suppressDebugToolbar)
+			) {
 				return this.hide();
 			}
 
 			const actions: IAction[] = [];
-			const disposable = createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
+			createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
 				this.activeActions = actions;
 			}
-			if (this.disposeOnUpdate) {
-				dispose(this.disposeOnUpdate);
-			}
-			this.disposeOnUpdate = disposable;
 
 			this.show();
 		}, 20));
@@ -185,7 +186,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		if (this.$el) {
@@ -194,7 +195,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
-			const contrastBorderColor = this.getColor(contrastBorder);
+			const contrastBorderColor = this.getColor(widgetBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
 
 			if (contrastBorderColor) {
@@ -259,12 +260,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	override dispose(): void {
 		super.dispose();
 
-		if (this.$el) {
-			this.$el.remove();
-		}
-		if (this.disposeOnUpdate) {
-			dispose(this.disposeOnUpdate);
-		}
+		this.$el?.remove();
 	}
 }
 
@@ -276,7 +272,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 
 	const menu = menuService.createMenu(MenuId.DebugToolBarStop, contextKeyService);
 	const secondary: IAction[] = [];
-	disposables.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary));
+	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
 
 	if (!secondary.length) {
 		return undefined;
@@ -296,7 +292,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 // Debug toolbar
 
 const debugViewTitleItems: IDisposable[] = [];
-const registerDebugToolBarItem = (id: string, title: string, order: number, icon?: { light?: URI; dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
+const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitle, order: number, icon?: { light?: URI; dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
 		when,

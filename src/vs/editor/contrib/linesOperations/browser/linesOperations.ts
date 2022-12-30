@@ -660,7 +660,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+	protected _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection | null = null;
 		const endCursorState: Selection[] = [];
 		let deletedLines = 0;
@@ -690,7 +690,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
+	protected _getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		const selections = editor.getSelections();
 		if (selections === null) {
 			return [];
@@ -738,7 +738,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+	protected _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection | null = null;
 		const endCursorState: Selection[] = [];
 		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
@@ -759,7 +759,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
+	protected _getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		const model = editor.getModel();
 		if (model === null) {
 			return [];
@@ -1162,6 +1162,49 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class KebabCaseAction extends AbstractCaseAction {
+
+	public static isSupported(): boolean {
+		const areAllRegexpsSupported = [
+			this.caseBoundary,
+			this.singleLetters,
+			this.underscoreBoundary,
+		].every((regexp) => regexp.isSupported());
+
+		return areAllRegexpsSupported;
+	}
+
+	private static caseBoundary = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	private static singleLetters = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu}\\p{Ll})', 'gmu');
+	private static underscoreBoundary = new BackwardsCompatibleRegExp('(\\S)(_)(\\S)', 'gm');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToKebabcase',
+			label: nls.localize('editor.transformToKebabcase', 'Transform to Kebab Case'),
+			alias: 'Transform to Kebab Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, _: string): string {
+		const caseBoundary = KebabCaseAction.caseBoundary.get();
+		const singleLetters = KebabCaseAction.singleLetters.get();
+		const underscoreBoundary = KebabCaseAction.underscoreBoundary.get();
+
+		if (!caseBoundary || !singleLetters || !underscoreBoundary) {
+			// one or more regexps aren't supported
+			return text;
+		}
+
+		return text
+			.replace(underscoreBoundary, '$1-$3')
+			.replace(caseBoundary, '$1-$2')
+			.replace(singleLetters, '$1-$2')
+			.toLocaleLowerCase();
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1188,4 +1231,8 @@ if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.
 }
 if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);
+}
+
+if (KebabCaseAction.isSupported()) {
+	registerEditorAction(KebabCaseAction);
 }

@@ -8,27 +8,6 @@ import * as collections from 'vs/base/common/collections';
 
 suite('Collections', () => {
 
-	test('forEach', () => {
-		collections.forEach({}, () => assert(false));
-		collections.forEach(Object.create(null), () => assert(false));
-
-		let count = 0;
-		collections.forEach({ toString: 123 }, () => count++);
-		assert.strictEqual(count, 1);
-
-		count = 0;
-		const dict = Object.create(null);
-		dict['toString'] = 123;
-		collections.forEach(dict, () => count++);
-		assert.strictEqual(count, 1);
-
-		collections.forEach(dict, () => false);
-
-		// don't iterate over properties that are not on the object itself
-		const test = Object.create({ 'derived': true });
-		collections.forEach(test, () => assert(false));
-	});
-
 	test('groupBy', () => {
 
 		const group1 = 'a', group2 = 'b';

@@ -38,6 +38,7 @@ export class TaskError {
 export namespace Triggers {
 	export const shortcut: string = 'shortcut';
 	export const command: string = 'command';
+	export const reconnect: string = 'reconnect';
 }
 
 export interface ITaskSummary {
@@ -101,6 +102,7 @@ export interface ITaskSystemInfoResolver {
 
 export interface ITaskSystem {
 	onDidStateChange: Event<ITaskEvent>;
+	reconnect(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	rerun(): ITaskExecuteResult | undefined;
 	isActive(): Promise<boolean>;

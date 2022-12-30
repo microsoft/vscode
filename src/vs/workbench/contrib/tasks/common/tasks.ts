@@ -16,6 +16,8 @@ import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/comm
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+
 
 
 export const USER_TASKS_GROUP_KEY = 'settings';
@@ -548,7 +550,12 @@ export interface IConfigurationProperties {
 	/**
 	 * The icon for this task in the terminal tabs list
 	 */
-	icon?: { id: string; color?: string };
+	icon?: { id?: string; color?: string };
+
+	/**
+	 * Do not show this task in the run task quickpick
+	 */
+	hide?: boolean;
 }
 
 export enum RunOnOptions {
@@ -694,7 +701,7 @@ export abstract class CommonTask {
  */
 export class CustomTask extends CommonTask {
 
-	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
+	declare type: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	instance: number | undefined;
 
@@ -896,7 +903,7 @@ export class ContributedTask extends CommonTask {
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 * Set in the super constructor
 	 */
-	override _source!: IExtensionTaskSource;
+	declare _source: IExtensionTaskSource;
 
 	instance: number | undefined;
 
@@ -912,7 +919,12 @@ export class ContributedTask extends CommonTask {
 	/**
 	 * The icon for the task
 	 */
-	icon: { id: string; color?: string } | undefined;
+	icon: { id?: string; color?: string } | undefined;
+
+	/**
+	 * Don't show the task in the run task quickpick
+	 */
+	hide?: boolean;
 
 	public constructor(id: string, source: IExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
 		command: ICommandConfiguration, hasDefinedMatchers: boolean, runOptions: IRunOptions,
@@ -922,6 +934,7 @@ export class ContributedTask extends CommonTask {
 		this.hasDefinedMatchers = hasDefinedMatchers;
 		this.command = command;
 		this.icon = configurationProperties.icon;
+		this.hide = configurationProperties.hide;
 	}
 
 	public override clone(): ContributedTask {
@@ -984,7 +997,7 @@ export class InMemoryTask extends CommonTask {
 
 	instance: number | undefined;
 
-	override type!: 'inMemory';
+	declare type: 'inMemory';
 
 	public constructor(id: string, source: IInMemoryTaskSource, label: string, type: string,
 		runOptions: IRunOptions, configurationProperties: IConfigurationProperties) {
@@ -1114,21 +1127,23 @@ export interface ITaskEvent {
 	terminalId?: number;
 	__task?: Task;
 	resolvedVariables?: Map<string, string>;
+	exitReason?: TerminalExitReason;
 }
 
 export const enum TaskRunSource {
 	System,
 	User,
 	FolderOpen,
-	ConfigurationChange
+	ConfigurationChange,
+	Reconnect
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): ITaskEvent;
+	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, terminalId?: number, processIdOrExitCode?: number): ITaskEvent;
 	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent;
-	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): ITaskEvent;
+	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, terminalId?: number, exitReason?: TerminalExitReason): ITaskEvent;
 	export function create(kind: TaskEventKind.Changed): ITaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent {
+	export function create(kind: TaskEventKind, task?: Task, terminalId?: number, resolvedVariablesORProcessIdOrExitCodeOrExitReason?: number | Map<string, string> | TerminalExitReason): ITaskEvent {
 		if (task) {
 			const result: ITaskEvent = {
 				kind: kind,
@@ -1138,16 +1153,15 @@ export namespace TaskEvent {
 				group: task.configurationProperties.group,
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
-				terminalId: undefined as number | undefined,
-				__task: task,
+				terminalId,
+				__task: task
 			};
 			if (kind === TaskEventKind.Start) {
-				result.terminalId = processIdOrExitCodeOrTerminalId;
-				result.resolvedVariables = resolvedVariables;
+				result.resolvedVariables = resolvedVariablesORProcessIdOrExitCodeOrExitReason as Map<string, string>;
 			} else if (kind === TaskEventKind.ProcessStarted) {
-				result.processId = processIdOrExitCodeOrTerminalId;
+				result.processId = resolvedVariablesORProcessIdOrExitCodeOrExitReason as number;
 			} else if (kind === TaskEventKind.ProcessEnded) {
-				result.exitCode = processIdOrExitCodeOrTerminalId;
+				result.exitCode = resolvedVariablesORProcessIdOrExitCodeOrExitReason as number;
 			}
 			return Object.freeze(result);
 		} else {
@@ -1177,6 +1191,31 @@ export namespace KeyedTaskIdentifier {
 		Object.assign(result, value);
 		return result;
 	}
+}
+
+export const enum TaskSettingId {
+	AutoDetect = 'task.autoDetect',
+	SaveBeforeRun = 'task.saveBeforeRun',
+	ShowDecorations = 'task.showDecorations',
+	ProblemMatchersNeverPrompt = 'task.problemMatchers.neverPrompt',
+	SlowProviderWarning = 'task.slowProviderWarning',
+	QuickOpenHistory = 'task.quickOpen.history',
+	QuickOpenDetail = 'task.quickOpen.detail',
+	QuickOpenSkip = 'task.quickOpen.skip',
+	QuickOpenShowAll = 'task.quickOpen.showAll',
+	AllowAutomaticTasks = 'task.allowAutomaticTasks',
+	Reconnection = 'task.reconnection'
+}
+
+export const enum TasksSchemaProperties {
+	Tasks = 'tasks',
+	SuppressTaskName = 'tasks.suppressTaskName',
+	Windows = 'tasks.windows',
+	Osx = 'tasks.osx',
+	Linux = 'tasks.linux',
+	ShowOutput = 'tasks.showOutput',
+	IsShellCommand = 'tasks.isShellCommand',
+	ServiceTestSetting = 'tasks.service.testSetting',
 }
 
 export namespace TaskDefinition {

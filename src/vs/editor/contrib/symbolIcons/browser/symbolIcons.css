@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.codicon.codicon-symbol-array { color: var(--vscode-symbolIcon-arrayForeground); }
+.codicon.codicon-symbol-boolean { color: var(--vscode-symbolIcon-booleanForeground); }
+.codicon.codicon-symbol-class { color: var(--vscode-symbolIcon-classForeground); }
+.codicon.codicon-symbol-method { color: var(--vscode-symbolIcon-methodForeground); }
+.codicon.codicon-symbol-color { color: var(--vscode-symbolIcon-colorForeground); }
+.codicon.codicon-symbol-constant { color: var(--vscode-symbolIcon-constantForeground); }
+.codicon.codicon-symbol-constructor { color: var(--vscode-symbolIcon-constructorForeground); }
+.codicon.codicon-symbol-value,
+.codicon.codicon-symbol-enum { color: var(--vscode-symbolIcon-enumeratorForeground); }
+.codicon.codicon-symbol-enum-member { color: var(--vscode-symbolIcon-enumeratorMemberForeground); }
+.codicon.codicon-symbol-event { color: var(--vscode-symbolIcon-eventForeground); }
+.codicon.codicon-symbol-field { color: var(--vscode-symbolIcon-fieldForeground); }
+.codicon.codicon-symbol-file { color: var(--vscode-symbolIcon-fileForeground); }
+.codicon.codicon-symbol-folder { color: var(--vscode-symbolIcon-folderForeground); }
+.codicon.codicon-symbol-function { color: var(--vscode-symbolIcon-functionForeground); }
+.codicon.codicon-symbol-interface { color: var(--vscode-symbolIcon-interfaceForeground); }
+.codicon.codicon-symbol-key { color: var(--vscode-symbolIcon-keyForeground); }
+.codicon.codicon-symbol-keyword { color: var(--vscode-symbolIcon-keywordForeground); }
+.codicon.codicon-symbol-module { color: var(--vscode-symbolIcon-moduleForeground); }
+.codicon.codicon-symbol-namespace { color: var(--vscode-symbolIcon-namespaceForeground); }
+.codicon.codicon-symbol-null { color: var(--vscode-symbolIcon-nullForeground); }
+.codicon.codicon-symbol-number { color: var(--vscode-symbolIcon-numberForeground); }
+.codicon.codicon-symbol-object { color: var(--vscode-symbolIcon-objectForeground); }
+.codicon.codicon-symbol-operator { color: var(--vscode-symbolIcon-operatorForeground); }
+.codicon.codicon-symbol-package { color: var(--vscode-symbolIcon-packageForeground); }
+.codicon.codicon-symbol-property { color: var(--vscode-symbolIcon-propertyForeground); }
+.codicon.codicon-symbol-reference { color: var(--vscode-symbolIcon-referenceForeground); }
+.codicon.codicon-symbol-snippet { color: var(--vscode-symbolIcon-snippetForeground); }
+.codicon.codicon-symbol-string { color: var(--vscode-symbolIcon-stringForeground); }
+.codicon.codicon-symbol-struct { color: var(--vscode-symbolIcon-structForeground); }
+.codicon.codicon-symbol-text { color: var(--vscode-symbolIcon-textForeground); }
+.codicon.codicon-symbol-type-parameter { color: var(--vscode-typeParameterForeground); }
+.codicon.codicon-symbol-unit { color: var(--vscode-symbolIcon-unitForeground); }
+.codicon.codicon-symbol-variable { color: var(--vscode-symbolIcon-variableForeground); }

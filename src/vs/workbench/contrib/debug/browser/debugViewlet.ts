@@ -231,7 +231,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (launch) {
-			await launch.openConfigFile(false);
+			await launch.openConfigFile({ preserveFocus: false });
 		}
 	}
 });

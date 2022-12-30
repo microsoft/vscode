@@ -12,7 +12,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -103,17 +103,25 @@ async function detectAvailableWindowsProfiles(
 			source: ProfileSource.GitBash,
 			isAutoDetected: true
 		});
+		detectedProfiles.set('Command Prompt', {
+			path: `${system32Path}\\cmd.exe`,
+			icon: Codicon.terminalCmd,
+			isAutoDetected: true
+		});
 		detectedProfiles.set('Cygwin', {
 			path: [
-				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+				{ path: `${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`, isUnsafe: true },
+				{ path: `${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`, isUnsafe: true }
 			],
 			args: ['--login'],
 			isAutoDetected: true
 		});
-		detectedProfiles.set('Command Prompt', {
-			path: `${system32Path}\\cmd.exe`,
-			icon: Codicon.terminalCmd,
+		detectedProfiles.set('bash (MSYS2)', {
+			path: [
+				{ path: `${process.env['HOMEDRIVE']}\\msys64\\usr\\bin\\bash.exe`, isUnsafe: true },
+			],
+			args: ['--login', '-i'],
+			icon: Codicon.terminalBash,
 			isAutoDetected: true
 		});
 	}
@@ -122,7 +130,7 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
-	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
+	if (includeDetectedProfiles || useWslProfiles) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
 			for (const wslProfile of result) {
@@ -152,7 +160,7 @@ async function transformToTerminalProfiles(
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
-		let originalPaths: string[];
+		let originalPaths: (string | ITerminalUnsafePath)[];
 		let args: string[] | string | undefined;
 		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
 		if ('source' in profile) {
@@ -175,7 +183,26 @@ async function transformToTerminalProfiles(
 			icon = validateIcon(profile.icon);
 		}
 
-		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
+		let paths: (string | ITerminalUnsafePath)[];
+		if (variableResolver) {
+			// Convert to string[] for resolve
+			const mapped = originalPaths.map(e => typeof e === 'string' ? e : e.path);
+			const resolved = await variableResolver(mapped);
+			// Convert resolved back to (T | string)[]
+			paths = new Array(originalPaths.length);
+			for (let i = 0; i < originalPaths.length; i++) {
+				if (typeof originalPaths[i] === 'string') {
+					paths[i] = originalPaths[i];
+				} else {
+					paths[i] = {
+						path: resolved[i],
+						isUnsafe: true
+					};
+				}
+			}
+		} else {
+			paths = originalPaths.slice();
+		}
 		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
@@ -211,11 +238,12 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['ProgramFiles(X86)']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramFiles(X86)']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
-			`${process.env['AllUsersProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`
 		],
-		args: ['--login']
+		args: ['--login', '-i']
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
@@ -302,7 +330,7 @@ async function detectAvailableUnixProfiles(
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
 		const contents = (await fsProvider.readFile('/etc/shells')).toString();
-		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+		const profiles = testPaths || contents.split('\n').filter(e => e.trim().includes('#') && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
 			let profileName = basename(profile);
@@ -335,7 +363,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 	}
 }
 
-async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: string[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: (string | ITerminalUnsafePath)[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -343,14 +371,25 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 	if (path === '') {
 		return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args, env, overrideName, isAutoDetected);
 	}
+	const isUnsafePath = typeof path !== 'string' && path.isUnsafe;
+	const actualPath = typeof path === 'string' ? path : path.path;
 
-	const profile: ITerminalProfile = { profileName, path, args, env, overrideName, isAutoDetected, isDefault: profileName === defaultProfileName };
+	const profile: ITerminalProfile = {
+		profileName,
+		path: actualPath,
+		args,
+		env,
+		overrideName,
+		isAutoDetected,
+		isDefault: profileName === defaultProfileName,
+		isUnsafePath
+	};
 
 	// For non-absolute paths, check if it's available on $PATH
-	if (basename(path) === path) {
+	if (basename(actualPath) === actualPath) {
 		// The executable isn't an absolute path, try find it on the PATH
 		const envPaths: string[] | undefined = shellEnv.PATH ? shellEnv.PATH.split(delimiter) : undefined;
-		const executable = await findExecutable(path, undefined, envPaths, undefined, fsProvider.existsFile);
+		const executable = await findExecutable(actualPath, undefined, envPaths, undefined, fsProvider.existsFile);
 		if (!executable) {
 			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args);
 		}
@@ -359,7 +398,7 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		return profile;
 	}
 
-	const result = await fsProvider.existsFile(normalize(path));
+	const result = await fsProvider.existsFile(normalize(actualPath));
 	if (result) {
 		return profile;
 	}
@@ -370,10 +409,6 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>;
 	readFile(path: string): Promise<Buffer>;
-}
-
-export interface IProfileVariableResolver {
-	resolve(text: string[]): Promise<string[]>;
 }
 
 interface IPotentialTerminalProfile {

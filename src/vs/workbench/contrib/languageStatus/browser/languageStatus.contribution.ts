@@ -30,6 +30,7 @@ import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 class LanguageStatusViewModel {
 
@@ -398,8 +399,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.inlayHints.Reset',
-			title: localize('reset', 'Reset Language Status Interaction Counter'),
-			category: localize('cat', 'View'),
+			title: {
+				value: localize('reset', 'Reset Language Status Interaction Counter'),
+				original: 'Reset Language Status Interaction Counter'
+			},
+			category: Categories.View,
 			f1: true
 		});
 	}

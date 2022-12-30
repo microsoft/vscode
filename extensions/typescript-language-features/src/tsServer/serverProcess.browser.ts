@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { memoize } from '../utils/memoize';
@@ -12,7 +11,6 @@ import { TsServerProcess, TsServerProcessKind } from './server';
 import { TypeScriptVersion } from './versionProvider';
 
 
-const localize = nls.loadMessageBundle();
 
 declare const Worker: any;
 declare type Worker = any;
@@ -36,9 +34,9 @@ export class WorkerServerProcess implements TsServerProcess {
 		]);
 	}
 
-	private _onDataHandlers = new Set<(data: Proto.Response) => void>();
-	private _onErrorHandlers = new Set<(err: Error) => void>();
-	private _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
+	private readonly _onDataHandlers = new Set<(data: Proto.Response) => void>();
+	private readonly _onErrorHandlers = new Set<(err: Error) => void>();
+	private readonly _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
 
 	public constructor(
 		private readonly worker: Worker,
@@ -64,7 +62,7 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	@memoize
 	private get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel(localize('channelName', 'TypeScript Server Log'));
+		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
 	}
 
 	write(serverRequest: Proto.Request): void {

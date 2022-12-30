@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { DocumentSelector } from '../utils/documentSelector';
 
-const localize = nls.loadMessageBundle();
 
 interface Directive {
 	readonly value: string;
@@ -19,19 +17,13 @@ interface Directive {
 const tsDirectives: Directive[] = [
 	{
 		value: '@ts-check',
-		description: localize(
-			'ts-check',
-			"Enables semantic checking in a JavaScript file. Must be at the top of a file.")
+		description: vscode.l10n.t("Enables semantic checking in a JavaScript file. Must be at the top of a file.")
 	}, {
 		value: '@ts-nocheck',
-		description: localize(
-			'ts-nocheck',
-			"Disables semantic checking in a JavaScript file. Must be at the top of a file.")
+		description: vscode.l10n.t("Disables semantic checking in a JavaScript file. Must be at the top of a file.")
 	}, {
 		value: '@ts-ignore',
-		description: localize(
-			'ts-ignore',
-			"Suppresses @ts-check errors on the next line of a file.")
+		description: vscode.l10n.t("Suppresses @ts-check errors on the next line of a file.")
 	}
 ];
 
@@ -39,9 +31,7 @@ const tsDirectives390: Directive[] = [
 	...tsDirectives,
 	{
 		value: '@ts-expect-error',
-		description: localize(
-			'ts-expect-error',
-			"Suppresses @ts-check errors on the next line of a file, expecting at least one to exist.")
+		description: vscode.l10n.t("Suppresses @ts-check errors on the next line of a file, expecting at least one to exist.")
 	}
 ];
 

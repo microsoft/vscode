@@ -6,8 +6,8 @@
 import { Promises } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { defaultUserDataProfileIcon, DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfileService extends Disposable implements IUserDataProfileService {
 
@@ -16,12 +16,25 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 	private readonly _onDidChangeCurrentProfile = this._register(new Emitter<DidChangeUserDataProfileEvent>());
 	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;
 
+	private readonly _onDidUpdateCurrentProfile = this._register(new Emitter<void>());
+	readonly onDidUpdateCurrentProfile = this._onDidUpdateCurrentProfile.event;
+
 	private _currentProfile: IUserDataProfile;
 	get currentProfile(): IUserDataProfile { return this._currentProfile; }
 
-	constructor(currentProfile: IUserDataProfile) {
+	constructor(
+		currentProfile: IUserDataProfile,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
+	) {
 		super();
 		this._currentProfile = currentProfile;
+		this._register(userDataProfilesService.onDidChangeProfiles(e => {
+			const updatedCurrentProfile = e.updated.find(p => this._currentProfile.id === p.id);
+			if (updatedCurrentProfile) {
+				this._currentProfile = updatedCurrentProfile;
+				this._onDidUpdateCurrentProfile.fire();
+			}
+		}));
 	}
 
 	async updateCurrentProfile(userDataProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
@@ -41,4 +54,18 @@ export class UserDataProfileService extends Disposable implements IUserDataProfi
 		});
 		await Promises.settled(joiners);
 	}
+
+	getShortName(profile: IUserDataProfile): string {
+		if (profile.isDefault) {
+			return `$(${defaultUserDataProfileIcon.id})`;
+		}
+		if (profile.shortName) {
+			return profile.shortName;
+		}
+		if (profile.isTransient) {
+			return `T${profile.name.charAt(profile.name.length - 1)}`;
+		}
+		return profile.name.substring(0, 2).toUpperCase();
+	}
+
 }

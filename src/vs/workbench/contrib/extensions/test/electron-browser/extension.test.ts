@@ -24,78 +24,78 @@ suite('Extension Test', () => {
 	});
 
 	test('extension is not outdated when there is no local and gallery', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, undefined, undefined);
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, undefined, undefined);
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when there is local and no gallery', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension(), undefined);
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension(), undefined);
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when there is no local and has gallery', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, undefined, aGalleryExtension());
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, undefined, aGalleryExtension());
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when local and gallery are on same version', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension(), aGalleryExtension());
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension(), aGalleryExtension());
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is outdated when local is older than gallery', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }), aGalleryExtension('somext', { version: '1.0.1' }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is outdated when local is built in and older than gallery', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is not outdated when local is built in and older than gallery but product quality is stable', () => {
 		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'stable' });
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is outdated when local and gallery are on same version but on different target platforms', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_IA32 }), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_X64 }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_IA32 }), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_X64 }));
 		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is not outdated when local and gallery are on same version and local is on web', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }), aGalleryExtension('somext'));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }), aGalleryExtension('somext'));
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when local and gallery are on same version and gallery is on web', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext'), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext'), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }));
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when local is not pre-release but gallery is pre-release', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
 		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is outdated when local and gallery are pre-releases', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: true }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: true }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
 		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is outdated when local was opted to pre-release but current version is not pre-release', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: false }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: false }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
 		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is outdated when local is pre-release but gallery is not', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: true }), aGalleryExtension('somext', { version: '1.0.1' }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: true }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is outdated when local was opted pre-release but current version is not and gallery is not', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: false }), aGalleryExtension('somext', { version: '1.0.1' }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { preRelease: true, isPreReleaseVersion: false }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, true);
 	});
 

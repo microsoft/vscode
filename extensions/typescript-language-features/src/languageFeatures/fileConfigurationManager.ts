@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -76,24 +77,27 @@ export default class FileConfigurationManager extends Disposable {
 		const cachedOptions = this.formatOptions.get(document.uri);
 		if (cachedOptions) {
 			const cachedOptionsValue = await cachedOptions;
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			if (cachedOptionsValue && areFileConfigurationsEqual(cachedOptionsValue, currentOptions)) {
 				return;
 			}
 		}
 
-		let resolve: (x: FileConfiguration | undefined) => void;
-		this.formatOptions.set(document.uri, new Promise<FileConfiguration | undefined>(r => resolve = r));
+		const task = (async () => {
+			try {
+				const response = await this.client.execute('configure', { file, ...currentOptions }, token);
+				return response.type === 'response' ? currentOptions : undefined;
+			} catch {
+				return undefined;
+			}
+		})();
 
-		const args: Proto.ConfigureRequestArguments = {
-			file,
-			...currentOptions,
-		};
-		try {
-			const response = await this.client.execute('configure', args, token);
-			resolve!(response.type === 'response' ? currentOptions : undefined);
-		} finally {
-			resolve!(undefined);
-		}
+		this.formatOptions.set(document.uri, task);
+
+		await task;
 	}
 
 	public async setGlobalConfigurationFromDocument(
@@ -161,10 +165,6 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		if (this.client.apiVersion.lt(API.v290)) {
-			return {};
-		}
-
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document);
@@ -189,6 +189,7 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
@@ -204,6 +205,18 @@ export default class FileConfigurationManager extends Disposable {
 			case 'double': return 'double';
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
+	}
+
+	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
+		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
+			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
+			const slashNormalized = p.replace(/\\/g, '/');
+			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			return path.isAbsolute(p) ? p :
+				p.startsWith('*') ? '/' + slashNormalized :
+					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
+						'/**/' + slashNormalized;
+		});
 	}
 }
 

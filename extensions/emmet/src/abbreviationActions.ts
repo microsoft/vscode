@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
 import { getEmmetHelper, getFlatNode, getHtmlFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 
-const localize = nls.loadMessageBundle();
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
 
@@ -242,15 +240,15 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	}
 
 	let currentValue = '';
-	function inputChanged(value: string): string {
+	async function inputChanged(value: string): Promise<string> {
 		if (value !== currentValue) {
 			currentValue = value;
-			makeChanges(value, true);
+			await makeChanges(value, true);
 		}
 		return '';
 	}
 
-	const prompt = localize('wrapWithAbbreviationPrompt', "Enter Abbreviation");
+	const prompt = vscode.l10n.t("Enter Abbreviation");
 	const inputAbbreviation = (args && args['abbreviation'])
 		? (args['abbreviation'] as string)
 		: await vscode.window.showInputBox({ prompt, validateInput: inputChanged });
@@ -291,7 +289,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		args['language'] = vscode.window.activeTextEditor.document.languageId;
 	} else {
 		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
-		if (excludedLanguages.indexOf(vscode.window.activeTextEditor.document.languageId) > -1) {
+		if (excludedLanguages.includes(vscode.window.activeTextEditor.document.languageId)) {
 			return fallbackTab();
 		}
 	}
@@ -470,13 +468,13 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& propertyNode.separator
 				&& offset >= propertyNode.separatorToken.end
 				&& offset <= propertyNode.terminatorToken.start
-				&& abbreviation.indexOf(':') === -1) {
+				&& !abbreviation.includes(':')) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& offset >= propertyNode.separatorToken.end
-				&& abbreviation.indexOf(':') === -1) {
+				&& !abbreviation.includes(':')) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
 			}
 			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
@@ -529,7 +527,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			const typeAttribute = (currentHtmlNode.attributes || []).filter(x => x.name.toString() === 'type')[0];
 			const typeValue = typeAttribute ? typeAttribute.value.toString() : '';
 
-			if (allowedMimeTypesInScriptTag.indexOf(typeValue) > -1) {
+			if (allowedMimeTypesInScriptTag.includes(typeValue)) {
 				return true;
 			}
 
@@ -624,26 +622,25 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
  *
  * @returns false if no snippet can be inserted.
  */
-function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
+async function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Promise<boolean> {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
-		return Promise.resolve(false);
+		return false;
 	}
 
 	// Snippet to replace at multiple cursors are not the same
 	// `editor.insertSnippet` will have to be called for each instance separately
 	// We will not be able to maintain multiple cursors after snippet insertion
-	const insertPromises: Thenable<boolean>[] = [];
+	let insertedSnippetsCount = 0;
 	if (!insertSameSnippet) {
-		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); }).forEach((expandAbbrInput: ExpandAbbreviationInput) => {
+		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); });
+		for (const expandAbbrInput of expandAbbrList) {
 			const expandedText = expandAbbr(expandAbbrInput);
 			if (expandedText) {
-				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
+				await editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false });
+				insertedSnippetsCount++;
 			}
-		});
-		if (insertPromises.length === 0) {
-			return Promise.resolve(false);
 		}
-		return Promise.all(insertPromises).then(() => Promise.resolve(true));
+		return insertedSnippetsCount > 0;
 	}
 
 	// Snippet to replace at all cursors are the same
@@ -655,7 +652,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	if (expandedText) {
 		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
 	}
-	return Promise.resolve(false);
+	return false;
 }
 
 /**
@@ -696,7 +693,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	try {
 		expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 	} catch (e) {
-		vscode.window.showErrorMessage('Failed to expand abbreviation');
+		void vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
 
 	return expandedText;

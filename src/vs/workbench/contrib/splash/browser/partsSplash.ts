@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
-import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -19,7 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { runWhenIdle } from 'vs/base/common/async';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 
 export class PartsSplash {
@@ -36,7 +36,7 @@ export class PartsSplash {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
-		@IConfigurationService configService: IConfigurationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
@@ -44,20 +44,17 @@ export class PartsSplash {
 			perf.mark('code/didRemovePartsSplash');
 		});
 
-		const savePartsSplashSoon = new RunOnceScheduler(() => this._savePartsSplash(), 800);
-		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout)(() => {
-			savePartsSplashSoon.schedule();
+		let lastIdleSchedule: IDisposable | undefined;
+		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout, _themeService.onDidColorThemeChange)(() => {
+			lastIdleSchedule?.dispose();
+			lastIdleSchedule = runWhenIdle(() => this._savePartsSplash(), 800);
 		}, undefined, this._disposables);
 
-		configService.onDidChangeConfiguration(e => {
+		_configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.titleBarStyle')) {
 				this._didChangeTitleBarStyle = true;
 				this._savePartsSplash();
 			}
-		}, this, this._disposables);
-
-		_themeService.onDidColorThemeChange(_ => {
-			this._savePartsSplash();
 		}, this, this._disposables);
 	}
 
@@ -69,6 +66,7 @@ export class PartsSplash {
 		const theme = this._themeService.getColorTheme();
 
 		this._partSplashService.saveWindowSplash({
+			zoomLevel: this._configService.getValue<undefined>('window.zoomLevel'),
 			baseTheme: getThemeTypeSelector(theme.type),
 			colorInfo: {
 				foreground: theme.getColor(foreground)?.toString(),
@@ -84,10 +82,10 @@ export class PartsSplash {
 			layoutInfo: !this._shouldSaveLayoutInfo() ? undefined : {
 				sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 				editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
-				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
-				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
-				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
+				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
+				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
+				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
+				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
 				windowBorder: this._layoutService.hasWindowBorder(),
 				windowBorderRadius: this._layoutService.getWindowBorderRadius()
 			}

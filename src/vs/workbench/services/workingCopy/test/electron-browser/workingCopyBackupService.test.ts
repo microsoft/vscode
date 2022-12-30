@@ -43,8 +43,6 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 
 export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupService {
 
-	override readonly fileService: IFileService;
-
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: IWorkingCopyIdentifier[];
@@ -63,12 +61,15 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
 		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.vscodeUserData, logService));
 
-		this.fileService = fileService;
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
 		this.discardedAllBackups = false;
+	}
+
+	testGetFileService(): IFileService {
+		return this.fileService;
 	}
 
 	async waitForAllBackups(): Promise<void> {
@@ -1085,7 +1086,7 @@ flakySuite('WorkingCopyBackupService', () => {
 			let backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
 			assert.ok(backup);
 
-			await service.fileService.writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooFile)), VSBuffer.fromString(''));
+			await service.testGetFileService().writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooFile)), VSBuffer.fromString(''));
 
 			backup = await service.resolve<IBackupTestMetaData>(toUntypedWorkingCopyId(fooFile));
 			assert.ok(!backup);
@@ -1099,7 +1100,7 @@ flakySuite('WorkingCopyBackupService', () => {
 			let backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
 			assert.ok(backup);
 
-			await service.fileService.writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooFile)), VSBuffer.fromString(contents));
+			await service.testGetFileService().writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooFile)), VSBuffer.fromString(contents));
 
 			backup = await service.resolve<IBackupTestMetaData>(toUntypedWorkingCopyId(fooFile));
 			assert.ok(!backup);
@@ -1130,7 +1131,7 @@ flakySuite('WorkingCopyBackupService', () => {
 	suite('WorkingCopyBackupsModel', () => {
 
 		test('simple', async () => {
-			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.fileService);
+			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.testGetFileService());
 
 			const resource1 = URI.file('test.html');
 
@@ -1197,13 +1198,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedWorkingCopyId(fooFile)));
 			await Promises.mkdir(dirname(fooBackupPath), { recursive: true });
 			writeFileSync(fooBackupPath, 'foo');
-			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.fileService);
+			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.testGetFileService());
 
 			assert.strictEqual(model.has(URI.file(fooBackupPath)), true);
 		});
 
 		test('get', async () => {
-			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.fileService);
+			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.testGetFileService());
 
 			assert.deepStrictEqual(model.get(), []);
 

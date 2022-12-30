@@ -78,6 +78,7 @@ export interface ITaskSourceDTO {
 	scope?: number | UriComponents;
 	color?: string;
 	icon?: string;
+	hide?: boolean;
 }
 
 export interface ITaskHandleDTO {

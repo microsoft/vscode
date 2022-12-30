@@ -23,7 +23,7 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren?: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
 	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined;
@@ -105,7 +105,7 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
-			const context = explorerService.getContext(true);
+			const context = explorerService.getContext(true, true);
 			if (context.length) {
 				return context.map(c => c.resource);
 			}

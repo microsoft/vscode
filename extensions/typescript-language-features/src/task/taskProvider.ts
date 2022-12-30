@@ -6,7 +6,6 @@
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
@@ -17,7 +16,6 @@ import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 import { TSConfig, TsConfigProvider } from './tsconfigProvider';
 
-const localize = nls.loadMessageBundle();
 
 enum AutoDetect {
 	on = 'on',
@@ -74,7 +72,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 		const definition = <TypeScriptTaskDefinition>task.definition;
 		if (/\\tsconfig.*\.json/.test(definition.tsconfig)) {
 			// Warn that the task has the wrong slash type
-			vscode.window.showWarningMessage(localize('badTsConfig', "TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
+			vscode.window.showWarningMessage(vscode.l10n.t("TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
 			return undefined;
 		}
 
@@ -210,7 +208,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 		const buildTask = new vscode.Task(
 			buildTaskidentifier,
 			workspaceFolder || vscode.TaskScope.Workspace,
-			localize('buildTscLabel', 'build - {0}', label),
+			vscode.l10n.t("build - {0}", label),
 			'tsc',
 			new vscode.ShellExecution(command, args),
 			'$tsc');
@@ -223,7 +221,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 		const watchTask = new vscode.Task(
 			watchTaskidentifier,
 			workspaceFolder || vscode.TaskScope.Workspace,
-			localize('buildAndWatchTscLabel', 'watch - {0}', label),
+			vscode.l10n.t("watch - {0}", label),
 			'tsc',
 			new vscode.ShellExecution(command, [...args, '--watch']),
 			'$tsc-watch');

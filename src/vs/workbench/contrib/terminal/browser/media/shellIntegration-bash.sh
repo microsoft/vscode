@@ -33,21 +33,80 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
-# Disable shell integration if PROMPT_COMMAND is 2+ function calls since that is not handled.
-if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	builtin unset VSCODE_SHELL_INTEGRATION
-	builtin return
-fi
-
-# Disable shell integration if HISTCONTROL is set to erase duplicate entries as the exit code
-# reporting relies on the duplicates existing
-if [[ "$HISTCONTROL" =~ .*erasedups.* ]]; then
-	builtin unset VSCODE_SHELL_INTEGRATION
-	builtin return
-fi
-
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+__vsc_get_trap() {
+	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
+	# The terms are quoted literals, but are not guaranteed to be on a single line.
+	# (Consider a trap like $'echo foo\necho \'bar\'').
+	# To parse, we splice those terms into an expression capturing them into an array.
+	# This preserves the quoting of those terms: when we `eval` that expression, they are preserved exactly.
+	# This is different than simply exploding the string, which would split everything on IFS, oblivious to quoting.
+	builtin local -a terms
+	builtin eval "terms=( $(trap -p "${1:-DEBUG}") )"
+	#                    |________________________|
+	#                            |
+	#        \-------------------*--------------------/
+	# terms=( trap  --  '…arbitrary shellcode…'  DEBUG )
+	#        |____||__| |_____________________| |_____|
+	#          |    |            |                |
+	#          0    1            2                3
+	#                            |
+	#                   \--------*----/
+	builtin printf '%s' "${terms[2]:-}"
+}
+
+# The property (P) and command (E) codes embed values which require escaping.
+# Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
+__vsc_escape_value() {
+	# Process text byte by byte, not by codepoint.
+	builtin local LC_ALL=C str="${1}" i byte token out=''
+
+	for (( i=0; i < "${#str}"; ++i )); do
+		byte="${str:$i:1}"
+
+		# Backslashes must be doubled.
+		if [ "$byte" = "\\" ]; then
+			token="\\\\"
+		# Conservatively pass alphanumerics through.
+		elif [[ "$byte" == [0-9A-Za-z] ]]; then
+			token="$byte"
+		# Hex-encode anything else.
+		# (Importantly including: semicolon, newline, and control chars).
+		else
+			# The printf '0x%02X' "'$byte'" converts the character to a hex integer.
+			# See printf's specification:
+			# > If the leading character is a single-quote or double-quote, the value shall be the numeric value in the
+			# > underlying codeset of the character following the single-quote or double-quote.
+			# However, the result is a sign-extended int, so a high bit like 0xD7 becomes 0xFFF…FD7
+			# We mask that word with 0xFF to get lowest 8 bits, and then encode that byte as "\xD7" per our escaping scheme.
+			builtin printf -v token '\\x%02X' "$(( $(builtin printf '0x%X' "'$byte'") & 0xFF ))"
+			#             |________| ^^^ ^^^                        ^^^^^^  ^^^^^^^  |______|
+			#                   |     |  |                            |        |         |
+			# store in `token` -+     |  |   the hex value -----------+        |         |
+			# the '\x…'-prefixed -----+  |   of the byte as an integer --------+         |
+			# 0-padded, two hex digits --+   masked to one byte (due to sign extension) -+
+		fi
+
+		out+="$token"
+	done
+
+	builtin printf '%s\n' "${out}"
+}
+
+# Send the IsWindows property if the environment looks like Windows
+if [[ "$(uname -s)" =~ ^CYGWIN*|MINGW*|MSYS* ]]; then
+	builtin printf '\e]633;P;IsWindows=True\a'
+fi
+
+# Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
+# configuration is used
+if [[ "$HISTCONTROL" =~ .*(erasedups|ignoreboth|ignoredups).* ]]; then
+	__vsc_history_verify=0
+else
+	__vsc_history_verify=1
 fi
 
 __vsc_initialized=0
@@ -56,39 +115,38 @@ __vsc_original_PS2="$PS2"
 __vsc_custom_PS1=""
 __vsc_custom_PS2=""
 __vsc_in_command_execution="1"
-__vsc_last_history_id=$(history 1 | awk '{print $1;}')
+__vsc_current_command=""
 
 __vsc_prompt_start() {
-	builtin printf "\033]633;A\007"
+	builtin printf '\e]633;A\a'
 }
 
 __vsc_prompt_end() {
-	builtin printf "\033]633;B\007"
+	builtin printf '\e]633;B\a'
 }
 
 __vsc_update_cwd() {
-	builtin printf "\033]633;P;Cwd=%s\007" "$PWD"
+	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$PWD")"
 }
 
 __vsc_command_output_start() {
-	builtin printf "\033]633;C\007"
+	builtin printf '\e]633;C\a'
+	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
 }
 
 __vsc_continuation_start() {
-	builtin printf "\033]633;F\007"
+	builtin printf '\e]633;F\a'
 }
 
 __vsc_continuation_end() {
-	builtin printf "\033]633;G\007"
+	builtin printf '\e]633;G\a'
 }
 
 __vsc_command_complete() {
-	local __vsc_history_id=$(builtin history 1 | awk '{print $1;}')
-	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
-		builtin printf "\033]633;D\007"
+	if [ "$__vsc_current_command" = "" ]; then
+		builtin printf '\e]633;D\a'
 	else
-		builtin printf "\033]633;D;%s\007" "$__vsc_status"
-		__vsc_last_history_id=$__vsc_history_id
+		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
 }
@@ -99,7 +157,7 @@ __vsc_update_prompt() {
 		# means the user re-exported the PS1 so we should re-wrap it
 		if [[ "$__vsc_custom_PS1" == "" || "$__vsc_custom_PS1" != "$PS1" ]]; then
 			__vsc_original_PS1=$PS1
-			__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$PREFIX$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
+			__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
 			PS1="$__vsc_custom_PS1"
 		fi
 		if [[ "$__vsc_custom_PS2" == "" || "$__vsc_custom_PS2" != "$PS2" ]]; then
@@ -113,38 +171,54 @@ __vsc_update_prompt() {
 
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
+	__vsc_current_command=""
 	__vsc_update_prompt
 }
 
 __vsc_preexec() {
-	if [ "$__vsc_in_command_execution" = "0" ]; then
-		__vsc_initialized=1
-		__vsc_in_command_execution="1"
-		__vsc_command_output_start
+	__vsc_initialized=1
+	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
+		# resolved
+		if [ "$__vsc_history_verify" = "1" ]; then
+			__vsc_current_command="$(builtin history 1 | sed 's/ *[0-9]* *//')"
+		else
+			__vsc_current_command=$BASH_COMMAND
+		fi
+	else
+		__vsc_current_command=""
 	fi
+	__vsc_command_output_start
 }
 
 # Debug trapping/preexec inspired by starship (ISC)
 if [[ -n "${bash_preexec_imported:-}" ]]; then
 	__vsc_preexec_only() {
-		__vsc_status="$?"
-		__vsc_preexec
+		if [ "$__vsc_in_command_execution" = "0" ]; then
+			__vsc_in_command_execution="1"
+			__vsc_preexec
+		fi
 	}
 	precmd_functions+=(__vsc_prompt_cmd)
 	preexec_functions+=(__vsc_preexec_only)
 else
-	__vsc_dbg_trap="$(trap -p DEBUG | cut -d' ' -f3 | tr -d \')"
+	__vsc_dbg_trap="$(__vsc_get_trap DEBUG)"
+
 	if [[ -z "$__vsc_dbg_trap" ]]; then
 		__vsc_preexec_only() {
-			__vsc_status="$?"
-			__vsc_preexec
+			if [ "$__vsc_in_command_execution" = "0" ]; then
+				__vsc_in_command_execution="1"
+				__vsc_preexec
+			fi
 		}
 		trap '__vsc_preexec_only "$_"' DEBUG
 	elif [[ "$__vsc_dbg_trap" != '__vsc_preexec "$_"' && "$__vsc_dbg_trap" != '__vsc_preexec_all "$_"' ]]; then
 		__vsc_preexec_all() {
-			__vsc_status="$?"
-			builtin eval ${__vsc_dbg_trap}
-			__vsc_preexec
+			if [ "$__vsc_in_command_execution" = "0" ]; then
+				__vsc_in_command_execution="1"
+				builtin eval "${__vsc_dbg_trap}"
+				__vsc_preexec
+			fi
 		}
 		trap '__vsc_preexec_all "$_"' DEBUG
 	fi
@@ -152,25 +226,17 @@ fi
 
 __vsc_update_prompt
 
+__vsc_restore_exit_code() {
+	return "$1"
+}
+
 __vsc_prompt_cmd_original() {
-	if [[ ${IFS+set} ]]; then
-		__vsc_original_ifs="$IFS"
-	fi
-	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
-		IFS=';'
-	else
-		IFS=' '
-	fi
-	builtin read -ra ADDR <<<"$__vsc_original_prompt_command"
-	if [[ ${__vsc_original_ifs+set} ]]; then
-		IFS="$__vsc_original_ifs"
-		unset __vsc_original_ifs
-	else
-		unset IFS
-	fi
-	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		(exit ${__vsc_status})
-		builtin eval ${ADDR[i]}
+	__vsc_status="$?"
+	__vsc_restore_exit_code "${__vsc_status}"
+	# Evaluate the original PROMPT_COMMAND similarly to how bash would normally
+	# See https://unix.stackexchange.com/a/672843 for technique
+	for cmd in "${__vsc_original_prompt_command[@]}"; do
+		eval "${cmd:-}"
 	done
 	__vsc_precmd
 }
@@ -180,13 +246,9 @@ __vsc_prompt_cmd() {
 	__vsc_precmd
 }
 
-if [[ "$PROMPT_COMMAND" =~ (.+\;.+) ]]; then
-	# item1;item2...
-	__vsc_original_prompt_command="$PROMPT_COMMAND"
-else
-	# (item1, item2...)
-	__vsc_original_prompt_command=${PROMPT_COMMAND[@]}
-fi
+# PROMPT_COMMAND arrays and strings seem to be handled the same (handling only the first entry of
+# the array?)
+__vsc_original_prompt_command=$PROMPT_COMMAND
 
 if [[ -z "${bash_preexec_imported:-}" ]]; then
 	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then

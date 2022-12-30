@@ -8,6 +8,7 @@ const path = require('path');
 
 const moduleNames = [
 	'xterm',
+	'xterm-addon-canvas',
 	'xterm-addon-search',
 	'xterm-addon-unicode11',
 	'xterm-addon-webgl'
@@ -30,7 +31,17 @@ function getLatestModuleVersion(moduleName) {
 			if (err) {
 				reject(err);
 			}
-			const versions = JSON.parse(stdout);
+			let versions = JSON.parse(stdout);
+			// HACK: Some bad versions were published as v5 which cannot be unpublished, ignore these
+			if (moduleName === 'xterm-addon-canvas') {
+				versions = versions.filter(e => ![
+					'0.12.0',
+					'5.0.0-beta.1',
+					'5.0.0-beta.2',
+					'5.0.0-beta.3',
+					'5.0.0-beta.4',
+				].includes(e));
+			}
 			resolve(versions[versions.length - 1]);
 		});
 	});

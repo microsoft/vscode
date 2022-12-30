@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
-// eslint-disable-next-line code-import-patterns
+// eslint-disable-next-line local/code-import-patterns
 import { IMarker, Terminal } from 'xterm-headless';
 
 const enum Constants {

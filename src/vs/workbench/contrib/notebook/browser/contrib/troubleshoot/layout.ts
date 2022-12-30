@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -69,7 +70,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		}
 
 		this._localStore.add(this._notebookEditor.onDidChangeViewCells(e => {
-			e.splices.reverse().forEach(splice => {
+			[...e.splices].reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => {
 					return cell.onDidChangeLayout((e: ICommonCellViewModelLayoutChangeInfo) => {
@@ -121,8 +122,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLayoutTroubleshoot',
-			title: 'Toggle Notebook Layout Troubleshoot',
-			category: CATEGORIES.Developer,
+			title: {
+				value: localize('workbench.notebook.toggleLayoutTroubleshoot', "Toggle Layout Troubleshoot"),
+				original: 'Toggle Notebook Layout Troubleshoot'
+			},
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -144,8 +148,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.inspectLayout',
-			title: 'Inspect Notebook Layout',
-			category: CATEGORIES.Developer,
+			title: {
+				value: localize('workbench.notebook.inspectLayout', "Inspect Notebook Layout"),
+				original: 'Inspect Notebook Layout'
+			},
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -169,8 +176,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.clearNotebookEdtitorTypeCache',
-			title: 'Clear Notebook Editor Cache',
-			category: CATEGORIES.Developer,
+			title: {
+				value: localize('workbench.notebook.clearNotebookEdtitorTypeCache', "Clear Notebook Editor Type Cache"),
+				original: 'Clear Notebook Editor Cache'
+			},
+			category: Categories.Developer,
 			f1: true
 		});
 	}

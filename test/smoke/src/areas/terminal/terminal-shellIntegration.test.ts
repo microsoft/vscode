@@ -36,7 +36,6 @@ export function setup() {
 			});
 			describe('Decorations', function () {
 				describe('Should show default icons', function () {
-
 					it('Placeholder', async () => {
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
@@ -52,17 +51,34 @@ export function setup() {
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
-				describe('Custom configuration', function () {
-					it('Should update and show custom icons', async () => {
+				describe('terminal.integrated.shellIntegration.decorationsEnabled should determine gutter and overview ruler decoration visibility', function () {
+					beforeEach(async () => {
+						await settingsEditor.clearUserSettings();
+						await setTerminalTestSettings(app, [['terminal.integrated.shellIntegration.enabled', 'true']]);
 						await createShellIntegrationProfile();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 						await terminal.runCommandInTerminal(`echo "foo"`);
 						await terminal.runCommandInTerminal(`bar`);
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
-						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
-						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 });
+					});
+					afterEach(async () => {
 						await app.workbench.terminal.runCommand(TerminalCommandId.KillAll);
+					});
+					it('never', async () => {
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"never"');
+						await terminal.assertCommandDecorations({ placeholder: 0, success: 0, error: 0 }, undefined, 'never');
+					});
+					it('both', async () => {
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"both"');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, 'both');
+					});
+					it('gutter', async () => {
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"gutter"');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, 'gutter');
+					});
+					it('overviewRuler', async () => {
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationsEnabled', '"overviewRuler"');
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 1 }, undefined, 'overviewRuler');
 					});
 				});
 			});

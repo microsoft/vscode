@@ -21,10 +21,11 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
-
 export function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
 	return 'uri' in folder;
 }
@@ -43,16 +44,19 @@ const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks..
 export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configuration icon in the tasks selection list.'));
 const removeTaskIcon = registerIcon('tasks-remove', Codicon.close, nls.localize('removeTaskIcon', 'Icon for remove in the tasks selection list.'));
 
+const runTaskStorageKey = 'runTaskStorageKey';
+
 export class TaskQuickPick extends Disposable {
 	private _sorter: TaskSorter;
 	private _topLevelEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] | undefined;
 	constructor(
-		private _taskService: ITaskService,
-		private _configurationService: IConfigurationService,
-		private _quickInputService: IQuickInputService,
-		private _notificationService: INotificationService,
-		private _themeService: IThemeService,
-		private _dialogService: IDialogService) {
+		@ITaskService private _taskService: ITaskService,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IQuickInputService private _quickInputService: IQuickInputService,
+		@INotificationService private _notificationService: INotificationService,
+		@IThemeService private _themeService: IThemeService,
+		@IDialogService private _dialogService: IDialogService,
+		@IStorageService private _storageService: IStorageService) {
 		super();
 		this._sorter = this._taskService.createSorter();
 	}
@@ -64,7 +68,7 @@ export class TaskQuickPick extends Disposable {
 
 	private _guessTaskLabel(task: Task | ConfiguringTask): string {
 		if (task._label) {
-			return TaskQuickPick.getTaskLabelWithIcon(task);
+			return task._label;
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
@@ -77,12 +81,13 @@ export class TaskQuickPick extends Disposable {
 		return '';
 	}
 
-	public static getTaskLabelWithIcon(task: Task | ConfiguringTask): string {
+	public static getTaskLabelWithIcon(task: Task | ConfiguringTask, labelGuess?: string): string {
+		const label = labelGuess || task._label;
 		const icon = task.configurationProperties.icon;
 		if (!icon) {
-			return `${task._label}`;
+			return `${label}`;
 		}
-		return icon.id ? `$(${icon.id}) ${task._label}` : `$(${Codicon.tools.id}) ${task._label}`;
+		return icon.id ? `$(${icon.id}) ${label}` : `$(${Codicon.tools.id}) ${label}`;
 	}
 
 	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
@@ -95,10 +100,11 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const entry: ITaskTwoLevelQuickPickEntry = { label: this._guessTaskLabel(task), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
-		entry.buttons = [];
-		entry.buttons.push({ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") });
-		entry.buttons.push(...extraButtons);
+		const buttons: IQuickInputButton[] = [
+			{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") },
+			...extraButtons
+		];
+		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined, buttons };
 		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
 		return entry;
 	}
@@ -107,7 +113,9 @@ export class TaskQuickPick extends Disposable {
 		groupLabel: string, extraButtons: IQuickInputButton[] = []) {
 		entries.push({ type: 'separator', label: groupLabel });
 		tasks.forEach(task => {
-			entries.push(this._createTaskEntry(task, extraButtons));
+			if (!task.configurationProperties.hide) {
+				entries.push(this._createTaskEntry(task, extraButtons));
+			}
 		});
 	}
 
@@ -169,7 +177,7 @@ export class TaskQuickPick extends Disposable {
 		if (this._topLevelEntries !== undefined) {
 			return { entries: this._topLevelEntries };
 		}
-		let recentTasks: (Task | ConfiguringTask)[] = (await this._taskService.readRecentTasks()).reverse();
+		let recentTasks: (Task | ConfiguringTask)[] = (await this._taskService.getSavedTasks('historical')).reverse();
 		const configuredTasks: (Task | ConfiguringTask)[] = this._handleFolderTaskResult(await this._taskService.getWorkspaceTasks());
 		const extensionTaskTypes = this._taskService.taskTypes();
 		this._topLevelEntries = [];
@@ -206,8 +214,10 @@ export class TaskQuickPick extends Disposable {
 		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
 		const changeSettingResult = await this._dialogService.show(Severity.Warning,
 			nls.localize('TaskQuickPick.changeSettingDetails',
-				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[noButton, yesButton]);
+				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
+			[noButton, yesButton],
+			{ cancelId: 1 }
+		);
 		if (changeSettingResult.choice === 1) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
@@ -216,13 +226,11 @@ export class TaskQuickPick extends Disposable {
 		return undefined;
 	}
 
-	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string): Promise<Task | undefined | null> {
+	public async show(placeHolder: string, defaultEntry?: ITaskQuickPickEntry, startAtType?: string, name?: string): Promise<Task | undefined | null> {
 		const picker: IQuickPick<ITaskTwoLevelQuickPickEntry> = this._quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
 		picker.ignoreFocusOut = false;
-		picker.show();
-
 		picker.onDidTriggerItemButton(async (context) => {
 			const task = context.item.task;
 			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
@@ -234,7 +242,7 @@ export class TaskQuickPick extends Disposable {
 				if (indexToRemove >= 0) {
 					picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
 				}
-			} else {
+			} else if (context.button.iconClass === ThemeIcon.asClassName(configureTaskIcon)) {
 				this._quickInputService.cancel();
 				if (ContributedTask.is(task)) {
 					this._taskService.customize(task, undefined, true);
@@ -251,7 +259,9 @@ export class TaskQuickPick extends Disposable {
 				}
 			}
 		});
-
+		if (name) {
+			picker.value = name;
+		}
 		let firstLevelTask: Task | ConfiguringTask | string | undefined | null = startAtType;
 		if (!firstLevelTask) {
 			// First show recent tasks configured tasks. Other tasks will be available at a second level
@@ -265,10 +275,16 @@ export class TaskQuickPick extends Disposable {
 		}
 		do {
 			if (Types.isString(firstLevelTask)) {
+				if (name) {
+					await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
+					picker.dispose();
+					return undefined;
+				}
+				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
 				// Proceed to second level of quick pick
-				const selectedEntry = await this._doPickerSecondLevel(picker, firstLevelTask);
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
+					picker.value = '';
 					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
 				} else if (selectedEntry && Types.isString(selectedEntry.settingType)) {
 					picker.dispose();
@@ -292,6 +308,7 @@ export class TaskQuickPick extends Disposable {
 
 	private async _doPickerFirstLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[]): Promise<Task | ConfiguringTask | string | null | undefined> {
 		picker.items = taskQuickPickEntries;
+		showWithPinnedItems(this._storageService, runTaskStorageKey, picker, true);
 		const firstLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
@@ -300,23 +317,23 @@ export class TaskQuickPick extends Disposable {
 		return firstLevelPickerResult?.task;
 	}
 
-	private async _doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string) {
+	public async doPickerSecondLevel(picker: IQuickPick<ITaskTwoLevelQuickPickEntry>, type: string, name?: string) {
 		picker.busy = true;
 		if (type === SHOW_ALL) {
-			const items = (await this._taskService.tasks()).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
+			const items = (await this._taskService.tasks()).filter(t => !t.configurationProperties.hide).sort((a, b) => this._sorter.compare(a, b)).map(task => this._createTaskEntry(task));
 			items.push(...TaskQuickPick.allSettingEntries(this._configurationService));
 			picker.items = items;
 		} else {
-			picker.value = '';
+			picker.value = name || '';
 			picker.items = await this._getEntriesForProvider(type);
 		}
+		await picker.show();
 		picker.busy = false;
 		const secondLevelPickerResult = await new Promise<ITaskTwoLevelQuickPickEntry | undefined | null>(resolve => {
 			Event.once(picker.onDidAccept)(async () => {
 				resolve(picker.selectedItems ? picker.selectedItems[0] : undefined);
 			});
 		});
-
 		return secondLevelPickerResult;
 	}
 
@@ -352,9 +369,13 @@ export class TaskQuickPick extends Disposable {
 
 	private async _getEntriesForProvider(type: string): Promise<QuickPickInput<ITaskTwoLevelQuickPickEntry>[]> {
 		const tasks = (await this._taskService.tasks({ type })).sort((a, b) => this._sorter.compare(a, b));
-		let taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[];
+		let taskQuickPickEntries: QuickPickInput<ITaskTwoLevelQuickPickEntry>[] = [];
 		if (tasks.length > 0) {
-			taskQuickPickEntries = tasks.map(task => this._createTaskEntry(task));
+			for (const task of tasks) {
+				if (!task.configurationProperties.hide) {
+					taskQuickPickEntries.push(this._createTaskEntry(task));
+				}
+			}
 			taskQuickPickEntries.push({
 				type: 'separator'
 			}, {
@@ -388,12 +409,5 @@ export class TaskQuickPick extends Disposable {
 			this._notificationService.error(nls.localize('noProviderForTask', "There is no task provider registered for tasks of type \"{0}\".", task.type));
 		}
 		return resolvedTask;
-	}
-
-	static async show(taskService: ITaskService, configurationService: IConfigurationService,
-		quickInputService: IQuickInputService, notificationService: INotificationService,
-		dialogService: IDialogService, themeService: IThemeService, placeHolder: string, defaultEntry?: ITaskQuickPickEntry) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, themeService, dialogService);
-		return taskQuickPick.show(placeHolder, defaultEntry);
 	}
 }

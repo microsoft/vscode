@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
@@ -79,7 +79,7 @@ export interface INotebookCellList {
 	focusView(): void;
 	getAbsoluteTopOfElement(element: ICellViewModel): number;
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
-	updateElementHeight2(element: ICellViewModel, size: number): void;
+	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
 	focusContainer(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
@@ -92,22 +92,22 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
-	rootContainer: HTMLElement;
-	editorPart: HTMLElement;
-	cellInputCollapsedContainer: HTMLElement;
-	instantiationService: IInstantiationService;
-	container: HTMLElement;
-	cellContainer: HTMLElement;
+	readonly rootContainer: HTMLElement;
+	readonly editorPart: HTMLElement;
+	readonly cellInputCollapsedContainer: HTMLElement;
+	readonly instantiationService: IInstantiationService;
+	readonly container: HTMLElement;
+	readonly cellContainer: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;
-	cellParts: CellPart[];
+	cellParts: CellPartsCollection;
 	toJSON: () => object;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editorContainer: HTMLElement;
-	foldingIndicator: HTMLElement;
+	readonly editorContainer: HTMLElement;
+	readonly foldingIndicator: HTMLElement;
 	currentEditor?: ICodeEditor;
 }
 

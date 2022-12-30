@@ -524,7 +524,9 @@ suite('Inline Completions', () => {
 
 				context.cursorDown();
 				context.keyboardType('hello');
-				await timeout(100);
+				await timeout(40);
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), []);
 
 				// Update ghost text
 				context.keyboardType('w');

@@ -66,7 +66,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 	}
 
 	private updateCurrent(thread: CommentThread<IRange> | undefined) {
-		if (!this.editor) {
+		if (!this.editor || (thread?.resource && (thread.resource?.toString() !== this.editor.getModel()?.uri.toString()))) {
 			return;
 		}
 		this.currentThreadCollapseStateListener?.dispose();
@@ -84,13 +84,15 @@ export class CommentThreadRangeDecorator extends Disposable {
 				}
 			}
 		}
-		this.activeDecorationIds = this.editor.deltaDecorations(this.activeDecorationIds, newDecoration);
-		newDecoration.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		this.editor.changeDecorations((changeAccessor) => {
+			this.activeDecorationIds = changeAccessor.deltaDecorations(this.activeDecorationIds, newDecoration);
+			newDecoration.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		const model = editor.getModel();
-		if (!model) {
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+		const model = editor?.getModel();
+		if (!editor || !model) {
 			return;
 		}
 		dispose(this.threadCollapseStateListeners);
@@ -122,8 +124,10 @@ export class CommentThreadRangeDecorator extends Disposable {
 			});
 		}
 
-		this.decorationIds = editor.deltaDecorations(this.decorationIds, commentThreadRangeDecorations);
-		commentThreadRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		editor.changeDecorations((changeAccessor) => {
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, commentThreadRangeDecorations);
+			commentThreadRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 	}
 
 	override dispose() {
