@@ -2763,6 +2763,20 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+const breakpointIds = new WeakMap<Breakpoint, string>();
+
+/**
+ * We want to be able to construct Breakpoints internally that have a particular id, but we don't want extensions to be
+ * able to do this with the exposed Breakpoint classes in extension API.
+ * We also want "instanceof" to work with debug.breakpoints and the exposed breakpoint classes.
+ * And private members will be renamed in the built js, so casting to any and setting a private member is not safe.
+ * So, we store internal breakpoint IDs in a WeakMap. This function must be called after constructing a Breakpoint
+ * with a known id.
+ */
+export function setBreakpointId(bp: Breakpoint, id: string) {
+	breakpointIds.set(bp, id);
+}
+
 @es5ClassCompat
 export class Breakpoint {
 
@@ -2788,7 +2802,7 @@ export class Breakpoint {
 
 	get id(): string {
 		if (!this._id) {
-			this._id = generateUuid();
+			this._id = breakpointIds.get(this) ?? generateUuid();
 		}
 		return this._id;
 	}
@@ -2808,34 +2822,12 @@ export class SourceBreakpoint extends Breakpoint {
 }
 
 @es5ClassCompat
-export class SourceBreakpointWithId extends SourceBreakpoint {
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
-		super(location, enabled, condition, hitCondition, logMessage);
-	}
-
-	override get id(): string {
-		return this._internalId ?? super.id;
-	}
-}
-
-@es5ClassCompat
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		super(enabled, condition, hitCondition, logMessage);
 		this.functionName = functionName;
-	}
-}
-
-@es5ClassCompat
-export class FunctionBreakpointWithId extends FunctionBreakpoint {
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
-		super(functionName, enabled, condition, hitCondition, logMessage);
-	}
-
-	override get id(): string {
-		return this._internalId ?? super.id;
 	}
 }
 
@@ -2855,18 +2847,6 @@ export class DataBreakpoint extends Breakpoint {
 		this.canPersist = canPersist;
 	}
 }
-
-@es5ClassCompat
-export class DataBreakpointWithId extends DataBreakpoint {
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, private readonly _internalId?: string) {
-		super(label, dataId, canPersist, enabled, condition, hitCondition, logMessage);
-	}
-
-	override get id(): string {
-		return this._internalId ?? super.id;
-	}
-}
-
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {

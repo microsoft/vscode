@@ -16,7 +16,7 @@ import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebu
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { DataBreakpoint, DataBreakpointWithId, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, FunctionBreakpointWithId, Location, Position, SourceBreakpoint, SourceBreakpointWithId } from 'vs/workbench/api/common/extHostTypes';
+import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
@@ -529,15 +529,16 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			for (const bpd of delta.added) {
 				const id = bpd.id;
 				if (id && !this._breakpoints.has(id)) {
-					let bp: vscode.Breakpoint;
+					let bp: Breakpoint;
 					if (bpd.type === 'function') {
-						bp = new FunctionBreakpointWithId(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage, id);
+						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					} else if (bpd.type === 'data') {
-						bp = new DataBreakpointWithId(bpd.label, bpd.dataId, bpd.canPersist, bpd.enabled, bpd.hitCondition, bpd.condition, bpd.logMessage, id);
+						bp = new DataBreakpoint(bpd.label, bpd.dataId, bpd.canPersist, bpd.enabled, bpd.hitCondition, bpd.condition, bpd.logMessage);
 					} else {
 						const uri = URI.revive(bpd.uri);
-						bp = new SourceBreakpointWithId(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage, id);
+						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					}
+					setBreakpointId(bp, id);
 					this._breakpoints.set(id, bp);
 					a.push(bp);
 				}
