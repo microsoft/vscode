@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
-import { Promises, ThrottledDelayer } from 'vs/base/common/async';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
@@ -28,7 +28,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -448,7 +448,7 @@ class Extensions extends Disposable {
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
-		this._register(server.extensionManagementService.onDidChangeProfile(e => this.onDidChangeProfile(e.added, e.removed)));
+		this._register(server.extensionManagementService.onDidChangeProfile(() => this.reset()));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
 		this._register(Event.any(this.onChange, this.onReset)(() => this._local = undefined));
 	}
@@ -470,25 +470,7 @@ class Extensions extends Disposable {
 	}
 
 	async queryInstalled(): Promise<IExtension[]> {
-		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
-		const all = await this.server.extensionManagementService.getInstalled();
-
-		// dedup user and system extensions by giving priority to user extensions.
-		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
-			const extension = extensions.length === 1 ? extensions[0]
-				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
-			result.push(extension!);
-			return result;
-		}, []);
-
-		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
-		this.installed = installed.map(local => {
-			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined);
-			extension.local = local;
-			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
-			Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
-			return extension;
-		});
+		await this.fetchInstalledExtensions();
 		this._onChange.fire(undefined);
 		return this.local;
 	}
@@ -577,20 +559,33 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private async onDidChangeProfile(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
+	private async fetchInstalledExtensions(): Promise<void> {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
-		for (const addedExtension of added) {
-			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
-				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, addedExtension, undefined);
-				this.installed.push(extension);
-				Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
-			}
-		}
+		const all = await this.server.extensionManagementService.getInstalled();
 
-		if (removed.length) {
-			this.installed = this.installed.filter(e => !removed.some(removedExtension => areSameExtensions(e.identifier, removedExtension.identifier)));
-		}
+		// dedup user and system extensions by giving priority to user extensions.
+		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
+			const extension = extensions.length === 1 ? extensions[0]
+				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
+			result.push(extension!);
+			return result;
+		}, []);
 
+		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
+		this.installed = installed.map(local => {
+			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined);
+			extension.local = local;
+			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
+			Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
+			return extension;
+		});
+	}
+
+	private async reset(): Promise<void> {
+		this.installed = [];
+		this.installing = [];
+		this.uninstalling = [];
+		await this.fetchInstalledExtensions();
 		this._onReset.fire();
 	}
 
@@ -708,6 +703,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	readonly preferPreReleases = this.productService.quality !== 'stable';
 
 	private installing: IExtension[] = [];
+	private tasksInProgress: CancelablePromise<any>[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -743,27 +739,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
-			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this._register(this.localExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
+			this._register(this.localExtensions.onReset(e => this.reset()));
 			this.extensionsServers.push(this.localExtensions);
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
-			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this._register(this.remoteExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
+			this._register(this.remoteExtensions.onReset(e => this.reset()));
 			this.extensionsServers.push(this.remoteExtensions);
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
 			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
-			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this._register(this.webExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
+			this._register(this.webExtensions.onReset(e => this.reset()));
 			this.extensionsServers.push(this.webExtensions);
 		}
-
-		this._register(this.onChange(() => {
-			this._installed = undefined;
-			this._local = undefined;
-		}));
 
 		this.updatesCheckDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.UpdatesCheckInterval);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
@@ -861,6 +852,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const changedExtension of changedExtensions) {
 			this._onChange.fire(changedExtension);
 		}
+	}
+
+	private reset(): void {
+		for (const task of this.tasksInProgress) {
+			task.cancel();
+		}
+		this.tasksInProgress = [];
+		this.installing = [];
+		this.onDidChangeExtensions();
+		this._onReset.fire();
+	}
+
+	private onDidChangeExtensions(extension?: IExtension): void {
+		this._installed = undefined;
+		this._local = undefined;
+		this._onChange.fire(extension);
 	}
 
 	private _local: IExtension[] | undefined;
@@ -1485,7 +1492,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!toUninstall) {
 			return Promise.reject(new Error('Missing local'));
 		}
-		return this.progressService.withProgress({
+		return this.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
 			source: `${toUninstall.identifier.id}`
@@ -1563,7 +1570,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private doInstall(extension: IExtension | URI, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation): Promise<IExtension> {
 		const title = extension instanceof URI ? nls.localize('installing extension', 'Installing extension....') : nls.localize('installing named extension', "Installing '{0}' extension....", extension.displayName);
-		return this.progressService.withProgress({
+		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,
 			title
 		}, async () => {
@@ -1762,12 +1769,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private reportProgressFromOtherSources(): void {
 		if (this.installed.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling)) {
 			if (!this._activityCallBack) {
-				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
+				this.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
 			}
 		} else {
 			this._activityCallBack?.();
 			this._activityCallBack = undefined;
 		}
+	}
+
+	private withProgress<T>(options: IProgressOptions, task: () => Promise<T>): Promise<T> {
+		return this.progressService.withProgress(options, async () => {
+			const cancelableTask = createCancelablePromise(() => task());
+			this.tasksInProgress.push(cancelableTask);
+			try {
+				return await cancelableTask;
+			} finally {
+				const index = this.tasksInProgress.indexOf(cancelableTask);
+				if (index !== -1) {
+					this.tasksInProgress.splice(index, 1);
+				}
+			}
+		});
 	}
 
 	private onError(err: any): void {
