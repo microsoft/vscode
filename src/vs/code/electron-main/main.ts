@@ -80,6 +80,8 @@ import { PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/u
  */
 class CodeMain {
 
+	private static USE_REQUEST_SINGLE_INSTANCE_LOCK = true;
+
 	main(): void {
 		try {
 			this.startup();
@@ -118,10 +120,15 @@ class CodeMain {
 				const fileService = accessor.get(IFileService);
 				const loggerService = accessor.get(ILoggerService);
 
-				// Create the main IPC server by trying to be the server
-				// If this throws an error it means we are not the first
-				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
+				let mainProcessNodeIpcServer: NodeIPCServer | undefined = undefined;
+				if (CodeMain.USE_REQUEST_SINGLE_INSTANCE_LOCK) {
+					this.claimInstanceModern(environmentMainService);
+				} else {
+					// Create the main IPC server by trying to be the server
+					// If this throws an error it means we are not the first
+					// instance of VS Code running and so we would quit.
+					mainProcessNodeIpcServer = await this.claimInstanceLegacy(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
+				}
 
 				// Write a lockfile to indicate an instance is running (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
 				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
@@ -259,7 +266,21 @@ class CodeMain {
 		userDataProfilesMainService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
 	}
 
-	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
+	private claimInstanceModern(environmentMainService: IEnvironmentMainService): void {
+		const hasLock = app.requestSingleInstanceLock({
+			args: JSON.stringify(environmentMainService.args),
+			env: JSON.stringify(process.env)
+		});
+		if (!hasLock) {
+			throw new ExpectedError('Sent env to running instance. Terminating...');
+		}
+
+		// Set the VSCODE_PID variable here when we are sure we are the first
+		// instance to startup. Otherwise we would wrongly overwrite the PID
+		process.env['VSCODE_PID'] = String(process.pid);
+	}
+
+	private async claimInstanceLegacy(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -313,7 +334,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, false);
+				return this.claimInstanceLegacy(logService, environmentMainService, lifecycleMainService, instantiationService, productService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently

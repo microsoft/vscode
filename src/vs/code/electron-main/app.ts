@@ -121,7 +121,7 @@ export class CodeApplication extends Disposable {
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
-		private readonly mainProcessNodeIpcServer: NodeIPCServer,
+		private readonly mainProcessNodeIpcServer: NodeIPCServer | undefined,
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -638,7 +638,6 @@ export class CodeApplication extends Disposable {
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
-
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -708,11 +707,18 @@ export class CodeApplication extends Disposable {
 		// can talk to the first instance. Electron IPC does not work
 		// across apps until `requestSingleInstance` APIs are adopted.
 
-		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
-		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
+		if (this.mainProcessNodeIpcServer) {
+			const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
+			this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), { disableMarshalling: true });
-		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+			const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), { disableMarshalling: true });
+			this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
+		} else {
+			const launchMainService = accessor.get(ILaunchMainService);
+			app.on('second-instance', (event, commandLine, workingDirectory, additionalData: any) => {
+				launchMainService.start(JSON.parse(additionalData.args), JSON.parse(additionalData.env));
+			});
+		}
 
 		// Policies (main & shared process)
 		const policyChannel = new PolicyChannel(accessor.get(IPolicyService));
