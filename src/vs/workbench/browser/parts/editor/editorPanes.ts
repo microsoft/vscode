@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -91,7 +91,8 @@ export class EditorPanes extends Disposable {
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
-		private parent: HTMLElement,
+		private editorGroupParent: HTMLElement,
+		private editorPanesParent: HTMLElement,
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -237,11 +238,14 @@ export class EditorPanes extends Disposable {
 		// Editor pane
 		const pane = this.doShowEditorPane(descriptor);
 
+		// Remember current active element for deciding to restore focus later
+		const activeElement = document.activeElement;
+
 		// Apply input to pane
 		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
 
-		// Focus unless cancelled
-		if (!cancelled) {
+		// Focus unless cancelled and unless another element got active meanwhile
+		if (!cancelled && this.shouldRestoreFocus(activeElement)) {
 			const focus = !options || !options.preserveFocus;
 			if (focus) {
 				pane.focus();
@@ -249,6 +253,33 @@ export class EditorPanes extends Disposable {
 		}
 
 		return { pane, changed, cancelled };
+	}
+
+	private shouldRestoreFocus(expectedActiveElement: Element | null): boolean {
+		if (!this.layoutService.isRestored()) {
+			return true; // restore focus if we are not restored yet on startup
+		}
+
+		if (!expectedActiveElement) {
+			return true; // restore focus if nothing was focused
+		}
+
+		const activeElement = document.activeElement;
+
+		if (activeElement === document.body) {
+			return true; // restore focus if nothing is focused currently
+		}
+
+		const same = expectedActiveElement === activeElement;
+		if (same) {
+			return true; // restore focus if same element is still active
+		}
+
+		if (isAncestor(activeElement, this.editorGroupParent)) {
+			return true; // restore focus if active element is still inside our editor group
+		}
+
+		return false; // do not restore focus
 	}
 
 	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
@@ -281,7 +312,7 @@ export class EditorPanes extends Disposable {
 
 		// Show editor
 		const container = assertIsDefined(editorPane.getContainer());
-		this.parent.appendChild(container);
+		this.editorPanesParent.appendChild(container);
 		show(container);
 
 		// Indicate to editor that it is now visible
@@ -403,7 +434,7 @@ export class EditorPanes extends Disposable {
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
-			this.parent.removeChild(editorPaneContainer);
+			this.editorPanesParent.removeChild(editorPaneContainer);
 			hide(editorPaneContainer);
 		}
 
