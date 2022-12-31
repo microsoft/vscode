@@ -711,6 +711,8 @@ export interface ITextModel {
 	 */
 	getLineLength(lineNumber: number): number;
 
+	getLineCharCode(lineNumber: number, column: number): number;
+
 	/**
 	 * Get the text for all lines.
 	 */

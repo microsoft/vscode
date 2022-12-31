@@ -123,15 +123,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
 		}
 
-		const linesContent = this.model.getLinesContent();
 		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
-		const lineCount = linesContent.length;
+		const lineCount = this.model.getLineCount();
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
+			lineBreaksComputer.addRequest(this.model.getLineContent(i + 1), lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 

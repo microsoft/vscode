@@ -6,6 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { getPlatformTextDecoder } from 'vs/editor/common/core/stringBuilder';
 import { FindMatch, ITextSnapshot, SearchData } from 'vs/editor/common/model';
 import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
@@ -32,6 +33,33 @@ class LineStarts {
 		public readonly crlf: number,
 		public readonly isBasicASCII: boolean
 	) { }
+}
+
+export function createLineStartsFastFromBuffer(buffer: Uint16Array, readonly: boolean = true): Uint32Array | Uint16Array | number[] {
+	const r: number[] = [0];
+	let rLength = 1;
+
+	for (let i = 0, len = buffer.length; i < len; i++) {
+		const chr = buffer[i];
+
+		if (chr === CharCode.CarriageReturn) {
+			if (i + 1 < len && buffer[i + 1] === CharCode.LineFeed) {
+				// \r\n... case
+				r[rLength++] = i + 2;
+				i++; // skip \n
+			} else {
+				// \r... case
+				r[rLength++] = i + 1;
+			}
+		} else if (chr === CharCode.LineFeed) {
+			r[rLength++] = i + 1;
+		}
+	}
+	if (readonly) {
+		return createUintArray(r);
+	} else {
+		return r;
+	}
 }
 
 export function createLineStartsFast(str: string, readonly: boolean = true): Uint32Array | Uint16Array | number[] {
@@ -61,14 +89,16 @@ export function createLineStartsFast(str: string, readonly: boolean = true): Uin
 	}
 }
 
-export function createLineStarts(r: number[], str: string): LineStarts {
+export function createLineStarts(r: number[], str: string): { buffer: Uint16Array; lineStarts: LineStarts } {
 	r.length = 0;
 	r[0] = 0;
 	let rLength = 1;
 	let cr = 0, lf = 0, crlf = 0;
 	let isBasicASCII = true;
+	const buffer = new Uint16Array(str.length);
 	for (let i = 0, len = str.length; i < len; i++) {
 		const chr = str.charCodeAt(i);
+		buffer[i] = chr;
 
 		if (chr === CharCode.CarriageReturn) {
 			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
@@ -95,7 +125,7 @@ export function createLineStarts(r: number[], str: string): LineStarts {
 	const result = new LineStarts(createUintArray(r), cr, lf, crlf, isBasicASCII);
 	r.length = 0;
 
-	return result;
+	return { buffer: buffer, lineStarts: result };
 }
 
 interface NodePosition {
@@ -140,13 +170,53 @@ export class Piece {
 	}
 }
 
+function textToUint16Array(text: string) {
+	const buffer = new Uint16Array(text.length);
+	for (let i = 0, len = text.length; i < len; i++) {
+		buffer[i] = text.charCodeAt(i);
+	}
+	return buffer;
+}
+
 export class StringBuffer {
-	buffer: string;
+	buffer: Uint16Array;
 	lineStarts: Uint32Array | Uint16Array | number[];
 
-	constructor(buffer: string, lineStarts: Uint32Array | Uint16Array | number[]) {
-		this.buffer = buffer;
+	constructor(strOrbuffer: string | Uint16Array, lineStarts: Uint32Array | Uint16Array | number[]) {
+		if (typeof strOrbuffer === 'string') {
+			this.buffer = textToUint16Array(strOrbuffer);
+		} else {
+			this.buffer = strOrbuffer;
+		}
 		this.lineStarts = lineStarts;
+	}
+
+	getText() {
+		return getPlatformTextDecoder().decode(this.buffer);
+	}
+
+	charCodeAt(index: number): number {
+		return this.buffer[index];
+	}
+
+	substr(start: number, length: number): string {
+		const view = this.buffer.slice(start, start + length);
+		return getPlatformTextDecoder().decode(view);
+	}
+
+	substring(start: number, end: number): string {
+		return this.substr(start, end - start);
+	}
+
+	append(text: string) {
+		const newBuffer = new Uint16Array(this.buffer.length + text.length);
+		newBuffer.set(this.buffer);
+
+		for (let i = 0; i < text.length; i++) {
+			newBuffer[this.buffer.length + i] = text.charCodeAt(i);
+		}
+
+		this.buffer = newBuffer;
 	}
 }
 
@@ -297,7 +367,7 @@ export class PieceTreeBase {
 		for (let i = 0, len = chunks.length; i < len; i++) {
 			if (chunks[i].buffer.length > 0) {
 				if (!chunks[i].lineStarts) {
-					chunks[i].lineStarts = createLineStartsFast(chunks[i].buffer);
+					chunks[i].lineStarts = createLineStartsFastFromBuffer(chunks[i].buffer);
 				}
 
 				const piece = new Piece(
@@ -483,19 +553,19 @@ export class PieceTreeBase {
 	public getValueInRange2(startPosition: NodePosition, endPosition: NodePosition): string {
 		if (startPosition.node === endPosition.node) {
 			const node = startPosition.node;
-			const buffer = this._buffers[node.piece.bufferIndex].buffer;
+			const buffer = this._buffers[node.piece.bufferIndex];
 			const startOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
 			return buffer.substring(startOffset + startPosition.remainder, startOffset + endPosition.remainder);
 		}
 
 		let x = startPosition.node;
-		const buffer = this._buffers[x.piece.bufferIndex].buffer;
+		const buffer = this._buffers[x.piece.bufferIndex];
 		const startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 		let ret = buffer.substring(startOffset + startPosition.remainder, startOffset + x.piece.length);
 
 		x = x.next();
 		while (x !== SENTINEL) {
-			const buffer = this._buffers[x.piece.bufferIndex].buffer;
+			const buffer = this._buffers[x.piece.bufferIndex];
 			const startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 
 			if (x === endPosition.node) {
@@ -528,7 +598,7 @@ export class PieceTreeBase {
 				return true;
 			}
 
-			const buffer = this._buffers[piece.bufferIndex].buffer;
+			const buffer = this._buffers[piece.bufferIndex];
 			const lineStarts = this._buffers[piece.bufferIndex].lineStarts;
 
 			const pieceStartLine = piece.start.line;
@@ -637,13 +707,13 @@ export class PieceTreeBase {
 
 			const buffer = this._buffers[matchingNode.piece.bufferIndex];
 			const startOffset = this.offsetInBuffer(matchingNode.piece.bufferIndex, matchingNode.piece.start);
-			return buffer.buffer.charCodeAt(startOffset);
+			return buffer.charCodeAt(startOffset);
 		} else {
 			const buffer = this._buffers[nodePos.node.piece.bufferIndex];
 			const startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
 			const targetOffset = startOffset + nodePos.remainder;
 
-			return buffer.buffer.charCodeAt(targetOffset);
+			return buffer.charCodeAt(targetOffset);
 		}
 	}
 
@@ -678,11 +748,11 @@ export class PieceTreeBase {
 		let offsetInBuffer: (offset: number) => number;
 
 		if (searcher._wordSeparators) {
-			searchText = buffer.buffer.substring(start, end);
+			searchText = buffer.substring(start, end);
 			offsetInBuffer = (offset: number) => offset + start;
 			searcher.reset(0);
 		} else {
-			searchText = buffer.buffer;
+			searchText = buffer.getText();
 			offsetInBuffer = (offset: number) => offset;
 			searcher.reset(start);
 		}
@@ -1119,7 +1189,7 @@ export class PieceTreeBase {
 		// character at endOffset is \n, so we check the character before first
 		// if character at endOffset is \r, end.column is 0 and we can't get here.
 		const previousCharOffset = endOffset - 1; // end.column > 0 so it's okay.
-		const buffer = this._buffers[bufferIndex].buffer;
+		const buffer = this._buffers[bufferIndex];
 
 		if (buffer.charCodeAt(previousCharOffset) === 13) {
 			return end.line - start.line + 1;
@@ -1197,7 +1267,7 @@ export class PieceTreeBase {
 			}
 
 			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
-			this._buffers[0].buffer += '_' + text;
+			this._buffers[0].append('_' + text);
 			startOffset += 1;
 		} else {
 			if (startOffset !== 0) {
@@ -1206,7 +1276,7 @@ export class PieceTreeBase {
 				}
 			}
 			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
-			this._buffers[0].buffer += text;
+			this._buffers[0].append(text);
 		}
 
 		const endOffset = this._buffers[0].buffer.length;
@@ -1236,7 +1306,7 @@ export class PieceTreeBase {
 		if (cache) {
 			x = cache.node;
 			const prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber - 1);
-			const buffer = this._buffers[x.piece.bufferIndex].buffer;
+			const buffer = this._buffers[x.piece.bufferIndex];
 			const startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 			if (cache.nodeStartLineNumber + x.piece.lineFeedCnt === lineNumber) {
 				ret = buffer.substring(startOffset + prevAccumulatedValue, startOffset + x.piece.length);
@@ -1253,7 +1323,7 @@ export class PieceTreeBase {
 				} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
 					const prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
 					const accumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
-					const buffer = this._buffers[x.piece.bufferIndex].buffer;
+					const buffer = this._buffers[x.piece.bufferIndex];
 					const startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 					nodeStartOffset += x.size_left;
 					this._searchCache.set({
@@ -1265,7 +1335,7 @@ export class PieceTreeBase {
 					return buffer.substring(startOffset + prevAccumulatedValue, startOffset + accumulatedValue - endOffset);
 				} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
 					const prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-					const buffer = this._buffers[x.piece.bufferIndex].buffer;
+					const buffer = this._buffers[x.piece.bufferIndex];
 					const startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
 
 					ret = buffer.substring(startOffset + prevAccumulatedValue, startOffset + x.piece.length);
@@ -1281,7 +1351,7 @@ export class PieceTreeBase {
 		// search in order, to find the node contains end column
 		x = x.next();
 		while (x !== SENTINEL) {
-			const buffer = this._buffers[x.piece.bufferIndex].buffer;
+			const buffer = this._buffers[x.piece.bufferIndex];
 
 			if (x.piece.lineFeedCnt > 0) {
 				const accumulatedValue = this.getAccumulatedValue(x, 0);
@@ -1437,7 +1507,7 @@ export class PieceTreeBase {
 
 		const hitCRLF = this.shouldCheckCRLF() && this.startWithLF(value) && this.endWithCR(node);
 		const startOffset = this._buffers[0].buffer.length;
-		this._buffers[0].buffer += value;
+		this._buffers[0].append(value);
 		const lineStarts = createLineStartsFast(value, false);
 		for (let i = 0; i < lineStarts.length; i++) {
 			lineStarts[i] += startOffset;
@@ -1578,7 +1648,7 @@ export class PieceTreeBase {
 		}
 		const buffer = this._buffers[node.piece.bufferIndex];
 		const newOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start) + offset;
-		return buffer.buffer.charCodeAt(newOffset);
+		return buffer.charCodeAt(newOffset);
 	}
 
 	private offsetOfNode(node: TreeNode): number {
@@ -1625,12 +1695,16 @@ export class PieceTreeBase {
 		if (nextLineOffset > startOffset + 1) {
 			return false;
 		}
-		return this._buffers[piece.bufferIndex].buffer.charCodeAt(startOffset) === 10;
+		return this._buffers[piece.bufferIndex].charCodeAt(startOffset) === 10;
 	}
 
-	private endWithCR(val: string | TreeNode): boolean {
+	private endWithCR(val: string | Uint16Array | TreeNode): boolean {
 		if (typeof val === 'string') {
 			return val.charCodeAt(val.length - 1) === 13;
+		}
+
+		if (val instanceof Uint16Array) {
+			return val[val.length - 1] === 13;
 		}
 
 		if (val === SENTINEL || val.piece.lineFeedCnt === 0) {
@@ -1771,7 +1845,7 @@ export class PieceTreeBase {
 		const piece = node.piece;
 		const startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
 		const endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		const currentContent = buffer.buffer.substring(startOffset, endOffset);
+		const currentContent = buffer.substring(startOffset, endOffset);
 		return currentContent;
 	}
 
@@ -1779,7 +1853,7 @@ export class PieceTreeBase {
 		const buffer = this._buffers[piece.bufferIndex];
 		const startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
 		const endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		const currentContent = buffer.buffer.substring(startOffset, endOffset);
+		const currentContent = buffer.substring(startOffset, endOffset);
 		return currentContent;
 	}
 

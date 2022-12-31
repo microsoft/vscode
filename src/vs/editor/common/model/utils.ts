@@ -10,7 +10,7 @@ import { CharCode } from 'vs/base/common/charCode';
  *  - -1 => the line consists of whitespace
  *  - otherwise => the indent level is returned value
  */
-export function computeIndentLevel(line: string, tabSize: number): number {
+export function computeIndentLevel(line: string | { length: number; charCodeAt: (index: number) => number }, tabSize: number): number {
 	let indent = 0;
 	let i = 0;
 	const len = line.length;

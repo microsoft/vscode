@@ -1899,6 +1899,7 @@ declare namespace monaco.editor {
 		 * Get the text length for a certain line.
 		 */
 		getLineLength(lineNumber: number): number;
+		getLineCharCode(lineNumber: number, column: number): number;
 		/**
 		 * Get the text for all lines.
 		 */

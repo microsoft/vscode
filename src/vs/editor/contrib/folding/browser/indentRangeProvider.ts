@@ -137,8 +137,10 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 	previousRegions.push({ indent: -1, endAbove: line, line }); // sentinel, to make sure there's at least one entry
 
 	for (let line = model.getLineCount(); line > 0; line--) {
-		const lineContent = model.getLineContent(line);
-		const indent = computeIndentLevel(lineContent, tabSize);
+		const indent = computeIndentLevel({
+			length: model.getLineLength(line),
+			charCodeAt: (index: number) => { return model.getLineCharCode(line, index + 1); }
+		}, tabSize);
 		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
 			if (offSide) {
@@ -150,6 +152,7 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			continue; // only whitespace
 		}
 		let m;
+		const lineContent = model.getLineContent(line);
 		if (pattern && (m = lineContent.match(pattern))) {
 			// folding pattern match
 			if (m[1]) { // start pattern match

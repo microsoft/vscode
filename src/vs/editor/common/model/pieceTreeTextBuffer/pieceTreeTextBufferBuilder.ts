@@ -6,8 +6,9 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
+import { getPlatformTextDecoder } from 'vs/editor/common/core/stringBuilder';
 import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
-import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
+import { StringBuffer, createLineStarts as createBufferAndLineStarts, createLineStartsFastFromBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
 class PieceTreeTextBufferFactory implements ITextBufferFactory {
@@ -43,26 +44,29 @@ class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		const eol = this._getEOL(defaultEOL);
 		const chunks = this._chunks;
 
-		if (this._normalizeEOL &&
-			((eol === '\r\n' && (this._cr > 0 || this._lf > 0))
-				|| (eol === '\n' && (this._cr > 0 || this._crlf > 0)))
-		) {
-			// Normalize pieces
-			for (let i = 0, len = chunks.length; i < len; i++) {
-				const str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
-				const newLineStart = createLineStartsFast(str);
-				chunks[i] = new StringBuffer(str, newLineStart);
-			}
-		}
+		// TODO@rebornix: normalize EOL on utf16 arrayu buffer
+		// if (this._normalizeEOL &&
+		// 	((eol === '\r\n' && (this._cr > 0 || this._lf > 0))
+		// 		|| (eol === '\n' && (this._cr > 0 || this._crlf > 0)))
+		// ) {
+		// 	// Normalize pieces
+		// 	for (let i = 0, len = chunks.length; i < len; i++) {
+		// 		const str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
+		// 		const newLineStart = createLineStartsFast(str);
+		// 		chunks[i] = new StringBuffer(str, newLineStart);
+		// 	}
+		// }
 
 		const textBuffer = new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._containsUnusualLineTerminators, this._isBasicASCII, this._normalizeEOL);
 		return { textBuffer: textBuffer, disposable: textBuffer };
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
-		return this._chunks[0].buffer.substr(0, lengthLimit).split(/\r\n|\r|\n/)[0];
+		const view = new Uint16Array(this._chunks[0].buffer, 0, lengthLimit);
+		return getPlatformTextDecoder().decode(view).split(/\r\n|\r|\n/)[0];
 	}
 }
+
 
 export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 	private readonly chunks: StringBuffer[];
@@ -134,9 +138,11 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 	}
 
 	private _acceptChunk2(chunk: string): void {
-		const lineStarts = createLineStarts(this._tmpLineStarts, chunk);
+		const bufferAndlineStarts = createBufferAndLineStarts(this._tmpLineStarts, chunk);
+		const buffer = bufferAndlineStarts.buffer;
+		const lineStarts = bufferAndlineStarts.lineStarts;
 
-		this.chunks.push(new StringBuffer(chunk, lineStarts.lineStarts));
+		this.chunks.push(new StringBuffer(buffer, lineStarts.lineStarts));
 		this.cr += lineStarts.cr;
 		this.lf += lineStarts.lf;
 		this.crlf += lineStarts.crlf;
@@ -178,8 +184,11 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 			this._hasPreviousChar = false;
 			// recreate last chunk
 			const lastChunk = this.chunks[this.chunks.length - 1];
-			lastChunk.buffer += String.fromCharCode(this._previousChar);
-			const newLineStarts = createLineStartsFast(lastChunk.buffer);
+			const newBuffer = new Uint16Array(lastChunk.buffer.length + 1);
+			newBuffer.set(lastChunk.buffer, 0);
+			newBuffer[lastChunk.buffer.length] = this._previousChar;
+			lastChunk.buffer = newBuffer;
+			const newLineStarts = createLineStartsFastFromBuffer(lastChunk.buffer);
 			lastChunk.lineStarts = newLineStarts;
 			if (this._previousChar === CharCode.CarriageReturn) {
 				this.cr++;

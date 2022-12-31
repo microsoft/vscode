@@ -794,6 +794,20 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer.getLineLength(lineNumber);
 	}
 
+	public getLineCharCode(lineNumber: number, column: number) {
+		this._assertNotDisposed();
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value for lineNumber');
+		}
+
+		const lineLength = this._buffer.getLineLength(lineNumber);
+		if (column < 1 || column > lineLength + 1) {
+			throw new Error('Illegal value for column');
+		}
+
+		return this._buffer.getLineCharCode(lineNumber, column - 1);
+	}
+
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
 		return this._buffer.getLinesContent();
