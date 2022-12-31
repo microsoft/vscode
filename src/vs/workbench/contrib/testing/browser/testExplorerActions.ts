@@ -243,7 +243,7 @@ export class SelectDefaultTestProfiles extends Action2 {
 		});
 
 		if (profiles?.length) {
-			testProfileService.setGroupDefaultProfiles(onlyGroup, profiles);
+			testProfileService.setGroupDefaultProfiles(profiles);
 		}
 	}
 }
