@@ -244,12 +244,10 @@ export class EditorPanes extends Disposable {
 		// Apply input to pane
 		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
 
-		// Focus unless cancelled and unless another element got active meanwhile
-		if (!cancelled && this.shouldRestoreFocus(activeElement)) {
-			const focus = !options || !options.preserveFocus;
-			if (focus) {
-				pane.focus();
-			}
+		// Focus only if not cancelled and not prevented
+		const focus = !options || !options.preserveFocus;
+		if (!cancelled && focus && this.shouldRestoreFocus(activeElement)) {
+			pane.focus();
 		}
 
 		return { pane, changed, cancelled };
@@ -266,13 +264,22 @@ export class EditorPanes extends Disposable {
 
 		const activeElement = document.activeElement;
 
-		if (activeElement === document.body) {
+		if (!activeElement || activeElement === document.body) {
 			return true; // restore focus if nothing is focused currently
 		}
 
 		const same = expectedActiveElement === activeElement;
 		if (same) {
 			return true; // restore focus if same element is still active
+		}
+
+		if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+
+			// This is to avoid regressions from not restoring focus as we used to:
+			// Only allow a different input element (or textarea) to remain focused
+			// but not other elements that do not accept text input.
+
+			return true;
 		}
 
 		if (isAncestor(activeElement, this.editorGroupParent)) {
