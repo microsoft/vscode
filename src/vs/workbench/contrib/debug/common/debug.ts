@@ -143,6 +143,7 @@ export interface IExpressionContainer extends ITreeElement {
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
+	readonly memoryReference?: string;
 	readonly value: string;
 	readonly type?: string;
 	valueChanged?: boolean;
