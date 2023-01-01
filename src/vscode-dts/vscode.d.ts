@@ -14232,6 +14232,11 @@ declare module 'vscode' {
 		 * Controls whether the input box is visible (default is `true`).
 		 */
 		visible: boolean;
+
+		/**
+		 * An event which fires when the input box value changes.
+		 */
+		readonly onDidChangeValue: Event<string>;
 	}
 
 	interface QuickDiffProvider {

@@ -213,10 +213,10 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.updateValue(value);
 	}
 
-	private readonly _onDidChange = new Emitter<string>();
+	private readonly _onDidChangeValue = new Emitter<string>();
 
-	get onDidChange(): Event<string> {
-		return this._onDidChange.event;
+	get onDidChangeValue(): Event<string> {
+		return this._onDidChangeValue.event;
 	}
 
 	private _placeholder: string = '';
@@ -299,7 +299,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	private updateValue(value: string): void {
 		this._value = value;
-		this._onDidChange.fire(value);
+		this._onDidChangeValue.fire(value);
 	}
 }
 
