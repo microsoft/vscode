@@ -309,7 +309,10 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 function getArgvConfigPath() {
 	const oldArgvFilePath = getOldArgvConfigPath();
 	const newArgvFilePath = path.join(userDataPath, 'argv.json');
-	migrateArgvConfigPath(oldArgvFilePath, newArgvFilePath);
+
+	if (oldArgvFilePath !== newArgvFilePath) {
+		migrateArgvConfigPath(oldArgvFilePath, newArgvFilePath);
+	}
 
 	return newArgvFilePath;
 }
@@ -321,10 +324,6 @@ function getArgvConfigPath() {
  */
 function migrateArgvConfigPath(oldFilePath, newFilePath) {
 	if (!fs.existsSync(oldFilePath)) {
-		return;
-	}
-
-	if (oldFilePath === newFilePath) {
 		return;
 	}
 
