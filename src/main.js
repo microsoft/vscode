@@ -307,6 +307,35 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 }
 
 function getArgvConfigPath() {
+	const oldArgvFilePath = getOldArgvConfigPath();
+	const newArgvFilePath = path.join(userDataPath, 'argv.json');
+	migrateArgvConfigPath(oldArgvFilePath, newArgvFilePath);
+
+	return newArgvFilePath;
+}
+
+/**
+ * Migrates the old argv path to the new path
+ * @param {string} oldFilePath
+ * @param {string} newFilePath
+ */
+function migrateArgvConfigPath(oldFilePath, newFilePath) {
+	if (!fs.existsSync(oldFilePath)) {
+		return;
+	}
+
+	if (oldFilePath === newFilePath) {
+		return;
+	}
+
+	if (fs.existsSync(newFilePath)) { // already exists
+		fs.unlinkSync(oldFilePath);
+	} else { // move the old file to a new location
+		fs.renameSync(oldFilePath, newFilePath);
+	}
+}
+
+function getOldArgvConfigPath() {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
 	if (vscodePortable) {
 		return path.join(vscodePortable, 'argv.json');
