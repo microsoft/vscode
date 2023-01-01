@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { isCancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -22,7 +22,6 @@ import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceReco
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -41,7 +40,7 @@ import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions
 import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -56,6 +55,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isOfflineError } from 'vs/base/parts/request/common/request';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
@@ -90,7 +90,22 @@ interface IQueryResult {
 	readonly disposables: DisposableStore;
 }
 
+const enum LocalSortBy {
+	UpdateDate = 'UpdateDate',
+}
+
+function isLocalSortBy(value: any): value is LocalSortBy {
+	switch (value as LocalSortBy) {
+		case LocalSortBy.UpdateDate: return true;
+	}
+}
+
+type SortBy = LocalSortBy | GallerySortBy;
+type IQueryOptions = Omit<IGalleryQueryOptions, 'sortBy'> & { sortBy?: SortBy };
+
 export class ExtensionsListView extends ViewPane {
+
+	private static RECENT_UPDATE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 	private bodyTemplate: {
 		messageContainer: HTMLElement;
@@ -155,12 +170,11 @@ export class ExtensionsListView extends ViewPane {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
-			this._register(attachBadgeStyler(this.badge, this.themeService));
+			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles);
 		}
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		const extensionsList = append(container, $('.extensions-list'));
@@ -238,10 +252,11 @@ export class ExtensionsListView extends ViewPane {
 		};
 
 		switch (parsedQuery.sortBy) {
-			case 'installs': options.sortBy = SortBy.InstallCount; break;
-			case 'rating': options.sortBy = SortBy.WeightedRating; break;
-			case 'name': options.sortBy = SortBy.Title; break;
-			case 'publishedDate': options.sortBy = SortBy.PublishedDate; break;
+			case 'installs': options.sortBy = GallerySortBy.InstallCount; break;
+			case 'rating': options.sortBy = GallerySortBy.WeightedRating; break;
+			case 'name': options.sortBy = GallerySortBy.Title; break;
+			case 'publishedDate': options.sortBy = GallerySortBy.PublishedDate; break;
+			case 'updateDate': options.sortBy = LocalSortBy.UpdateDate; break;
 		}
 
 		const request = createCancelablePromise(async token => {
@@ -280,7 +295,6 @@ export class ExtensionsListView extends ViewPane {
 
 	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
 		if (e.element) {
-			const runningExtensions = await this.extensionService.getExtensions();
 			const disposables = new DisposableStore();
 			const manageExtensionAction = disposables.add(this.instantiationService.createInstance(ManageExtensionAction));
 			const extension = e.element ? this.extensionsWorkbenchService.local.find(local => areSameExtensions(local.identifier, e.element!.identifier) && (!e.element!.server || e.element!.server === local.server)) || e.element
@@ -288,7 +302,7 @@ export class ExtensionsListView extends ViewPane {
 			manageExtensionAction.extension = extension;
 			let groups: IAction[][] = [];
 			if (manageExtensionAction.enabled) {
-				groups = await manageExtensionAction.getActionGroups(runningExtensions);
+				groups = await manageExtensionAction.getActionGroups();
 			} else if (extension) {
 				groups = await getContextMenuActions(extension, this.contextKeyService, this.instantiationService);
 				groups.forEach(group => group.forEach(extensionAction => {
@@ -324,11 +338,21 @@ export class ExtensionsListView extends ViewPane {
 			return { model, disposables: new DisposableStore() };
 		}
 
-		if (ExtensionsListView.isLocalExtensionsQuery(query.value)) {
+		if (ExtensionsListView.isLocalExtensionsQuery(query.value, query.sortBy)) {
 			return this.queryLocal(query, options);
 		}
 
-		const model = await this.queryGallery(query, options, token);
+		if (ExtensionsListView.isSearchPopularQuery(query.value)) {
+			query.value = query.value.replace('@popular', '');
+			options.sortBy = !options.sortBy ? GallerySortBy.InstallCount : options.sortBy;
+		}
+		else if (ExtensionsListView.isSearchRecentlyPublishedQuery(query.value)) {
+			query.value = query.value.replace('@recentlyPublished', '');
+			options.sortBy = !options.sortBy ? GallerySortBy.PublishedDate : options.sortBy;
+		}
+
+		const galleryQueryOptions: IGalleryQueryOptions = { ...options, sortBy: isLocalSortBy(options.sortBy) ? undefined : options.sortBy };
+		const model = await this.queryGallery(query, galleryQueryOptions, token);
 		return { model, disposables: new DisposableStore() };
 	}
 
@@ -349,8 +373,7 @@ export class ExtensionsListView extends ViewPane {
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
 		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
-		const runningExtensions = await this.extensionService.getExtensions();
-		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, runningExtensions, query, options);
+		let { extensions, canIncludeInstalledExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 		const disposables = new DisposableStore();
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
 
@@ -362,8 +385,7 @@ export class ExtensionsListView extends ViewPane {
 				this.extensionService.onDidChangeExtensions
 			), () => undefined)(async () => {
 				const local = this.options.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.options.server) : this.extensionsWorkbenchService.local;
-				const runningExtensions = await this.extensionService.getExtensions();
-				const { extensions: newExtensions } = await this.filterLocal(local, runningExtensions, query, options);
+				const { extensions: newExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 				if (!isDisposed) {
 					const mergedExtensions = this.mergeAddedExtensions(extensions, newExtensions);
 					if (mergedExtensions) {
@@ -381,7 +403,7 @@ export class ExtensionsListView extends ViewPane {
 		};
 	}
 
-	private async filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean }> {
+	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean }> {
 		const value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
@@ -413,6 +435,10 @@ export class ExtensionsListView extends ViewPane {
 
 		else if (/@deprecated/i.test(query.value)) {
 			extensions = await this.filterDeprecatedExtensions(local, query, options);
+		}
+
+		else if (/@recentlyUpdated/i.test(query.value)) {
+			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
 		return { extensions, canIncludeInstalledExtensions };
@@ -480,23 +506,25 @@ export class ExtensionsListView extends ViewPane {
 		return { value, categories };
 	}
 
-	private filterInstalledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterInstalledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		let result = local
-			.filter(e => !e.isBuiltin
-				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+		const matchingText = (e: IExtension) => (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category)));
+		let result;
 
 		if (options.sortBy !== undefined) {
+			result = local.filter(e => !e.isBuiltin && matchingText(e));
 			result = this.sortExtensions(result, options);
 		} else {
+			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
 			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
-			result = result.sort((e1, e2) => {
+
+			const defaultSort = (e1: IExtension, e2: IExtension) => {
 				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
-				const isE1Running = running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
+				const isE1Running = !!running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
 				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
 				const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
 				if ((isE1Running && isE2Running)) {
@@ -517,7 +545,24 @@ export class ExtensionsListView extends ViewPane {
 					return e1.displayName.localeCompare(e2.displayName);
 				}
 				return isE1Running ? -1 : 1;
+			};
+
+			const outdated: IExtension[] = [];
+			const reloadRequired: IExtension[] = [];
+			const noActionRequired: IExtension[] = [];
+			result.forEach(e => {
+				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+					outdated.push(e);
+				}
+				else if (e.reloadRequiredStatus) {
+					reloadRequired.push(e);
+				}
+				else {
+					noActionRequired.push(e);
+				}
 			});
+
+			result = [...outdated.sort(defaultSort), ...reloadRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
 		}
 		return result;
 	}
@@ -536,7 +581,7 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterDisabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterDisabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -550,7 +595,7 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterEnabledExtensions(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterEnabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, categories } = this.parseCategories(query.value);
 
 		value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
@@ -633,6 +678,22 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(local, options);
 	}
 
+	private filterRecentlyUpdatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, categories } = this.parseCategories(query.value);
+		const currentTime = Date.now();
+		local = local.filter(e => !e.isBuiltin && !e.outdated && e.local?.updated && e.local?.installedTimestamp !== undefined && currentTime - e.local.installedTimestamp < ExtensionsListView.RECENT_UPDATE_DURATION);
+
+		value = value.replace(/@recentlyUpdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(e =>
+			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1) &&
+			(!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+
+		options.sortBy = options.sortBy ?? LocalSortBy.UpdateDate;
+
+		return this.sortExtensions(result, options);
+	}
+
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
 		const oldExtensions = [...extensions];
 		const findPreviousExtensionIndex = (from: number): number => {
@@ -659,10 +720,10 @@ export class ExtensionsListView extends ViewPane {
 		return hasChanged ? extensions : undefined;
 	}
 
-	private async queryGallery(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+	private async queryGallery(query: Query, options: IGalleryQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const hasUserDefinedSortOrder = options.sortBy !== undefined;
 		if (!hasUserDefinedSortOrder && !query.value.trim()) {
-			options.sortBy = SortBy.InstallCount;
+			options.sortBy = GallerySortBy.InstallCount;
 		}
 
 		if (this.isRecommendationsQuery(query)) {
@@ -733,11 +794,17 @@ export class ExtensionsListView extends ViewPane {
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
 		switch (options.sortBy) {
-			case SortBy.InstallCount:
+			case GallerySortBy.InstallCount:
 				extensions = extensions.sort((e1, e2) => typeof e2.installCount === 'number' && typeof e1.installCount === 'number' ? e2.installCount - e1.installCount : NaN);
 				break;
-			case SortBy.AverageRating:
-			case SortBy.WeightedRating:
+			case LocalSortBy.UpdateDate:
+				extensions = extensions.sort((e1, e2) =>
+					typeof e2.local?.installedTimestamp === 'number' && typeof e1.local?.installedTimestamp === 'number' ? e2.local.installedTimestamp - e1.local.installedTimestamp :
+						typeof e2.local?.installedTimestamp === 'number' ? 1 :
+							typeof e1.local?.installedTimestamp === 'number' ? -1 : NaN);
+				break;
+			case GallerySortBy.AverageRating:
+			case GallerySortBy.WeightedRating:
 				extensions = extensions.sort((e1, e2) => typeof e2.rating === 'number' && typeof e1.rating === 'number' ? e2.rating - e1.rating : NaN);
 				break;
 			default:
@@ -819,7 +886,7 @@ export class ExtensionsListView extends ViewPane {
 		if (recommendations.length) {
 			const extensions = await this.extensionsWorkbenchService.getExtensions(recommendations.map(id => ({ id })), { source: options.source }, token);
 			for (const extension of extensions) {
-				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+				if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
 					result.push(extension);
 				}
 			}
@@ -1018,7 +1085,7 @@ export class ExtensionsListView extends ViewPane {
 		this.list = null;
 	}
 
-	static isLocalExtensionsQuery(query: string): boolean {
+	static isLocalExtensionsQuery(query: string, sortBy?: string): boolean {
 		return this.isInstalledExtensionsQuery(query)
 			|| this.isOutdatedExtensionsQuery(query)
 			|| this.isEnabledExtensionsQuery(query)
@@ -1027,7 +1094,10 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isSearchBuiltInExtensionsQuery(query)
 			|| this.isBuiltInGroupExtensionsQuery(query)
 			|| this.isSearchDeprecatedExtensionsQuery(query)
-			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query);
+			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
+			|| this.isSearchRecentlyUpdatedQuery(query)
+			|| this.isSearchExtensionUpdatesQuery(query)
+			|| this.isSortInstalledExtensionsQuery(query, sortBy);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -1090,6 +1160,30 @@ export class ExtensionsListView extends ViewPane {
 		return /@recommended:languages/i.test(query);
 	}
 
+	static isSortInstalledExtensionsQuery(query: string, sortBy?: string): boolean {
+		return (sortBy !== undefined && sortBy !== '' && query === '') || (!sortBy && /^@sort:\S*$/i.test(query));
+	}
+
+	static isSearchPopularQuery(query: string): boolean {
+		return /@popular/i.test(query);
+	}
+
+	static isSearchRecentlyPublishedQuery(query: string): boolean {
+		return /@recentlyPublished/i.test(query);
+	}
+
+	static isSearchRecentlyUpdatedQuery(query: string): boolean {
+		return /@recentlyUpdated/i.test(query);
+	}
+
+	static isSearchExtensionUpdatesQuery(query: string): boolean {
+		return /@updates/i.test(query);
+	}
+
+	static isSortUpdateDateQuery(query: string): boolean {
+		return /@sort:updateDate/i.test(query);
+	}
+
 	override focus(): void {
 		super.focus();
 		if (!this.list) {
@@ -1116,7 +1210,7 @@ export class ServerInstalledExtensionsView extends ExtensionsListView {
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query ? query : '@installed';
-		if (!ExtensionsListView.isLocalExtensionsQuery(query)) {
+		if (!ExtensionsListView.isLocalExtensionsQuery(query) || ExtensionsListView.isSortInstalledExtensionsQuery(query)) {
 			query = query += ' @installed';
 		}
 		return super.show(query.trim());
@@ -1128,7 +1222,8 @@ export class EnabledExtensionsView extends ExtensionsListView {
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@enabled';
-		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+		return ExtensionsListView.isEnabledExtensionsQuery(query) ? super.show(query) :
+			ExtensionsListView.isSortInstalledExtensionsQuery(query) ? super.show('@enabled ' + query) : this.showEmptyModel();
 	}
 }
 
@@ -1136,8 +1231,36 @@ export class DisabledExtensionsView extends ExtensionsListView {
 
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		query = query || '@disabled';
-		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) : this.showEmptyModel();
+		return ExtensionsListView.isDisabledExtensionsQuery(query) ? super.show(query) :
+			ExtensionsListView.isSortInstalledExtensionsQuery(query) ? super.show('@disabled ' + query) : this.showEmptyModel();
 	}
+}
+
+export class OutdatedExtensionsView extends ExtensionsListView {
+
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		query = query ? query : '@outdated';
+		if (ExtensionsListView.isSearchExtensionUpdatesQuery(query)) {
+			query = query.replace('@updates', '@outdated');
+		}
+
+		const model = await super.show(query.trim());
+		this.setExpanded(model.length > 0);
+		return model;
+	}
+
+}
+
+export class RecentlyUpdatedExtensionsView extends ExtensionsListView {
+
+	override async show(query: string): Promise<IPagedModel<IExtension>> {
+		query = query ? query : '@recentlyUpdated';
+		if (ExtensionsListView.isSearchExtensionUpdatesQuery(query)) {
+			query = query.replace('@updates', '@recentlyUpdated');
+		}
+		return super.show(query.trim());
+	}
+
 }
 
 export class BuiltInFeatureExtensionsView extends ExtensionsListView {
@@ -1228,7 +1351,7 @@ export class SearchMarketplaceExtensionsView extends ExtensionsListView {
 export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 	private readonly recommendedExtensionsQuery = '@recommended:all';
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
@@ -1253,7 +1376,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 export class RecommendedExtensionsView extends ExtensionsListView {
 	private readonly recommendedExtensionsQuery = '@recommended';
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
@@ -1269,7 +1392,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView implements IWorkspaceRecommendedExtensionsView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.show(this.recommendedExtensionsQuery)));

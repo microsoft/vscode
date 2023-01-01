@@ -138,6 +138,7 @@ export interface ICellDragEndMessage extends BaseToWebviewMessage {
 
 export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkup';
+	readonly requestId: string;
 }
 
 export interface ICodeBlockHighlightRequest {
@@ -179,9 +180,14 @@ export interface IOutputRequestDto {
 	readonly outputId: string;
 }
 
+export interface OutputItemEntry {
+	readonly mime: string;
+	readonly valueBytes: Uint8Array;
+}
+
 export type ICreationContent =
 	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string };
+	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly metadata: unknown; readonly output: OutputItemEntry; readonly allOutputs: ReadonlyArray<{ readonly mime: string }> };
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -272,6 +278,23 @@ export interface IUpdateControllerPreloadsMessage {
 	readonly resources: readonly IControllerPreload[];
 }
 
+export interface RendererMetadata {
+	readonly id: string;
+	readonly entrypoint: { readonly extends: string | undefined; readonly path: string };
+	readonly mimeTypes: readonly string[];
+	readonly messaging: boolean;
+	readonly isBuiltin: boolean;
+}
+
+export interface StaticPreloadMetadata {
+	readonly entrypoint: string;
+}
+
+export interface IUpdateRenderersMessage {
+	readonly type: 'updateRenderers';
+	readonly rendererData: readonly RendererMetadata[];
+}
+
 export interface IUpdateDecorationsMessage {
 	readonly type: 'decorations';
 	readonly cellId: string;
@@ -316,6 +339,7 @@ export interface IShowMarkupCellMessage {
 	readonly handle: number;
 	readonly content: string | undefined;
 	readonly top: number;
+	readonly metadata: NotebookCellMetadata | undefined;
 }
 
 export interface IUpdateSelectedMarkupCellsMessage {
@@ -336,6 +360,7 @@ export interface IMarkupCellInitialization {
 export interface IInitializeMarkupCells {
 	readonly type: 'initializeMarkup';
 	readonly cells: readonly IMarkupCellInitialization[];
+	readonly requestId: string;
 }
 
 export interface INotebookStylesMessage {
@@ -408,6 +433,25 @@ export interface IOutputResizedMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 }
 
+export interface IGetOutputItemMessage extends BaseToWebviewMessage {
+	readonly type: 'getOutputItem';
+	readonly requestId: number;
+	readonly outputId: string;
+	readonly mime: string;
+}
+
+export interface IReturnOutputItemMessage {
+	readonly type: 'returnOutputItem';
+	readonly requestId: number;
+	readonly output: OutputItemEntry | undefined;
+}
+
+export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
+	readonly type: 'logRendererDebugMessage';
+	readonly message: string;
+	readonly data?: Record<string, string>;
+}
+
 
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
@@ -437,7 +481,9 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
 	IDidFindHighlightMessage |
-	IOutputResizedMessage;
+	IOutputResizedMessage |
+	IGetOutputItemMessage |
+	ILogRendererDebugMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -449,6 +495,7 @@ export type ToWebviewMessage = IClearMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
 	IUpdateControllerPreloadsMessage |
+	IUpdateRenderersMessage |
 	IUpdateDecorationsMessage |
 	ICustomKernelMessage |
 	ICustomRendererMessage |
@@ -467,7 +514,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
-	IFindStopMessage;
+	IFindStopMessage |
+	IReturnOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

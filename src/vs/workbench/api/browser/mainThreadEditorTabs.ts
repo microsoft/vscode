@@ -194,7 +194,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	private _generateTabId(editor: EditorInput, groupId: number) {
 		let resourceString: string | undefined;
 		// Properly get the resource and account for side by side editors
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (resource instanceof URI) {
 			resourceString = resource.toString();
 		} else {
@@ -548,7 +548,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 	//#region Messages received from Ext Host
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void {
-		const groupId = columnToEditorGroup(this._editorGroupsService, viewColumn);
+		const groupId = columnToEditorGroup(this._editorGroupsService, this._configurationService, viewColumn);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		const tab = tabInfo?.tab;
 		if (!tab) {

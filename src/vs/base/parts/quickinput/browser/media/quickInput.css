@@ -7,14 +7,18 @@
 	position: absolute;
 	width: 600px;
 	z-index: 2550;
-	left: 50%;
-	margin-left: -300px;
+	left: 0;
+	right: 0;
+	margin: 0 auto;
 	-webkit-app-region: no-drag;
+	border-radius: 6px;
 }
 
 .quick-input-titlebar {
 	display: flex;
 	align-items: center;
+	border-top-left-radius: 5px; /* match border radius of quick input widget */
+	border-top-right-radius: 5px;
 }
 
 .quick-input-left-action-bar {
@@ -56,8 +60,7 @@
 
 .quick-input-header {
 	display: flex;
-	padding: 6px 6px 0px 6px;
-	margin-bottom: -2px;
+	padding: 8px 6px 6px 6px;
 }
 
 .quick-input-widget.hidden-input .quick-input-header {
@@ -123,7 +126,7 @@
 	font-size: 11px;
 	padding: 0 6px;
 	display: flex;
-	height: 27.5px;
+	height: 25px;
 	align-items: center;
 }
 
@@ -149,17 +152,21 @@
 
 .quick-input-list {
 	line-height: 22px;
-	margin-top: 6px;
-	padding: 0px 1px 1px 1px;
 }
 
 .quick-input-widget.hidden-input .quick-input-list {
-	margin-top: 0; /* reduce margins when input box hidden */
+	margin-top: 4px; /* reduce margins when input box hidden */
+	padding-bottom: 4px;
 }
 
 .quick-input-list .monaco-list {
 	overflow: hidden;
 	max-height: calc(20 * 22px);
+	padding-bottom: 5px;
+}
+
+.quick-input-list .monaco-scrollable-element {
+	padding: 0px 5px;
 }
 
 .quick-input-list .quick-input-list-entry {
@@ -173,6 +180,10 @@
 .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-width: 1px;
 	border-top-style: solid;
+}
+
+.quick-input-list .monaco-list-row {
+	border-radius: 3px;
 }
 
 .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
@@ -226,7 +237,7 @@
 	vertical-align: text-bottom;
 }
 
-.quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
+.quick-input-list .quick-input-list-rows .monaco-highlighted-label > * {
 	opacity: 1;
 }
 
@@ -246,7 +257,7 @@
 }
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {
-	margin-right: 8px; /* separate from keybindings or actions */
+	margin-right: 4px; /* separate from keybindings or actions */
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

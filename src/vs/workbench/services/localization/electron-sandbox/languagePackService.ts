@@ -6,4 +6,4 @@
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-registerSharedProcessRemoteService(ILanguagePackService, 'languagePacks', { supportsDelayedInstantiation: true });
+registerSharedProcessRemoteService(ILanguagePackService, 'languagePacks');

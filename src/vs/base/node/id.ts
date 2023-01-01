@@ -5,7 +5,7 @@
 
 import { networkInterfaces } from 'os';
 import * as errors from 'vs/base/common/errors';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import * as uuid from 'vs/base/common/uuid';
 import { getMac } from 'vs/base/node/macAddress';
 

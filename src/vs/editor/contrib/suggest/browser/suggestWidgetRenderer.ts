@@ -28,7 +28,7 @@ export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
 }
 
-export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
+const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
 const _completionItemColor = new class ColorExtractor {
 

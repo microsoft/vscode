@@ -217,9 +217,7 @@ export class NotificationsStatus extends Disposable {
 					clearTimeout(hideHandle);
 				}
 
-				if (statusMessageEntry) {
-					statusMessageEntry.dispose();
-				}
+				statusMessageEntry?.dispose();
 			}
 		};
 

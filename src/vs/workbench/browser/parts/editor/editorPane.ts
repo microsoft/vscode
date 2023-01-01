@@ -23,6 +23,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -160,6 +161,10 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 */
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
+	}
+
+	setBoundarySashes(_sashes: IBoundarySashes) {
+		// Subclasses can implement
 	}
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, configurationService: ITextResourceConfigurationService, key: string, limit: number = 10): IEditorMemento<T> {

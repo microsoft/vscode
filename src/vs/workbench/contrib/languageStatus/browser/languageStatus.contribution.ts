@@ -30,6 +30,7 @@ import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 class LanguageStatusViewModel {
 
@@ -402,10 +403,7 @@ registerAction2(class extends Action2 {
 				value: localize('reset', 'Reset Language Status Interaction Counter'),
 				original: 'Reset Language Status Interaction Counter'
 			},
-			category: {
-				value: localize('cat', 'View'),
-				original: 'View'
-			},
+			category: Categories.View,
 			f1: true
 		});
 	}

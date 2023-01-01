@@ -27,9 +27,9 @@
       {
         "id": "properties",
         "extensions": [
+          ".conf",
           ".properties",
           ".cfg",
-          ".conf",
           ".directory",
           ".gitattributes",
           ".gitconfig",

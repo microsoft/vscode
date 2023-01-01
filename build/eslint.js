@@ -13,8 +13,7 @@ function eslint() {
 		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
 		.pipe(
 			gulpeslint({
-				configFile: '.eslintrc.json',
-				rulePaths: ['./build/lib/eslint'],
+				configFile: '.eslintrc.json'
 			})
 		)
 		.pipe(gulpeslint.formatEach('compact'))

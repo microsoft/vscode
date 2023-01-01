@@ -199,12 +199,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return choice === 0;
 	}
 
-	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
-		this.authenticationService.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
-		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-	}
-
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 		const supportsMultipleAccounts = this.authenticationService.supportsMultipleAccounts(providerId);
@@ -224,9 +218,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (!options.forceNewSession && sessions.length) {
 			if (supportsMultipleAccounts) {
 				if (options.clearSessionPreference) {
-					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.APPLICATION);
+					// Clearing the session preference is usually paired with createIfNone, so just remove the preference and
+					// defer to the rest of the logic in this function to choose the session.
+					this.authenticationService.removeSessionPreference(providerId, extensionId, scopes);
 				} else {
-					const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.APPLICATION);
+					// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
+					const existingSessionPreference = this.authenticationService.getSessionPreference(providerId, extensionId, scopes);
 					if (existingSessionPreference) {
 						const matchingSession = sessions.find(session => session.id === existingSessionPreference);
 						if (matchingSession && this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId)) {
@@ -256,17 +253,36 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			const session = sessions?.length && !options.forceNewSession && supportsMultipleAccounts
 				? await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
 				: await this.authenticationService.createSession(providerId, scopes, true);
-			await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
+			this.authenticationService.updateAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
+			this.authenticationService.updateSessionPreference(providerId, extensionId, session);
 			return session;
 		}
 
-		// passive flows (silent or default)
-
-		const validSession = sessions.find(s => this.authenticationService.isAccessAllowed(providerId, s.account.label, extensionId));
-		if (!options.silent && !validSession) {
-			await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+		// For the silent flows, if we have a session, even though it may not be the user's preference, we'll return it anyway because it might be for a specific
+		// set of scopes.
+		const validSession = sessions.find(session => this.authenticationService.isAccessAllowed(providerId, session.account.label, extensionId));
+		if (validSession) {
+			// Migration. If we have a valid session, but no preference, we'll set the preference to the valid session.
+			// TODO: Remove this after in a few releases.
+			if (!this.authenticationService.getSessionPreference(providerId, extensionId, scopes)) {
+				if (this.storageService.get(`${extensionName}-${providerId}`, StorageScope.APPLICATION)) {
+					this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.APPLICATION);
+				}
+				this.authenticationService.updateAllowedExtension(providerId, validSession.account.label, extensionId, extensionName, true);
+				this.authenticationService.updateSessionPreference(providerId, extensionId, validSession);
+			}
+			return validSession;
 		}
-		return validSession;
+
+		// passive flows (silent or default)
+		if (!options.silent) {
+			// If there is a potential session, but the extension doesn't have access to it, use the "grant access" flow,
+			// otherwise request a new one.
+			sessions.length
+				? this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, sessions)
+				: await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+		}
+		return undefined;
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {

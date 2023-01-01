@@ -18,6 +18,7 @@ import { LogLevelToString } from 'vs/platform/log/common/log';
 import { isUndefined } from 'vs/base/common/types';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from 'vs/platform/environment/common/environmentService';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -47,10 +48,34 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get logsPath(): string { return this.logsHome.path; }
 
 	@memoize
-	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
+	get logLevel(): string | undefined {
+		const logLevelFromPayload = this.payload?.get('logLevel');
+		if (logLevelFromPayload) {
+			return logLevelFromPayload.split(',').find(entry => !EXTENSION_IDENTIFIER_WITH_LOG_REGEX.test(entry));
+		}
+		return this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined;
+	}
+
+	get extensionLogLevel(): [string, string][] | undefined {
+		const logLevelFromPayload = this.payload?.get('logLevel');
+		if (logLevelFromPayload) {
+			const result: [string, string][] = [];
+			for (const entry of logLevelFromPayload.split(',')) {
+				const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
+				if (matches && matches[1] && matches[2]) {
+					result.push([matches[1], matches[2]]);
+				}
+			}
+			return result.length ? result : undefined;
+		}
+		return this.options.developmentOptions?.extensionLogLevel !== undefined ? this.options.developmentOptions?.extensionLogLevel.map(([extension, logLevel]) => ([extension, LogLevelToString(logLevel)])) : undefined;
+	}
 
 	@memoize
-	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
+	get windowLogsPath(): URI { return this.logsHome; }
+
+	@memoize
+	get logFile(): URI { return joinPath(this.windowLogsPath, 'window.log'); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
@@ -100,6 +125,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
+
+	@memoize
+	get extHostTelemetryLogFile(): URI {
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
+	}
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
@@ -183,12 +213,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '3c8520fab514b9f56070214496b26ff68d1b1cb5')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? 'ef65ac1ba57f57f2a3961bfe94aa20481caca4c6')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 
 	@memoize
 	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
+	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
 
 	@memoize
 	get disableTelemetry(): boolean { return false; }
@@ -207,6 +238,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
+
+	@memoize
+	get lastActiveProfile(): string | undefined { return this.payload?.get('lastActiveProfile'); }
 
 	editSessionId: string | undefined = this.options.editSessionId;
 

@@ -31,6 +31,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 interface ISideBySideEditorViewState {
 	primary: object;
@@ -87,6 +88,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	override get maximumWidth() { return this.maximumPrimaryWidth + this.maximumSecondaryWidth; }
 	override get minimumHeight() { return this.minimumPrimaryHeight + this.minimumSecondaryHeight; }
 	override get maximumHeight() { return this.maximumPrimaryHeight + this.maximumSecondaryHeight; }
+
+	private _boundarySashes: IBoundarySashes | undefined;
 
 	//#endregion
 
@@ -200,6 +203,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		// Splitview widget
 		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
 		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
+		this.splitview.orthogonalEndSash = this._boundarySashes?.bottom;
 
 		// Figure out sizing
 		let leftSizing: number | Sizing = Sizing.Distribute;
@@ -424,6 +428,14 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		const splitview = assertIsDefined(this.splitview);
 		splitview.layout(this.orientation === Orientation.HORIZONTAL ? dimension.width : dimension.height);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this._boundarySashes = sashes;
+
+		if (this.splitview) {
+			this.splitview.orthogonalEndSash = sashes.bottom;
+		}
 	}
 
 	private layoutPane(pane: EditorPane | undefined, size: number): void {

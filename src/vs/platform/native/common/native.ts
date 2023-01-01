@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
@@ -74,7 +75,12 @@ export interface ICommonNativeHostService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
-	updateTitleBarOverlay(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	/**
+	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
+	 *
+	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
+	 */
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
@@ -116,6 +122,8 @@ export interface ICommonNativeHostService {
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
+	hasWSLFeatureInstalled(): Promise<boolean>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 
@@ -155,6 +163,10 @@ export interface ICommonNativeHostService {
 	toggleDevTools(): Promise<void>;
 	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
+	enableSandbox(enabled: boolean): Promise<void>; // TODO@bpasero remove me
+
+	// Perf Introspection
+	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

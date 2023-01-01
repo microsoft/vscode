@@ -27,6 +27,10 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					type: 'string',
 					description: localize('walkthroughs.title', "Title of walkthrough.")
 				},
+				icon: {
+					type: 'string',
+					description: localize('walkthroughs.icon', "Relative path to the icon of the walkthrough. The path is relative to the extension location. If not specified, the icon defaults to the extension icon if available."),
+				},
 				description: {
 					type: 'string',
 					description: localize('walkthroughs.description', "Description of walkthrough.")

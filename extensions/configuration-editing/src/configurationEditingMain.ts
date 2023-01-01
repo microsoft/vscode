@@ -5,10 +5,8 @@
 
 import { getLocation, JSONPath, parse, visit, Location } from 'jsonc-parser';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
 import { provideInstalledExtensionProposals } from './extensionsProposals';
-const localize = nls.loadMessageBundle();
 
 export function activate(context: vscode.ExtensionContext): void {
 	//settings.json suggestions
@@ -22,6 +20,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// task.json variable suggestions
 	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+
+	// Workspace file launch/tasks variable completions
+	context.subscriptions.push(registerVariableCompletions('**/*.code-workspace'));
 
 	// keybindings.json/package.json context key suggestions
 	context.subscriptions.push(registerContextKeyCompletions());
@@ -40,27 +41,31 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (isCompletingInsidePropertyStringValue(document, location, position)) {
+				if (document.fileName.endsWith('.code-workspace') && !isLocationInsideTopLevelProperty(location, ['launch', 'tasks'])) {
+					return [];
+				}
+
 				let range = document.getWordRangeAtPosition(position, /\$\{[^"\}]*\}?/);
 				if (!range || range.start.isEqual(position) || range.end.isEqual(position) && document.getText(range).endsWith('}')) {
 					range = new vscode.Range(position, position);
 				}
 
 				return [
-					{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") },
-					{ label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
-					{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") },
-					{ label: 'relativeFileDirname', detail: localize('relativeFileDirname', "The current opened file's dirname relative to ${workspaceFolder}") },
-					{ label: 'file', detail: localize('file', "The current opened file") },
-					{ label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
-					{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") },
-					{ label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
-					{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") },
-					{ label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") },
-					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
-					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
-					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
-					{ label: 'pathSeparator', detail: localize('pathSeparator', "The character used by the operating system to separate components in file paths") },
-					{ label: 'extensionInstallFolder', detail: localize('extensionInstallFolder', "The path where an an extension is installed."), param: 'publisher.extension' },
+					{ label: 'workspaceFolder', detail: vscode.l10n.t("The path of the folder opened in VS Code") },
+					{ label: 'workspaceFolderBasename', detail: vscode.l10n.t("The name of the folder opened in VS Code without any slashes (/)") },
+					{ label: 'relativeFile', detail: vscode.l10n.t("The current opened file relative to ${workspaceFolder}") },
+					{ label: 'relativeFileDirname', detail: vscode.l10n.t("The current opened file's dirname relative to ${workspaceFolder}") },
+					{ label: 'file', detail: vscode.l10n.t("The current opened file") },
+					{ label: 'cwd', detail: vscode.l10n.t("The task runner's current working directory on startup") },
+					{ label: 'lineNumber', detail: vscode.l10n.t("The current selected line number in the active file") },
+					{ label: 'selectedText', detail: vscode.l10n.t("The current selected text in the active file") },
+					{ label: 'fileDirname', detail: vscode.l10n.t("The current opened file's dirname") },
+					{ label: 'fileExtname', detail: vscode.l10n.t("The current opened file's extension") },
+					{ label: 'fileBasename', detail: vscode.l10n.t("The current opened file's basename") },
+					{ label: 'fileBasenameNoExtension', detail: vscode.l10n.t("The current opened file's basename with no file extension") },
+					{ label: 'defaultBuildTask', detail: vscode.l10n.t("The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
+					{ label: 'pathSeparator', detail: vscode.l10n.t("The character used by the operating system to separate components in file paths") },
+					{ label: 'extensionInstallFolder', detail: vscode.l10n.t("The path where an an extension is installed."), param: 'publisher.extension' },
 				].map(variable => ({
 					label: `\${${variable.label}}`,
 					range,
@@ -84,6 +89,10 @@ function isCompletingInsidePropertyStringValue(document: vscode.TextDocument, lo
 		return offset > previousNode.offset && offset < previousNode.offset + previousNode.length;
 	}
 	return false;
+}
+
+function isLocationInsideTopLevelProperty(location: Location, values: string[]) {
+	return values.includes(location.path[0] as string);
 }
 
 interface IExtensionsContent {

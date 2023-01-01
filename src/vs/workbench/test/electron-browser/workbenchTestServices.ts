@@ -16,9 +16,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -62,6 +60,7 @@ const homeDir = homedir();
 const NULL_PROFILE = {
 	name: '',
 	id: '',
+	shortName: '',
 	isDefault: false,
 	location: URI.file(homeDir),
 	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
@@ -69,7 +68,7 @@ const NULL_PROFILE = {
 	keybindingsResource: joinPath(URI.file(homeDir), 'keybindings.json'),
 	tasksResource: joinPath(URI.file(homeDir), 'tasks.json'),
 	snippetsHome: joinPath(URI.file(homeDir), 'snippets'),
-	extensionsResource: undefined
+	extensionsResource: joinPath(URI.file(homeDir), 'extensions.json')
 };
 
 export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
@@ -86,8 +85,8 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	product,
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
-	userDataDir: getUserDataPath(args),
-	profiles: { current: NULL_PROFILE, all: [NULL_PROFILE] },
+	userDataDir: getUserDataPath(args, product.nameShort),
+	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE] },
 	...args
 };
 
@@ -106,9 +105,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IProductService productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
@@ -129,7 +126,6 @@ export class TestTextFileService extends NativeTextFileService {
 			fileDialogService,
 			textResourceConfigurationService,
 			filesConfigurationService,
-			textModelService,
 			codeEditorService,
 			pathService,
 			workingCopyFileService,
@@ -192,7 +188,6 @@ export class TestSharedProcessService implements ISharedProcessService {
 }
 
 export class TestNativeHostService implements INativeHostService {
-
 	declare readonly _serviceBrand: undefined;
 
 	readonly windowId = -1;
@@ -226,7 +221,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async updateTitleBarOverlay(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
+	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
@@ -245,6 +240,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
+	async hasWSLFeatureInstalled(): Promise<boolean> { return false; }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
@@ -279,6 +275,8 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
+	async profileRenderer(): Promise<any> { throw new Error(); }
+	async enableSandbox(enabled: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 export function workbenchInstantiationService(disposables = new DisposableStore()): ITestInstantiationService {

@@ -8,8 +8,6 @@ import { EditorHighlights } from './highlights';
 import { Navigation } from './navigation';
 import { SymbolItemDragAndDrop, SymbolTreeInput } from './references-view';
 import { ContextKey, isValidRequestPosition, WordAnchor } from './utils';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 
 export class SymbolsTree {
@@ -123,10 +121,10 @@ export class SymbolsTree {
 		this._input = undefined;
 		this._ctxHasResult.set(false);
 		this._ctxInputSource.reset();
-		this._tree.title = localize('title', 'References');
+		this._tree.title = vscode.l10n.t('References');
 		this._tree.message = this._history.size === 0
-			? localize('noresult', 'No results.')
-			: localize('noresult2', 'No results. Try running a previous search again:');
+			? vscode.l10n.t('No results.')
+			: vscode.l10n.t('No results. Try running a previous search again:');
 		this._provider.update(Promise.resolve(this._history));
 	}
 }
@@ -283,7 +281,7 @@ class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem>{
 					description: item.description,
 					item
 				});
-				const pick = await vscode.window.showQuickPick(picks, { placeHolder: localize('placeholder', 'Select previous reference search') });
+				const pick = await vscode.window.showQuickPick(picks, { placeHolder: vscode.l10n.t('Select previous reference search') });
 				if (pick) {
 					this._reRunHistoryItem(pick.item);
 				}
@@ -338,7 +336,7 @@ class TreeInputHistory implements vscode.TreeDataProvider<HistoryItem>{
 	getTreeItem(item: HistoryItem): vscode.TreeItem {
 		const result = new vscode.TreeItem(item.word);
 		result.description = item.description;
-		result.command = { command: '_references-view.showHistoryItem', arguments: [item], title: localize('title.rerun', 'Rerun') };
+		result.command = { command: '_references-view.showHistoryItem', arguments: [item], title: vscode.l10n.t('Rerun') };
 		result.collapsibleState = vscode.TreeItemCollapsibleState.None;
 		result.contextValue = 'history-item';
 		return result;

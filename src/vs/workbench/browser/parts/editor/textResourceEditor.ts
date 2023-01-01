@@ -53,7 +53,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
-		const resolvedModel = await input.resolve();
+		const resolvedModel = await input.resolve(options);
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {
@@ -209,6 +209,9 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			} else {
 				this.modelService.setMode(textModel, this.languageService.createById(candidateLanguage.id));
 			}
+
+			const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);
+			textModel.detectIndentation(opts.insertSpaces, opts.tabSize);
 		}
 	}
 }

@@ -10,6 +10,7 @@ import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { extname as pathExtname } from 'vs/base/common/path';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -25,7 +26,7 @@ import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -43,6 +44,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -69,7 +71,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IPathService private readonly pathService: IPathService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
@@ -412,18 +413,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			success = true;
 		}
 
-		// Next, if the source does not seem to be a file, we try to
-		// resolve a text model from the resource to get at the
-		// contents and additional meta data (e.g. encoding).
-		else if (this.textModelService.canHandleResource(source)) {
-			const modelReference = await this.textModelService.createModelReference(source);
-			try {
-				success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
-			} finally {
-				modelReference.dispose(); // free up our use of the reference
-			}
-		}
-
 		// Finally we simply check if we can find a editor model that
 		// would give us access to the contents.
 		else {
@@ -438,7 +427,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Revert the source
-		await this.revert(source);
+		try {
+			await this.revert(source);
+		} catch (error) {
+
+			// It is possible that reverting the source fails, for example
+			// when a remote is disconnected and we cannot read it anymore.
+			// However, this should not interrupt the "Save As" flow, so
+			// we gracefully catch the error and just log it.
+
+			this.logService.error(error);
+		}
 
 		return target;
 	}
@@ -589,19 +588,16 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				}
 
 				// Untitled without associated file path: use name
-				// of untitled model if it is a valid path name,
-				// otherwise fallback to `basename`.
-				let untitledName = model.name;
-				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName), untitledName))) {
-					untitledName = basename(resource);
-				}
+				// of untitled model if it is a valid path name and
+				// figure out the file extension from the mode if any.
 
-				// Add language file extension if specified
-				const languageId = model.getLanguageId();
-				if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
-					suggestedFilename = this.suggestFilename(languageId, untitledName);
-				} else {
-					suggestedFilename = untitledName;
+				if (await this.pathService.hasValidBasename(joinPath(defaultFilePath, model.name), model.name)) {
+					const languageId = model.getLanguageId();
+					if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
+						suggestedFilename = this.suggestFilename(languageId, model.name);
+					} else {
+						suggestedFilename = model.name;
+					}
 				}
 			}
 		}
@@ -619,18 +615,31 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	suggestFilename(languageId: string, untitledName: string) {
 		const languageName = this.languageService.getLanguageName(languageId);
 		if (!languageName) {
-			return untitledName;
+			return untitledName; // unknown language, so we cannot suggest a better name
 		}
 
-		const extension = this.languageService.getExtensions(languageId)[0];
-		if (extension) {
-			if (!untitledName.endsWith(extension)) {
-				return untitledName + extension;
+		const untitledExtension = pathExtname(untitledName);
+
+		const extensions = this.languageService.getExtensions(languageId);
+		if (extensions.includes(untitledExtension)) {
+			return untitledName; // preserve extension if it is compatible with the mode
+		}
+
+		const primaryExtension = firstOrDefault(extensions);
+		if (primaryExtension) {
+			if (untitledExtension) {
+				return `${untitledName.substring(0, untitledName.indexOf(untitledExtension))}${primaryExtension}`;
 			}
+
+			return `${untitledName}${primaryExtension}`;
 		}
 
-		const filename = this.languageService.getFilenames(languageId)[0];
-		return filename || untitledName;
+		const filenames = this.languageService.getFilenames(languageId);
+		if (filenames.includes(untitledName)) {
+			return untitledName; // preserve name if it is compatible with the mode
+		}
+
+		return firstOrDefault(filenames) ?? untitledName;
 	}
 
 	//#endregion

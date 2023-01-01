@@ -30,6 +30,7 @@ import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -89,7 +90,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		uriTransformer: IURITransformer;
 	}>();
 
-	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; commandId: string; commandArgs: any[] }>());
+	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; persistentProcessId: number; commandId: string; commandArgs: any[] }>());
 	readonly onExecuteCommand = this._onExecuteCommand.event;
 
 	constructor(
@@ -98,6 +99,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		private readonly _ptyService: IPtyService,
 		private readonly _productService: IProductService,
 		private readonly _extensionManagementService: IExtensionManagementService,
+		private readonly _configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -133,7 +135,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$getDefaultSystemShell': return this._getDefaultSystemShell.apply(this, args);
 			case '$getProfiles': return this._getProfiles.apply(this, args);
 			case '$getEnvironment': return this._getEnvironment();
-			case '$getWslPath': return this._getWslPath(args[0]);
+			case '$getWslPath': return this._getWslPath(args[0], args[1]);
 			case '$getTerminalLayoutInfo': return this._ptyService.getTerminalLayoutInfo(<IGetTerminalLayoutInfoArgs>args);
 			case '$setTerminalLayoutInfo': return this._ptyService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
 			case '$serializeTerminalState': return this._ptyService.serializeTerminalState.apply(this._ptyService, args);
@@ -147,6 +149,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$refreshProperty': return this._ptyService.refreshProperty.apply(this._ptyService, args);
 			case '$requestDetachInstance': return this._ptyService.requestDetachInstance(args[0], args[1]);
 			case '$acceptDetachedInstance': return this._ptyService.acceptDetachInstanceReply(args[0], args[1]);
+			case '$freePortKillProcess': return this._ptyService.freePortKillProcess?.apply(this._ptyService, args);
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -185,11 +188,14 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 					: URI.revive(uriTransformer.transformIncoming(args.shellLaunchConfig.cwd))
 			),
 			env: args.shellLaunchConfig.env,
-			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
+			type: args.shellLaunchConfig.type,
+			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal
 		};
 
 
-		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService);
+		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService, this._configurationService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {
@@ -240,21 +246,21 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		// Setup the CLI server to support forwarding commands run from the CLI
 		const ipcHandlePath = createRandomIPCHandle();
 		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
+
+		const persistentProcessId = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		const commandsExecuter: ICommandsExecuter = {
-			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(id, args, uriTransformer)
+			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
 		};
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
-
-		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
-		this._ptyService.onProcessExit(e => e.id === id && cliServer.dispose());
+		this._ptyService.onProcessExit(e => e.id === persistentProcessId && cliServer.dispose());
 
 		return {
-			persistentTerminalId: id,
+			persistentTerminalId: persistentProcessId,
 			resolvedShellLaunchConfig: shellLaunchConfig
 		};
 	}
 
-	private _executeCommand<T>(commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
+	private _executeCommand<T>(persistentProcessId: number, commandId: string, commandArgs: any[], uriTransformer: IURITransformer): Promise<T> {
 		let resolve!: (data: any) => void;
 		let reject!: (err: any) => void;
 		const result = new Promise<T>((_resolve, _reject) => {
@@ -277,6 +283,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		});
 		this._onExecuteCommand.fire({
 			reqId,
+			persistentProcessId,
 			commandId,
 			commandArgs: serializedCommandArgs
 		});
@@ -316,8 +323,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		return { ...process.env };
 	}
 
-	private _getWslPath(original: string): Promise<string> {
-		return this._ptyService.getWslPath(original);
+	private _getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._ptyService.getWslPath(original, direction);
 	}
 
 

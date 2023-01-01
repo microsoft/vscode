@@ -2,26 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AppInsightsCore } from '@microsoft/1ds-core-js';
+import { ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import * as assert from 'assert';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
+import { IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
 
-class AppInsightsCoreMock extends AppInsightsCore {
-	public override config: any;
+class AppInsightsCoreMock implements IAppInsightsCore {
+	pluginVersionString: string = 'Test Runner';
 	public events: any[] = [];
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] = [];
 
-	constructor() {
-		super();
-	}
-
-	public override track(event: any) {
+	public track(event: ITelemetryItem) {
 		this.events.push(event.baseData);
 	}
 
-	public override flush(options: any): void {
-		// called on dispose
+	public unload(isAsync: boolean, unloadComplete: (unloadState: ITelemetryUnloadState) => void): void {
+		// No-op
 	}
 }
 

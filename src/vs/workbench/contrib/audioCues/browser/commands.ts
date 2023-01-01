@@ -7,9 +7,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class ShowAudioCueHelp extends Action2 {
@@ -34,8 +34,8 @@ export class ShowAudioCueHelp extends Action2 {
 
 		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
 			label: accessibilityService.isScreenReaderOptimized() ?
-				`${cue.name}${audioCueService.isEnabled(cue).get() ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
-				: `${audioCueService.isEnabled(cue).get() ? '$(check)' : '     '} ${cue.name}`,
+				`${cue.name}${audioCueService.isEnabled(cue) ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
+				: `${audioCueService.isEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
 				iconClass: Codicon.settingsGear.classNames,
@@ -48,7 +48,7 @@ export class ShowAudioCueHelp extends Action2 {
 			{
 				activeItem: items[0],
 				onDidFocus: (item) => {
-					audioCueService.playSound(item.audioCue.sound);
+					audioCueService.playSound(item.audioCue.sound, true);
 				},
 				onDidTriggerItemButton: (context) => {
 					preferencesService.openSettings({ query: context.item.audioCue.settingsKey });

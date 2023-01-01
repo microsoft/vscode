@@ -44,9 +44,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, value: 'Hello Out' }] }] }],
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, data: VSBuffer.fromString('Hello Out') }] }] }],
 			{},
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }
 		);
 
 		{ // transient output
@@ -54,7 +54,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells.length, 1);
@@ -73,7 +73,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells.length, 1);
@@ -92,9 +92,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [] }],
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [] }],
 			{ foo: 123, bar: 456 },
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }
 		);
 
 		{ // transient
@@ -102,7 +102,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: { bar: true } };
+					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: { bar: true }, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.metadata.foo, 123);
@@ -121,7 +121,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.metadata.foo, 123);
@@ -140,9 +140,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
+			[{ cellKind: CellKind.Code, language: 'foo', mime: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
 			{},
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false, }
 		);
 
 		{ // transient
@@ -150,7 +150,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true } };
+					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true }, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
@@ -169,7 +169,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 			const model = new NotebookFileWorkingCopyModel(
 				notebook,
 				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {} };
 					override async notebookToData(notebook: NotebookData) {
 						callCount += 1;
 						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);

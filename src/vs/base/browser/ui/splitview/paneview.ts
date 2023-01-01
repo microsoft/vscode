@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, tr
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -58,9 +58,10 @@ export abstract class Pane extends Disposable implements IView {
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
+	private _bodyRendered = false;
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
-	private ariaHeaderLabel: string;
+	private _ariaHeaderLabel: string;
 	private styles: IPaneStyles = {};
 	private animationTimer: number | undefined = undefined;
 
@@ -69,6 +70,15 @@ export abstract class Pane extends Disposable implements IView {
 
 	private readonly _onDidChangeExpansionState = this._register(new Emitter<boolean>());
 	readonly onDidChangeExpansionState: Event<boolean> = this._onDidChangeExpansionState.event;
+
+	get ariaHeaderLabel(): string {
+		return this._ariaHeaderLabel;
+	}
+
+	set ariaHeaderLabel(newLabel: string) {
+		this._ariaHeaderLabel = newLabel;
+		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
+	}
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -127,7 +137,7 @@ export abstract class Pane extends Disposable implements IView {
 		super();
 		this._expanded = typeof options.expanded === 'undefined' ? true : !!options.expanded;
 		this._orientation = typeof options.orientation === 'undefined' ? Orientation.VERTICAL : options.orientation;
-		this.ariaHeaderLabel = localize('viewSection', "{0} Section", options.title);
+		this._ariaHeaderLabel = localize('viewSection', "{0} Section", options.title);
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 200 : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
 
@@ -149,6 +159,11 @@ export abstract class Pane extends Disposable implements IView {
 		this.updateHeader();
 
 		if (expanded) {
+			if (!this._bodyRendered) {
+				this.renderBody(this.body);
+				this._bodyRendered = true;
+			}
+
 			if (typeof this.animationTimer === 'number') {
 				clearTimeout(this.animationTimer);
 			}
@@ -240,7 +255,13 @@ export abstract class Pane extends Disposable implements IView {
 		});
 
 		this.body = append(this.element, $('.pane-body'));
-		this.renderBody(this.body);
+
+		// Only render the body if it will be visible
+		// Otherwise, render it when the pane is expanded
+		if (!this._bodyRendered && this.isExpanded()) {
+			this.renderBody(this.body);
+			this._bodyRendered = true;
+		}
 
 		if (!this.isExpanded()) {
 			this.body.remove();
@@ -443,6 +464,7 @@ export class PaneView extends Disposable {
 	readonly onDidDrop: Event<{ from: Pane; to: Pane }> = this._onDidDrop.event;
 
 	orientation: Orientation;
+	private boundarySashes: IBoundarySashes | undefined;
 	readonly onDidSashChange: Event<number>;
 	readonly onDidSashReset: Event<number>;
 	readonly onDidScroll: Event<ScrollEvent>;
@@ -540,6 +562,20 @@ export class PaneView extends Disposable {
 		this.splitview.layout(this.size);
 	}
 
+	setBoundarySashes(sashes: IBoundarySashes) {
+		this.boundarySashes = sashes;
+		this.updateSplitviewOrthogonalSashes(sashes);
+	}
+
+	private updateSplitviewOrthogonalSashes(sashes: IBoundarySashes | undefined) {
+		if (this.orientation === Orientation.VERTICAL) {
+			this.splitview.orthogonalStartSash = sashes?.left;
+			this.splitview.orthogonalEndSash = sashes?.right;
+		} else {
+			this.splitview.orthogonalEndSash = sashes?.bottom;
+		}
+	}
+
 	flipOrientation(height: number, width: number): void {
 		this.orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		const paneSizes = this.paneItems.map(pane => this.getPaneSize(pane.pane));
@@ -548,6 +584,7 @@ export class PaneView extends Disposable {
 		clearNode(this.element);
 
 		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this.updateSplitviewOrthogonalSashes(this.boundarySashes);
 
 		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
 		const newSize = this.orientation === Orientation.HORIZONTAL ? width : height;

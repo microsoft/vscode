@@ -11,7 +11,7 @@ Icon:     @@NAME@@.xpm
 Requires: @@DEPENDENCIES@@
 AutoReq:  0
 
-%global __provides_exclude_from ^%{_datadir}/@@NAME@@/.*\\.so.*$
+%global __provides_exclude_from ^%{_datadir}/%{name}/.*\\.so.*$
 
 %description
 Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.
@@ -21,25 +21,29 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 %define _build_id_links none
 
 %install
-mkdir -p %{buildroot}/usr/bin
-mkdir -p %{buildroot}/usr/share/@@NAME@@
-mkdir -p %{buildroot}/usr/share/applications
-mkdir -p %{buildroot}/usr/share/pixmaps
-mkdir -p %{buildroot}/usr/share/bash-completion/completions
-mkdir -p %{buildroot}/usr/share/zsh/site-functions
-mkdir -p %{buildroot}/usr/share/mime/packages
-cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
-cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
-cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
-cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime/packages/@@NAME@@-workspace.xml
-cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
-cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
-cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@
-ln -s ../share/@@NAME@@/bin/@@NAME@@ %{buildroot}/usr/bin/@@NAME@@
+# Destination directories
+mkdir -p %{buildroot}%{_bindir}
+mkdir -p %{buildroot}%{_datadir}/%{name}
+mkdir -p %{buildroot}%{_datadir}/applications
+mkdir -p %{buildroot}%{_datadir}/mime/packages
+mkdir -p %{buildroot}%{_datadir}/pixmaps
+mkdir -p %{buildroot}%{_datadir}/bash-completion/completions
+mkdir -p %{buildroot}%{_datadir}/zsh/site-functions
+# Application
+cp -r usr/share/%{name}/* %{buildroot}%{_datadir}/%{name}
+ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}
+# Support files
+cp -r usr/share/applications/%{name}.desktop %{buildroot}%{_datadir}/applications
+cp -r usr/share/applications/%{name}-url-handler.desktop %{buildroot}%{_datadir}/applications
+cp -r usr/share/mime/packages/%{name}-workspace.xml %{buildroot}%{_datadir}/mime/packages/%{name}-workspace.xml
+cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}%{_datadir}/pixmaps
+# Shell completions
+cp usr/share/bash-completion/completions/%{name} %{buildroot}%{_datadir}/bash-completion/completions/%{name}
+cp usr/share/zsh/site-functions/_%{name} %{buildroot}%{_datadir}/zsh/site-functions/_%{name}
 
 %post
 # Remove the legacy bin command if this is the stable build
-if [ "@@NAME@@" = "code" ]; then
+if [ "%{name}" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
 
@@ -54,21 +58,21 @@ fi
 #fi
 
 # Update mimetype database to pickup workspace mimetype
-update-mime-database /usr/share/mime &> /dev/null || :
+update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %postun
 # Update mimetype database for removed workspace mimetype
-update-mime-database /usr/share/mime &> /dev/null || :
+update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %files
 %defattr(-,root,root)
-%attr(4755, root, root) /usr/share/@@NAME@@/chrome-sandbox
+%attr(4755, root, root) %{_datadir}/%{name}/chrome-sandbox
 
-/usr/bin/@@NAME@@
-/usr/share/@@NAME@@/
-/usr/share/applications/@@NAME@@.desktop
-/usr/share/applications/@@NAME@@-url-handler.desktop
-/usr/share/mime/packages/@@NAME@@-workspace.xml
-/usr/share/pixmaps/@@ICON@@.png
-/usr/share/bash-completion/completions/@@NAME@@
-/usr/share/zsh/site-functions/_@@NAME@@
+%{_bindir}/%{name}
+%{_datadir}/%{name}/
+%{_datadir}/applications/%{name}.desktop
+%{_datadir}/applications/%{name}-url-handler.desktop
+%{_datadir}/mime/packages/%{name}-workspace.xml
+%{_datadir}/pixmaps/@@ICON@@.png
+%{_datadir}/bash-completion/completions/%{name}
+%{_datadir}/zsh/site-functions/_%{name}

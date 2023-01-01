@@ -278,9 +278,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 	}
 
 	protected cancelModelUpdate(): void {
-		if (this.modelUpdateCancellationSource.value) {
-			this.modelUpdateCancellationSource.value.cancel();
-		}
+		this.modelUpdateCancellationSource.value?.cancel();
 		this.modelUpdateCancellationSource.value = undefined;
 		this.appendThrottler.cancel();
 		this.replacePromise = undefined;

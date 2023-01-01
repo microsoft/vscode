@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, InputBoxOptions, Uri, Disposable, workspace } from 'vscode';
+import { window, InputBoxOptions, Uri, Disposable, workspace, QuickPickOptions, l10n } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
@@ -13,6 +13,7 @@ import { ITerminalEnvironmentProvider } from './terminal';
 export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	private env: { [key: string]: string };
+	private sshEnv: { [key: string]: string };
 	private disposable: IDisposable = EmptyDisposable;
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
@@ -23,14 +24,25 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		}
 
 		this.env = {
+			// GIT_ASKPASS
 			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
+			// VSCODE_GIT_ASKPASS
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
 		};
+
+		this.sshEnv = {
+			// SSH_ASKPASS
+			SSH_ASKPASS: path.join(__dirname, this.ipc ? 'ssh-askpass.sh' : 'ssh-askpass-empty.sh'),
+			SSH_ASKPASS_REQUIRE: 'force',
+		};
 	}
 
-	async handle({ request, host }: { request: string; host: string }): Promise<string> {
+	async handle(payload:
+		{ askpassType: 'https'; request: string; host: string } |
+		{ askpassType: 'ssh'; request: string; host?: string; file?: string; fingerprint?: string }
+	): Promise<string> {
 		const config = workspace.getConfiguration('git', null);
 		const enabled = config.get<boolean>('enabled');
 
@@ -38,6 +50,16 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			return '';
 		}
 
+		// https
+		if (payload.askpassType === 'https') {
+			return await this.handleAskpass(payload.request, payload.host);
+		}
+
+		// ssh
+		return await this.handleSSHAskpass(payload.request, payload.host, payload.file, payload.fingerprint);
+	}
+
+	async handleAskpass(request: string, host: string): Promise<string> {
 		const uri = Uri.parse(host);
 		const authority = uri.authority.replace(/^.*@/, '');
 		const password = /password/i.test(request);
@@ -72,9 +94,33 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 		return await window.showInputBox(options) || '';
 	}
 
+	async handleSSHAskpass(request: string, host?: string, file?: string, fingerprint?: string): Promise<string> {
+		// passphrase
+		if (/passphrase/i.test(request)) {
+			const options: InputBoxOptions = {
+				password: true,
+				placeHolder: l10n.t('Passphrase'),
+				prompt: `SSH Key: ${file}`,
+				ignoreFocusOut: true
+			};
+
+			return await window.showInputBox(options) || '';
+		}
+
+		// authenticity
+		const options: QuickPickOptions = {
+			canPickMany: false,
+			ignoreFocusOut: true,
+			placeHolder: l10n.t('Are you sure you want to continue connecting?'),
+			title: l10n.t('"{0}" has fingerprint "{1}"', host ?? '', fingerprint ?? '')
+		};
+		const items = [l10n.t('yes'), l10n.t('no')];
+		return await window.showQuickPick(items, options) ?? '';
+	}
+
 	getEnv(): { [key: string]: string } {
 		const config = workspace.getConfiguration('git');
-		return config.get<boolean>('useIntegratedAskPass') ? this.env : {};
+		return config.get<boolean>('useIntegratedAskPass') ? { ...this.env, ...this.sshEnv } : {};
 	}
 
 	getTerminalEnv(): { [key: string]: string } {

@@ -5,13 +5,13 @@
 
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
-import { localize } from '../tsServer/versionProvider';
 import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { markdownDocumentation } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
@@ -59,10 +59,10 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 
 			if (source === ServerType.Syntax && this.client.hasCapabilityForResource(resource, ClientCapability.Semantic)) {
 				displayParts.push(
-					localize({
-						key: 'loadingPrefix',
+					vscode.l10n.t({
+						message: "(loading...)",
 						comment: ['Prefix displayed for hover entries while the server is still loading']
-					}, "(loading...)"));
+					}));
 			}
 
 			displayParts.push(data.displayString);
