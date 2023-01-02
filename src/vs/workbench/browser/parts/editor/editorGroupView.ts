@@ -54,6 +54,7 @@ import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platfo
 import { ILogService } from 'vs/platform/log/common/log';
 import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -209,7 +210,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.editorContainer);
 
 			// Editor pane
-			this.editorPane = this._register(this.scopedInstantiationService.createInstance(EditorPanes, this.editorContainer, this));
+			this.editorPane = this._register(this.scopedInstantiationService.createInstance(EditorPanes, this.element, this.editorContainer, this));
 			this._onDidChange.input = this.editorPane.onDidChangeSizeConstraints;
 
 			// Track Focus
@@ -510,6 +511,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// not changed meanwhile. This prevents focus from being
 			// stolen accidentally on startup when the user already
 			// clicked somewhere.
+
 			if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
 				this.focus();
 			}
@@ -1851,7 +1853,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Themable
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		const isEmpty = this.isEmpty;
 
 		// Container
@@ -1889,6 +1891,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorPane.maximumWidth; }
 	get maximumHeight(): number { return this.editorPane.maximumHeight; }
 
+	get proportionalLayout(): boolean {
+		if (!this.lastLayout) {
+			return true;
+		}
+
+		return !(this.lastLayout.width === this.minimumWidth || this.lastLayout.height === this.minimumHeight);
+	}
+
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
@@ -1912,6 +1922,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const { width, height, top, left } = this.lastLayout;
 			this.layout(width, height, top, left);
 		}
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.editorPane.setBoundarySashes(sashes);
 	}
 
 	toJSON(): ISerializedEditorGroupModel {

@@ -18,6 +18,7 @@
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
+		"cli/target/**": true,
 		".build/**": true,
 		"out/**": true,
 		"out-build/**": true,
@@ -109,6 +110,12 @@
 		"git",
 		"sash"
 	],
+	"debug.javascript.terminalOptions": {
+		"outFiles": [
+			"${workspaceFolder}/out/**/*.js",
+			"${workspaceFolder}/build/**/*.js"
+		]
+	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
 	"application.experimental.rendererProfiling": true

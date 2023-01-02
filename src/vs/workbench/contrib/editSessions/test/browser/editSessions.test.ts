@@ -38,6 +38,9 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService, ISaveAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -75,9 +78,15 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async show() {
 				return { choice: 1 };
+			}
+		});
+		instantiationService.stub(IRemoteAgentService, new class extends mock<IRemoteAgentService>() {
+			override async getEnvironment() {
+				return null;
 			}
 		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));

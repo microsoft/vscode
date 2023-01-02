@@ -6,7 +6,7 @@
 import * as browser from 'vs/base/browser/browser';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
@@ -76,11 +76,26 @@ export class NotebookOverviewRuler extends Themable {
 						return previous;
 					}, [] as number[]);
 
+					let x = 0;
+					switch (overviewRuler.position) {
+						case NotebookOverviewRulerLane.Left:
+							x = 0;
+							break;
+						case NotebookOverviewRulerLane.Center:
+							x = laneWidth;
+							break;
+						case NotebookOverviewRulerLane.Right:
+							x = laneWidth * 2;
+							break;
+						default:
+							break;
+					}
+
 					for (let i = 0; i < lineNumbers.length; i++) {
 						ctx.fillStyle = fillStyle;
 						const lineNumber = lineNumbers[i];
 						const offset = (lineNumber - 1) * lineHeight;
-						ctx.fillRect(laneWidth, currentFrom + offset, laneWidth, lineHeight);
+						ctx.fillRect(x, currentFrom + offset, laneWidth, lineHeight);
 					}
 
 					if (overviewRuler.includeOutput) {

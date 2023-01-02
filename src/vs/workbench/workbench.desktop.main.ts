@@ -51,6 +51,7 @@ import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
 import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
+import 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
@@ -89,8 +90,12 @@ import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageServi
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
 registerSingleton(IUserDataInitializationService, UserDataInitializationService, InstantiationType.Delayed);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
+
 
 //#endregion
 
@@ -161,6 +166,9 @@ import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contributi
 
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
+
+// Sandbox
+import 'vs/workbench/contrib/sandbox/electron-sandbox/sandbox.contribution';
 
 //#endregion
 

@@ -94,8 +94,20 @@ function getTagDocumentation(
 				}
 				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
 			}
+			break;
+		}
+
+		case 'return':
+		case 'returns': {
+			// For return(s), we require a non-empty body
+			if (!tag.text?.length) {
+				return undefined;
+			}
+
+			break;
 		}
 	}
+
 
 	// Generic tag
 	const label = `*@${tag.name}*`;
@@ -208,8 +220,8 @@ export function tagsMarkdownPreview(
 }
 
 export function markdownDocumentation(
-	documentation: Proto.SymbolDisplayPart[] | string,
-	tags: Proto.JSDocTagInfo[],
+	documentation: readonly Proto.SymbolDisplayPart[] | string,
+	tags: readonly Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
 	baseUri: vscode.Uri | undefined,
 ): vscode.MarkdownString {
@@ -221,8 +233,8 @@ export function markdownDocumentation(
 
 export function addMarkdownDocumentation(
 	out: vscode.MarkdownString,
-	documentation: Proto.SymbolDisplayPart[] | string | undefined,
-	tags: Proto.JSDocTagInfo[] | undefined,
+	documentation: readonly Proto.SymbolDisplayPart[] | string | undefined,
+	tags: readonly Proto.JSDocTagInfo[] | undefined,
 	converter: IFilePathToResourceConverter,
 ): vscode.MarkdownString {
 	if (documentation) {

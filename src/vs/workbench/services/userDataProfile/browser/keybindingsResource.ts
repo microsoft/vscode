@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { platform, Platform } from 'vs/base/common/platform';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -65,22 +65,29 @@ export class KeybindingsResource implements IProfileResource {
 export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.Keybindings;
-	readonly handle = this.profile.keybindingsResource.toString();
+	readonly handle = ProfileResourceType.Keybindings;
 	readonly label = { label: localize('keybindings', "Keyboard Shortcuts") };
-	readonly collapsibleState = TreeItemCollapsibleState.None;
+	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
 	checkbox: ITreeItemCheckboxState = { isChecked: true };
-	readonly command = {
-		id: API_OPEN_EDITOR_COMMAND_ID,
-		title: '',
-		arguments: [this.profile.keybindingsResource, undefined, undefined]
-	};
 
 	constructor(
 		private readonly profile: IUserDataProfile,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	async getChildren(): Promise<undefined> { return undefined; }
+	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
+		return [{
+			handle: this.profile.keybindingsResource.toString(),
+			resourceUri: this.profile.keybindingsResource,
+			collapsibleState: TreeItemCollapsibleState.None,
+			parent: this,
+			command: {
+				id: API_OPEN_EDITOR_COMMAND_ID,
+				title: '',
+				arguments: [this.profile.keybindingsResource, undefined, undefined]
+			}
+		}];
+	}
 
 	async hasContent(): Promise<boolean> {
 		const keybindingsContent = await this.instantiationService.createInstance(KeybindingsResource).getKeybindingsResourceContent(this.profile);

@@ -41,6 +41,7 @@
     "@types/webpack": "^4.41.25",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
+    "@vscode/vsce": "^2.16.0",
     "byline": "^5.0.0",
     "colors": "^1.4.0",
     "commander": "^7.0.0",
@@ -60,7 +61,6 @@
     "source-map": "0.6.1",
     "through2": "^4.0.2",
     "tmp": "^0.2.1",
-    "vsce": "^1.100.0",
     "vscode-universal-bundler": "^0.0.2"
   },
   "scripts": {

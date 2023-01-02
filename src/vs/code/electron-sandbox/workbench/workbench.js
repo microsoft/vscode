@@ -156,6 +156,11 @@
 		document.head.appendChild(style);
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
+		// set zoom level as soon as possible
+		if (typeof data?.zoomLevel === 'number' && typeof globalThis.vscode?.webFrame?.setZoomLevel === 'function') {
+			globalThis.vscode.webFrame.setZoomLevel(data.zoomLevel);
+		}
+
 		// restore parts if possible (we might not always store layout info)
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;

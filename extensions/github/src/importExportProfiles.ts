@@ -13,6 +13,7 @@ import { URL } from 'url';
 class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 
 	readonly name = vscode.l10n.t('GitHub');
+	readonly description = vscode.l10n.t('gist');
 
 	private _octokit: Promise<Octokit> | undefined;
 	private getOctokit(): Promise<Octokit> {
@@ -48,22 +49,39 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 		}
 	}
 
-	async saveProfile(name: string, content: string): Promise<vscode.Uri | null> {
+	async saveProfile(name: string, content: string): Promise<{ readonly id: string; readonly link: vscode.Uri } | null> {
 		const octokit = await this.getOctokit();
 		const result = await octokit.gists.create({
-			public: true,
+			public: false,
 			files: {
 				[name]: {
 					content
 				}
 			}
 		});
-		return result.data.html_url ? vscode.Uri.parse(result.data.html_url) : null;
+		if (result.data.id && result.data.html_url) {
+			const link = vscode.Uri.parse(result.data.html_url);
+			return { id: result.data.id, link };
+		}
+		return null;
 	}
 
-	async readProfile(uri: vscode.Uri): Promise<string | null> {
-		const gist_id = basename(uri.path);
-		const octokit = await this.getOctokit();
+	private _public_octokit: Promise<Octokit> | undefined;
+	private getPublicOctokit(): Promise<Octokit> {
+		if (!this._public_octokit) {
+			this._public_octokit = (async () => {
+				const { Octokit } = await import('@octokit/rest');
+				return new Octokit({ request: { agent: this.getAgent() }, userAgent: 'GitHub VSCode' });
+			})();
+		}
+		return this._public_octokit;
+	}
+
+	async readProfile(id: string): Promise<string | null>;
+	async readProfile(uri: vscode.Uri): Promise<string | null>;
+	async readProfile(arg: string | vscode.Uri): Promise<string | null> {
+		const gist_id = typeof arg === 'string' ? arg : basename(arg.path);
+		const octokit = await this.getPublicOctokit();
 		try {
 			const gist = await octokit.gists.get({ gist_id });
 			if (gist.data.files) {

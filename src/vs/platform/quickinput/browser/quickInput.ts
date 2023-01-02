@@ -16,8 +16,8 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { defaultButtonStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { activeContrastBorder, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 
@@ -177,7 +177,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return this.controller.cancel();
 	}
 
-	protected override updateStyles() {
+	override updateStyles() {
 		if (this.hasController) {
 			this.controller.applyStyles(this.computeStyles());
 		}
@@ -190,17 +190,13 @@ export class QuickInputService extends Themable implements IQuickInputService {
 					quickInputBackground,
 					quickInputForeground,
 					quickInputTitleBackground,
-					contrastBorder,
+					widgetBorder,
 					widgetShadow
 				}),
 			},
 			inputBox: defaultInputBoxStyles,
 			toggle: defaultToggleStyles,
-			countBadge: computeStyles(this.theme, {
-				badgeBackground,
-				badgeForeground,
-				badgeBorder: contrastBorder
-			}),
+			countBadge: defaultCountBadgeStyles,
 			button: defaultButtonStyles,
 			progressBar: defaultProgressBarStyles, // default uses progressBarBackground
 			keybindingLabel: defaultKeybindingLabelStyles,

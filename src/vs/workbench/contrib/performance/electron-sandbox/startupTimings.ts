@@ -59,12 +59,15 @@ export class StartupTimings implements IWorkbenchContribution {
 			this._timerService.whenReady(),
 			timeout(15000), // wait: cached data creation, telemetry sending
 		]).then(async () => {
+
+			const perfBaseline = await this._timerService.perfBaseline;
+
 			const uri = URI.file(appendTo);
 			const chunks: VSBuffer[] = [];
 			if (await this._fileService.exists(uri)) {
 				chunks.push((await this._fileService.readFile(uri)).value);
 			}
-			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`));
+			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`));
 			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
 		}).then(() => {
 			this._nativeHostService.exit(0);

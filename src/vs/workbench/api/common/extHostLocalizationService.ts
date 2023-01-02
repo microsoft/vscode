@@ -59,7 +59,6 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	async initializeLocalizedMessages(extension: IExtensionDescription): Promise<void> {
 		if (this.isDefaultLanguage
-			// TODO: support builtin extensions
 			|| (!extension.l10n && !extension.isBuiltin)
 		) {
 			return;

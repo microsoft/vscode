@@ -7,10 +7,12 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -170,6 +172,7 @@ export interface IPtyHostAttachTarget {
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
+	hasChildProcesses: boolean;
 }
 
 export interface IReconnectionProperties {
@@ -324,7 +327,7 @@ export interface IPtyService extends IPtyHostController {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
-	getWslPath(original: string): Promise<string>;
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
 	getRevivedPtyNewId(id: number): Promise<number | undefined>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
@@ -752,6 +755,13 @@ export interface ITerminalProfile {
 	profileName: string;
 	path: string;
 	isDefault: boolean;
+	/**
+	 * Whether the terminal profile contains a potentially unsafe path. For example, the path
+	 *  `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
+	 * user in a multi-user environment. As such, we don't want to blindly present it as a profile
+	 * without a warning.
+	 */
+	isUnsafePath?: boolean;
 	isAutoDetected?: boolean;
 	/**
 	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
@@ -786,27 +796,19 @@ export interface IBaseUnresolvedTerminalProfile {
 	env?: ITerminalEnvironment;
 }
 
+type OneOrN<T> = T | T[];
+
+export interface ITerminalUnsafePath {
+	path: string;
+	isUnsafe: true;
+}
+
 export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: string | string[];
+	path: OneOrN<string | ITerminalUnsafePath>;
 }
 
 export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
-}
-
-
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
-	quickFixes?: ITerminalQuickFixContribution[];
-}
-
-export interface ITerminalQuickFixContribution {
-	id: string;
-	commandLineMatcher: string | RegExp;
-	outputMatcher: ITerminalOutputMatcher;
-	exitStatus?: boolean;
-	commandToRun?: string;
-	linkToOpen?: string;
 }
 
 export interface ITerminalProfileContribution {
@@ -820,10 +822,6 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 	extensionIdentifier: string;
 }
 
-export interface IExtensionTerminalQuickFix extends ITerminalQuickFixContribution {
-	extensionIdentifier: string;
-}
-
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
 
 export interface IShellIntegration {
@@ -833,6 +831,11 @@ export interface IShellIntegration {
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+	quickFixes?: ITerminalCommandSelector[];
 }
 
 export const enum ShellIntegrationStatus {

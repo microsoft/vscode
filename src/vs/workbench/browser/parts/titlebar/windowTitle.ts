@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { trim } from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -226,6 +226,7 @@ export class WindowTitle extends Disposable {
 		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
 		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
+		const rootNameShort = this.labelService.getWorkspaceLabel(workspace, { verbose: LabelVerbosity.SHORT });
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
@@ -243,6 +244,7 @@ export class WindowTitle extends Disposable {
 			activeFolderLong,
 			rootName,
 			rootPath,
+			rootNameShort,
 			folderName,
 			folderPath,
 			dirty,

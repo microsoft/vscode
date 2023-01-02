@@ -18,6 +18,7 @@ import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangleTypeScript';
+import { RawSourceMap } from 'source-map';
 const watch = require('./watch');
 
 
@@ -123,12 +124,13 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 		// mangle: TypeScript to TypeScript
 		let mangleStream = es.through();
 		if (build) {
-			let ts2tsMangler = new Mangler(compile.projectPath);
+			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data));
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents();
-			mangleStream = es.through(function write(data: File) {
+			mangleStream = es.through(function write(data: File & { sourceMap?: RawSourceMap }) {
 				const newContents = newContentsByFileName.get(data.path);
 				if (newContents !== undefined) {
-					data.contents = Buffer.from(newContents);
+					data.contents = Buffer.from(newContents.out);
+					data.sourceMap = newContents.sourceMap && JSON.parse(newContents.sourceMap);
 				}
 				this.push(data);
 			}, function end() {
