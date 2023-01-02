@@ -469,6 +469,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
+			'workbench.tips.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+			},
 		}
 	});
 
