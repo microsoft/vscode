@@ -7,35 +7,30 @@ use std::path::Path;
 use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
 
 pub fn process_at_path_exists(pid: u32, name: &Path) -> bool {
-	// TODO https://docs.rs/sysinfo/latest/sysinfo/index.html#usage
-	let mut sys = System::new_all();
-	sys.refresh_processes();
+	let mut sys = System::new();
+	let pid = Pid::from_u32(pid);
+	if !sys.refresh_process(pid) {
+		return false;
+	}
 
 	let name_str = format!("{}", name.display());
-	match sys.process(Pid::from_u32(pid)) {
-		Some(process) => {
-			for cmd in process.cmd() {
-				if cmd.contains(&name_str) {
-					return true;
-				}
+	if let Some(process) = sys.process(pid) {
+		for cmd in process.cmd() {
+			if cmd.contains(&name_str) {
+				return true;
 			}
-		}
-		None => {
-			return false;
 		}
 	}
 
 	false
 }
 pub fn process_exists(pid: u32) -> bool {
-	let mut sys = System::new_all();
-	sys.refresh_processes();
-	sys.process(Pid::from_u32(pid)).is_some()
+	let mut sys = System::new();
+	sys.refresh_process(Pid::from_u32(pid))
 }
 
 pub fn find_running_process(name: &Path) -> Option<u32> {
-	// TODO https://docs.rs/sysinfo/latest/sysinfo/index.html#usage
-	let mut sys = System::new_all();
+	let mut sys = System::new();
 	sys.refresh_processes();
 
 	let name_str = format!("{}", name.display());

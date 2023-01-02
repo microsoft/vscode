@@ -96,7 +96,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			}
 			// (1.2) Inlay dbl-click gesture
 			if (isNonEmptyArray(part.item.hint.textEdits)) {
-				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double click to insert"))], false, 10001));
+				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double-click to insert"))], false, 10001));
 			}
 
 			// (2) Inlay Label Part Tooltip

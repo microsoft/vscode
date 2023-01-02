@@ -169,7 +169,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this.updateLabel();
 	}
 
-	override updateLabel() {
+	protected override updateLabel() {
 		if (this._kernelLabel) {
 			this._kernelLabel.classList.add('kernel-label');
 			this._kernelLabel.innerText = this._action.label;

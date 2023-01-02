@@ -320,6 +320,7 @@ function collectBrackets(
 							// No child after this child in the requested window, don't recurse
 							node = child;
 							level++;
+							nestingLevelOfEqualBracketType = levelPerBracket + 1;
 							continue whileLoop;
 						}
 

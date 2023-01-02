@@ -54,12 +54,15 @@ export const KERNEL_EXTENSIONS = new Map<string, string>([
 export const KERNEL_RECOMMENDATIONS = new Map<string, Map<string, INotebookExtensionRecommendation>>();
 KERNEL_RECOMMENDATIONS.set(IPYNB_VIEW_TYPE, new Map<string, INotebookExtensionRecommendation>());
 KERNEL_RECOMMENDATIONS.get(IPYNB_VIEW_TYPE)?.set('python', {
-	extensionId: 'ms-python.python',
+	extensionIds: [
+		'ms-python.python',
+		JUPYTER_EXTENSION_ID
+	],
 	displayName: 'Python + Jupyter',
 });
 
 export interface INotebookExtensionRecommendation {
-	readonly extensionId: string;
+	readonly extensionIds: string[];
 	readonly displayName?: string;
 }
 
@@ -277,6 +280,16 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: unknown): void;
 }
 
+/**
+ * Vertical Lane in the overview ruler of the notebook editor.
+ */
+export enum NotebookOverviewRulerLane {
+	Left = 1,
+	Center = 2,
+	Right = 4,
+	Full = 7
+}
+
 export interface INotebookCellDecorationOptions {
 	className?: string;
 	gutterClassName?: string;
@@ -286,6 +299,7 @@ export interface INotebookCellDecorationOptions {
 		color: string;
 		modelRanges: Range[];
 		includeOutput: boolean;
+		position: NotebookOverviewRulerLane;
 	};
 }
 
@@ -347,6 +361,7 @@ export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 	collapsedInputCells: { [key: number]: boolean };
 	collapsedOutputCells: { [key: number]: boolean };
+	cellLineNumberStates: { [key: number]: 'on' | 'off' };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
 	hiddenFoldingRanges?: ICellRange[];
 	cellTotalHeights?: { [key: number]: number };
@@ -424,6 +439,7 @@ export interface INotebookEditor {
 	//#region readonly properties
 	readonly visibleRanges: ICellRange[];
 	readonly textModel?: NotebookTextModel;
+	readonly isVisible: boolean;
 	readonly isReadOnly: boolean;
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;

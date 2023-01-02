@@ -14,11 +14,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode, isTargetPlatformCompatible } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -66,7 +66,7 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
+import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 
 export class PromptExtensionInstallFailureAction extends Action {
@@ -85,6 +85,8 @@ export class PromptExtensionInstallFailureAction extends Action {
 		@ILogService private readonly logService: ILogService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super('extension.promptExtensionInstallFailure');
 	}
@@ -129,26 +131,61 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		else if (this.extension.gallery && this.productService.extensionsGallery && (this.extensionManagementServerService.localExtensionManagementServer || this.extensionManagementServerService.remoteExtensionManagementServer) && !isIOS) {
-			additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${Constants.showWindowLogActionId}`);
-			promptChoices.push({
-				label: localize('download', "Try Downloading Manually..."),
-				run: () => this.openerService.open(URI.parse(`${this.productService.extensionsGallery!.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.version}/vspackage`)).then(() => {
-					this.notificationService.prompt(
-						Severity.Info,
-						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
-						[{
-							label: localize('installVSIX', "Install from VSIX..."),
-							run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
-						}]
-					);
-				})
-			});
+		else {
+			const downloadUrl = await this.getDownloadUrl();
+			if (downloadUrl) {
+				additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${Constants.showWindowLogActionId}`);
+				promptChoices.push({
+					label: localize('download', "Try Downloading Manually..."),
+					run: () => this.openerService.open(downloadUrl).then(() => {
+						this.notificationService.prompt(
+							Severity.Info,
+							localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
+							[{
+								label: localize('installVSIX', "Install from VSIX..."),
+								run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
+							}]
+						);
+					})
+				});
+			}
 		}
 
 		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
+
+	private async getDownloadUrl(): Promise<URI | undefined> {
+		if (isIOS) {
+			return undefined;
+		}
+		if (!this.extension.gallery) {
+			return undefined;
+		}
+		if (!this.productService.extensionsGallery) {
+			return undefined;
+		}
+		if (!this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return undefined;
+		}
+		let targetPlatform = this.extension.gallery.properties.targetPlatform;
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			try {
+				const manifest = await this.galleryService.getManifest(this.extension.gallery, CancellationToken.None);
+				if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(manifest)) {
+					targetPlatform = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getTargetPlatform();
+				}
+			} catch (error) {
+				this.logService.error(error);
+				return undefined;
+			}
+		}
+		if (targetPlatform === TargetPlatform.UNKNOWN) {
+			return undefined;
+		}
+		return URI.parse(`${this.productService.extensionsGallery.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.version}/vspackage${targetPlatform !== TargetPlatform.UNDEFINED ? `?targetPlatform=${targetPlatform}` : ''}`);
+	}
+
 }
 
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
@@ -567,12 +604,9 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 		id: string,
 		private readonly server: IExtensionManagementServer | null,
 		private readonly canInstallAnyWhere: boolean,
-		@IFileService private readonly fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) {
 		super(id, InstallInOtherServerAction.INSTALL_LABEL, InstallInOtherServerAction.Class, false);
 		this.update();
@@ -658,26 +692,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 		}
 		this.extensionsWorkbenchService.open(this.extension);
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
-
-		const gallery = this.extension.gallery ?? (this.extensionGalleryService.isEnabled() && (await this.extensionGalleryService.getExtensions([this.extension.identifier], CancellationToken.None))[0]);
-		if (gallery) {
-			await this.server.extensionManagementService.installFromGallery(gallery, { installPreReleaseVersion: this.extension.local.preRelease });
-			return;
-		}
-		const targetPlatform = await this.server.extensionManagementService.getTargetPlatform();
-		if (!isTargetPlatformCompatible(this.extension.local.targetPlatform, [this.extension.local.targetPlatform], targetPlatform)) {
-			throw new Error(localize('incompatible', "Can't install '{0}' extension because it is not compatible.", this.extension.identifier.id));
-		}
-		const vsix = await this.extension.server.extensionManagementService.zip(this.extension.local);
-		try {
-			await this.server.extensionManagementService.install(vsix);
-		} finally {
-			try {
-				await this.fileService.del(vsix);
-			} catch (error) {
-				this.logService.error(error);
-			}
-		}
+		return this.extensionsWorkbenchService.installInServer(this.extension, this.server);
 	}
 
 	protected abstract getInstallLabel(): string;
@@ -687,14 +702,11 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 
 	constructor(
 		canInstallAnyWhere: boolean,
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, canInstallAnyWhere, fileService, logService, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
+		super(`extensions.remoteinstall`, extensionManagementServerService.remoteExtensionManagementServer, canInstallAnyWhere, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService);
 	}
 
 	protected getInstallLabel(): string {
@@ -708,14 +720,11 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 export class LocalInstallAction extends InstallInOtherServerAction {
 
 	constructor(
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, false, fileService, logService, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
+		super(`extensions.localinstall`, extensionManagementServerService.localExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService);
 	}
 
 	protected getInstallLabel(): string {
@@ -727,14 +736,11 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 export class WebInstallAction extends InstallInOtherServerAction {
 
 	constructor(
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 	) {
-		super(`extensions.webInstall`, extensionManagementServerService.webExtensionManagementServer, false, fileService, logService, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService, extensionGalleryService);
+		super(`extensions.webInstall`, extensionManagementServerService.webExtensionManagementServer, false, extensionsWorkbenchService, extensionManagementServerService, extensionManifestPropertiesService);
 	}
 
 	protected getInstallLabel(): string {
@@ -1035,7 +1041,6 @@ export class DropDownMenuActionViewItem extends ActionViewItem {
 async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
 	return instantiationService.invokeFunction(async accessor => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const languagePackService = accessor.get(ILanguagePackService);
 		const menuService = accessor.get(IMenuService);
 		const extensionRecommendationsService = accessor.get(IExtensionRecommendationsService);
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
@@ -1046,6 +1051,8 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extension', extension.identifier.id]);
 			cksOverlay.push(['isBuiltinExtension', extension.isBuiltin]);
 			cksOverlay.push(['extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration]);
+			cksOverlay.push(['extensionHasKeybindings', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.keybindings]);
+			cksOverlay.push(['extensionHasCommands', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes?.commands]);
 			cksOverlay.push(['isExtensionRecommended', !!extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]]);
 			cksOverlay.push(['isExtensionWorkspaceRecommended', extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]?.reasonId === ExtensionRecommendationReason.Workspace]);
 			cksOverlay.push(['isUserIgnoredRecommendation', extensionIgnoredRecommendationsService.globalIgnoredRecommendations.some(e => e === extension.identifier.id.toLowerCase())]);
@@ -1063,7 +1070,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionHasProductIconThemes', productIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
 
 			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
-			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === languagePackService.getLocale(extension.gallery)]);
+			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === getLocale(extension.gallery)]);
 		}
 
 		const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService.createOverlay(cksOverlay));
@@ -1720,7 +1727,6 @@ export class SetLanguageAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 	) {
 		super(SetLanguageAction.ID, SetLanguageAction.TITLE.value, SetLanguageAction.DisabledClass, false);
 		this.update();
@@ -1735,7 +1741,7 @@ export class SetLanguageAction extends ExtensionAction {
 		if (!this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}
-		if (this.extension.gallery && language === this.languagePackService.getLocale(this.extension.gallery)) {
+		if (this.extension.gallery && language === getLocale(this.extension.gallery)) {
 			return;
 		}
 		this.enabled = true;
@@ -1757,7 +1763,6 @@ export class ClearLanguageAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@ILanguagePackService private readonly languagePackService: ILanguagePackService,
 		@ILocaleService private readonly localeService: ILocaleService,
 	) {
 		super(ClearLanguageAction.ID, ClearLanguageAction.TITLE.value, ClearLanguageAction.DisabledClass, false);
@@ -1773,7 +1778,7 @@ export class ClearLanguageAction extends ExtensionAction {
 		if (!this.extensionsWorkbenchService.canSetLanguage(this.extension)) {
 			return;
 		}
-		if (this.extension.gallery && language !== this.languagePackService.getLocale(this.extension.gallery)) {
+		if (this.extension.gallery && language !== getLocale(this.extension.gallery)) {
 			return;
 		}
 		this.enabled = true;
@@ -2070,6 +2075,7 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 
 	private initialStatus: ExtensionState | null = null;
 	private status: ExtensionState | null = null;
+	private version: string | null = null;
 	private enablementState: EnablementState | null = null;
 
 	private _extension: IExtension | null = null;
@@ -2105,8 +2111,10 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 		}
 
 		const currentStatus = this.status;
+		const currentVersion = this.version;
 		const currentEnablementState = this.enablementState;
 		this.status = this.extension.state;
+		this.version = this.extension.version;
 		if (this.initialStatus === null) {
 			this.initialStatus = this.status;
 		}
@@ -2134,7 +2142,7 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
-				return canAddExtension() ? this.initialStatus === ExtensionState.Installed ? localize('updated', "Updated") : localize('installed', "Installed") : null;
+				return canAddExtension() ? this.initialStatus === ExtensionState.Installed && this.version !== currentVersion ? localize('updated', "Updated") : localize('installed', "Installed") : null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				this.initialStatus = this.status;
@@ -2175,7 +2183,7 @@ export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super('extensions.sync', '', ToggleSyncExtensionAction.SYNC_CLASS, false, instantiationService);
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.update()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredExtensions'))(() => this.update()));
 		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.update();
 	}

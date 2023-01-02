@@ -92,12 +92,6 @@
 	border-top: 1px solid;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent blockquote {
-	margin: 0 7px 0 5px;
-	padding: 0 16px 0 10px;
-	border-left: 5px solid;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent code,
 .monaco-workbench .part.editor > .content .walkThroughContent .shortcut {
 	font-family: var(--monaco-monospace-font);
@@ -109,6 +103,8 @@
 	margin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
 	border-left: 5px solid;
+	background: var(--vscode-textBlockQuote-background);
+	border-color: var(--vscode-textBlockQuote-border);
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .monaco-tokenized-source {
@@ -140,3 +136,27 @@
 	border-width: 1px;
 	border-style: solid;
 }
+
+.monaco-workbench .part.editor > .content .walkThroughContent a[href] {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent a:hover,
+.monaco-workbench .part.editor > .content .walkThroughContent a[href]:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent a[href]:focus {
+	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent code,
+.monaco-workbench .part.editor > .content .walkThroughContent .shortcut {
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor {
+	border-color: var(--vscode-contrastBorder);
+}
+
+

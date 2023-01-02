@@ -68,6 +68,14 @@ export interface IView<TLayoutContext = undefined> {
 	readonly priority?: LayoutPriority;
 
 	/**
+	 * If the {@link SplitView} supports {@link ISplitViewOptions.proportionalLayout proportional layout},
+	 * this property allows for finer control over the proportional layout algorithm, per view.
+	 *
+	 * @defaultValue `true`
+	 */
+	readonly proportionalLayout?: boolean;
+
+	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
 	 * attempts to grow it beyond the minimum size.
 	 *
@@ -242,6 +250,7 @@ abstract class ViewItem<TLayoutContext> {
 	get viewMaximumSize(): number { return this.view.maximumSize; }
 
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
+	get proportionalLayout(): boolean { return this.view.proportionalLayout ?? true; }
 	get snap(): boolean { return !!this.view.snap; }
 
 	set enabled(enabled: boolean) {
@@ -412,7 +421,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private size = 0;
 	private layoutContext: TLayoutContext | undefined;
 	private contentSize = 0;
-	private proportions: undefined | number[] = undefined;
+	private proportions: (number | undefined)[] | undefined = undefined;
 	private viewItems: ViewItem<TLayoutContext>[] = [];
 	sashItems: ISashItem[] = []; // used in tests
 	private sashDragState: ISashDragState | undefined;
@@ -765,9 +774,26 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		} else {
+			let total = 0;
+
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
-				item.size = clamp(Math.round(this.proportions[i] * size), item.minimumSize, item.maximumSize);
+				const proportion = this.proportions[i];
+
+				if (typeof proportion === 'number') {
+					total += proportion;
+				} else {
+					size -= item.size;
+				}
+			}
+
+			for (let i = 0; i < this.viewItems.length; i++) {
+				const item = this.viewItems[i];
+				const proportion = this.proportions[i];
+
+				if (typeof proportion === 'number') {
+					item.size = clamp(Math.round(proportion * size / total), item.minimumSize, item.maximumSize);
+				}
 			}
 		}
 
@@ -777,7 +803,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	private saveProportions(): void {
 		if (this.proportionalLayout && this.contentSize > 0) {
-			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
+			this.proportions = this.viewItems.map(i => i.proportionalLayout ? i.size / this.contentSize : undefined);
 		}
 	}
 

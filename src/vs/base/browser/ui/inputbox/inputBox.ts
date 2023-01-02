@@ -377,7 +377,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.borderColor = styles.border || 'transparent';
+		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(styles.border, 'transparent')}`;
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -552,9 +552,7 @@ export class InputBox extends Widget {
 		this.input.style.color = foreground;
 
 		// there's always a border, even if the color is not set.
-		this.element.style.borderColor = border || 'transparent';
-		this.element.style.borderWidth = '1px';
-		this.element.style.borderStyle = 'solid';
+		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(border, 'transparent')}`;
 	}
 
 	public layout(): void {

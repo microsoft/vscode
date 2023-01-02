@@ -85,9 +85,7 @@ export interface IExtension {
 	readonly deprecationInfo?: IDeprecationInfo;
 }
 
-export const SERVICE_ID = 'extensionsWorkbenchService';
-
-export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
+export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
@@ -105,6 +103,7 @@ export interface IExtensionsWorkbenchService {
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
+	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
@@ -113,7 +112,7 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void;
 	isExtensionIgnoresUpdates(extension: IExtension): boolean;
-	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
+	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 

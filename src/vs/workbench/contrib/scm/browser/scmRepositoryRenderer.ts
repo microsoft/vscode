@@ -11,9 +11,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IAction } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -22,6 +20,7 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { basename } from 'vs/base/common/resources';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
@@ -44,7 +43,6 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IThemeService private themeService: IThemeService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) { }
 
@@ -61,11 +59,10 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const actions = append(provider, $('.actions'));
 		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
 		const countContainer = append(provider, $('.count'));
-		const count = new CountBadge(countContainer);
-		const badgeStyler = attachBadgeStyler(count, this.themeService);
+		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
+		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar);
 
 		return { label, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}

@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding, decodeKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -39,7 +39,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -90,7 +90,6 @@ import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
-import { constObservable, IObservable } from 'vs/base/common/observable';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -424,9 +423,9 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public addDynamicKeybindings(rules: IKeybindingRule[]): IDisposable {
 		const entries: IKeybindingItem[] = rules.map((rule) => {
-			const keybinding = createKeybinding(rule.keybinding, OS);
+			const keybinding = decodeKeybinding(rule.keybinding, OS);
 			return {
-				keybinding: keybinding?.parts ?? null,
+				keybinding,
 				command: rule.command ?? null,
 				commandArgs: rule.commandArgs,
 				when: rule.when,
@@ -481,7 +480,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
-				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
+				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}
@@ -492,18 +491,18 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+		return USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		const keybinding = new SimpleKeybinding(
+		const chord = new KeyCodeChord(
 			keyboardEvent.ctrlKey,
 			keyboardEvent.shiftKey,
 			keyboardEvent.altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
-		).toChord();
-		return new USLayoutResolvedKeybinding(keybinding, OS);
+		);
+		return new USLayoutResolvedKeybinding([chord], OS);
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
@@ -871,7 +870,7 @@ class StandaloneUriLabelService implements ILabelService {
 		return basename(resource);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean }): string {
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: Verbosity }): string {
 		return '';
 	}
 
@@ -997,8 +996,12 @@ class StandaloneAudioService implements IAudioCueService {
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
 	}
 
-	isEnabled(cue: AudioCue): IObservable<boolean, void> {
-		return constObservable(false);
+	isEnabled(cue: AudioCue): boolean {
+		return false;
+	}
+
+	onEnabledChanged(cue: AudioCue): Event<void> {
+		return Event.None;
 	}
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {

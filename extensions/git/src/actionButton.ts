@@ -5,8 +5,9 @@
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
 import { Branch, Status } from './api/git';
+import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
-import { Repository, Operation } from './repository';
+import { Repository } from './repository';
 import { dispose } from './util';
 
 interface ActionButtonState {
@@ -134,8 +135,8 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
-		// Branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
-		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+		// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
+		if (!this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
 		// Button icon
 		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
@@ -181,14 +182,14 @@ export class ActionButtonCommand {
 
 	private onDidChangeOperations(): void {
 		const isCommitInProgress =
-			this.repository.operations.isRunning(Operation.Commit) ||
-			this.repository.operations.isRunning(Operation.PostCommitCommand) ||
-			this.repository.operations.isRunning(Operation.RebaseContinue);
+			this.repository.operations.isRunning(OperationKind.Commit) ||
+			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
+			this.repository.operations.isRunning(OperationKind.RebaseContinue);
 
 		const isSyncInProgress =
-			this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+			this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
 
 		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
 	}

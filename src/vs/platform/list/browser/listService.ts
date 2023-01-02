@@ -144,9 +144,10 @@ const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 const openModeSettingKey = 'workbench.list.openMode';
 const horizontalScrollingKey = 'workbench.list.horizontalScrolling';
 const defaultFindModeSettingKey = 'workbench.list.defaultFindMode';
-const defaultFindMatchTypeSettingKey = 'workbench.list.defaultFindMatchType';
-/** @deprecated in favor of workbench.list.defaultFindMode */
+const typeNavigationModeSettingKey = 'workbench.list.typeNavigationMode';
+/** @deprecated in favor of `workbench.list.defaultFindMode` and `workbench.list.typeNavigationMode` */
 const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
+const defaultFindMatchTypeSettingKey = 'workbench.list.defaultFindMatchType';
 const treeIndentKey = 'workbench.tree.indent';
 const treeRenderIndentGuidesKey = 'workbench.tree.renderIndentGuides';
 const listSmoothScrolling = 'workbench.list.smoothScrolling';
@@ -684,8 +685,10 @@ abstract class ResourceNavigator<T> extends Disposable {
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
 			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
-			this._register(options?.configurationService.onDidChangeConfiguration(() => {
-				this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+			this._register(options?.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(openModeSettingKey)) {
+					this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+				}
 			}));
 		} else {
 			this.openOnSingleClick = options?.openOnSingleClick ?? true;
@@ -815,26 +818,26 @@ class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
 }
 
 function createKeyboardNavigationEventFilter(keybindingService: IKeybindingService): IKeyboardNavigationEventFilter {
-	let inChord = false;
+	let inMultiChord = false;
 
 	return event => {
-		if (event.toKeybinding().isModifierKey()) {
+		if (event.toKeyCodeChord().isModifierKey()) {
 			return false;
 		}
 
-		if (inChord) {
-			inChord = false;
+		if (inMultiChord) {
+			inMultiChord = false;
 			return false;
 		}
 
 		const result = keybindingService.softDispatch(event, event.target);
 
-		if (result?.enterChord) {
-			inChord = true;
+		if (result?.enterMultiChord) {
+			inMultiChord = true;
 			return false;
 		}
 
-		inChord = false;
+		inMultiChord = false;
 		return !result;
 	};
 }
@@ -1114,6 +1117,15 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			return TypeNavigationMode.Trigger;
 		}
 
+		// finally, check the setting
+		const configString = configurationService.getValue<'automatic' | 'trigger'>(typeNavigationModeSettingKey);
+
+		if (configString === 'automatic') {
+			return TypeNavigationMode.Automatic;
+		} else if (configString === 'trigger') {
+			return TypeNavigationMode.Trigger;
+		}
+
 		return undefined;
 	};
 
@@ -1262,10 +1274,16 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					newOptions = { ...newOptions, smoothScrolling };
 				}
 				if (e.affectsConfiguration(defaultFindModeSettingKey) || e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					tree.updateOptions({ defaultFindMode: getDefaultTreeFindMode(configurationService) });
+					const defaultFindMode = getDefaultTreeFindMode(configurationService);
+					newOptions = { ...newOptions, defaultFindMode };
+				}
+				if (e.affectsConfiguration(typeNavigationModeSettingKey) || e.affectsConfiguration(keyboardNavigationSettingKey)) {
+					const typeNavigationMode = getTypeNavigationMode();
+					newOptions = { ...newOptions, typeNavigationMode };
 				}
 				if (e.affectsConfiguration(defaultFindMatchTypeSettingKey)) {
-					tree.updateOptions({ defaultFindMatchType: getDefaultTreeFindMatchType(configurationService) });
+					const defaultFindMatchType = getDefaultTreeFindMatchType(configurationService);
+					newOptions = { ...newOptions, defaultFindMatchType };
 				}
 				if (e.affectsConfiguration(horizontalScrollingKey) && options.horizontalScrolling === undefined) {
 					const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
@@ -1406,7 +1424,7 @@ configurationRegistry.registerConfiguration({
 			default: 'highlight',
 			description: localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees in the workbench. Can be simple, highlight and filter."),
 			deprecated: true,
-			deprecationMessage: localize('keyboardNavigationSettingKeyDeprecated', "Please use 'workbench.list.defaultFindMode' instead.")
+			deprecationMessage: localize('keyboardNavigationSettingKeyDeprecated', "Please use 'workbench.list.defaultFindMode' and	'workbench.list.typeNavigationMode' instead.")
 		},
 		[defaultFindMatchTypeSettingKey]: {
 			type: 'string',
@@ -1423,6 +1441,12 @@ configurationRegistry.registerConfiguration({
 			enum: ['singleClick', 'doubleClick'],
 			default: 'singleClick',
 			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
+		},
+		[typeNavigationModeSettingKey]: {
+			type: 'string',
+			enum: ['automatic', 'trigger'],
+			default: 'automatic',
+			description: localize('typeNavigationMode', "Controls the how type navigation works in lists and trees in the workbench. When set to 'trigger', type navigation begins once the 'list.triggerTypeNavigation' command is run."),
 		}
 	}
 });

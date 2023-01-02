@@ -1064,4 +1064,25 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected, false, false, false);
 	});
+
+	test('issue #169552: Assertion error when having both leading and trailing whitespace diffs', () => {
+		const original = [
+			'if True:',
+			'    print(2)',
+		];
+		const modified = [
+			'if True:',
+			'\tprint(2) ',
+		];
+		const expected = [
+			createLineChange(
+				2, 2, 2, 2,
+				[
+					createCharChange(2, 1, 2, 5, 2, 1, 2, 2),
+					createCharChange(2, 13, 2, 13, 2, 10, 2, 11),
+				]
+			),
+		];
+		assertDiff(original, modified, expected, true, false, false);
+	});
 });

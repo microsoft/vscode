@@ -94,9 +94,7 @@ impl HandlerContext {
 	async fn dispose(self) {
 		let bridges: ServerBridgeList = {
 			let mut lock = self.server_bridges.lock().await;
-			let bridges = lock.take();
-			*lock = None;
-			bridges
+			lock.take()
 		};
 
 		if let Some(b) = bridges {

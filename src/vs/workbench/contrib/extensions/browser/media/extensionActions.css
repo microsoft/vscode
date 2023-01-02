@@ -36,8 +36,8 @@
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.label,
-.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator{
-	background-color: var(--vscode-extensionButton-background);
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	background-color: var(--vscode-extensionButton-background) !important;
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.label {
@@ -45,7 +45,7 @@
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.label:hover {
-	background-color: var(--vscode-extensionButton-hoverBackground);
+	background-color: var(--vscode-extensionButton-hoverBackground) !important;
 }
 
 .monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div  {

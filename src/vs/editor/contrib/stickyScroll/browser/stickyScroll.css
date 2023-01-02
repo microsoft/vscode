@@ -16,7 +16,7 @@
 }
 
 .monaco-editor .sticky-line-root {
-	background-color : var(--vscode-editorStickyScroll-background);
+	background-color : inherit;
 	overflow : hidden;
 	white-space : nowrap;
 	width : 100%;
@@ -32,4 +32,8 @@
 	box-shadow : var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 	z-index : 2;
 	background-color : var(--vscode-editorStickyScroll-background);
+}
+
+.monaco-editor .sticky-widget.peek {
+	background-color : var(--vscode-peekViewEditorStickScroll-background);
 }

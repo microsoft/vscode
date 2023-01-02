@@ -18,9 +18,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IHTTPConfiguration, IRequestService } from 'vs/platform/request/common/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
 import { createGunzip } from 'zlib';
+
+interface IHTTPConfiguration {
+	proxy?: string;
+	proxyStrictSSL?: boolean;
+	proxyAuthorization?: string;
+}
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -47,19 +53,24 @@ export class RequestService extends Disposable implements IRequestService {
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this.configure(configurationService.getValue<IHTTPConfiguration>());
-		this._register(configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this));
+		this.configure();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('http')) {
+				this.configure();
+			}
+		}));
 	}
 
-	private configure(config: IHTTPConfiguration) {
-		this.proxyUrl = config.http && config.http.proxy;
-		this.strictSSL = !!(config.http && config.http.proxyStrictSSL);
-		this.authorization = config.http && config.http.proxyAuthorization;
+	private configure() {
+		const config = this.configurationService.getValue<IHTTPConfiguration | undefined>('http');
+		this.proxyUrl = config?.proxy;
+		this.strictSSL = !!config?.proxyStrictSSL;
+		this.authorization = config?.proxyAuthorization;
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -69,7 +80,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 		let shellEnv: typeof process.env | undefined = undefined;
 		try {
-			shellEnv = await getResolvedShellEnv(this.logService, this.environmentService.args, process.env);
+			shellEnv = await getResolvedShellEnv(this.configurationService, this.logService, this.environmentService.args, process.env);
 		} catch (error) {
 			if (!this.shellEnvErrorLogged) {
 				this.shellEnvErrorLogged = true;
