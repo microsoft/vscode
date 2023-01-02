@@ -224,10 +224,6 @@ export class FindInput extends Widget {
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
-	public getHistory(): string[] {
-		return this.inputBox.getHistory();
-	}
-
 	public get isImeSessionInProgress(): boolean {
 		return this.imeSessionInProgress;
 	}

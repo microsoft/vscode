@@ -887,7 +887,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	}
 
 	getHistory(): string[] {
-		return this.findInput.getHistory();
+		return this.findInput.inputBox.getHistory();
 	}
 
 	focus() {
@@ -929,7 +929,7 @@ interface IFindControllerOptions extends IFindWidgetOptions { }
 
 class FindController<T, TFilterData> implements IDisposable {
 
-	private _history: string[] = [];
+	private _history: string[] | undefined;
 
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
@@ -1086,6 +1086,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	}
 
 	dispose() {
+		this._history = undefined;
 		this._onDidChangePattern.dispose();
 		this.enabledDisposables.dispose();
 		this.disposables.dispose();
