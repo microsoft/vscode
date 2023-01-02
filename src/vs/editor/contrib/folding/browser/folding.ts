@@ -1130,7 +1130,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 				collapseRanges.sort((a, b) => {
 					return a.startLineNumber - b.startLineNumber;
 				});
-				const newRanges = FoldingRegions.sanitizeAndMerge(foldingModel.regions, collapseRanges, editor.getModel()?.getLineCount());
+				const newRanges = FoldingRegions.sanitizeAndMerge(foldingModel.regions, collapseRanges, editor.getModel());
 				foldingModel.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 			}
 		}

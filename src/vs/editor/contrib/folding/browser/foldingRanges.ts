@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ITextModel } from 'vs/editor/common/model';
+
 export interface ILineRange {
 	startLineNumber: number;
 	endLineNumber: number;
@@ -322,8 +324,8 @@ export class FoldingRegions {
 	public static sanitizeAndMerge(
 		rangesA: FoldingRegions | FoldRange[],
 		rangesB: FoldingRegions | FoldRange[],
-		maxLineNumber: number | undefined): FoldRange[] {
-		maxLineNumber = maxLineNumber ?? Number.MAX_VALUE;
+		textModel: ITextModel | null): FoldRange[] {
+		const maxLineNumber = textModel?.getLineCount() ?? Number.MAX_VALUE;
 
 		const getIndexedFunction = (r: FoldingRegions | FoldRange[], limit: number) => {
 			return Array.isArray(r)
@@ -344,8 +346,11 @@ export class FoldingRegions {
 		const resultRanges: FoldRange[] = [];
 
 		while (nextA || nextB) {
-			const aStartColumn = nextA?.startColumn ?? MAX_COLUMN_NUMBER;
-			const bStartColumn = nextB?.startColumn ?? MAX_COLUMN_NUMBER;
+			const aMaxColumn = (textModel && nextA) ? textModel.getLineMaxColumn(nextA.startLineNumber) : MAX_COLUMN_NUMBER;
+			const aStartColumn = nextA?.startColumn ?? aMaxColumn;
+
+			const bMaxColumn = (textModel && nextB) ? textModel.getLineMaxColumn(nextB.startLineNumber) : MAX_COLUMN_NUMBER;
+			const bStartColumn = nextB?.startColumn ?? bMaxColumn;
 
 			const aStartsAtB = nextA && nextB &&
 				nextA.startLineNumber === nextB.startLineNumber && aStartColumn === bStartColumn;

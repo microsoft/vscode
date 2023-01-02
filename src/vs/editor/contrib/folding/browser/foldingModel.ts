@@ -112,7 +112,7 @@ export class FoldingModel {
 
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
 		const foldedOrManualRanges = this._currentFoldedOrManualRanges(blockedLineNumers);
-		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel.getLineCount());
+		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel);
 		this.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 	}
 
@@ -234,7 +234,7 @@ export class FoldingModel {
 			}
 		}
 
-		const newRanges = FoldingRegions.sanitizeAndMerge(this._regions, rangesToRestore, maxLineNumber);
+		const newRanges = FoldingRegions.sanitizeAndMerge(this._regions, rangesToRestore, this._textModel);
 		this.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 	}
 
