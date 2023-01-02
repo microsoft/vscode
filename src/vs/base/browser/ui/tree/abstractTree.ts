@@ -634,10 +634,13 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 		}
 
 		if (this.tree.findMode === TreeFindMode.Filter) {
-			if (element.hasChildren && element.childrenUnresolved) {
-				return TreeVisibility.Visible;
+			if (typeof this.tree.options.defaultFindVisibility === 'number') {
+				return this.tree.options.defaultFindVisibility;
+			} else if (this.tree.options.defaultFindVisibility) {
+				return this.tree.options.defaultFindVisibility(element);
+			} else {
+				return TreeVisibility.Recurse;
 			}
-			return TreeVisibility.Recurse;
 		} else {
 			return { data: FuzzyScore.Default, visibility };
 		}
@@ -1110,6 +1113,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly additionalScrollHeight?: number;
 	readonly findWidgetEnabled?: boolean;
 	readonly findWidgetStyles?: IFindWidgetStyles;
+	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
