@@ -4,37 +4,37 @@ parameters:
 
 steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: AzureKeyVault@1
-      displayName: "Azure Key Vault: Get Secrets"
-      inputs:
-        azureSubscription: "vscode-builds-subscription"
-        KeyVaultName: vscode
-        SecretsFilter: "github-distro-mixin-password"
+      - task: AzureKeyVault@1
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: "vscode-builds-subscription"
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "github-distro-mixin-password"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        cat << EOF > ~/.netrc
-        machine github.com
-        login vscode
-        password $(github-distro-mixin-password)
-        EOF
+      - script: |
+          set -e
+          cat << EOF > ~/.netrc
+          machine github.com
+          login vscode
+          password $(github-distro-mixin-password)
+          EOF
 
-        git config user.email "vscode@microsoft.com"
-        git config user.name "VSCode"
-      displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-        git checkout FETCH_HEAD
-      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-      displayName: Checkout override commit
+          git config user.email "vscode@microsoft.com"
+          git config user.name "VSCode"
+        displayName: Prepare tooling
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-      displayName: Merge distro
+      - script: |
+          set -e
+          git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+          echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+          git checkout FETCH_HEAD
+        condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+        displayName: Checkout override commit
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - script: |
+          set -e
+          git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+        displayName: Merge distro

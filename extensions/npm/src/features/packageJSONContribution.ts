@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri, l10n } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 
 import * as cp from 'child_process';
-import * as nls from 'vscode-nls';
 import { dirname } from 'path';
-const localize = nls.loadMessageBundle();
 
 const LIMIT = 40;
 
@@ -44,7 +42,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		const proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
+		const proposal = new CompletionItem(l10n.t("Default package.json"));
 		proposal.kind = CompletionItemKind.Module;
 		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		result.add(proposal);
@@ -113,12 +111,12 @@ export class PackageJSONContribution implements IJSONContribution {
 						}
 						collector.setAsIncomplete();
 					} else {
-						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
+						collector.error(l10n.t("Request to the NPM repository failed: {0}", success.responseText));
 						return 0;
 					}
 					return undefined;
 				}, (error) => {
-					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', error.responseText));
+					collector.error(l10n.t("Request to the NPM repository failed: {0}", error.responseText));
 					return 0;
 				});
 			} else {
@@ -172,7 +170,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					}
 					collector.setAsIncomplete();
 				} else {
-					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
+					collector.error(l10n.t("Request to the NPM repository failed: {0}", success.responseText));
 				}
 				return null;
 			});
@@ -195,21 +193,21 @@ export class PackageJSONContribution implements IJSONContribution {
 					let proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
-					proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
+					proposal.documentation = l10n.t("The currently latest version of the package");
 					result.add(proposal);
 
 					name = JSON.stringify('^' + info.version);
 					proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
-					proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
+					proposal.documentation = l10n.t("Matches the most recent major version (1.x.x)");
 					result.add(proposal);
 
 					name = JSON.stringify('~' + info.version);
 					proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = name;
-					proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
+					proposal.documentation = l10n.t("Matches the most recent minor version (1.2.x)");
 					result.add(proposal);
 				}
 			}
@@ -224,7 +222,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		}
 		if (version) {
 			str.appendText('\n\n');
-			str.appendText(localize('json.npm.version.hover', 'Latest version: {0}', version));
+			str.appendText(l10n.t("Latest version: {0}", version));
 		}
 		if (homepage) {
 			str.appendText('\n\n');

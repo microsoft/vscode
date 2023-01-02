@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -284,6 +284,21 @@ export interface IFileAtomicReadOptions {
 	readonly atomic: true;
 }
 
+export interface IFileReadLimits {
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_TOO_LARGE` will be thrown.
+	 */
+	size?: number;
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
+	 */
+	memory?: number;
+}
+
 export interface IFileReadStreamOptions {
 
 	/**
@@ -299,12 +314,10 @@ export interface IFileReadStreamOptions {
 	readonly length?: number;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
@@ -440,6 +453,11 @@ export interface IWatchOptions {
 }
 
 export const enum FileSystemProviderCapabilities {
+
+	/**
+	 * No capabilities.
+	 */
+	None = 0,
 
 	/**
 	 * Provider supports unbuffered read/write.
@@ -592,7 +610,12 @@ export enum FileSystemProviderErrorCode {
 	Unknown = 'Unknown'
 }
 
-export class FileSystemProviderError extends Error {
+export interface IFileSystemProviderError extends Error {
+	readonly name: string;
+	readonly code: FileSystemProviderErrorCode;
+}
+
+export class FileSystemProviderError extends Error implements IFileSystemProviderError {
 
 	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
@@ -766,7 +789,6 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
-		this.rawChanges = changes;
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
@@ -890,14 +912,6 @@ export class FileChangesEvent {
 	gotUpdated(): boolean {
 		return !!this.updated;
 	}
-
-	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	readonly rawChanges: readonly IFileChange[] = [];
 
 	/**
 	 * @deprecated use the `contains` or `affects` method to efficiently find
@@ -1154,6 +1168,17 @@ export class FileOperationError extends Error {
 		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
 	) {
 		super(message);
+	}
+}
+
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
 	}
 }
 

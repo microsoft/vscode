@@ -57,6 +57,11 @@ export function isICommandActionToggleInfo(thing: ContextKeyExpression | IComman
 	return thing ? (<ICommandActionToggleInfo>thing).condition !== undefined : false;
 }
 
+export interface ICommandActionSource {
+	readonly id: string;
+	readonly title: string;
+}
+
 export interface ICommandAction {
 	id: string;
 	title: string | ICommandActionTitle;
@@ -64,7 +69,7 @@ export interface ICommandAction {
 	category?: keyof typeof Categories | ILocalizedString | string;
 	tooltip?: string | ILocalizedString;
 	icon?: Icon;
-	source?: string;
+	source?: ICommandActionSource;
 	precondition?: ContextKeyExpression;
 
 	/**
@@ -72,9 +77,6 @@ export interface ICommandAction {
 	 * or define toggle-info including an icon and a title that goes well with a checkmark.
 	 */
 	toggled?: ContextKeyExpression | ICommandActionToggleInfo;
-
-	/** @deprecated see https://github.com/microsoft/vscode/issues/162004 */
-	_isFakeAction?: true;
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;

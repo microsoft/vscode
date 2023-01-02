@@ -24,7 +24,7 @@ import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -56,7 +56,7 @@ interface IRenderResult {
 //  |  #output-inner-container
 //  |                        |  #cell-output-toolbar
 //  |                        |  #output-element
-export class CellOutputElement extends Disposable {
+class CellOutputElement extends Disposable {
 	private readonly _renderDisposableStore = this._register(new DisposableStore());
 
 	innerContainer?: HTMLElement;
@@ -427,7 +427,7 @@ class OutputEntryViewHandler {
 	}
 }
 
-export class CellOutputContainer extends CellPart {
+export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 
 	get renderedOutputEntries() {
@@ -466,9 +466,9 @@ export class CellOutputContainer extends CellPart {
 		});
 	}
 
-	render(editorHeight: number) {
+	render() {
 		if (this.viewCell.outputsViewModels.length > 0) {
-			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
+			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
 				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 				this._relayoutCell();
 			}
@@ -481,7 +481,6 @@ export class CellOutputContainer extends CellPart {
 				entry.render(undefined);
 			}
 
-			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputsViewModels.length > this.options.limit) {
 				DOM.show(this.templateData.outputShowMoreContainer.domNode);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
@@ -491,7 +490,6 @@ export class CellOutputContainer extends CellPart {
 			this._validateFinalOutputHeight(false);
 		} else {
 			// noop
-			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
 			DOM.hide(this.templateData.outputContainer.domNode);
 		}

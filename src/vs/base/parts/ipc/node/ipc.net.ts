@@ -20,10 +20,10 @@ import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEv
 // TODO@bpasero remove me once electron utility process has landed
 function getNodeDependencies() {
 	return {
-		crypto: (require.__$__nodeRequire('crypto') as any) as typeof import('crypto'),
-		zlib: (require.__$__nodeRequire('zlib') as any) as typeof import('zlib'),
-		net: (require.__$__nodeRequire('net') as any) as typeof import('net'),
-		os: (require.__$__nodeRequire('os') as any) as typeof import('os')
+		crypto: globalThis._VSCODE_NODE_MODULES.crypto,
+		zlib: globalThis._VSCODE_NODE_MODULES.zlib,
+		net: globalThis._VSCODE_NODE_MODULES.net,
+		os: globalThis._VSCODE_NODE_MODULES.os,
 	};
 }
 

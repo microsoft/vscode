@@ -6,7 +6,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { merge, through, ThroughStream, writeArray } from 'event-stream';
+import { map, merge, through, ThroughStream } from 'event-stream';
+import * as jsonMerge from 'gulp-merge-json';
 import * as File from 'vinyl';
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
@@ -48,13 +49,6 @@ export const extraLanguages: Language[] = [
 	{ id: 'hu', folderName: 'hun' },
 	{ id: 'tr', folderName: 'trk' }
 ];
-
-// non built-in extensions also that are transifex and need to be part of the language packs
-const externalExtensionsWithTranslations: Record<string, string> = {
-	'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
-	'vscode-node-debug': 'ms-vscode.node-debug',
-	'vscode-node-debug2': 'ms-vscode.node-debug2'
-};
 
 interface Item {
 	id: string;
@@ -586,30 +580,67 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 	});
 }
 
-function createL10nBundleForExtension(extensionName: string): ThroughStream {
-	const result = through();
-	gulp.src([
-		`extensions/${extensionName}/src/**/*.ts`,
-	]).pipe(writeArray((err, files: File[]) => {
-		if (err) {
-			result.emit('error', err);
-			return;
-		}
+function createL10nBundleForExtension(extensionFolderName: string): NodeJS.ReadWriteStream {
+	return gulp
+		.src([
+			// For source code of extensions
+			`extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
+			// // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
+			`extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
+			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
+			`extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/bundle.l10n.json`,
+		])
+		.pipe(map(function (data, callback) {
+			const file = data as File;
+			if (!file.isBuffer()) {
+				// Not a buffer so we drop it
+				callback();
+				return;
+			}
+			const extension = path.extname(file.relative);
+			if (extension !== '.json') {
+				const contents = file.contents.toString('utf8');
+				getL10nJson([{ contents, extension }])
+					.then((json) => {
+						callback(undefined, new File({
+							path: `extensions/${extensionFolderName}/bundle.l10n.json`,
+							contents: Buffer.from(JSON.stringify(json), 'utf8')
+						}));
+					})
+					.catch((err) => {
+						callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+					});
+				// signal pause?
+				return false;
+			}
 
-		const json = getL10nJson(files.map(file => {
-			return file.contents.toString('utf8');
+			// for bundle.l10n.jsons
+			let bundleJson;
+			try {
+				bundleJson = JSON.parse(file.contents.toString('utf8'));
+			} catch (err) {
+				callback(new Error(`File ${file.relative} threw an error when parsing: ${err}`));
+				return;
+			}
+
+			// some validation of the bundle.l10n.json format
+			for (const key in bundleJson) {
+				if (
+					typeof bundleJson[key] !== 'string' &&
+					(typeof bundleJson[key].message !== 'string' || !Array.isArray(bundleJson[key].comment))
+				) {
+					callback(new Error(`Invalid bundle.l10n.json file. The value for key ${key} is not in the expected format.`));
+					return;
+				}
+			}
+
+			callback(undefined, file);
+		}))
+		.pipe(jsonMerge({
+			fileName: `extensions/${extensionFolderName}/bundle.l10n.json`,
+			jsonSpace: '',
+			concatArrays: true
 		}));
-
-		if (Object.keys(json).length > 0) {
-			result.emit('data', new File({
-				path: `${extensionName}/bundle.l10n.json`,
-				contents: Buffer.from(JSON.stringify(json), 'utf8')
-			}));
-		}
-		result.emit('end');
-	}));
-
-	return result;
 }
 
 export function createXlfFilesForExtensions(): ThroughStream {
@@ -622,10 +653,15 @@ export function createXlfFilesForExtensions(): ThroughStream {
 		if (!stat.isDirectory()) {
 			return;
 		}
-		const extensionName = path.basename(extensionFolder.path);
-		if (extensionName === 'node_modules') {
+		const extensionFolderName = path.basename(extensionFolder.path);
+		if (extensionFolderName === 'node_modules') {
 			return;
 		}
+		// Get extension id and use that as the id
+		const manifest = fs.readFileSync(path.join(extensionFolder.path, 'package.json'), 'utf-8');
+		const manifestJson = JSON.parse(manifest);
+		const extensionId = manifestJson.publisher + '.' + manifestJson.name;
+
 		counter++;
 		let _l10nMap: Map<string, l10nJsonFormat>;
 		function getL10nMap() {
@@ -635,18 +671,18 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			return _l10nMap;
 		}
 		merge(
-			gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }),
-			createL10nBundleForExtension(extensionName)
+			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
+			createL10nBundleForExtension(extensionFolderName)
 		).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;
 				const basename = path.basename(file.path);
 				if (basename === 'package.nls.json') {
 					const json: l10nJsonFormat = JSON.parse(buffer.toString('utf8'));
-					getL10nMap().set(`extensions/${extensionName}/package`, json);
+					getL10nMap().set(`extensions/${extensionId}/package`, json);
 				} else if (basename === 'nls.metadata.json') {
 					const json: BundledExtensionFormat = JSON.parse(buffer.toString('utf8'));
-					const relPath = path.relative(`.build/extensions/${extensionName}`, path.dirname(file.path));
+					const relPath = path.relative(`.build/extensions/${extensionFolderName}`, path.dirname(file.path));
 					for (const file in json) {
 						const fileContent = json[file];
 						const info: l10nJsonFormat = Object.create(null);
@@ -658,11 +694,11 @@ export function createXlfFilesForExtensions(): ThroughStream {
 
 							info[key] = comment ? { message, comment } : message;
 						}
-						getL10nMap().set(`extensions/${extensionName}/${relPath}/${file}`, info);
+						getL10nMap().set(`extensions/${extensionId}/${relPath}/${file}`, info);
 					}
 				} else if (basename === 'bundle.l10n.json') {
 					const json: l10nJsonFormat = JSON.parse(buffer.toString('utf8'));
-					getL10nMap().set(`extensions/${extensionName}/bundle`, json);
+					getL10nMap().set(`extensions/${extensionId}/bundle`, json);
 				} else {
 					this.emit('error', new Error(`${file.path} is not a valid extension nls file`));
 					return;
@@ -671,7 +707,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 		}, function () {
 			if (_l10nMap?.size > 0) {
 				const xlfFile = new File({
-					path: path.join(extensionsProject, extensionName + '.xlf'),
+					path: path.join(extensionsProject, extensionId + '.xlf'),
 					contents: Buffer.from(getL10nXlf(_l10nMap), 'utf8')
 				});
 				folderStream.queue(xlfFile);
@@ -787,7 +823,7 @@ export interface TranslationPath {
 
 function getRecordFromL10nJsonFormat(l10nJsonFormat: l10nJsonFormat): Record<string, string> {
 	const record: Record<string, string> = {};
-	for (const key of Object.keys(l10nJsonFormat)) {
+	for (const key of Object.keys(l10nJsonFormat).sort()) {
 		const value = l10nJsonFormat[key];
 		record[key] = typeof value === 'string' ? value : value.message;
 	}
@@ -813,17 +849,14 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 					const firstSlash = path.indexOf('/');
 
 					if (project === extensionsProject) {
+						// resource will be the extension id
 						let extPack = extensionsPacks[resource];
 						if (!extPack) {
 							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
 						}
-						const externalId = externalExtensionsWithTranslations[resource];
-						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
-							const secondSlash = path.indexOf('/', firstSlash + 1);
-							extPack.contents[path.substring(secondSlash + 1)] = getRecordFromL10nJsonFormat(file.messages);
-						} else {
-							extPack.contents[path] = getRecordFromL10nJsonFormat(file.messages);
-						}
+						// remove 'extensions/extensionId/' segment
+						const secondSlash = path.indexOf('/', firstSlash + 1);
+						extPack.contents[path.substring(secondSlash + 1)] = getRecordFromL10nJsonFormat(file.messages);
 					} else {
 						mainPack.contents[path.substring(firstSlash + 1)] = getRecordFromL10nJsonFormat(file.messages);
 					}
@@ -842,17 +875,11 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 				resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
 
 				this.queue(translatedMainFile);
-				for (const extension in extensionsPacks) {
-					const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
+				for (const extensionId in extensionsPacks) {
+					const translatedExtFile = createI18nFile(`extensions/${extensionId}`, extensionsPacks[extensionId]);
 					this.queue(translatedExtFile);
 
-					const externalExtensionId = externalExtensionsWithTranslations[extension];
-					if (externalExtensionId) {
-						resultingTranslationPaths.push({ id: externalExtensionId, resourceName: `extensions/${extension}.i18n.json` });
-					} else {
-						resultingTranslationPaths.push({ id: `vscode.${extension}`, resourceName: `extensions/${extension}.i18n.json` });
-					}
-
+					resultingTranslationPaths.push({ id: extensionId, resourceName: `extensions/${extensionId}.i18n.json` });
 				}
 				this.queue(null);
 			})

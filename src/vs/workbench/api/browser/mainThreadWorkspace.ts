@@ -231,6 +231,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			scheme: scheme,
 			getEditSessionIdentifier: async (workspaceFolder: WorkspaceFolder, token: CancellationToken) => {
 				return this._proxy.$getEditSessionIdentifier(workspaceFolder.uri, token);
+			},
+			provideEditSessionIdentityMatch: async (workspaceFolder: WorkspaceFolder, identity1: string, identity2: string, token: CancellationToken) => {
+				return this._proxy.$provideEditSessionIdentityMatch(workspaceFolder.uri, identity1, identity2, token);
 			}
 		});
 

@@ -235,7 +235,7 @@ registerAction2(class extends NotebookCellAction {
 			id: FOCUS_OUT_OUTPUT_COMMAND_ID,
 			title: localize('focusOutputOut', 'Focus Out Active Cell Output'),
 			keybinding: {
-				when: NOTEBOOK_EDITOR_FOCUSED,
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED),
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.UpArrow, },
 				weight: KeybindingWeight.WorkbenchContrib

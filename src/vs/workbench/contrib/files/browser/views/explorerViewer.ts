@@ -16,14 +16,13 @@ import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
@@ -59,7 +58,10 @@ import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { ResourceSet, TernarySearchTree } from 'vs/base/common/map';
+import { ResourceSet } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { timeout } from 'vs/base/common/async';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -266,7 +268,6 @@ export interface IFileTemplateData {
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
-	private styler: HTMLStyleElement;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
@@ -275,6 +276,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
 	constructor(
+		container: HTMLElement,
 		private labels: ResourceLabels,
 		private updateWidth: (stat: ExplorerItem) => void,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -282,16 +284,15 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
-		this.styler = DOM.createStyleSheet();
-		const buildOffsetStyles = () => {
+		const updateOffsetStyles = () => {
 			const indent = this.configurationService.getValue<number>('workbench.tree.indent');
 			const offset = Math.max(22 - indent, 0); // derived via inspection
-			const rule = `.explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon { margin-left: ${offset}px }`;
-			if (this.styler.innerText !== rule) { this.styler.innerText = rule; }
+			container.style.setProperty(`--vscode-explorer-align-offset-margin-left`, `${offset}px`);
 		};
 
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -299,11 +300,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				this.config = this.configurationService.getValue();
 			}
 			if (e.affectsConfiguration('workbench.tree.indent')) {
-				buildOffsetStyles();
+				updateOffsetStyles();
 			}
 		});
 
-		buildOffsetStyles();
+		updateOffsetStyles();
 	}
 
 	getWidgetAriaLabel(): string {
@@ -468,9 +469,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					};
 				}
 			},
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
+			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		const lastDot = value.lastIndexOf('.');
 		let currentSelectionState = 'prefix';
@@ -537,11 +538,24 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
 				showInputBoxNotification();
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
+				while (true) {
+					await timeout(0);
+
+					if (!document.hasFocus()) {
+						break;
+					} if (document.activeElement === inputBox.inputElement) {
+						return;
+					} else if (document.activeElement instanceof HTMLElement && DOM.hasParentWithClass(document.activeElement, 'context-view')) {
+						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+					} else {
+						break;
+					}
+				}
+
 				done(inputBox.isInputValid(), true);
 			}),
-			label,
-			styler
+			label
 		];
 
 		return toDisposable(() => {
@@ -596,7 +610,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	dispose(): void {
 		this.configListener.dispose();
-		this.styler.innerText = '';
 	}
 }
 
@@ -606,7 +619,7 @@ interface CachedParsedExpression {
 }
 
 /**
- * Respectes files.exclude setting in filtering out content from the explorer.
+ * Respects files.exclude setting in filtering out content from the explorer.
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
@@ -1278,8 +1291,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Reuse duplicate action when user copies
 		const explorerConfig = this.configurationService.getValue<IFilesConfiguration>().explorer;
-		const resourceFileEdits = sources.map(({ resource, isDirectory }) =>
-			(new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, explorerConfig.incrementalNaming), { copy: true })));
+		const resourceFileEdits: ResourceFileEdit[] = [];
+		for (const { resource, isDirectory } of sources) {
+			const allowOverwrite = explorerConfig.incrementalNaming === 'disabled';
+			const newResource = await findValidPasteFileTarget(this.explorerService,
+				this.fileService,
+				this.dialogService,
+				target,
+				{ resource, isDirectory, allowOverwrite },
+				explorerConfig.incrementalNaming
+			);
+			if (!newResource) {
+				continue;
+			}
+			const resourceEdit = new ResourceFileEdit(resource, newResource, { copy: true, overwrite: allowOverwrite });
+			resourceFileEdits.push(resourceEdit);
+		}
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
 			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,

@@ -82,10 +82,9 @@ export class MenuId {
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
-	static readonly MenubarEditorFeaturesMenu = new MenuId('MenubarEditorFeaturesMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
-	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
-	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
+	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
+	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -104,6 +103,7 @@ export class MenuId {
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
+	static readonly SearchActionMenu = new MenuId('SearchActionContext');
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
@@ -126,8 +126,10 @@ export class MenuId {
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
+	static readonly CommentEditorActions = new MenuId('CommentEditorActions');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
+	static readonly CommentThreadAdditionalActions = new MenuId('CommentThreadAdditionalActions');
 	static readonly CommentThreadTitleContext = new MenuId('CommentThreadTitleContext');
 	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
@@ -245,7 +247,7 @@ export interface IMenuService {
 	resetHiddenStates(menuIds: readonly MenuId[] | undefined): void;
 }
 
-export type ICommandsMap = Map<string, ICommandAction>;
+type ICommandsMap = Map<string, ICommandAction>;
 
 export interface IMenuRegistryChangeEvent {
 	has(id: MenuId): boolean;
@@ -544,7 +546,7 @@ interface IAction2CommonOptions extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
+	menu?: OneOrN<{ id: MenuId; precondition?: null } & Omit<IMenuItem, 'command'>>;
 
 	/**
 	 * One keybinding.
@@ -556,13 +558,6 @@ interface IAction2CommonOptions extends ICommandAction {
 	 * showing keybindings that have no other UX.
 	 */
 	description?: ICommandHandlerDescription;
-
-	/**
-	 * @deprecated workaround added for https://github.com/microsoft/vscode/issues/162004
-	 * This action doesn't do anything is just a workaround for rendering "something"
-	 * inside a specific toolbar
-	 */
-	_isFakeAction?: true;
 }
 
 interface IBaseAction2Options extends IAction2CommonOptions {
@@ -626,11 +621,11 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	// menu
 	if (Array.isArray(menu)) {
 		for (const item of menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command, ...item }));
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, precondition: item.precondition === null ? undefined : command.precondition }, ...item }));
 		}
 
 	} else if (menu) {
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, precondition: menu.precondition === null ? undefined : command.precondition }, ...menu }));
 	}
 	if (f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));

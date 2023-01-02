@@ -43,7 +43,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		'workbench.editorAssociations': {
 			type: 'object',
-			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
 			additionalProperties: {
 				type: 'string'
 			}

@@ -132,7 +132,7 @@ export interface IGlobalEditorOptions {
 	 */
 	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
 	stablePeek?: boolean;
@@ -495,7 +495,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);

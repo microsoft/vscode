@@ -7,19 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
 
-	export interface InlineCompletionItemNew {
-		/**
-		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
-		 * Defaults to `false`.
-		*/
-		completeBracketPairs?: boolean;
-	}
-
-	export interface InlineCompletionItemProviderNew {
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidShowCompletionItem?(completionItem: InlineCompletionItemNew): void;
-	}
-
 	export interface InlineCompletionItem {
 		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.

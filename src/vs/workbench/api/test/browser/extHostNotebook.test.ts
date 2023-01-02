@@ -47,17 +47,15 @@ suite('NotebookCell#Document', function () {
 			override $registerCommand() { }
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookProvider() { }
-			override async $unregisterNotebookProvider() { }
+			override async $registerNotebookSerializer() { }
+			override async $unregisterNotebookSerializer() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments);
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
-		const reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
-			// async openNotebook() { }
-		});
+		const reg = extHostNotebooks.registerNotebookSerializer(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookSerializer>() { });
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{
 				uri: notebookUri,

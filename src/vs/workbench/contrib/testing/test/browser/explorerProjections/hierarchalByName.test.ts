@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	let harness: TestTreeTestHarness<HierarchicalByNameProjection>;
@@ -26,7 +25,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new HierarchicalByNameProjection(AbstractTreeViewState.empty(), l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new HierarchicalByNameProjection({}, l, resultsService as any));
 	});
 
 	teardown(() => {

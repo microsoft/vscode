@@ -29,7 +29,7 @@ import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { COI, FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { parentOriginHash } from 'vs/workbench/browser/webview';
+import { parentOriginHash } from 'vs/workbench/browser/iframe';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface IWebWorkerExtensionHostInitData {
@@ -120,7 +120,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath, require);
+		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
 		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
 	}
 

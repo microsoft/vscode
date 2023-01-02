@@ -104,7 +104,7 @@ export class ZoomInAction extends BaseZoomAction {
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
+				group: '5_zoom',
 				order: 1
 			}
 		});
@@ -138,7 +138,7 @@ export class ZoomOutAction extends BaseZoomAction {
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
+				group: '5_zoom',
 				order: 2
 			}
 		});
@@ -167,7 +167,7 @@ export class ZoomResetAction extends BaseZoomAction {
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
+				group: '5_zoom',
 				order: 3
 			}
 		});

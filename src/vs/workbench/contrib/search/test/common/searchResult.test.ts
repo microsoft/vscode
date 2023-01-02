@@ -21,7 +21,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { isWindows } from 'vs/base/common/platform';
@@ -40,6 +40,7 @@ suite('SearchResult', () => {
 		instantiationService.stubPromise(IReplaceService, {});
 		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
 		instantiationService.stub(ILabelService, new MockLabelService());
+		instantiationService.stub(ILogService, new NullLogService());
 	});
 
 	test('Line Match', function () {
@@ -64,12 +65,12 @@ suite('SearchResult', () => {
 	});
 
 	test('File Match', function () {
-		let fileMatch = aFileMatch('folder/file.txt');
+		let fileMatch = aFileMatch('folder/file.txt', aSearchResult());
 		assert.strictEqual(fileMatch.matches().length, 0);
 		assert.strictEqual(fileMatch.resource.toString(), 'file:///folder/file.txt');
 		assert.strictEqual(fileMatch.name(), 'file.txt');
 
-		fileMatch = aFileMatch('file.txt');
+		fileMatch = aFileMatch('file.txt', aSearchResult());
 		assert.strictEqual(fileMatch.matches().length, 0);
 		assert.strictEqual(fileMatch.resource.toString(), 'file:///file.txt');
 		assert.strictEqual(fileMatch.name(), 'file.txt');
@@ -146,12 +147,14 @@ suite('SearchResult', () => {
 	});
 
 	test('Match -> FileMatch -> SearchResult hierarchy exists', function () {
-		const searchResult = instantiationService.createInstance(SearchResult, null);
+
+		const searchModel = instantiationService.createInstance(SearchModel);
+		const searchResult = instantiationService.createInstance(SearchResult, searchModel);
 		const fileMatch = aFileMatch('far/boo', searchResult);
 		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
 
 		assert(lineMatch.parent() === fileMatch);
-		assert(fileMatch.parent() === searchResult);
+		assert(fileMatch.parent() === searchResult.folderMatches()[0]);
 	});
 
 	test('Adding a raw match will add a file match with line matches', function () {
@@ -348,11 +351,11 @@ suite('SearchResult', () => {
 		const testObject = getPopulatedSearchResult();
 
 		const folderMatch = testObject.folderMatches()[0];
-		const fileMatch = testObject.folderMatches()[1].downstreamFileMatches()[0];
-		const match = testObject.folderMatches()[1].downstreamFileMatches()[1].matches()[0];
+		const fileMatch = testObject.folderMatches()[1].allDownstreamFileMatches()[0];
+		const match = testObject.folderMatches()[1].allDownstreamFileMatches()[1].matches()[0];
 
 		const arrayToRemove = [folderMatch, fileMatch, match];
-		const expectedArrayResult = folderMatch.downstreamFileMatches().concat([fileMatch, match.parent()]);
+		const expectedArrayResult = folderMatch.allDownstreamFileMatches().concat([fileMatch, match.parent()]);
 
 		testObject.onChange(target);
 		testObject.batchRemove(arrayToRemove);
@@ -376,10 +379,10 @@ suite('SearchResult', () => {
 		const testObject = getPopulatedSearchResult();
 
 		const folderMatch = testObject.folderMatches()[0];
-		const fileMatch = testObject.folderMatches()[1].downstreamFileMatches()[0];
-		const match = testObject.folderMatches()[1].downstreamFileMatches()[1].matches()[0];
+		const fileMatch = testObject.folderMatches()[1].allDownstreamFileMatches()[0];
+		const match = testObject.folderMatches()[1].allDownstreamFileMatches()[1].matches()[0];
 
-		const firstExpectedMatch = folderMatch.downstreamFileMatches()[0];
+		const firstExpectedMatch = folderMatch.allDownstreamFileMatches()[0];
 
 		const arrayToRemove = [folderMatch, fileMatch, match];
 
@@ -401,9 +404,9 @@ suite('SearchResult', () => {
 		const root2 = testObject.folderMatches()[2];
 		const root3 = testObject.folderMatches()[3];
 
-		const root0DownstreamFiles = root0.downstreamFileMatches();
+		const root0DownstreamFiles = root0.allDownstreamFileMatches();
 		assert.deepStrictEqual(root0DownstreamFiles, [...root0.fileMatchesIterator(), ...getFolderMatchAtIndex(root0, 0).fileMatchesIterator()]);
-		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).downstreamFileMatches(), Array.from(getFolderMatchAtIndex(root0, 0).fileMatchesIterator()));
+		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).allDownstreamFileMatches(), Array.from(getFolderMatchAtIndex(root0, 0).fileMatchesIterator()));
 		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root0, 0), 0).parent(), getFolderMatchAtIndex(root0, 0));
 		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).parent(), root0);
 		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).closestRoot, root0);
@@ -411,23 +414,23 @@ suite('SearchResult', () => {
 			assert.deepStrictEqual(e.closestRoot, root0);
 		});
 
-		const root1DownstreamFiles = root1.downstreamFileMatches();
-		assert.deepStrictEqual(root1.downstreamFileMatches(), [...root1.fileMatchesIterator(), ...getFolderMatchAtIndex(root1, 0).fileMatchesIterator()]); // excludes the matches from nested root
+		const root1DownstreamFiles = root1.allDownstreamFileMatches();
+		assert.deepStrictEqual(root1.allDownstreamFileMatches(), [...root1.fileMatchesIterator(), ...getFolderMatchAtIndex(root1, 0).fileMatchesIterator()]); // excludes the matches from nested root
 		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root1, 0), 0).parent(), getFolderMatchAtIndex(root1, 0));
 		root1DownstreamFiles.forEach((e) => {
 			assert.deepStrictEqual(e.closestRoot, root1);
 		});
 
-		const root2DownstreamFiles = root2.downstreamFileMatches();
+		const root2DownstreamFiles = root2.allDownstreamFileMatches();
 		assert.deepStrictEqual(root2DownstreamFiles, Array.from(root2.fileMatchesIterator()));
 		assert.deepStrictEqual(getFileMatchAtIndex(root2, 0).parent(), root2);
 		assert.deepStrictEqual(getFileMatchAtIndex(root2, 0).closestRoot, root2);
 
 
-		const root3DownstreamFiles = root3.downstreamFileMatches();
+		const root3DownstreamFiles = root3.allDownstreamFileMatches();
 		const root3Level3Folder = getFolderMatchAtIndex(getFolderMatchAtIndex(root3, 0), 0);
 		assert.deepStrictEqual(root3DownstreamFiles, [...root3.fileMatchesIterator(), ...getFolderMatchAtIndex(root3Level3Folder, 0).fileMatchesIterator(), ...getFolderMatchAtIndex(root3Level3Folder, 1).fileMatchesIterator()].flat());
-		assert.deepStrictEqual(root3Level3Folder.downstreamFileMatches(), getFolderMatchAtIndex(root3, 0).downstreamFileMatches());
+		assert.deepStrictEqual(root3Level3Folder.allDownstreamFileMatches(), getFolderMatchAtIndex(root3, 0).allDownstreamFileMatches());
 
 		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root3Level3Folder, 1), 0).parent(), getFolderMatchAtIndex(root3Level3Folder, 1));
 		assert.deepStrictEqual(getFolderMatchAtIndex(root3Level3Folder, 1).parent(), root3Level3Folder);
@@ -444,7 +447,7 @@ suite('SearchResult', () => {
 
 		const folderMatch = getFolderMatchAtIndex(getFolderMatchAtIndex(getFolderMatchAtIndex(testObject.folderMatches()[3], 0), 0), 0);
 
-		const expectedArrayResult = folderMatch.downstreamFileMatches();
+		const expectedArrayResult = folderMatch.allDownstreamFileMatches();
 
 		testObject.onChange(target);
 		testObject.remove(folderMatch);
@@ -458,7 +461,7 @@ suite('SearchResult', () => {
 
 		const folderMatch = getFolderMatchAtIndex(testObject.folderMatches()[3], 0);
 
-		const expectedArrayResult = folderMatch.downstreamFileMatches();
+		const expectedArrayResult = folderMatch.allDownstreamFileMatches();
 
 		testObject.onChange(target);
 		await testObject.batchReplace([folderMatch]);
@@ -466,17 +469,24 @@ suite('SearchResult', () => {
 
 	});
 
-	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
+	function aFileMatch(path: string, searchResult: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		const rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
 			results: lineMatches
 		};
-		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch, searchResult);
+		const root = searchResult?.folderMatches()[0];
+		return instantiationService.createInstance(FileMatch, {
+			pattern: ''
+		}, undefined, undefined, root, rawMatch, null);
 	}
 
 	function aSearchResult(): SearchResult {
 		const searchModel = instantiationService.createInstance(SearchModel);
-		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }] };
+		searchModel.searchResult.query = {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: ''
+			}
+		};
 		return searchModel.searchResult;
 	}
 

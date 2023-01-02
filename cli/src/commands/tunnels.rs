@@ -3,19 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::process::Stdio;
-
 use async_trait::async_trait;
-use tokio::sync::oneshot;
+use sha2::{Digest, Sha256};
+use std::fmt;
+use std::str::FromStr;
+use sysinfo::{Pid, SystemExt};
+use tokio::sync::mpsc;
+use tokio::time::{sleep, Duration};
 
 use super::{
 	args::{
-		AuthProvider, Cli, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
+		AuthProvider, CliCore, ExistingTunnelArgs, TunnelRenameArgs, TunnelServeArgs,
 		TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
 };
 
+use crate::tunnels::dev_tunnels::ActiveTunnel;
 use crate::{
 	auth::Auth,
 	log::{self, Logger},
@@ -57,11 +61,11 @@ impl From<ExistingTunnelArgs> for Option<dev_tunnels::ExistingTunnel> {
 }
 
 struct TunnelServiceContainer {
-	args: Cli,
+	args: CliCore,
 }
 
 impl TunnelServiceContainer {
-	fn new(args: Cli) -> Self {
+	fn new(args: CliCore) -> Self {
 		Self { args }
 	}
 }
@@ -72,7 +76,7 @@ impl ServiceContainer for TunnelServiceContainer {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: oneshot::Receiver<()>,
+		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError> {
 		let csa = (&self.args).into();
 		serve_with_csa(
@@ -89,12 +93,28 @@ impl ServiceContainer for TunnelServiceContainer {
 		Ok(())
 	}
 }
+/// Describes the signal to manully stop the server
+pub enum ShutdownSignal {
+	CtrlC,
+	ParentProcessKilled,
+	ServiceStopped,
+}
+
+impl fmt::Display for ShutdownSignal {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
+			ShutdownSignal::ParentProcessKilled => write!(f, "Parent process no longer exists"),
+			ShutdownSignal::ServiceStopped => write!(f, "Service stopped"),
+		}
+	}
+}
 
 pub async fn service(
 	ctx: CommandContext,
 	service_args: TunnelServiceSubCommands,
 ) -> Result<i32, AnyError> {
-	let manager = create_service_manager(ctx.log.clone());
+	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
 		TunnelServiceSubCommands::Install => {
 			// ensure logged in, otherwise subsequent serving will fail
@@ -103,28 +123,36 @@ pub async fn service(
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths)?;
+			legal::require_consent(&ctx.paths, false)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
-			manager.register(
-				current_exe,
-				&[
-					"--cli-data-dir",
-					ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
-					"tunnel",
-					"service",
-					"internal-run",
-				],
-			)?;
+			manager
+				.register(
+					current_exe,
+					&[
+						"--verbose",
+						"--cli-data-dir",
+						ctx.paths.root().as_os_str().to_string_lossy().as_ref(),
+						"tunnel",
+						"service",
+						"internal-run",
+					],
+				)
+				.await?;
 			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
 		}
 		TunnelServiceSubCommands::Uninstall => {
-			manager.unregister()?;
+			manager.unregister().await?;
+		}
+		TunnelServiceSubCommands::Log => {
+			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
-			manager.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))?;
+			manager
+				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
+				.await?;
 		}
 	}
 
@@ -202,19 +230,30 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 		log, paths, args, ..
 	} = ctx;
 
-	legal::require_consent(&paths)?;
+	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
 	serve_with_csa(paths, log, gateway_args, csa, None).await
+}
+
+fn get_connection_token(tunnel: &ActiveTunnel) -> String {
+	let mut hash = Sha256::new();
+	hash.update(tunnel.id.as_bytes());
+	let result = hash.finalize();
+	base64::encode_config(result, base64::URL_SAFE_NO_PAD)
 }
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
 	log: Logger,
 	gateway_args: TunnelServeArgs,
-	csa: CodeServerArgs,
-	shutdown_rx: Option<oneshot::Receiver<()>>,
+	mut csa: CodeServerArgs,
+	shutdown_rx: Option<mpsc::UnboundedReceiver<ShutdownSignal>>,
 ) -> Result<i32, AnyError> {
+	// Intentionally read before starting the server. If the server updated and
+	// respawn is requested, the old binary will get renamed, and then
+	// current_exe will point to the wrong path.
+	let current_exe = std::env::current_exe().unwrap();
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
@@ -222,16 +261,37 @@ async fn serve_with_csa(
 	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 		dt.start_existing_tunnel(d).await
 	} else {
-		dt.start_new_launcher_tunnel(gateway_args.random_name).await
+		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name)
+			.await
 	}?;
+
+	csa.connection_token = Some(get_connection_token(&tunnel));
 
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
 		tx
 	} else {
-		let (tx, rx) = oneshot::channel();
+		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
+		if let Some(process_id) = gateway_args.parent_process_id {
+			match Pid::from_str(&process_id) {
+				Ok(pid) => {
+					let tx = tx.clone();
+					info!(log, "checking for parent process {}", process_id);
+					tokio::spawn(async move {
+						let mut s = sysinfo::System::new();
+						while s.refresh_process(pid) {
+							sleep(Duration::from_millis(2000)).await;
+						}
+						tx.send(ShutdownSignal::ParentProcessKilled).ok();
+					});
+				}
+				Err(_) => {
+					info!(log, "invalid parent process id: {}", process_id);
+				}
+			}
+		}
 		tokio::spawn(async move {
 			tokio::signal::ctrl_c().await.ok();
-			tx.send(()).ok();
+			tx.send(ShutdownSignal::CtrlC).ok();
 		});
 		rx
 	};
@@ -244,11 +304,8 @@ async fn serve_with_csa(
 		// reuse current args, but specify no-forward since tunnels will
 		// already be running in this process, and we cannot do a login
 		let args = std::env::args().skip(1).collect::<Vec<String>>();
-		let exit = std::process::Command::new(std::env::current_exe().unwrap())
+		let exit = std::process::Command::new(current_exe)
 			.args(args)
-			.stdout(Stdio::inherit())
-			.stderr(Stdio::inherit())
-			.stdin(Stdio::inherit())
 			.spawn()
 			.map_err(|e| wrap(e, "error respawning after update"))?
 			.wait()

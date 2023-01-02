@@ -214,8 +214,8 @@ export class BrowserWindow extends Disposable {
 							this.productService.nameLong
 						);
 						const options = [
-							localize('openExternalDialogButtonClose', "Close tab"),
-							localize('openExternalDialogButtonRetry', "Try again"),
+							localize('openExternalDialogButtonClose.v2', "Close Tab"),
+							localize('openExternalDialogButtonRetry.v2', "Try Again"),
 							localize('openExternalDialogButtonInstall.v3', "Install"),
 							localize('openExternalDialogButtonCancel', "Cancel")
 						];

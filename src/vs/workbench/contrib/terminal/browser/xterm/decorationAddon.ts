@@ -17,8 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
@@ -460,22 +459,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 let successColor: string | Color | undefined;
 let errorColor: string | Color | undefined;
 let defaultColor: string | Color | undefined;
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme) => {
 	successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
 	errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
 	defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
-	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-
-	if (successColor) {
-		collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${successColor.toString()}; } `);
-	}
-	if (errorColor) {
-		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.ErrorColor} { color: ${errorColor.toString()}; } `);
-	}
-	if (defaultColor) {
-		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.DefaultColor} { color: ${defaultColor.toString()};} `);
-	}
-	if (hoverBackgroundColor) {
-		collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.DefaultColor}):hover { background-color: ${hoverBackgroundColor.toString()}; }`);
-	}
 });

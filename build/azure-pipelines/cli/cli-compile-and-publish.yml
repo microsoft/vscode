@@ -8,16 +8,11 @@ parameters:
     default: {}
 
 steps:
-  - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code-tunnel
+  - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
     displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
     workingDirectory: $(Build.SourcesDirectory)/cli
     env:
-      VSCODE_CLI_VERSION: $(VSCODE_CLI_VERSION)
-      VSCODE_CLI_REMOTE_LICENSE_TEXT: $(VSCODE_CLI_REMOTE_LICENSE_TEXT)
-      VSCODE_CLI_REMOTE_LICENSE_PROMPT: $(VSCODE_CLI_REMOTE_LICENSE_PROMPT)
-      VSCODE_CLI_ASSET_NAME: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-      VSCODE_CLI_AI_KEY: $(VSCODE_CLI_AI_KEY)
-      VSCODE_CLI_AI_ENDPOINT: $(VSCODE_CLI_AI_ENDPOINT)
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
       ${{ each pair in parameters.VSCODE_CLI_ENV }}:
         ${{ pair.key }}: ${{ pair.value }}
 
@@ -25,9 +20,9 @@ steps:
     - task: ArchiveFiles@2
       inputs:
         ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
-          rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code-tunnel.exe
+          rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe
         ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
-          rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code-tunnel
+          rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code
         includeRootFolder: false
         archiveType: zip
         archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
@@ -39,7 +34,7 @@ steps:
   - ${{ else }}:
     - task: ArchiveFiles@2
       inputs:
-        rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code-tunnel
+        rootFolderOrFile: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code
         includeRootFolder: false
         archiveType: tar
         tarCompression: gz

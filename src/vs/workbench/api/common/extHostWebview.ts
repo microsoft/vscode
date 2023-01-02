@@ -6,14 +6,15 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import * as objects from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
+import { deserializeWebviewMessage, serializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from 'vs/workbench/common/webview';
+import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from 'vs/workbench/contrib/webview/common/webview';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
@@ -116,7 +117,11 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public set options(newOptions: vscode.WebviewOptions) {
 		this.assertNotDisposed();
-		this.#proxy.$setOptions(this.#handle, serializeWebviewOptions(this.#extension, this.#workspace, newOptions));
+
+		if (!objects.equals(this.#options, newOptions)) {
+			this.#proxy.$setOptions(this.#handle, serializeWebviewOptions(this.#extension, this.#workspace, newOptions));
+		}
+
 		this.#options = newOptions;
 	}
 
@@ -254,7 +259,7 @@ export function serializeWebviewOptions(
 	};
 }
 
-export function reviveOptions(options: extHostProtocol.IWebviewContentOptions): vscode.WebviewOptions {
+function reviveOptions(options: extHostProtocol.IWebviewContentOptions): vscode.WebviewOptions {
 	return {
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,

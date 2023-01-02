@@ -18,6 +18,14 @@ export namespace Iterable {
 		yield element;
 	}
 
+	export function wrap<T>(iterableOrElement: Iterable<T> | T): Iterable<T> {
+		if (is(iterableOrElement)) {
+			return iterableOrElement;
+		} else {
+			return single(iterableOrElement);
+		}
+	}
+
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
 		return iterable || _empty;
 	}
@@ -76,27 +84,12 @@ export namespace Iterable {
 		}
 	}
 
-	export function* concatNested<T>(iterables: Iterable<Iterable<T>>): Iterable<T> {
-		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
-			}
-		}
-	}
-
 	export function reduce<T, R>(iterable: Iterable<T>, reducer: (previousValue: R, currentValue: T) => R, initialValue: R): R {
 		let value = initialValue;
 		for (const element of iterable) {
 			value = reducer(value, element);
 		}
 		return value;
-	}
-
-	export function forEach<T>(iterable: Iterable<T>, fn: (t: T, index: number) => any): void {
-		let index = 0;
-		for (const element of iterable) {
-			fn(element, index++);
-		}
 	}
 
 	/**
@@ -142,34 +135,5 @@ export namespace Iterable {
 		}
 
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
-	}
-
-	/**
-	 * Consumes `atMost` elements from iterable and returns the consumed elements,
-	 * and an iterable for the rest of the elements.
-	 */
-	export function collect<T>(iterable: Iterable<T>): T[] {
-		return consume(iterable)[0];
-	}
-
-	/**
-	 * Returns whether the iterables are the same length and all items are
-	 * equal using the comparator function.
-	 */
-	export function equals<T>(a: Iterable<T>, b: Iterable<T>, comparator = (at: T, bt: T) => at === bt) {
-		const ai = a[Symbol.iterator]();
-		const bi = b[Symbol.iterator]();
-		while (true) {
-			const an = ai.next();
-			const bn = bi.next();
-
-			if (an.done !== bn.done) {
-				return false;
-			} else if (an.done) {
-				return true;
-			} else if (!comparator(an.value, bn.value)) {
-				return false;
-			}
-		}
 	}
 }

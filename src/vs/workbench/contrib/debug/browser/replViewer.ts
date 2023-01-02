@@ -11,12 +11,13 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/path';
 import severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
@@ -164,11 +165,10 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 
 		data.container = container;
 		data.countContainer = dom.append(expression, $('.count-badge-wrapper'));
-		data.count = new CountBadge(data.countContainer);
+		data.count = new CountBadge(data.countContainer, {}, defaultCountBadgeStyles);
 		data.value = dom.append(expression, $('span.value'));
 		data.source = dom.append(expression, $('.source'));
 		data.toDispose = [];
-		data.toDispose.push(attachBadgeStyler(data.count, this.themeService));
 		data.toDispose.push(dom.addDisposableListener(data.source, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -197,7 +197,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		templateData.value.appendChild(result);
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
-		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
+		templateData.source.textContent = element.sourceData ? `${basename(element.sourceData.source.name)}:${element.sourceData.lineNumber}` : '';
 		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}
@@ -232,9 +232,8 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
 		private readonly linkDetector: LinkDetector,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {

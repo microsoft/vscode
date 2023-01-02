@@ -236,7 +236,7 @@ export const serializeSearchResultForEditor =
 			flattenSearchResultSerializations(
 				flatten(
 					searchResult.folderMatches().sort(matchComparer)
-						.map(folderMatch => folderMatch.downstreamFileMatches().sort(matchComparer)
+						.map(folderMatch => folderMatch.allDownstreamFileMatches().sort(matchComparer)
 							.map(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
 
 		return {

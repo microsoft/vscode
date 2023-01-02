@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as lp from 'vs/base/node/languagePacks';
 import product from 'vs/platform/product/common/product';
 
-const metaData = path.join(FileAccess.asFileUri('', require).fsPath, 'nls.metadata.json');
+const metaData = path.join(FileAccess.asFileUri('').fsPath, 'nls.metadata.json');
 const _cache: Map<string, Promise<lp.NLSConfiguration>> = new Map();
 
 function exists(file: string) {

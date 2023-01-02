@@ -189,7 +189,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	}
 
 	async $asBrowserUri(uri: UriComponents): Promise<UriComponents> {
-		return FileAccess.asBrowserUri(URI.revive(uri));
+		return FileAccess.uriToBrowserUri(URI.revive(uri));
 	}
 }
 

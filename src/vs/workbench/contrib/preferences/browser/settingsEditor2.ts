@@ -14,7 +14,7 @@ import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -32,7 +32,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -63,6 +63,7 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { ISettingOverrideClickEvent } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -104,7 +105,6 @@ export class SettingsEditor2 extends EditorPane {
 	private static EDITOR_MIN_WIDTH: number = 500;
 	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
 	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_RESET_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
-	private static MEDIUM_TOTAL_WIDTH: number = 1000;
 
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
@@ -267,7 +267,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
 			if (e.default.length && this.currentSettingsModel) {
-				this.updateElementsByKey([...e.default]);
+				this.updateElementsByKey(new Set(e.default));
 			}
 		}));
 
@@ -318,7 +318,7 @@ export class SettingsEditor2 extends EditorPane {
 		return this._currentFocusContext;
 	}
 
-	createEditor(parent: HTMLElement): void {
+	protected createEditor(parent: HTMLElement): void {
 		parent.setAttribute('tabindex', '-1');
 		this.rootElement = DOM.append(parent, $('.settings-editor', { tabindex: '-1' }));
 
@@ -336,7 +336,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		const model = await this.input.resolve();
+		const model = await this.input.resolve(options);
 		if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
 			return;
 		}
@@ -442,7 +442,6 @@ export class SettingsEditor2 extends EditorPane {
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
 
-		this.rootElement.classList.toggle('mid-width', dimension.width < SettingsEditor2.MEDIUM_TOTAL_WIDTH && dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH);
 		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_TOTAL_WIDTH);
 	}
 
@@ -1079,7 +1078,7 @@ export class SettingsEditor2 extends EditorPane {
 			value = undefined;
 		}
 
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
+		return this.configurationService.updateValue(key, value, overrides, configurationTarget, { handleDirtyFile: 'save' })
 			.then(() => {
 				const query = this.searchWidget.getValue();
 				if (query.includes(`@${MODIFIED_SETTING_TAG}`)) {
@@ -1190,11 +1189,11 @@ export class SettingsEditor2 extends EditorPane {
 		scheduledRefreshTracker.onDidBlur(() => {
 			scheduledRefreshTracker.dispose();
 			this.scheduledRefreshes.delete(key);
-			this.onConfigUpdate([key]);
+			this.onConfigUpdate(new Set([key]));
 		});
 	}
 
-	private async onConfigUpdate(keys?: string[], forceRefresh = false, schemaChange = false): Promise<void> {
+	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -1260,8 +1259,8 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private updateElementsByKey(keys: string[]): void {
-		if (keys.length) {
+	private updateElementsByKey(keys: ReadonlySet<string>): void {
+		if (keys.size) {
 			if (this.searchResultModel) {
 				keys.forEach(key => this.searchResultModel!.updateElementsByName(key));
 			}
@@ -1634,21 +1633,21 @@ export class SettingsEditor2 extends EditorPane {
 				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
-					type SettingsSearchErrorEvent = {
-						'message': string;
-					};
-					type SettingsSearchErrorClassification = {
-						owner: 'rzhao271';
-						comment: 'Helps understand when settings search errors out';
-						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					};
+					// type SettingsSearchErrorEvent = {
+					// 	'message': string;
+					// };
+					// type SettingsSearchErrorClassification = {
+					// 	owner: 'rzhao271';
+					// 	comment: 'Helps understand when settings search errors out';
+					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
+					// };
 
-					const message = getErrorMessage(err).trim();
-					if (message && message !== 'Error') {
-						// "Error" = any generic network error
-						this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-						this.logService.info('Setting search error: ' + message);
-					}
+					// const message = getErrorMessage(err).trim();
+					// if (message && message !== 'Error') {
+					// 	// "Error" = any generic network error
+					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
+					// 	this.logService.info('Setting search error: ' + message);
+					// }
 					return null;
 				}
 			});
@@ -1675,7 +1674,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
 		}
 		this.splitView.style({
-			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder) ?? Color.transparent : Color.transparent
+			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
 		});
 	}
 
@@ -1705,15 +1704,13 @@ class SyncControls extends Disposable {
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
-		@IThemeService themeService: IThemeService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService
 	) {
 		super();
 
 		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
 		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
-		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true }));
-		this._register(attachButtonStyler(this.turnOnSyncButton, themeService));
+		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
 		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
@@ -1747,7 +1744,7 @@ class SyncControls extends Disposable {
 		const last = this.userDataSyncService.lastSyncTime;
 		let label: string;
 		if (typeof last === 'number') {
-			const d = fromNow(last, true);
+			const d = fromNow(last, true, undefined, true);
 			label = localize('lastSyncedLabel', "Last synced: {0}", d);
 		} else {
 			label = '';

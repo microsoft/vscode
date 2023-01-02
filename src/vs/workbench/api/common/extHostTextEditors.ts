@@ -20,14 +20,14 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
 	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
+	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
 	readonly onDidChangeTextEditorVisibleRanges: Event<vscode.TextEditorVisibleRangesChangeEvent> = this._onDidChangeTextEditorVisibleRanges.event;
 	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
-	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	readonly onDidChangeVisibleTextEditors: Event<readonly vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
 	private readonly _proxy: MainThreadTextEditorsShape;
 

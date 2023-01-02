@@ -5,23 +5,22 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService, WorkspaceIdentifier, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {
-	getOrSetProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profileToSet?: IUserDataProfile): IUserDataProfile;
-	setProfileForWorkspaceSync(workspaceIdentifier: WorkspaceIdentifier, profileToSet: IUserDataProfile): void;
-	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined;
-	unsetWorkspace(workspaceIdentifier: WorkspaceIdentifier, transient?: boolean): void;
+	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined;
+	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void;
+	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[];
 	readonly onWillCreateProfile: Event<WillCreateProfileEvent>;
 	readonly onWillRemoveProfile: Event<WillRemoveProfileEvent>;
 }
@@ -31,7 +30,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	constructor(
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 	) {
@@ -47,18 +46,12 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 	}
 
-	checkAndCreateProfileFromCli(args: NativeParsedArgs): Promise<IUserDataProfile> | undefined {
-		if (!this.isEnabled()) {
-			return undefined;
+	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[] {
+		const emptyWindows: IEmptyWorkspaceIdentifier[] = [];
+		for (const id of this.profilesObject.emptyWindows.keys()) {
+			emptyWindows.push({ id });
 		}
-		if (args.profile) {
-			const profile = this.profiles.find(p => p.name === args.profile);
-			return profile ? Promise.resolve(profile) : this.createNamedProfile(args.profile);
-		}
-		if (args['profile-temp']) {
-			return this.createTransientProfile();
-		}
-		return undefined;
+		return emptyWindows;
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
@@ -70,7 +63,7 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
-		if (storedProfileAssociations.emptyWindow || storedProfileAssociations.workspaces) {
+		if (storedProfileAssociations.emptyWindows || storedProfileAssociations.workspaces) {
 			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
 		} else {
 			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY);

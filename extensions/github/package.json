@@ -13,7 +13,9 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onProfile",
+    "onProfile:github"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -27,7 +29,8 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions"
+    "contribEditSessions",
+    "profileContentHandlers"
   ],
   "contributes": {
     "commands": [
@@ -52,7 +55,8 @@
     "continueEditSession": [
       {
         "command": "github.openOnVscodeDev",
-        "when": "github.hasGitHubRepo"
+        "when": "github.hasGitHubRepo",
+        "qualifiedName": "Continue Working in VS Code for the Web"
       }
     ],
     "menus": {
@@ -115,12 +119,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount == 0"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount == 0"
       }
     ],
     "markdown.previewStyles": [
@@ -134,8 +138,7 @@
   },
   "dependencies": {
     "@octokit/rest": "19.0.4",
-    "tunnel": "^0.0.6",
-    "vscode-nls": "^5.2.0"
+    "tunnel": "^0.0.6"
   },
   "devDependencies": {
     "@types/node": "16.x"

@@ -96,7 +96,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
-
+		const wordBreak = config.options.get(EditorOption.wordBreak);
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const model = createTextModel([
@@ -117,7 +117,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model.getOptions().tabSize,
 			'simple',
 			wrappingInfo.wrappingColumn,
-			wrappingIndent
+			wrappingIndent,
+			wordBreak
 		);
 
 		callback(model, linesCollection);
@@ -949,6 +950,7 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
+		const wordBreak = configuration.options.get(EditorOption.wordBreak);
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
@@ -961,7 +963,8 @@ suite('SplitLinesCollection', () => {
 			model.getOptions().tabSize,
 			'simple',
 			wrappingInfo.wrappingColumn,
-			wrappingIndent
+			wrappingIndent,
+			wordBreak
 		);
 
 		callback(linesCollection);

@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/preferences';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -935,7 +935,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: { value: nls.localize('showDefaultKeybindings', "Show Default Keybindings"), original: 'Show Default Keybindings' },
+					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keybindings' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -948,7 +948,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.search('@source:default');
+					editorPane.search('@source:system');
 				}
 			}
 		});
@@ -1263,7 +1263,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
-registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);
+registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);
 
 // Preferences menu
 

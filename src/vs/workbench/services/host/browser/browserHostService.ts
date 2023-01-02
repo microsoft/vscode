@@ -13,7 +13,7 @@ import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, i
 import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -259,7 +259,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Support mergeMode
 				if (options?.mergeMode && fileOpenables.length === 4) {
-					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService));
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
 					if (editors.length !== 4 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1]) || !isResourceEditorInput(editors[2]) || !isResourceEditorInput(editors[3])) {
 						return; // invalid resources
 					}
@@ -289,7 +289,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Support diffMode
 				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService));
+					const editors = coalesce(await pathsToEditors(fileOpenables, this.fileService, this.logService));
 					if (editors.length !== 2 || !isResourceEditorInput(editors[0]) || !isResourceEditorInput(editors[1])) {
 						return; // invalid resources
 					}
@@ -334,7 +334,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService)), undefined, { validateTrust: true });
+							editorService.openEditors(coalesce(await pathsToEditors(openables, this.fileService, this.logService)), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window
@@ -399,11 +399,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);

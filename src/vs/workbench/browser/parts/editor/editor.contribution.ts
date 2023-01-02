@@ -54,7 +54,7 @@ import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -67,6 +67,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
+import { AccessibilityStatus } from 'vs/workbench/browser/parts/editor/accessibilityStatus';
 
 //#region Editor Registrations
 
@@ -125,11 +126,11 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AccessibilityStatus, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, LifecyclePhase.Ready);
 
-registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu);
-
+registerEditorContribution(FloatingClickMenu.ID, FloatingClickMenu, EditorContributionInstantiation.AfterFirstRender);
 //#endregion
 
 //#region Quick Access
@@ -304,13 +305,13 @@ registerEditorCommands();
 // macOS: Touchbar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/back-tb.png', require) } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/back-tb.png') } },
 		group: 'navigation',
 		order: 0
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/forward-tb.png', require) } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/forward-tb.png') } },
 		group: 'navigation',
 		order: 1
 	});
@@ -777,14 +778,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 		}
 	},
 	order: 9
-});
-
-// Features menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '2_appearance',
-	title: localize({ key: 'miEditorFeatures', comment: ['&& denotes a mnemonic'] }, "Editor &&Features"),
-	submenu: MenuId.MenubarEditorFeaturesMenu,
-	order: 3
 });
 
 // Main Menu Bar Contributions:

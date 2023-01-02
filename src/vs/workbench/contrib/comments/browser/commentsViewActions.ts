@@ -25,7 +25,7 @@ export interface CommentsFiltersChangeEvent {
 	showUnresolved?: boolean;
 }
 
-export interface CommentsFiltersOptions {
+interface CommentsFiltersOptions {
 	showResolved: boolean;
 	showUnresolved: boolean;
 }

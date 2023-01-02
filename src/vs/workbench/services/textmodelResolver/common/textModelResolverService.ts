@@ -33,7 +33,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		super();
 	}
 
-	createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
+	protected createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
 		return this.doCreateReferencedObject(key);
 	}
 
@@ -100,7 +100,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		throw new Error(`Unable to resolve resource ${key}`);
 	}
 
-	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
+	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
 		// untitled and inMemory are bound to a different lifecycle
 		const resource = URI.parse(key);

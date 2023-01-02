@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { truncatedArrayOfString } from './textHelper';
+import { insertOutput } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
@@ -26,6 +26,11 @@ interface JavaScriptRenderingHook {
 	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
 	 */
 	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+}
+
+interface RenderOptions {
+	readonly lineLimit: number;
+	readonly outputScrolling: boolean;
 }
 
 function clearContainer(container: HTMLElement) {
@@ -120,7 +125,7 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
@@ -138,7 +143,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 		stack.classList.add('traceback');
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
-		truncatedArrayOfString(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, element);
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
 		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
@@ -153,7 +158,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 	container.classList.add('error');
 }
 
-function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	const outputContainer = container.parentElement;
 	if (!outputContainer) {
 		// should never happen
@@ -167,10 +172,18 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 		const outputElement = (prev.firstChild as HTMLElement | null);
 		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
 			// same stream
-			const text = outputInfo.text();
 
-			const element = document.createElement('span');
-			truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+			// find child with same id
+			const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+			if (existing) {
+				clearContainer(existing);
+			}
+
+			const text = outputInfo.text();
+			const element = existing ?? document.createElement('span');
+			element.classList.add('output-stream');
+			element.setAttribute('output-item-id', outputInfo.id);
+			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -178,9 +191,10 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const element = document.createElement('span');
 	element.classList.add('output-stream');
+	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
@@ -191,12 +205,12 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	}
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
 	container.appendChild(contentNode);
 }
 
@@ -205,26 +219,35 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const htmlHooks = new Set<HtmlRenderingHook>();
 	const jsHooks = new Set<JavaScriptRenderingHook>();
 
-	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions });
 
 	const style = document.createElement('style');
 	style.textContent = `
 	.output-plaintext,
 	.output-stream,
 	.traceback {
+		display: inline-block;
+		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
-		white-space: pre-wrap;
-		word-wrap: break-word;
-
 		font-size: var(--notebook-cell-output-font-size);
 		user-select: text;
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
 	}
-	span.output-stream {
-		display: inline-block;
+	output-plaintext,
+	.traceback {
+		word-wrap: break-word;
+	}
+	.output > span.scrollable {
+		overflow-y: scroll;
+		max-height: var(--notebook-cell-output-max-height);
+		border: var(--vscode-editorWidget-border);
+		border-style: solid;
+		padding-left: 4px;
+		box-sizing: border-box;
+		border-width: 1px;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,

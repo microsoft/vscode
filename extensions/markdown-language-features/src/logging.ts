@@ -30,54 +30,54 @@ export interface ILogger {
 }
 
 export class VsCodeOutputLogger extends Disposable implements ILogger {
-	private trace?: Trace;
+	private _trace?: Trace;
 
-	private _outputChannel?: vscode.OutputChannel;
+	private _outputChannelValue?: vscode.OutputChannel;
 
-	private get outputChannel() {
-		this._outputChannel ??= this._register(vscode.window.createOutputChannel('Markdown'));
-		return this._outputChannel;
+	private get _outputChannel() {
+		this._outputChannelValue ??= this._register(vscode.window.createOutputChannel('Markdown'));
+		return this._outputChannelValue;
 	}
 
 	constructor() {
 		super();
 
 		this._register(vscode.workspace.onDidChangeConfiguration(() => {
-			this.updateConfiguration();
+			this._updateConfiguration();
 		}));
 
-		this.updateConfiguration();
+		this._updateConfiguration();
 	}
 
 	public verbose(title: string, message: string, data?: any): void {
-		if (this.trace === Trace.Verbose) {
-			this.appendLine(`[Verbose ${this.now()}] ${title}: ${message}`);
+		if (this._trace === Trace.Verbose) {
+			this._appendLine(`[Verbose ${this._now()}] ${title}: ${message}`);
 			if (data) {
-				this.appendLine(VsCodeOutputLogger.data2String(data));
+				this._appendLine(VsCodeOutputLogger._data2String(data));
 			}
 		}
 	}
 
-	private now(): string {
+	private _now(): string {
 		const now = new Date();
 		return String(now.getUTCHours()).padStart(2, '0')
 			+ ':' + String(now.getMinutes()).padStart(2, '0')
 			+ ':' + String(now.getUTCSeconds()).padStart(2, '0') + '.' + String(now.getMilliseconds()).padStart(3, '0');
 	}
 
-	private updateConfiguration(): void {
-		this.trace = this.readTrace();
+	private _updateConfiguration(): void {
+		this._trace = this._readTrace();
 	}
 
-	private appendLine(value: string): void {
-		this.outputChannel.appendLine(value);
+	private _appendLine(value: string): void {
+		this._outputChannel.appendLine(value);
 	}
 
-	private readTrace(): Trace {
+	private _readTrace(): Trace {
 		return Trace.fromString(vscode.workspace.getConfiguration().get<string>('markdown.trace.extension', 'off'));
 	}
 
-	private static data2String(data: any): string {
+	private static _data2String(data: any): string {
 		if (data instanceof Error) {
 			if (typeof data.stack === 'string') {
 				return data.stack;

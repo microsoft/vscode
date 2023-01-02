@@ -218,9 +218,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _taskRunningState: IContextKey<boolean>;
 
+	private _inProgressTasks: Set<string> = new Set();
+
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
-	protected readonly _onDidReconnectToTerminals: Emitter<void> = new Emitter();
 	private _waitForSupportedExecutions: Promise<void>;
 	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
@@ -374,10 +375,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 		this._getTaskSystem();
-		this._waitForSupportedExecutions.then(() => {
-			this.getWorkspaceTasks().then(async () => {
-				this._tasksReconnected = await this._reconnectTasks();
-			});
+		this.getWorkspaceTasks().then(async () => {
+			this._tasksReconnected = await this._reconnectTasks();
 		});
 	}
 
@@ -401,10 +400,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
-	}
-
-	public get onDidReconnectToTerminals(): Event<void> {
-		return this._onDidReconnectToTerminals.event;
 	}
 
 	public get supportsMultipleTaskExecutions(): boolean {
@@ -1836,6 +1831,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
 		let taskToRun: Task = task;
+		const qualifiedLabel = task.getQualifiedLabel();
+		if (this._inProgressTasks.has(qualifiedLabel)) {
+			this._logService.info('Prevented duplicate task from running', qualifiedLabel);
+			return { exitCode: 0 };
+		}
+		this._inProgressTasks.add(qualifiedLabel);
 		if (await this._saveBeforeRun()) {
 			await this._configurationService.reloadConfiguration();
 			await this._updateWorkspaceTasks();
@@ -1850,8 +1851,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await ProblemMatcherRegistry.onReady();
 		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
 		if (executeResult) {
+			this._inProgressTasks.delete(qualifiedLabel);
 			return this._handleExecuteResult(executeResult, runSource);
 		}
+		this._inProgressTasks.delete(qualifiedLabel);
 		return { exitCode: 0 };
 	}
 
@@ -1911,6 +1914,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return { success: true, task: undefined };
 		}
+		this._inProgressTasks.delete(task.getQualifiedLabel());
 		return this._taskSystem.terminate(task);
 	}
 
@@ -2360,6 +2364,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const taskSystemInfo: ITaskSystemInfo | undefined = workspaceFolder ? this._getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		const problemReporter = new ProblemReporter(this._outputChannel);
+		if (!taskSystemInfo) {
+			problemReporter.fatal(nls.localize('TaskSystem.workspaceFolderError', 'Workspace folder was undefined'));
+			return true;
+		}
 		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2822,8 +2830,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							return true;
 						}
 					}
-				} else if (type && t.type === type) {
+				} else if (type && t.type === type || (CustomTask.is(t) && t.customizes()?.type === type)) {
 					return true;
+
 				}
 				return false;
 			});
@@ -2994,9 +3003,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
 
 				taskGroupTasks = await this._findWorkspaceTasks((task) => {
-					const taskGroup = task.configurationProperties.group;
-					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
-						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
+					const currentTaskGroup = task.configurationProperties.group;
+					if (currentTaskGroup && typeof currentTaskGroup !== 'string' && typeof currentTaskGroup.isDefault === 'string') {
+						return (currentTaskGroup._id === taskGroup._id && glob.match(currentTaskGroup.isDefault, relativePath));
 					}
 
 					return false;

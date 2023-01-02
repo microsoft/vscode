@@ -12,7 +12,7 @@ import { Queue, Barrier, runWhenIdle, Promises } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
-import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from 'vs/platform/configuration/common/configuration';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -330,8 +330,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	updateValue(key: string, value: any): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
-	async updateValue(key: string, value: any, arg3?: any, arg4?: any, donotNotifyError?: any): Promise<void> {
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
+	async updateValue(key: string, value: any, arg3?: any, arg4?: any, options?: any): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 		const target: ConfigurationTarget | undefined = overrides ? arg4 : arg3;
@@ -355,7 +355,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 		}
 
-		await Promises.settled(targets.map(target => this.writeConfigurationValue(key, value, target, overrides, donotNotifyError)));
+		await Promises.settled(targets.map(target => this.writeConfigurationValue(key, value, target, overrides, options)));
 	}
 
 	async reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
@@ -782,6 +782,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private onApplicationConfigurationChanged(applicationConfiguration: ConfigurationModel): void {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
 		const change = this._configuration.compareAndUpdateApplicationConfiguration(applicationConfiguration);
+		const configuraitonProperties = this.configurationRegistry.getConfigurationProperties();
+		change.keys = change.keys.filter(key => configuraitonProperties[key]?.scope === ConfigurationScope.APPLICATION);
 		this.triggerConfigurationChange(change, previous, ConfigurationTarget.USER);
 	}
 
@@ -971,7 +973,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return validWorkspaceFolders;
 	}
 
-	private async writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, donotNotifyError: boolean): Promise<void> {
+	private async writeConfigurationValue(key: string, value: any, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options?: IConfigurationUpdateOverrides): Promise<void> {
 		if (!this.instantiationService) {
 			throw new Error('Cannot write configuration because the configuration service is not yet ready to accept writes.');
 		}
@@ -998,7 +1000,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
 		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing, (await this.remoteAgentService.getEnvironment())?.settingsPath ?? null);
-		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, donotNotifyError });
+		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
 		switch (editableConfigurationTarget) {
 			case EditableConfigurationTarget.USER_LOCAL:
 				if (this.applicationConfiguration && this.configurationRegistry.getConfigurationProperties()[key].scope === ConfigurationScope.APPLICATION) {
@@ -1109,9 +1111,9 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		super();
 		this.registerConfigurationSchemas();
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		this._register(configurationRegistry.onDidUpdateConfiguration(e => this.registerConfigurationSchemas()));
-		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => this.registerConfigurationSchemas()));
+
+		const anyEvent = Event.any(configurationRegistry.onDidUpdateConfiguration, configurationRegistry.onDidSchemaChange, workspaceTrustManagementService.onDidChangeTrust);
+		this._register(Event.debounce(anyEvent, () => undefined, 0)(() => this.registerConfigurationSchemas()));
 	}
 
 	private registerConfigurationSchemas(): void {
@@ -1127,11 +1129,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		const userSettingsSchema: IJSONSchema = this.environmentService.remoteAuthority ?
 			{
-				properties: {
-					...applicationSettings.properties,
-					...windowSettings.properties,
-					...resourceSettings.properties
-				},
+				properties: Object.assign({},
+					applicationSettings.properties,
+					windowSettings.properties,
+					resourceSettings.properties
+				),
 				patternProperties: allSettings.patternProperties,
 				additionalProperties: true,
 				allowTrailingCommas: true,
@@ -1140,12 +1142,12 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			: allSettingsSchema;
 
 		const profileSettingsSchema: IJSONSchema = {
-			properties: {
-				...machineSettings.properties,
-				...machineOverridableSettings.properties,
-				...windowSettings.properties,
-				...resourceSettings.properties
-			},
+			properties: Object.assign({},
+				machineSettings.properties,
+				machineOverridableSettings.properties,
+				windowSettings.properties,
+				resourceSettings.properties
+			),
 			patternProperties: allSettings.patternProperties,
 			additionalProperties: true,
 			allowTrailingCommas: true,
@@ -1153,12 +1155,12 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		};
 
 		const machineSettingsSchema: IJSONSchema = {
-			properties: {
-				...machineSettings.properties,
-				...machineOverridableSettings.properties,
-				...windowSettings.properties,
-				...resourceSettings.properties
-			},
+			properties: Object.assign({},
+				machineSettings.properties,
+				machineOverridableSettings.properties,
+				windowSettings.properties,
+				resourceSettings.properties
+			),
 			patternProperties: allSettings.patternProperties,
 			additionalProperties: true,
 			allowTrailingCommas: true,
@@ -1166,11 +1168,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		};
 
 		const workspaceSettingsSchema: IJSONSchema = {
-			properties: {
-				...this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
-				...this.checkAndFilterPropertiesRequiringTrust(windowSettings.properties),
-				...this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
-			},
+			properties: Object.assign({},
+				this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
+				this.checkAndFilterPropertiesRequiringTrust(windowSettings.properties),
+				this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
+			),
 			patternProperties: allSettings.patternProperties,
 			additionalProperties: true,
 			allowTrailingCommas: true,
@@ -1179,17 +1181,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		jsonRegistry.registerSchema(defaultSettingsSchemaId, {
 			properties: Object.keys(allSettings.properties).reduce<IJSONSchemaMap>((result, key) => {
-				result[key] = {
-					...allSettings.properties[key],
-					deprecationMessage: undefined
-				};
+				result[key] = Object.assign({ deprecationMessage: undefined }, allSettings.properties[key]);
 				return result;
 			}, {}),
 			patternProperties: Object.keys(allSettings.patternProperties).reduce<IJSONSchemaMap>((result, key) => {
-				result[key] = {
-					...allSettings.patternProperties[key],
-					deprecationMessage: undefined
-				};
+				result[key] = Object.assign({ deprecationMessage: undefined }, allSettings.patternProperties[key]);
 				return result;
 			}, {}),
 			additionalProperties: true,
@@ -1202,10 +1198,10 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		if (WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState()) {
 			const folderSettingsSchema: IJSONSchema = {
-				properties: {
-					...this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
-					...this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
-				},
+				properties: Object.assign({},
+					this.checkAndFilterPropertiesRequiringTrust(machineOverridableSettings.properties),
+					this.checkAndFilterPropertiesRequiringTrust(resourceSettings.properties)
+				),
 				patternProperties: allSettings.patternProperties,
 				additionalProperties: true,
 				allowTrailingCommas: true,
@@ -1221,11 +1217,11 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		jsonRegistry.registerSchema(configurationDefaultsSchemaId, {
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
-			properties: {
-				...machineOverridableSettings.properties,
-				...windowSettings.properties,
-				...resourceSettings.properties
-			},
+			properties: Object.assign({},
+				machineOverridableSettings.properties,
+				windowSettings.properties,
+				resourceSettings.properties
+			),
 			patternProperties: {
 				[OVERRIDE_PROPERTY_PATTERN]: {
 					type: 'object',
@@ -1275,7 +1271,7 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties)));
 	}
 
-	private async processExperimentalSettings(properties: string[]): Promise<void> {
+	private async processExperimentalSettings(properties: Iterable<string>): Promise<void> {
 		const overrides: IStringDictionary<any> = {};
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {

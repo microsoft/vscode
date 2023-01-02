@@ -9,7 +9,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
 import { Event } from 'vs/base/common/event';
-import { registerEditorContribution, EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction2, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -172,7 +172,7 @@ class CallHierarchyController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(CallHierarchyController.Id, CallHierarchyController);
+registerEditorContribution(CallHierarchyController.Id, CallHierarchyController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
 registerAction2(class extends EditorAction2 {
 
@@ -284,13 +284,11 @@ registerAction2(class extends EditorAction2 {
 			id: 'editor.closeCallHierarchy',
 			title: localize('close', 'Close'),
 			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				_ctxCallHierarchyVisible,
-				ContextKeyExpr.not('config.editor.stablePeek')
-			),
+			precondition: _ctxCallHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.not('config.editor.stablePeek')
 			},
 			menu: {
 				id: CallHierarchyTreePeekWidget.TitleMenu,

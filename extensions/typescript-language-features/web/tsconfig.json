@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "../../out",
+		"module": "nodenext",
+		"moduleDetection": "legacy",
+		"experimentalDecorators": true,
+		"types": [
+			"node"
+		]
+	},
+	"files": [
+		"webServer.ts"
+	]
+}

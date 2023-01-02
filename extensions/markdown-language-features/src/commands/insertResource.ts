@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
+import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
-import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/dropIntoEditor';
+import { createUriListSnippet, getParentDocumentUri, imageFileExtensions } from '../languageFeatures/copyFiles/dropIntoEditor';
 import { coalesce } from '../util/arrays';
-
-const localize = nls.loadMessageBundle();
+import { Schemes } from '../util/schemes';
 
 
 export class InsertLinkFromWorkspace implements Command {
@@ -23,11 +22,11 @@ export class InsertLinkFromWorkspace implements Command {
 
 		resources ??= await vscode.window.showOpenDialog({
 			canSelectFiles: true,
-			canSelectFolders: true,
+			canSelectFolders: false,
 			canSelectMany: true,
-			openLabel: localize('insertLink.openLabel', "Insert link"),
-			title: localize('insertLink.title', "Insert link"),
-			defaultUri: getParentDocumentUri(activeEditor.document),
+			openLabel: vscode.l10n.t("Insert link"),
+			title: vscode.l10n.t("Insert link"),
+			defaultUri: getDefaultUri(activeEditor.document),
 		});
 
 		return insertLink(activeEditor, resources ?? [], false);
@@ -48,15 +47,23 @@ export class InsertImageFromWorkspace implements Command {
 			canSelectFolders: false,
 			canSelectMany: true,
 			filters: {
-				[localize('insertImage.imagesLabel', "Images")]: Array.from(imageFileExtensions)
+				[vscode.l10n.t("Images")]: Array.from(imageFileExtensions)
 			},
-			openLabel: localize('insertImage.openLabel', "Insert image"),
-			title: localize('insertImage.title', "Insert image"),
-			defaultUri: getParentDocumentUri(activeEditor.document),
+			openLabel: vscode.l10n.t("Insert image"),
+			title: vscode.l10n.t("Insert image"),
+			defaultUri: getDefaultUri(activeEditor.document),
 		});
 
 		return insertLink(activeEditor, resources ?? [], true);
 	}
+}
+
+function getDefaultUri(document: vscode.TextDocument) {
+	const docUri = getParentDocumentUri(document);
+	if (docUri.scheme === Schemes.untitled) {
+		return vscode.workspace.workspaceFolders?.[0]?.uri;
+	}
+	return Utils.dirname(docUri);
 }
 
 async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsImage: boolean): Promise<void> {
@@ -75,6 +82,7 @@ function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vs
 			insertAsImage: insertAsImage,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,
+			separator: insertAsImage ? '\n' : ' ',
 		});
 
 		return snippet ? new vscode.SnippetTextEdit(selection, snippet) : undefined;
