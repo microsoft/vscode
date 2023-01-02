@@ -156,9 +156,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 
 	private _refreshOpenInTerminalMenuItemTitle(): void {
 		if (this.isWindowsTerminal()) {
-			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in Windows Terminal");
-		} else {
-			this._openInIntegratedTerminalMenuItem.command.title = nls.localize('scopedConsoleAction', "Open in Integrated Terminal");
+			this._openInTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in External Terminal");
 		}
 	}
 }
