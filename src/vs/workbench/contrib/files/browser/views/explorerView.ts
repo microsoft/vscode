@@ -180,7 +180,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
 
 	private horizontalScrolling: boolean | undefined;
-	private scrollByPage: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
@@ -350,12 +349,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.tree.updateOptions({ horizontalScrolling: false });
 			}
 
-			this.scrollByPage = this.tree.options.scrollByPage;
-
-			if (this.scrollByPage) {
-				this.tree.updateOptions({ scrollByPage: false });
-			}
-
 			await this.tree.expand(stat.parent!);
 		} else {
 			if (this.horizontalScrolling !== undefined) {
@@ -363,12 +356,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 
 			this.horizontalScrolling = undefined;
-
-			if (this.scrollByPage !== undefined) {
-				this.tree.updateOptions({ scrollByPage: this.scrollByPage });
-			}
-
-			this.scrollByPage = undefined;
 			this.treeContainer.classList.remove('highlight');
 		}
 

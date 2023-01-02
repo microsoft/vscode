@@ -23,6 +23,7 @@ import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 interface IItem<T> {
 	readonly id: string;
@@ -402,16 +403,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.horizontalScrolling = options.horizontalScrolling;
 		}
 
+		let scrollableOptions: ScrollableElementChangeOptions | undefined;
+
 		if (options.scrollByPage !== undefined) {
-			this.scrollableElement.updateOptions({ scrollByPage: options.scrollByPage });
+			scrollableOptions = { ...(scrollableOptions ?? {}), scrollByPage: options.scrollByPage };
 		}
 
 		if (options.mouseWheelScrollSensitivity !== undefined) {
-			this.scrollableElement.updateOptions({ mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity });
+			scrollableOptions = { ...(scrollableOptions ?? {}), mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity };
 		}
 
 		if (options.fastScrollSensitivity !== undefined) {
-			this.scrollableElement.updateOptions({ fastScrollSensitivity: options.fastScrollSensitivity });
+			scrollableOptions = { ...(scrollableOptions ?? {}), fastScrollSensitivity: options.fastScrollSensitivity };
+		}
+
+		if (scrollableOptions) {
+			this.scrollableElement.updateOptions(scrollableOptions);
 		}
 	}
 
