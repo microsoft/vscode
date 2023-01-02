@@ -140,7 +140,6 @@ suite('FoldingRanges', () => {
 			foldRange(22, 80, true, FoldSource.provider, 'D2', 'D2 ct'),		// should merge with D1
 		];
 		const result = FoldingRegions.sanitizeAndMerge(regionSet1, regionSet2, null);
-		console.log(JSON.stringify(result, null, '\t'));
 		assert.strictEqual(result.length, 3, 'result length1');
 		assertEqualRanges(result[0], foldRange(1, 100, false, FoldSource.provider, 'A', 'A ct'), 'A1');
 		assertEqualRanges(result[1], foldRange(20, 80, true, FoldSource.provider, 'C1', 'C1 ct'), 'C1');
