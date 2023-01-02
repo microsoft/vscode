@@ -8,10 +8,7 @@ import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { raceCancellation } from 'vs/base/common/async';
@@ -23,6 +20,8 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -40,7 +39,8 @@ export class MainThreadFileSystemEventService {
 		@IDialogService dialogService: IDialogService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@IEnvironmentService envService: IEnvironmentService
+		@IEnvironmentService envService: IEnvironmentService,
+		@IUriIdentityService uriIdentService: IUriIdentityService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -86,7 +86,7 @@ export class MainThreadFileSystemEventService {
 				}
 
 				const needsConfirmation = data.edit.edits.some(edit => edit.metadata?.needsConfirmation);
-				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
+				let showPreview = storageService.getBoolean(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 
 				if (envService.extensionTestsLocationURI) {
 					// don't show dialog in tests
@@ -142,7 +142,7 @@ export class MainThreadFileSystemEventService {
 						}
 						showPreview = answer.choice === 1;
 						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
-							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.GLOBAL, StorageTarget.USER);
+							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}
 				}
@@ -150,7 +150,7 @@ export class MainThreadFileSystemEventService {
 				logService.info('[onWill-handler] applying additional workspace edit from extensions', data.extensionNames);
 
 				await bulkEditService.apply(
-					reviveWorkspaceEditDto2(data.edit),
+					reviveWorkspaceEditDto(data.edit, uriIdentService),
 					{ undoRedoGroupId: undoInfo?.undoRedoGroupId, showPreview }
 				);
 			}
@@ -187,23 +187,14 @@ registerAction2(class ResetMemento extends Action2 {
 	constructor() {
 		super({
 			id: 'files.participants.resetChoice',
-			title: localize('label', "Reset choice for 'File operation needs preview'"),
+			title: {
+				value: localize('label', "Reset choice for 'File operation needs preview'"),
+				original: `Reset choice for 'File operation needs preview'`
+			},
 			f1: true
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
-	}
-});
-
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'files',
-	properties: {
-		'files.participants.timeout': {
-			type: 'number',
-			default: 60000,
-			markdownDescription: localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
-		}
+		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.PROFILE);
 	}
 });

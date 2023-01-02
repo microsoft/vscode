@@ -380,7 +380,7 @@ export default function createSuite(params: Params) {
 
 		await service.write(resource, '', { encoding: UTF8_with_bom });
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 	});
 
@@ -389,7 +389,7 @@ export default function createSuite(params: Params) {
 
 		await service.write(resource, createTextModelSnapshot(''), { encoding: UTF8_with_bom });
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 	});
 

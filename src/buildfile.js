@@ -32,16 +32,16 @@ exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
-		prepend: ['vs/loader.js', 'vs/nls.js'],
-		append: ['vs/base/worker/workerMain'],
+		exclude: ['vs/nls'],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-	},
-	{
-		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
-		exclude: ['vs/base/common/worker/simpleWorker']
+		exclude: ['vs/nls'],
 	}
 ];
 
@@ -50,6 +50,7 @@ exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/cont
 exports.workerSharedProcess = [createEditorWorkerModuleDescription('vs/platform/sharedProcess/electron-browser/sharedProcessWorkerMain')];
 exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
 exports.workerLocalFileSearch = [createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch')];
+exports.workerProfileAnalysis = [createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker')];
 
 exports.workbenchDesktop = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
@@ -76,7 +77,6 @@ exports.code = [
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 	createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/platform/driver/node/driver'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

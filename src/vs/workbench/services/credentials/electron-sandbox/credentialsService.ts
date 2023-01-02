@@ -6,4 +6,4 @@
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-registerMainProcessRemoteService(ICredentialsService, 'credentials', { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(ICredentialsService, 'credentials');

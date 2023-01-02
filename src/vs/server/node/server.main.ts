@@ -21,13 +21,14 @@ perf.mark('code/server/codeLoaded');
 
 const errorReporter: ErrorReporter = {
 	onMultipleValues: (id: string, usedValue: string) => {
-		console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
+		console.error(`Option '${id}' can only be defined once. Using value ${usedValue}.`);
 	},
-
+	onEmptyValue: (id) => {
+		console.error(`Ignoring option '${id}': Value must not be empty.`);
+	},
 	onUnknownOption: (id: string) => {
-		console.error(`Ignoring option ${id}: not supported for server.`);
+		console.error(`Ignoring option '${id}': not supported for server.`);
 	},
-
 	onDeprecatedOption: (deprecatedOption: string, message) => {
 		console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
 	}
@@ -42,7 +43,7 @@ const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
 const LOCAL_HISTORY_HOME = join(APP_SETTINGS_HOME, 'History');
 const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, 'Machine');
 args['user-data-dir'] = USER_DATA_PATH;
-const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
+const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');

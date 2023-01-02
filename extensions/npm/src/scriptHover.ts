@@ -6,18 +6,16 @@
 import { dirname } from 'path';
 import {
 	CancellationToken, commands, ExtensionContext,
-	Hover, HoverProvider, MarkdownString, Position, ProviderResult,
+	Hover, HoverProvider, MarkdownString, l10n, Position, ProviderResult,
 	tasks, TextDocument,
 	Uri, workspace
 } from 'vscode';
-import * as nls from 'vscode-nls';
 import { INpmScriptInfo, readScripts } from './readScripts';
 import {
 	createTask,
 	getPackageManager, startDebugging
 } from './tasks';
 
-const localize = nls.loadMessageBundle();
 
 let cachedDocument: Uri | undefined = undefined;
 let cachedScripts: INpmScriptInfo | undefined = undefined;
@@ -33,6 +31,7 @@ export function invalidateHoverScriptsCache(document?: TextDocument) {
 }
 
 export class NpmScriptHoverProvider implements HoverProvider {
+	private enabled: boolean;
 
 	constructor(private context: ExtensionContext) {
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
@@ -40,9 +39,21 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		context.subscriptions.push(workspace.onDidChangeTextDocument((e) => {
 			invalidateHoverScriptsCache(e.document);
 		}));
+
+		const isEnabled = () => workspace.getConfiguration('npm').get<boolean>('scriptHover', true);
+		this.enabled = isEnabled();
+		context.subscriptions.push(workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('npm.scriptHover')) {
+				this.enabled = isEnabled();
+			}
+		}));
 	}
 
 	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<Hover> {
+		if (!this.enabled) {
+			return;
+		}
+
 		let hover: Hover | undefined = undefined;
 
 		if (!cachedDocument || cachedDocument.fsPath !== document.uri.fsPath) {
@@ -52,7 +63,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 
 		cachedScripts?.scripts.forEach(({ name, nameRange }) => {
 			if (nameRange.contains(position)) {
-				let contents: MarkdownString = new MarkdownString();
+				const contents: MarkdownString = new MarkdownString();
 				contents.isTrusted = true;
 				contents.appendMarkdown(this.createRunScriptMarkdown(name, document.uri));
 				contents.appendMarkdown(this.createDebugScriptMarkdown(name, document.uri));
@@ -63,15 +74,15 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	}
 
 	private createRunScriptMarkdown(script: string, documentUri: Uri): string {
-		let args = {
+		const args = {
 			documentUri: documentUri,
 			script: script,
 		};
 		return this.createMarkdownLink(
-			localize('runScript', 'Run Script'),
+			l10n.t("Run Script"),
 			'npm.runScriptFromHover',
 			args,
-			localize('runScript.tooltip', 'Run the script as a task')
+			l10n.t("Run the script as a task")
 		);
 	}
 
@@ -81,16 +92,16 @@ export class NpmScriptHoverProvider implements HoverProvider {
 			script: script,
 		};
 		return this.createMarkdownLink(
-			localize('debugScript', 'Debug Script'),
+			l10n.t("Debug Script"),
 			'npm.debugScriptFromHover',
 			args,
-			localize('debugScript.tooltip', 'Runs the script under the debugger'),
+			l10n.t("Runs the script under the debugger"),
 			'|'
 		);
 	}
 
 	private createMarkdownLink(label: string, cmd: string, args: any, tooltip: string, separator?: string): string {
-		let encodedArgs = encodeURIComponent(JSON.stringify(args));
+		const encodedArgs = encodeURIComponent(JSON.stringify(args));
 		let prefix = '';
 		if (separator) {
 			prefix = ` ${separator} `;
@@ -99,19 +110,19 @@ export class NpmScriptHoverProvider implements HoverProvider {
 	}
 
 	public async runScriptFromHover(args: any) {
-		let script = args.script;
-		let documentUri = args.documentUri;
-		let folder = workspace.getWorkspaceFolder(documentUri);
+		const script = args.script;
+		const documentUri = args.documentUri;
+		const folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
+			const task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
 			await tasks.executeTask(task);
 		}
 	}
 
 	public debugScriptFromHover(args: { script: string; documentUri: Uri }) {
-		let script = args.script;
-		let documentUri = args.documentUri;
-		let folder = workspace.getWorkspaceFolder(documentUri);
+		const script = args.script;
+		const documentUri = args.documentUri;
+		const folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
 			startDebugging(this.context, script, dirname(documentUri.fsPath), folder);
 		}

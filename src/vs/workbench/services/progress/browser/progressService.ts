@@ -14,17 +14,17 @@ import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { attachDialogStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -38,7 +38,6 @@ export class ProgressService extends Disposable implements IProgressService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
@@ -69,16 +68,18 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
-			case ProgressLocation.Window:
+				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
+			case ProgressLocation.Window: {
+				const type = (options as IProgressWindowOptions).type;
 				if ((options as IProgressWindowOptions).command) {
 					// Window progress with command get's shown in the status bar
-					return this.withWindowProgress({ ...options, location }, task);
+					return this.withWindowProgress({ ...options, location, type }, task);
 				}
 				// Window progress without command can be shown as silent notification
 				// which will first appear in the status bar and can then be brought to
 				// the front when clicking.
-				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification }, task, onDidCancel);
+				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification, type }, task, onDidCancel);
+			}
 			case ProgressLocation.Explorer:
 				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Scm:
@@ -92,7 +93,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		}
 	}
 
-	private readonly windowProgressStack: [IProgressOptions, Progress<IProgressStep>][] = [];
+	private readonly windowProgressStack: [IProgressWindowOptions, Progress<IProgressStep>][] = [];
 	private windowProgressStatusEntry: IStatusbarEntryAccessor | undefined = undefined;
 
 	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
@@ -126,9 +127,9 @@ export class ProgressService extends Disposable implements IProgressService {
 		if (idx < this.windowProgressStack.length) {
 			const [options, progress] = this.windowProgressStack[idx];
 
-			let progressTitle = options.title;
-			let progressMessage = progress.value && progress.value.message;
-			let progressCommand = (<IProgressWindowOptions>options).command;
+			const progressTitle = options.title;
+			const progressMessage = progress.value && progress.value.message;
+			const progressCommand = (<IProgressWindowOptions>options).command;
 			let text: string;
 			let title: string;
 			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;
@@ -157,7 +158,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			const statusEntryProperties: IStatusbarEntry = {
 				name: localize('status.progress', "Progress Message"),
 				text,
-				showProgress: true,
+				showProgress: options.type || true,
 				ariaLabel: text,
 				tooltip: title,
 				command: progressCommand
@@ -234,7 +235,8 @@ export class ProgressService extends Disposable implements IProgressService {
 			this.withWindowProgress({
 				location: ProgressLocation.Window,
 				title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
-				command: 'notifications.showList'
+				command: 'notifications.showList',
+				type: options.type
 			}, progress => {
 
 				function reportProgress(step: IProgressStep) {
@@ -304,7 +306,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const notification = this.notificationService.notify({
 				severity: Severity.Info,
-				message,
+				message: stripIcons(message), // status entries support codicons, but notifications do not (https://github.com/microsoft/vscode/issues/145722)
 				source: options.source,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				progress: typeof increment === 'number' && increment >= 0 ? { total: 100, worked: increment } : { infinite: true },
@@ -504,9 +506,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// Infinite
 			else {
-				if (discreteProgressRunner) {
-					discreteProgressRunner.done();
-				}
+				discreteProgressRunner?.done();
 				progressIndicator.showWhile(promise, options.delay);
 			}
 
@@ -561,12 +561,15 @@ export class ProgressService extends Disposable implements IProgressService {
 								EventHelper.stop(event, true);
 							}
 						}
-					}
+					},
+					buttonStyles: defaultButtonStyles,
+					checkboxStyles: defaultCheckboxStyles,
+					inputBoxStyles: defaultInputBoxStyles,
+					dialogStyles: defaultDialogStyles
 				}
 			);
 
 			disposables.add(dialog);
-			disposables.add(attachDialogStyler(dialog, this.themeService));
 
 			dialog.show().then(dialogResult => {
 				onDidCancel?.(dialogResult.button);
@@ -620,4 +623,4 @@ export class ProgressService extends Disposable implements IProgressService {
 	}
 }
 
-registerSingleton(IProgressService, ProgressService, true);
+registerSingleton(IProgressService, ProgressService, InstantiationType.Delayed);

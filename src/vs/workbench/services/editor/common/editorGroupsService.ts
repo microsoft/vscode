@@ -47,7 +47,7 @@ export const enum GroupsArrangement {
 	 * Make the current active group consume the maximum
 	 * amount of space possible.
 	 */
-	MINIMIZE_OTHERS,
+	MAXIMIZE,
 
 	/**
 	 * Size all groups evenly.
@@ -62,12 +62,32 @@ export const enum GroupsArrangement {
 }
 
 export interface GroupLayoutArgument {
+
+	/**
+	 * Only applies when there are multiple groups
+	 * arranged next to each other in a row or column.
+	 * If provided, their sum must be 1 to be applied
+	 * per row or column.
+	 */
 	size?: number;
+
+	/**
+	 * Editor groups  will be laid out orthogonal to the
+	 * parent orientation.
+	 */
 	groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {
+
+	/**
+	 * The initial orientation of the editor groups at the root.
+	 */
 	orientation: GroupOrientation;
+
+	/**
+	 * The editor groups at the root of the layout.
+	 */
 	groups: GroupLayoutArgument[];
 }
 
@@ -181,6 +201,11 @@ export interface IEditorGroupsService {
 	 * An event for when the group container is layed out.
 	 */
 	readonly onDidLayout: Event<IDimension>;
+
+	/**
+	 * An event for when the group container is scrolled.
+	 */
+	readonly onDidScroll: Event<void>;
 
 	/**
 	 * An event for when the index of a group changes.
@@ -640,9 +665,11 @@ export interface IEditorGroup {
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if
 	 * there are dirty editors and thus returns a promise as value.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @returns a promise whether the editors were closed or not. If `true`, the editors
+	 * were closed and if `false` there was a veto closing the editors, e.g. when one
+	 * is dirty.
 	 */
-	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void>;
+	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean>;
 
 	/**
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
@@ -650,7 +677,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.

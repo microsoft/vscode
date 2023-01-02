@@ -6,7 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorConfiguration, ICursorSimpleModel, SingleCursorState } from 'vs/editor/common/cursorCommon';
+import { CursorConfiguration, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -246,7 +246,12 @@ export class WordOperations {
 				return new Position(lineNumber, column);
 			}
 
-			if (strings.isLowerAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
+			if (left === CharCode.Dash && right !== CharCode.Dash) {
+				// kebab-case-variables
+				return new Position(lineNumber, column);
+			}
+
+			if ((strings.isLowerAsciiLetter(left) || strings.isAsciiDigit(left)) && strings.isUpperAsciiLetter(right)) {
 				// camelCaseVariables
 				return new Position(lineNumber, column);
 			}
@@ -255,7 +260,7 @@ export class WordOperations {
 				// thisIsACamelCaseWithOneLetterWords
 				if (column + 1 < maxColumn) {
 					const rightRight = lineContent.charCodeAt(column);
-					if (strings.isLowerAsciiLetter(rightRight)) {
+					if (strings.isLowerAsciiLetter(rightRight) || strings.isAsciiDigit(rightRight)) {
 						return new Position(lineNumber, column);
 					}
 				}
@@ -348,7 +353,12 @@ export class WordOperations {
 				return new Position(lineNumber, column);
 			}
 
-			if (strings.isLowerAsciiLetter(left) && strings.isUpperAsciiLetter(right)) {
+			if (left !== CharCode.Dash && right === CharCode.Dash) {
+				// kebab-case-variables
+				return new Position(lineNumber, column);
+			}
+
+			if ((strings.isLowerAsciiLetter(left) || strings.isAsciiDigit(left)) && strings.isUpperAsciiLetter(right)) {
 				// camelCaseVariables
 				return new Position(lineNumber, column);
 			}
@@ -357,7 +367,7 @@ export class WordOperations {
 				// thisIsACamelCaseWithOneLetterWords
 				if (column + 1 < maxColumn) {
 					const rightRight = lineContent.charCodeAt(column);
-					if (strings.isLowerAsciiLetter(rightRight)) {
+					if (strings.isLowerAsciiLetter(rightRight) || strings.isAsciiDigit(rightRight)) {
 						return new Position(lineNumber, column);
 					}
 				}
@@ -724,7 +734,7 @@ export class WordOperations {
 			}
 
 			return new SingleCursorState(
-				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), 0,
+				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), SelectionStartKind.Word, 0,
 				new Position(position.lineNumber, endColumn), 0
 			);
 		}

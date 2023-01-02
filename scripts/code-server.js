@@ -46,7 +46,7 @@ function startServer(programArgs) {
 		const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: [process.stdin, null, process.stderr] });
 		proc.stdout.on('data', e => {
 			const data = e.toString();
-			console.log(data);
+			process.stdout.write(data);
 			const m = data.match(/Web UI available at (.*)/);
 			if (m) {
 				s(m[1]);

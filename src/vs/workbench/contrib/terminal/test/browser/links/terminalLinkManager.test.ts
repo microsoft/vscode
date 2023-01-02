@@ -31,7 +31,8 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	scrollback: 1000,
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
-	unicodeVersion: '11'
+	unicodeVersion: '11',
+	wordSeparators: ' ()[]{}\',"`─‘’'
 };
 
 class TestLinkManager extends TerminalLinkManager {
@@ -80,12 +81,16 @@ suite('TerminalLinkManager', () => {
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
-		xterm = new Terminal({ cols: 80, rows: 30 });
-		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({}), {
+		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
+			get initialCwd() {
+				return '';
+			}
+		}), {
 			get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 				return undefined;
 			}
-		} as Partial<ITerminalCapabilityStore>);
+		} as Partial<ITerminalCapabilityStore> as any);
 	});
 
 	suite('getLinks and open recent link', () => {

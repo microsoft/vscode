@@ -5,11 +5,10 @@
 
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IExpression } from 'vs/base/common/glob';
+import { IExpression, IRelativePattern } from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { sep } from 'vs/base/common/path';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -32,7 +31,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An event that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes its capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -81,7 +80,7 @@ export interface IFileService {
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	/**
-	 * List the schemes and capabilies for registered file system providers
+	 * List the schemes and capabilities for registered file system providers
 	 */
 	listCapabilities(): Iterable<{ scheme: string; capabilities: FileSystemProviderCapabilities }>;
 
@@ -219,13 +218,13 @@ export interface IFileService {
 	 *
 	 * Emits a `FileOperation.DELETE` file operation event when successful.
 	 */
-	del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void>;
+	del(resource: URI, options?: Partial<IFileDeleteOptions>): Promise<void>;
 
 	/**
 	 * Find out if a delete operation is possible given the arguments. No changes on disk will
 	 * be performed. Returns an Error if the operation cannot be done.
 	 */
-	canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true>;
+	canDelete(resource: URI, options?: Partial<IFileDeleteOptions>): Promise<Error | true>;
 
 	/**
 	 * An event that signals an error when watching for file changes.
@@ -238,7 +237,7 @@ export interface IFileService {
 	 * Note: recursive file watching is not supported from this method. Only events from files
 	 * that are direct children of the provided resource will be reported.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(resource: URI, options?: IWatchOptions): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -246,7 +245,7 @@ export interface IFileService {
 	dispose(): void;
 }
 
-export interface FileOverwriteOptions {
+export interface IFileOverwriteOptions {
 
 	/**
 	 * Set to `true` to overwrite a file if it exists. Will
@@ -255,7 +254,7 @@ export interface FileOverwriteOptions {
 	readonly overwrite: boolean;
 }
 
-export interface FileUnlockOptions {
+export interface IFileUnlockOptions {
 
 	/**
 	 * Set to `true` to try to remove any write locks the file might
@@ -265,7 +264,7 @@ export interface FileUnlockOptions {
 	readonly unlock: boolean;
 }
 
-export interface FileAtomicReadOptions {
+export interface IFileAtomicReadOptions {
 
 	/**
 	 * The optional `atomic` flag can be used to make sure
@@ -285,7 +284,22 @@ export interface FileAtomicReadOptions {
 	readonly atomic: true;
 }
 
-export interface FileReadStreamOptions {
+export interface IFileReadLimits {
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_TOO_LARGE` will be thrown.
+	 */
+	size?: number;
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
+	 */
+	memory?: number;
+}
+
+export interface IFileReadStreamOptions {
 
 	/**
 	 * Is an integer specifying where to begin reading from in the file. If position is undefined,
@@ -300,15 +314,13 @@ export interface FileReadStreamOptions {
 	readonly length?: number;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
+	readonly limits?: IFileReadLimits;
 }
 
-export interface FileWriteOptions extends FileOverwriteOptions, FileUnlockOptions {
+export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
 
 	/**
 	 * Set to `true` to create a file when it does not exist. Will
@@ -317,13 +329,13 @@ export interface FileWriteOptions extends FileOverwriteOptions, FileUnlockOption
 	readonly create: boolean;
 }
 
-export type FileOpenOptions = FileOpenForReadOptions | FileOpenForWriteOptions;
+export type IFileOpenOptions = IFileOpenForReadOptions | IFileOpenForWriteOptions;
 
-export function isFileOpenForWriteOptions(options: FileOpenOptions): options is FileOpenForWriteOptions {
+export function isFileOpenForWriteOptions(options: IFileOpenOptions): options is IFileOpenForWriteOptions {
 	return options.create === true;
 }
 
-export interface FileOpenForReadOptions {
+export interface IFileOpenForReadOptions {
 
 	/**
 	 * A hint that the file should be opened for reading only.
@@ -331,7 +343,7 @@ export interface FileOpenForReadOptions {
 	readonly create: false;
 }
 
-export interface FileOpenForWriteOptions extends FileUnlockOptions {
+export interface IFileOpenForWriteOptions extends IFileUnlockOptions {
 
 	/**
 	 * A hint that the file should be opened for reading and writing.
@@ -339,7 +351,7 @@ export interface FileOpenForWriteOptions extends FileUnlockOptions {
 	readonly create: true;
 }
 
-export interface FileDeleteOptions {
+export interface IFileDeleteOptions {
 
 	/**
 	 * Set to `true` to recursively delete any children of the file. This
@@ -428,12 +440,24 @@ export interface IWatchOptions {
 	readonly recursive: boolean;
 
 	/**
-	 * A set of paths to exclude from watching.
+	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
+
+	/**
+	 * An optional set of glob patterns or paths to include for
+	 * watching. If not provided, all paths are considered for
+	 * events.
+	 */
+	includes?: Array<string | IRelativePattern>;
 }
 
 export const enum FileSystemProviderCapabilities {
+
+	/**
+	 * No capabilities.
+	 */
+	None = 0,
 
 	/**
 	 * Provider supports unbuffered read/write.
@@ -499,17 +523,17 @@ export interface IFileSystemProvider {
 	stat(resource: URI): Promise<IStat>;
 	mkdir(resource: URI): Promise<void>;
 	readdir(resource: URI): Promise<[string, FileType][]>;
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void>;
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
+	copy?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 
 	readFile?(resource: URI): Promise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
+	writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 
-	readFileStream?(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
-	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
+	open?(resource: URI, opts: IFileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
@@ -519,7 +543,7 @@ export interface IFileSystemProvider {
 
 export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {
 	readFile(resource: URI): Promise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void>;
 }
 
 export function hasReadWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadWriteCapability {
@@ -527,7 +551,7 @@ export function hasReadWriteCapability(provider: IFileSystemProvider): provider 
 }
 
 export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void>;
 }
 
 export function hasFileFolderCopyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileFolderCopyCapability {
@@ -543,7 +567,7 @@ export function hasFileCloneCapability(provider: IFileSystemProvider): provider 
 }
 
 export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {
-	open(resource: URI, opts: FileOpenOptions): Promise<number>;
+	open(resource: URI, opts: IFileOpenOptions): Promise<number>;
 	close(fd: number): Promise<void>;
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
@@ -554,7 +578,7 @@ export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): 
 }
 
 export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSystemProvider {
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 }
 
 export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
@@ -562,7 +586,7 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 }
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
-	readFile(resource: URI, opts?: FileAtomicReadOptions): Promise<Uint8Array>;
+	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
 }
 
 export function hasFileAtomicReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicReadCapability {
@@ -586,7 +610,12 @@ export enum FileSystemProviderErrorCode {
 	Unknown = 'Unknown'
 }
 
-export class FileSystemProviderError extends Error {
+export interface IFileSystemProviderError extends Error {
+	readonly name: string;
+	readonly code: FileSystemProviderErrorCode;
+}
+
+export class FileSystemProviderError extends Error implements IFileSystemProviderError {
 
 	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
@@ -702,14 +731,27 @@ export const enum FileOperation {
 	WRITE
 }
 
-export class FileOperationEvent {
+export interface IFileOperationEvent {
+
+	readonly resource: URI;
+	readonly operation: FileOperation;
+
+	isOperation(operation: FileOperation.DELETE | FileOperation.WRITE): boolean;
+	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is IFileOperationEventWithMetadata;
+}
+
+export interface IFileOperationEventWithMetadata extends IFileOperationEvent {
+	readonly target: IFileStatWithMetadata;
+}
+
+export class FileOperationEvent implements IFileOperationEvent {
 
 	constructor(resource: URI, operation: FileOperation.DELETE | FileOperation.WRITE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
 	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
 	isOperation(operation: FileOperation.DELETE | FileOperation.WRITE): boolean;
-	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is { readonly target: IFileStatWithMetadata };
+	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is IFileOperationEventWithMetadata;
 	isOperation(operation: FileOperation): boolean {
 		return this.operation === operation;
 	}
@@ -747,7 +789,6 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
-		this.rawChanges = changes;
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
@@ -878,14 +919,6 @@ export class FileChangesEvent {
 	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
-	readonly rawChanges: readonly IFileChange[] = [];
-
-	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
 	readonly rawAdded: URI[] = [];
 
 	/**
@@ -963,7 +996,7 @@ interface IBaseFileStat {
 	readonly ctime?: number;
 
 	/**
-	 * A unique identifier thet represents the
+	 * A unique identifier that represents the
 	 * current state of the file or directory.
 	 *
 	 * The value may or may not be resolved as
@@ -1044,7 +1077,7 @@ export interface IFileStreamContent extends IBaseFileStatWithMetadata {
 	readonly value: VSBufferReadableStream;
 }
 
-export interface IBaseReadFileOptions extends FileReadStreamOptions {
+export interface IBaseReadFileOptions extends IFileReadStreamOptions {
 
 	/**
 	 * The optional etag parameter allows to return early from resolving the resource if
@@ -1128,13 +1161,24 @@ export interface ICreateFileOptions {
 	readonly overwrite?: boolean;
 }
 
-export class FileOperationError extends ErrorNoTelemetry {
+export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,
 		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
 	) {
 		super(message);
+	}
+}
+
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
 	}
 }
 

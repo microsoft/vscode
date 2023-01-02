@@ -16,7 +16,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, FileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -118,7 +118,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return bytesRead;
 	}
 
-	override async readFile(resource: URI, options?: FileAtomicReadOptions): Promise<Uint8Array> {
+	override async readFile(resource: URI, options?: IFileAtomicReadOptions): Promise<Uint8Array> {
 		const res = await super.readFile(resource, options);
 
 		this.totalBytesRead += res.byteLength;
@@ -126,6 +126,8 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		return res;
 	}
 }
+
+DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
 flakySuite('Disk File Service', function () {
 
@@ -403,7 +405,7 @@ flakySuite('Disk File Service', function () {
 		const children = result.children!;
 		assert.strictEqual(children.length, 1);
 
-		let deep = getByName(result, 'deep');
+		const deep = getByName(result, 'deep');
 		assert.ok(deep);
 		assert.ok(deep!.children!.length > 0);
 		assert.strictEqual(deep!.children!.length, 4);
@@ -1103,7 +1105,7 @@ flakySuite('Disk File Service', function () {
 		}
 	});
 
-	test('copy - MIX CASE different taget - overwrite', async () => {
+	test('copy - MIX CASE different target - overwrite', async () => {
 		const source1 = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		assert.ok(source1.size > 0);
 
@@ -1223,7 +1225,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(existsSync(target2.fsPath), true);
 		assert.strictEqual(basename(target2.fsPath), 'index.html-clone');
 
-		let target2Size = (await service.resolve(target2, { resolveMetadata: true })).size;
+		const target2Size = (await service.resolve(target2, { resolveMetadata: true })).size;
 
 		assert.strictEqual(source1Size, target2Size);
 	}
@@ -1359,8 +1361,8 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testFilesNotIntermingled() {
-		let resource1 = URI.file(join(testDir, 'lorem.txt'));
-		let resource2 = URI.file(join(testDir, 'some_utf16le.css'));
+		const resource1 = URI.file(join(testDir, 'lorem.txt'));
+		const resource2 = URI.file(join(testDir, 'some_utf16le.css'));
 
 		// load in sequence and keep data
 		const value1 = await service.readFile(resource1);
@@ -1641,14 +1643,14 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testFileExceedsMemoryLimit() {
-		await doTestFileExceedsMemoryLimit();
+		await doTestFileExceedsMemoryLimit(false);
 
 		// Also test when the stat size is wrong
 		fileProvider.setSmallStatSize(true);
-		return doTestFileExceedsMemoryLimit();
+		return doTestFileExceedsMemoryLimit(true);
 	}
 
-	async function doTestFileExceedsMemoryLimit() {
+	async function doTestFileExceedsMemoryLimit(statSizeWrong: boolean) {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1659,6 +1661,10 @@ flakySuite('Disk File Service', function () {
 		}
 
 		assert.ok(error);
+		if (!statSizeWrong) {
+			assert.ok(error instanceof TooLargeFileOperationError);
+			assert.ok(typeof error.size === 'number');
+		}
 		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
 	}
 
@@ -1685,14 +1691,14 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testFileTooLarge() {
-		await doTestFileTooLarge();
+		await doTestFileTooLarge(false);
 
 		// Also test when the stat size is wrong
 		fileProvider.setSmallStatSize(true);
-		return doTestFileTooLarge();
+		return doTestFileTooLarge(true);
 	}
 
-	async function doTestFileTooLarge() {
+	async function doTestFileTooLarge(statSizeWrong: boolean) {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1702,7 +1708,10 @@ flakySuite('Disk File Service', function () {
 			error = err;
 		}
 
-		assert.ok(error);
+		if (!statSizeWrong) {
+			assert.ok(error instanceof TooLargeFileOperationError);
+			assert.ok(typeof error.size === 'number');
+		}
 		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_TOO_LARGE);
 	}
 
@@ -1792,6 +1801,15 @@ flakySuite('Disk File Service', function () {
 
 	test('writeFile - default', async () => {
 		return testWriteFile();
+	});
+
+	test('writeFile - flush on write', async () => {
+		DiskFileSystemProvider.configureFlushOnWrite(true);
+		try {
+			return await testWriteFile();
+		} finally {
+			DiskFileSystemProvider.configureFlushOnWrite(false);
+		}
 	});
 
 	test('writeFile - buffered', async () => {

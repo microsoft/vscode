@@ -5,13 +5,14 @@
 
 import { commands, Disposable, ExtensionContext, extensions } from 'vscode';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider';
-import { GitExtension } from './typings/git';
+import { API, GitExtension } from './typings/git';
 import { registerCommands } from './commands';
 import { GithubCredentialProviderManager } from './credentialProvider';
-import { DisposableStore } from './util';
+import { DisposableStore, repositoryHasGitHubRemote } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
+import './importExportProfiles';
 
 export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(initializeGitBaseExtension());
@@ -48,6 +49,21 @@ function initializeGitBaseExtension(): Disposable {
 	return disposables;
 }
 
+function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
+	if (gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo))) {
+		commands.executeCommand('setContext', 'github.hasGitHubRepo', true);
+	} else {
+		const openRepoDisposable = gitAPI.onDidOpenRepository(async e => {
+			await e.status();
+			if (repositoryHasGitHubRemote(e)) {
+				commands.executeCommand('setContext', 'github.hasGitHubRepo', true);
+				openRepoDisposable.dispose();
+			}
+		});
+		disposables.add(openRepoDisposable);
+	}
+}
+
 function initializeGitExtension(): Disposable {
 	const disposables = new DisposableStore();
 
@@ -64,6 +80,7 @@ function initializeGitExtension(): Disposable {
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
+						setGitHubContext(gitAPI, disposables);
 
 						commands.executeCommand('setContext', 'git-base.gitEnabled', true);
 					} else {

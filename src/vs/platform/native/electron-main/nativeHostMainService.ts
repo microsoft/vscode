@@ -19,6 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { realpath } from 'vs/base/node/extpath';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
@@ -36,8 +37,13 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -56,6 +62,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
@@ -72,6 +79,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Events
 
 	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+	readonly onDidTriggerSystemContextMenu = Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId));
 
 	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
@@ -110,7 +118,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		return windows.map(window => ({
 			id: window.id,
-			workspace: window.openedWorkspace,
+			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
@@ -142,7 +150,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			this.windowsMainService.open({
+			await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -151,17 +159,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceReuseWindow: options.forceReuseWindow,
 				preferNewWindow: options.preferNewWindow,
 				diffMode: options.diffMode,
+				mergeMode: options.mergeMode,
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
-				remoteAuthority: options.remoteAuthority || undefined
+				remoteAuthority: options.remoteAuthority || undefined,
+				forceProfile: options.forceProfile,
+				forceTempProfile: options.forceTempProfile,
 			});
 		}
 	}
 
 	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow({
+		await this.windowsMainService.openEmptyWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId
 		}, options);
@@ -169,16 +180,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async toggleFullScreen(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.toggleFullScreen();
-		}
+		window?.toggleFullScreen();
 	}
 
 	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.handleTitleDoubleClick();
-		}
+		window?.handleTitleDoubleClick();
 	}
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
@@ -211,15 +218,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			window.updateWindowControls(options);
+		}
+	}
+
 	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean }): Promise<void> {
 		if (options && typeof options.windowId === 'number') {
 			windowId = options.windowId;
 		}
 
 		const window = this.windowById(windowId);
-		if (window) {
-			window.focus({ force: options?.force ?? false });
-		}
+		window?.focus({ force: options?.force ?? false });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
@@ -378,33 +390,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFolder(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFileAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFile(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickWorkspaceAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickWorkspace(options);
 		if (paths) {
-			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
 		}
 	}
 
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): void {
-		this.windowsMainService.open({
+	private async doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
@@ -425,16 +437,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setRepresentedFilename(path);
-		}
+		window?.setRepresentedFilename(path);
 	}
 
 	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setDocumentEdited(edited);
-		}
+		window?.setDocumentEdited(edited);
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
@@ -567,6 +575,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 
+	// WSL
+	public async hasWSLFeatureInstalled(): Promise<boolean> {
+		return isWindows && hasWSLFeatureInstalled();
+	}
+
+
 	//#endregion
 
 
@@ -597,12 +611,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.writeFindText(text);
 	}
 
-	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
+	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.writeBuffer(format, Buffer.from(buffer.buffer), type);
 	}
 
-	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
-		return clipboard.readBuffer(format);
+	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<VSBuffer> {
+		return VSBuffer.wrap(clipboard.readBuffer(format));
 	}
 
 	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
@@ -615,7 +629,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({
+		await this.windowsMainService.open({
 			context: OpenContext.API,
 			cli: this.environmentMainService.args,
 			forceNewTabbedWindow: true,
@@ -646,9 +660,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.updateTouchBar(items);
-		}
+		window?.updateTouchBar(items);
 	}
 
 	//#endregion
@@ -658,9 +670,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async notifyReady(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
-			window.setReady();
-		}
+		window?.setReady();
 	}
 
 	async relaunch(windowId: number | undefined, options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
@@ -736,6 +746,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
+		return findFreePort(startPort, giveUpAfter, timeout, stride);
+	}
+
 	//#endregion
 
 
@@ -763,12 +777,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
+		if (enabled) {
+			this.stateMainService.setItem('window.experimental.useSandbox', true);
+		} else {
+			this.stateMainService.removeItem('window.experimental.useSandbox');
+		}
+	}
+
 	async toggleSharedProcessWindow(): Promise<void> {
 		return this.sharedProcess.toggle();
 	}
 
 	//#endregion
 
+	// #region Performance
+
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
+		const win = this.windowById(windowId);
+		if (!win || !win.win) {
+			throw new Error();
+		}
+		const profiler = new WindowProfiler(win.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
+	}
+
+	// #endregion
 
 	//#region Registry (windows)
 

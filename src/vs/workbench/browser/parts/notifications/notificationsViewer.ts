@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addDisposableListener, EventType, EventHelper, $, EventLike } from 'vs/base/browser/dom';
+import { clearNode, addDisposableListener, EventType, EventHelper, $, isEventLike } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ButtonBar, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +25,9 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { DomEmitter } from 'vs/base/browser/event';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { Event } from 'vs/base/common/event';
+import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -151,20 +152,30 @@ class NotificationMessageRenderer {
 					title = node.href;
 				}
 
-				const anchor = $('a', { href: node.href, title: title, }, node.label);
+				const anchor = $('a', { href: node.href, title, tabIndex: 0 }, node.label);
 
 				if (actionHandler) {
-					const onPointer = (e: EventLike) => {
-						EventHelper.stop(e, true);
+					const handleOpen = (e: unknown) => {
+						if (isEventLike(e)) {
+							EventHelper.stop(e, true);
+						}
+
 						actionHandler.callback(node.href);
 					};
 
-					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, 'click')).event;
+					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.CLICK)).event;
+
+					const onKeydown = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.KEY_DOWN)).event;
+					const onSpaceOrEnter = actionHandler.toDispose.add(Event.chain(onKeydown)).filter(e => {
+						const event = new StandardKeyboardEvent(e);
+
+						return event.equals(KeyCode.Space) || event.equals(KeyCode.Enter);
+					}).event;
 
 					actionHandler.toDispose.add(Gesture.addTarget(anchor));
 					const onTap = actionHandler.toDispose.add(new DomEmitter(anchor, GestureEventType.Tap)).event;
 
-					Event.any(onClick, onTap)(onPointer, null, actionHandler.toDispose);
+					Event.any(onClick, onTap, onSpaceOrEnter)(handleOpen, null, actionHandler.toDispose);
 				}
 
 				messageContainer.appendChild(anchor);
@@ -181,7 +192,6 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 	constructor(
 		private actionRunner: IActionRunner,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -259,8 +269,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.mainRow.appendChild(toolbarContainer);
 
 		// Progress: below the rows to span the entire width of the item
-		data.progress = new ProgressBar(container);
-		data.toDispose.add(attachProgressBarStyler(data.progress, this.themeService));
+		data.progress = new ProgressBar(container, defaultProgressBarStyles);
 		data.toDispose.add(data.progress);
 
 		// Renderer
@@ -294,7 +303,6 @@ export class NotificationTemplateRenderer extends Disposable {
 		private actionRunner: IActionRunner,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
@@ -392,11 +400,6 @@ export class NotificationTemplateRenderer extends Disposable {
 			this.template.message.removeAttribute('title');
 		}
 
-		const links = this.template.message.querySelectorAll('a');
-		for (let i = 0; i < links.length; i++) {
-			links.item(i).tabIndex = -1; // prevent keyboard navigation to links to allow for better keyboard support within a message
-		}
-
 		return messageOverflows;
 	}
 
@@ -473,7 +476,8 @@ export class NotificationTemplateRenderer extends Disposable {
 
 				const options: IButtonOptions = {
 					title: true,  // assign titles to buttons in case they overflow
-					secondary: i > 0
+					secondary: i > 0,
+					...defaultButtonStyles
 				};
 
 				const dropdownActions = action instanceof ChoiceAction ? action.menu : undefined;
@@ -496,8 +500,6 @@ export class NotificationTemplateRenderer extends Disposable {
 
 					actionRunner.run(action);
 				}));
-
-				this.inputDisposables.add(attachButtonStyler(button, this.themeService));
 			}
 		}
 	}

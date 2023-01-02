@@ -65,7 +65,7 @@ export interface RequestService {
 
 export function getRequestService(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): RequestService {
 	const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-	for (let protocol of handledSchemas) {
+	for (const protocol of handledSchemas) {
 		if (protocol === 'file') {
 			builtInHandlers[protocol] = runtime.file;
 		} else if (protocol === 'http' || protocol === 'https') {

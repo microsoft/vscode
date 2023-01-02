@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { MainContext, MainThreadTimelineShape, ExtHostTimelineShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, ITimelineService, InternalTimelineOptions, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
+import { TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, ITimelineService, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
 
 @extHostNamedCustomer(MainContext.MainThreadTimeline)
@@ -40,8 +40,8 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		this._timelineService.registerTimelineProvider({
 			...provider,
 			onDidChange: onDidChange.event,
-			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions) {
-				return revive<Timeline>(await proxy.$getTimeline(provider.id, uri, options, token, internalOptions));
+			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken) {
+				return revive<Timeline>(await proxy.$getTimeline(provider.id, uri, options, token));
 			},
 			dispose() {
 				emitters.delete(provider.id);

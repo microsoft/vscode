@@ -5,7 +5,7 @@
 
 import { networkInterfaces } from 'os';
 import * as errors from 'vs/base/common/errors';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import * as uuid from 'vs/base/common/uuid';
 import { getMac } from 'vs/base/node/macAddress';
 
@@ -55,7 +55,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			let interfaceCount = 0;
 
 			const interfaces = networkInterfaces();
-			for (let name in interfaces) {
+			for (const name in interfaces) {
 				const networkInterface = interfaces[name];
 				if (networkInterface) {
 					for (const { mac, internal } of networkInterface) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -43,7 +43,7 @@ export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadW
 	}
 
 	// error implementations
-	writeFile(_resource: URI, _content: Uint8Array, _opts: FileWriteOptions): Promise<void> {
+	writeFile(_resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
 		throw new NotSupportedError();
 	}
 	readdir(_resource: URI): Promise<[string, FileType][]> {
@@ -52,10 +52,10 @@ export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadW
 	mkdir(_resource: URI): Promise<void> {
 		throw new NotSupportedError();
 	}
-	delete(_resource: URI, _opts: FileDeleteOptions): Promise<void> {
+	delete(_resource: URI, _opts: IFileDeleteOptions): Promise<void> {
 		throw new NotSupportedError();
 	}
-	rename(_from: URI, _to: URI, _opts: FileOverwriteOptions): Promise<void> {
+	rename(_from: URI, _to: URI, _opts: IFileOverwriteOptions): Promise<void> {
 		throw new NotSupportedError();
 	}
 }

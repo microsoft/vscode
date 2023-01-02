@@ -42,7 +42,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let modelService: ModelService;
 	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
-	let deltas: IDocumentsAndEditorsDelta[] = [];
+	const deltas: IDocumentsAndEditorsDelta[] = [];
 
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
 		return createTestCodeEditor(model, {
@@ -104,7 +104,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			fileService,
 			null!,
 			editorGroupService,
-			null!,
 			new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
 				override onDidPaneCompositeOpen = Event.None;
 				override onDidPaneCompositeClose = Event.None;
@@ -120,7 +119,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 					return Promise.resolve('clipboard_contents');
 				}
 			},
-			new TestPathService()
+			new TestPathService(),
+			new TestConfigurationService(),
 		);
 	});
 
@@ -145,10 +145,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 	test('ignore huge model', function () {
 
-		const oldLimit = (<any>TextModel).MODEL_SYNC_LIMIT;
+		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
 		try {
 			const largeModelString = 'abc'.repeat(1024);
-			(<any>TextModel).MODEL_SYNC_LIMIT = largeModelString.length / 2;
+			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
 			const model = modelService.createModel(largeModelString, null);
 			assert.ok(model.isTooLargeForSyncing());
@@ -162,16 +162,16 @@ suite('MainThreadDocumentsAndEditors', () => {
 			assert.strictEqual(delta.removedEditors, undefined);
 
 		} finally {
-			(<any>TextModel).MODEL_SYNC_LIMIT = oldLimit;
+			TextModel._MODEL_SYNC_LIMIT = oldLimit;
 		}
 	});
 
 	test('ignore huge model from editor', function () {
 
-		const oldLimit = (<any>TextModel).MODEL_SYNC_LIMIT;
+		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
 		try {
 			const largeModelString = 'abc'.repeat(1024);
-			(<any>TextModel).MODEL_SYNC_LIMIT = largeModelString.length / 2;
+			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
 			const model = modelService.createModel(largeModelString, null);
 			const editor = myCreateTestCodeEditor(model);
@@ -182,7 +182,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editor.dispose();
 
 		} finally {
-			(<any>TextModel).MODEL_SYNC_LIMIT = oldLimit;
+			TextModel._MODEL_SYNC_LIMIT = oldLimit;
 		}
 	});
 

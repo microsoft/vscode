@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
+import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
@@ -36,7 +36,10 @@ export interface IDiskFileSystemProviderOptions {
 	};
 }
 
-export abstract class AbstractDiskFileSystemProvider extends Disposable {
+export abstract class AbstractDiskFileSystemProvider extends Disposable implements
+	Pick<IFileSystemProvider, 'watch'>,
+	Pick<IFileSystemProvider, 'onDidChangeFile'>,
+	Pick<IFileSystemProvider, 'onDidWatchError'> {
 
 	constructor(
 		protected readonly logService: ILogService,
@@ -69,7 +72,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch universally
-		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, recursive: opts.recursive };
+		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive };
 		const remove = insert(this.universalPathsToWatch, pathToWatch);
 
 		// Trigger update
@@ -150,7 +153,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch non-recursively
-		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, recursive: false };
+		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false };
 		const remove = insert(this.nonRecursivePathsToWatch, pathToWatch);
 
 		// Trigger update

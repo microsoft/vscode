@@ -6,18 +6,16 @@
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -26,7 +24,7 @@ import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -58,9 +56,8 @@ interface IRenderResult {
 //  |  #output-inner-container
 //  |                        |  #cell-output-toolbar
 //  |                        |  #output-element
-export class CellOutputElement extends Disposable {
+class CellOutputElement extends Disposable {
 	private readonly _renderDisposableStore = this._register(new DisposableStore());
-	private readonly _actionsDisposable = this._register(new MutableDisposable());
 
 	innerContainer?: HTMLElement;
 	renderedOutputContainer!: HTMLElement;
@@ -76,25 +73,26 @@ export class CellOutputElement extends Disposable {
 		readonly output: ICellOutputViewModel,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.contextKeyService = parentContextKeyService;
 
 		this._register(this.output.model.onDidChangeData(() => {
-			this.updateOutputData();
+			this.rerender();
+		}));
+
+		this._register(this.output.onDidResetRenderer(() => {
+			this.rerender();
 		}));
 	}
 
 	detach() {
-		if (this.renderedOutputContainer) {
-			this.renderedOutputContainer.parentElement?.removeChild(this.renderedOutputContainer);
-		}
+		this.renderedOutputContainer?.parentElement?.removeChild(this.renderedOutputContainer);
 
 		let count = 0;
 		if (this.innerContainer) {
@@ -122,7 +120,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	updateOutputData() {
+	rerender() {
 		if (
 			this.notebookEditor.hasModel() &&
 			this.innerContainer &&
@@ -267,8 +265,7 @@ export class CellOutputElement extends Disposable {
 
 		outputItemDiv.appendChild(mimeTypePicker);
 
-		const toolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
 		toolbar.context = <INotebookCellActionContext>{
@@ -288,7 +285,7 @@ export class CellOutputElement extends Disposable {
 				const secondary: IAction[] = [];
 				const result = { primary, secondary };
 
-				this._actionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
+				createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
 				toolbar.setActions([], [pickAction, ...secondary]);
 			};
 			updateMenuToolbar();
@@ -430,7 +427,7 @@ class OutputEntryViewHandler {
 	}
 }
 
-export class CellOutputContainer extends CellPart {
+export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 
 	get renderedOutputEntries() {
@@ -469,9 +466,9 @@ export class CellOutputContainer extends CellPart {
 		});
 	}
 
-	render(editorHeight: number) {
+	render() {
 		if (this.viewCell.outputsViewModels.length > 0) {
-			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
+			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
 				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 				this._relayoutCell();
 			}
@@ -484,7 +481,6 @@ export class CellOutputContainer extends CellPart {
 				entry.render(undefined);
 			}
 
-			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputsViewModels.length > this.options.limit) {
 				DOM.show(this.templateData.outputShowMoreContainer.domNode);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
@@ -494,7 +490,6 @@ export class CellOutputContainer extends CellPart {
 			this._validateFinalOutputHeight(false);
 		} else {
 			// noop
-			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
 			DOM.hide(this.templateData.outputContainer.domNode);
 		}
@@ -602,7 +597,7 @@ export class CellOutputContainer extends CellPart {
 				});
 
 				// exclusive
-				let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+				const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 				const newlyInsertedEntries = newlyInserted.map(insert => {
 					return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this, this.templateData.outputContainer, insert));
@@ -622,7 +617,7 @@ export class CellOutputContainer extends CellPart {
 				entry.element.dispose();
 			});
 
-			let reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
+			const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 			const newlyInsertedEntries = newlyInserted.map(insert => {
 				return new OutputEntryViewHandler(insert, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this, this.templateData.outputContainer, insert));

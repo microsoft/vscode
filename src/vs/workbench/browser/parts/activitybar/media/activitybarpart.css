@@ -37,14 +37,6 @@
 	justify-content: space-between;
 }
 
-/*
- * Fix menu jumping and background inheritance in Safari
- */
-.monaco-workbench.safari .activitybar > .content {
-	position: absolute;
-	background-color: inherit;
-}
-
 /** Viewlet Switcher */
 
 .monaco-workbench .activitybar > .content .monaco-action-bar {

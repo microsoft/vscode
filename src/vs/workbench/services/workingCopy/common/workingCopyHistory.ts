@@ -121,6 +121,14 @@ export interface IWorkingCopyHistoryService {
 	removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean>;
 
 	/**
+	 * Moves entries that either match the `source` or are a child
+	 * of `source` to the `target`.
+	 *
+	 * @returns a list of resources for entries that have moved.
+	 */
+	moveEntries(source: URI, target: URI): Promise<URI[]>;
+
+	/**
 	 * Gets all history entries for the provided resource.
 	 */
 	getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]>;

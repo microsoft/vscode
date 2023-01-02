@@ -12,13 +12,15 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
-import { createTestCodeEditor, ITestCodeEditor, TestCodeEditorInstantiationOptions } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DeleteWordLeft } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
+import { DeleteAllLeftAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -35,29 +37,31 @@ interface TestEditor {
 const languageId = 'linkedEditingTestLangage';
 
 suite('linked editing', () => {
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageFeaturesService: ILanguageFeaturesService;
+	let languageConfigurationService: ILanguageConfigurationService;
 
 	setup(() => {
-		disposables.clear();
-		disposables.add(LanguageConfigurationRegistry.register(languageId, {
+		disposables = new DisposableStore();
+		instantiationService = createCodeEditorServices(disposables);
+		languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+
+		disposables.add(languageConfigurationService.register(languageId, {
 			wordPattern: /[a-zA-Z]+/
 		}));
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
-	function createMockEditor(text: string | string[], options: TestCodeEditorInstantiationOptions = {}): ITestCodeEditor {
-		const model = createTextModel(typeof text === 'string' ? text : text.join('\n'), languageId, undefined, mockFile);
-
-		const editor = createTestCodeEditor(model, options);
-		disposables.add(model);
-		disposables.add(editor);
-
+	function createMockEditor(text: string | string[]): ITestCodeEditor {
+		const model = disposables.add(instantiateTextModel(instantiationService, typeof text === 'string' ? text : text.join('\n'), languageId, undefined, mockFile));
+		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 		return editor;
 	}
-
 
 	function testCase(
 		name: string,
@@ -66,61 +70,70 @@ suite('linked editing', () => {
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
+			await runWithFakedTimers({}, async () => {
 
-			const languageFeaturesService = new LanguageFeaturesService();
-			const serviceCollection = new ServiceCollection([ILanguageFeaturesService, languageFeaturesService]);
-
-			disposables.add(languageFeaturesService.linkedEditingRangeProvider.register(mockFileSelector, {
-				provideLinkedEditingRanges(model: ITextModel, pos: IPosition) {
-					const wordAtPos = model.getWordAtPosition(pos);
-					if (wordAtPos) {
-						const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
-						return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };
+				disposables.add(languageFeaturesService.linkedEditingRangeProvider.register(mockFileSelector, {
+					provideLinkedEditingRanges(model: ITextModel, pos: IPosition) {
+						const wordAtPos = model.getWordAtPosition(pos);
+						if (wordAtPos) {
+							const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
+							return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };
+						}
+						return { ranges: [], wordPattern: initialState.responseWordPattern };
 					}
-					return { ranges: [], wordPattern: initialState.responseWordPattern };
-				}
-			}));
+				}));
 
-			const editor = createMockEditor(initialState.text, { serviceCollection });
-			editor.updateOptions({ linkedEditing: true });
-			const linkedEditingContribution = editor.registerAndInstantiateContribution(
-				LinkedEditingContribution.ID,
-				LinkedEditingContribution,
-			);
-			linkedEditingContribution.setDebounceDuration(0);
+				const editor = createMockEditor(initialState.text);
+				editor.updateOptions({ linkedEditing: true });
+				const linkedEditingContribution = disposables.add(editor.registerAndInstantiateContribution(
+					LinkedEditingContribution.ID,
+					LinkedEditingContribution,
+				));
+				linkedEditingContribution.setDebounceDuration(0);
 
-			const testEditor: TestEditor = {
-				setPosition(pos: Position) {
-					editor.setPosition(pos);
-					return linkedEditingContribution.currentUpdateTriggerPromise;
-				},
-				setSelection(sel: IRange) {
-					editor.setSelection(sel);
-					return linkedEditingContribution.currentUpdateTriggerPromise;
-				},
-				trigger(source: string | null | undefined, handlerId: string, payload: any) {
-					editor.trigger(source, handlerId, payload);
-					return linkedEditingContribution.currentSyncTriggerPromise;
-				},
-				undo() {
-					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-				},
-				redo() {
-					CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-				}
-			};
-
-			await operations(testEditor);
-
-			return new Promise<void>((resolve) => {
-				setTimeout(() => {
-					if (typeof expectedEndText === 'string') {
-						assert.strictEqual(editor.getModel()!.getValue(), expectedEndText);
-					} else {
-						assert.strictEqual(editor.getModel()!.getValue(), expectedEndText.join('\n'));
+				const testEditor: TestEditor = {
+					setPosition(pos: Position) {
+						editor.setPosition(pos);
+						return linkedEditingContribution.currentUpdateTriggerPromise;
+					},
+					setSelection(sel: IRange) {
+						editor.setSelection(sel);
+						return linkedEditingContribution.currentUpdateTriggerPromise;
+					},
+					trigger(source: string | null | undefined, handlerId: string, payload: any) {
+						if (handlerId === Handler.Type || handlerId === Handler.Paste) {
+							editor.trigger(source, handlerId, payload);
+						} else if (handlerId === 'deleteLeft') {
+							CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, payload);
+						} else if (handlerId === 'deleteWordLeft') {
+							instantiationService.invokeFunction((accessor) => (new DeleteWordLeft()).runEditorCommand(accessor, editor, payload));
+						} else if (handlerId === 'deleteAllLeft') {
+							instantiationService.invokeFunction((accessor) => (new DeleteAllLeftAction()).runEditorCommand(accessor, editor, payload));
+						} else {
+							throw new Error(`Unknown handler ${handlerId}!`);
+						}
+						return linkedEditingContribution.currentSyncTriggerPromise;
+					},
+					undo() {
+						CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+					},
+					redo() {
+						CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 					}
-					resolve();
-				}, timeout);
+				};
+
+				await operations(testEditor);
+
+				return new Promise<void>((resolve) => {
+					setTimeout(() => {
+						if (typeof expectedEndText === 'string') {
+							assert.strictEqual(editor.getModel()!.getValue(), expectedEndText);
+						} else {
+							assert.strictEqual(editor.getModel()!.getValue(), expectedEndText.join('\n'));
+						}
+						resolve();
+					}, timeout);
+				});
 			});
 		});
 	}

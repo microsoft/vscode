@@ -24,6 +24,10 @@ export function getVirtualWorkspaceScheme(workspace: IWorkspace): string | undef
 	return getVirtualWorkspaceLocation(workspace)?.scheme;
 }
 
+export function getVirtualWorkspaceAuthority(workspace: IWorkspace): string | undefined {
+	return getVirtualWorkspaceLocation(workspace)?.authority;
+}
+
 export function isVirtualWorkspace(workspace: IWorkspace): boolean {
 	return getVirtualWorkspaceLocation(workspace) !== undefined;
 }

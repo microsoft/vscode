@@ -9,15 +9,15 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/browser/wordTestUtils';
 import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
-import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('WordOperations', () => {
 
@@ -45,13 +45,26 @@ suite('WordOperations', () => {
 	const _deleteWordEndRight = new DeleteWordEndRight();
 	const _deleteInsideWord = new DeleteInsideWord();
 
-	const serviceAccessor = new StaticServiceAccessor().withService(
-		ILanguageConfigurationService,
-		new TestLanguageConfigurationService()
-	);
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageConfigurationService: ILanguageConfigurationService;
+	let languageService: ILanguageService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createCodeEditorServices(disposables);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		languageService = instantiationService.get(ILanguageService);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
-		command.runEditorCommand(serviceAccessor, editor, null);
+		instantiationService.invokeFunction((accessor) => {
+			command.runEditorCommand(accessor, editor, null);
+		});
 	}
 	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
@@ -738,27 +751,20 @@ suite('WordOperations', () => {
 
 	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
 		const languageId = 'myTestMode';
-		class TestMode extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.languageId, {
-					autoClosingPairs: [
-						{ open: '\"', close: '\"' }
-					]
-				}));
-			}
-		}
 
-		const mode = new TestMode();
-		const model = createTextModel('a ""', languageId, undefined);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: '\"', close: '\"' }
+			]
+		}));
 
-		withTestCodeEditor(model, { autoClosingDelete: 'always' }, (editor, _) => {
-			editor.setPosition(new Position(1, 4));
-			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), 'a ');
-		});
+		const model = disposables.add(instantiateTextModel(instantiationService, 'a ""', languageId));
+		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, { autoClosingDelete: 'always' }));
 
-		model.dispose();
-		mode.dispose();
+		editor.setPosition(new Position(1, 4));
+		deleteWordLeft(editor);
+		assert.strictEqual(model.getLineContent(1), 'a ');
 	});
 
 	test('deleteInsideWord - empty line', () => {

@@ -19,7 +19,7 @@ export function removeTag() {
 		return;
 	}
 
-	let finalRangesToRemove = Array.from(editor.selections).reverse()
+	const finalRangesToRemove = Array.from(editor.selections).reverse()
 		.reduce<vscode.Range[]>((prev, selection) =>
 			prev.concat(getRangesToRemove(editor.document, rootNode, selection)), []);
 
@@ -68,7 +68,7 @@ function getRangesToRemove(document: vscode.TextDocument, rootNode: HtmlFlatNode
 		}
 	}
 
-	let rangesToRemove = [];
+	const rangesToRemove = [];
 	if (openTagRange) {
 		rangesToRemove.push(openTagRange);
 		if (closeTagRange) {

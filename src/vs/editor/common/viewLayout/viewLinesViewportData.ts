@@ -70,7 +70,7 @@ export class ViewportData {
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
-		return this._model.getViewLineRenderingData(this.visibleRange, lineNumber);
+		return this._model.getViewportViewLineRenderingData(this.visibleRange, lineNumber);
 	}
 
 	public getDecorationsInViewport(): ViewModelDecoration[] {

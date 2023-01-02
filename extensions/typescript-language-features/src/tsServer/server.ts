@@ -230,6 +230,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
+								"owner": "mjbvz",
 								"${include}": [
 									"${TypeScriptCommonProperties}",
 									"${TypeScriptRequestErrorProperties}"

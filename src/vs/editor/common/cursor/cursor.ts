@@ -16,15 +16,13 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
+import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/textModelEvents';
 import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
 
 export class CursorsController extends Disposable {
-
-	public static readonly MAX_CURSOR_COUNT = 10000;
 
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
@@ -117,8 +115,9 @@ export class CursorsController extends Disposable {
 
 	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
-		if (states !== null && states.length > CursorsController.MAX_CURSOR_COUNT) {
-			states = states.slice(0, CursorsController.MAX_CURSOR_COUNT);
+		const multiCursorLimit = this.context.cursorConfig.multiCursorLimit;
+		if (states !== null && states.length > multiCursorLimit) {
+			states = states.slice(0, multiCursorLimit);
 			reachedMaxCursorCount = true;
 		}
 
@@ -216,8 +215,8 @@ export class CursorsController extends Disposable {
 		this.revealPrimary(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
-		if (e instanceof ModelInjectedTextChangedEvent) {
+	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, event: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
+		if (event instanceof ModelInjectedTextChangedEvent) {
 			// If injected texts change, the view positions of all cursors need to be updated.
 			if (this._isHandling) {
 				// The view positions will be updated when handling finishes
@@ -234,6 +233,7 @@ export class CursorsController extends Disposable {
 				this._isHandling = false;
 			}
 		} else {
+			const e = event.rawContentChangedEvent;
 			this._knownModelVersionId = e.versionId;
 			if (this._isHandling) {
 				return;
@@ -402,7 +402,7 @@ export class CursorsController extends Disposable {
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections));
+		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections, reason));
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -831,7 +831,7 @@ class CommandExecutor {
 
 		// Extract losing cursors
 		const losingCursors: number[] = [];
-		for (let losingCursorIndex in loserCursorsMap) {
+		for (const losingCursorIndex in loserCursorsMap) {
 			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
 				losingCursors.push(parseInt(losingCursorIndex, 10));
 			}

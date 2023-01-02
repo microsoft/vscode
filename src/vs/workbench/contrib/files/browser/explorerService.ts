@@ -23,6 +23,8 @@ import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProg
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExpression } from 'vs/base/common/glob';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -33,13 +35,13 @@ export class ExplorerService implements IExplorerService {
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
-	private _sortOrder: SortOrder;
-	private _lexicographicOptions: LexicographicOptions;
+	private config: IFilesConfiguration['explorer'];
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
+	private revealExcludeMatcher: ResourceGlobMatcher;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -52,8 +54,7 @@ export class ExplorerService implements IExplorerService {
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService
 	) {
-		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
-		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
+		this.config = this.configurationService.getValue('explorer');
 
 		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService);
 		this.disposables.add(this.model);
@@ -65,7 +66,7 @@ export class ExplorerService implements IExplorerService {
 
 			// Filter to the ones we care
 			const types = [FileChangeType.DELETED];
-			if (this._sortOrder === SortOrder.Modified) {
+			if (this.config.sortOrder === SortOrder.Modified) {
 				types.push(FileChangeType.UPDATED);
 			}
 
@@ -123,17 +124,20 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		this.disposables.add(this.model.onDidChangeRoots(() => {
-			if (this.view) {
-				this.view.setTreeInput();
-			}
+			this.view?.setTreeInput();
 		}));
+
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
-		const skipRefreshExplorerOnWindowFocus = this.configurationService.getValue('skipRefreshExplorerOnWindowFocus');
 		this.disposables.add(hostService.onDidChangeFocus(hasFocus => {
-			if (!skipRefreshExplorerOnWindowFocus && hasFocus) {
+			if (hasFocus) {
 				this.refresh(false);
 			}
 		}));
+		this.revealExcludeMatcher = new ResourceGlobMatcher(
+			(uri) => getRevealExcludes(configurationService.getValue<IFilesConfiguration>({ resource: uri })),
+			(event) => event.affectsConfiguration('explorer.autoRevealExclude'),
+			contextService, configurationService);
+		this.disposables.add(this.revealExcludeMatcher);
 	}
 
 	get roots(): ExplorerItem[] {
@@ -142,8 +146,8 @@ export class ExplorerService implements IExplorerService {
 
 	get sortOrderConfiguration(): ISortOrderConfiguration {
 		return {
-			sortOrder: this._sortOrder,
-			lexicographicOptions: this._lexicographicOptions,
+			sortOrder: this.config.sortOrder,
+			lexicographicOptions: this.config.sortOrderLexicographicOptions,
 		};
 	}
 
@@ -151,20 +155,27 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean, includeNestedChildren = false): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
-		const items = this.view.getContext(respectMultiSelection);
-		if (includeNestedChildren) {
-			items.forEach(item => {
-				const nestedChildren = item.nestedChildren;
-				if (nestedChildren) {
-					items.push(...nestedChildren);
+
+		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
+		items.forEach(item => {
+			try {
+				if (respectMultiSelection && !ignoreNestedChildren && this.view?.isItemCollapsed(item) && item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
 				}
-			});
-		}
-		return items;
+			} catch {
+				// We will error out trying to resolve collapsed nodes that have not yet been resolved.
+				// So we catch and ignore them in the multiSelect context
+				return;
+			}
+		});
+
+		return [...items];
 	}
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
@@ -251,14 +262,20 @@ export class ExplorerService implements IExplorerService {
 			return;
 		}
 
+		// If file or parent matches exclude patterns, do not reveal unless reveal argument is 'force'
+		const ignoreRevealExcludes = reveal === 'force';
+
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
+			if (!this.shouldAutoRevealItem(fileStat, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(fileStat.resource, reveal);
 			return Promise.resolve(undefined);
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this._sortOrder === SortOrder.Modified };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.config.sortOrder === SortOrder.Modified };
 		const root = this.findClosestRoot(resource);
 		if (!root) {
 			return undefined;
@@ -274,7 +291,10 @@ export class ExplorerService implements IExplorerService {
 			const item = root.find(resource);
 			await this.view.refresh(true, root);
 
-			// Select and Reveal
+			// Once item is resolved, check again if folder should be expanded
+			if (item && !this.shouldAutoRevealItem(item, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
 		} catch (error) {
 			root.isError = true;
@@ -299,6 +319,11 @@ export class ExplorerService implements IExplorerService {
 	// File events
 
 	private async onDidRunOperation(e: FileOperationEvent): Promise<void> {
+		// When nesting, changes to one file in a folder may impact the rendered structure
+		// of all the folder's immediate children, thus a recursive refresh is needed.
+		// Ideally the tree would be able to recusively refresh just one level but that does not yet exist.
+		const shouldDeepRefresh = this.config.fileNesting.enabled;
+
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
 			const addedElement = e.target;
@@ -310,7 +335,7 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				await Promise.all(parents.map(async p => {
 					// We have to check if the parent is resolved #29177
-					const resolveMetadata = this._sortOrder === `modified`;
+					const resolveMetadata = this.config.sortOrder === `modified`;
 					if (!p.isDirectoryResolved) {
 						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
 						if (stat) {
@@ -324,7 +349,7 @@ export class ExplorerService implements IExplorerService {
 					p.removeChild(childElement);
 					p.addChild(childElement);
 					// Refresh the Parent (View)
-					await this.view?.refresh(false, p);
+					await this.view?.refresh(shouldDeepRefresh, p);
 				}));
 			}
 		}
@@ -343,7 +368,7 @@ export class ExplorerService implements IExplorerService {
 				await Promise.all(modelElements.map(async modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
-					await this.view?.refresh(false, modelElement.parent);
+					await this.view?.refresh(shouldDeepRefresh, modelElement.parent);
 				}));
 			}
 
@@ -360,7 +385,7 @@ export class ExplorerService implements IExplorerService {
 							await this.view?.refresh(false, oldNestedParent);
 						}
 						await this.view?.refresh(false, oldParent);
-						await this.view?.refresh(false, newParents[index]);
+						await this.view?.refresh(shouldDeepRefresh, newParents[index]);
 					}));
 				}
 			}
@@ -369,36 +394,64 @@ export class ExplorerService implements IExplorerService {
 		// Delete
 		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
-			await Promise.all(modelElements.map(async element => {
-				if (element.parent) {
-					const parent = element.parent;
+			await Promise.all(modelElements.map(async modelElement => {
+				if (modelElement.parent) {
 					// Remove Element from Parent (Model)
-					parent.removeChild(element);
+					const parent = modelElement.parent;
+					parent.removeChild(modelElement);
+
+					const oldNestedParent = modelElement.nestedParent;
+					if (oldNestedParent) {
+						oldNestedParent.removeChild(modelElement);
+						await this.view?.refresh(false, oldNestedParent);
+					}
 					// Refresh Parent (View)
-					await this.view?.refresh(false, parent);
+					await this.view?.refresh(shouldDeepRefresh, parent);
 				}
 			}));
 		}
 	}
 
+	// Check if an item matches a explorer.autoRevealExclude pattern
+	private shouldAutoRevealItem(item: ExplorerItem | undefined, ignore: boolean): boolean {
+		if (item === undefined || ignore) {
+			return true;
+		}
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+			return false;
+		}
+		const root = item.root;
+		let currentItem = item.parent;
+		while (currentItem !== root) {
+			if (currentItem === undefined) {
+				return true;
+			}
+			if (this.revealExcludeMatcher.matches(currentItem.resource)) {
+				return false;
+			}
+			currentItem = currentItem.parent;
+		}
+		return true;
+	}
+
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		let shouldRefresh = false;
 
-		if (event?.affectedKeys.some(x => x.startsWith('explorer.experimental.fileNesting.'))) {
+		if (event?.affectsConfiguration('explorer.fileNesting')) {
 			shouldRefresh = true;
 		}
 
 		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
-		if (this._sortOrder !== configSortOrder) {
-			shouldRefresh = this._sortOrder !== undefined;
-			this._sortOrder = configSortOrder;
+		if (this.config.sortOrder !== configSortOrder) {
+			shouldRefresh = this.config.sortOrder !== undefined;
 		}
 
 		const configLexicographicOptions = configuration?.explorer?.sortOrderLexicographicOptions || LexicographicOptions.Default;
-		if (this._lexicographicOptions !== configLexicographicOptions) {
-			shouldRefresh = shouldRefresh || this._lexicographicOptions !== undefined;
-			this._lexicographicOptions = configLexicographicOptions;
+		if (this.config.sortOrderLexicographicOptions !== configLexicographicOptions) {
+			shouldRefresh = shouldRefresh || this.config.sortOrderLexicographicOptions !== undefined;
 		}
+
+		this.config = configuration.explorer;
 
 		if (shouldRefresh) {
 			await this.refresh();
@@ -411,7 +464,7 @@ export class ExplorerService implements IExplorerService {
 }
 
 function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {
-	for (let [_name, child] of item.children) {
+	for (const [_name, child] of item.children) {
 		if (view.isItemVisible(child)) {
 			if (events.some(e => e.contains(child.resource, ...types))) {
 				return true;
@@ -425,4 +478,14 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 	}
 
 	return false;
+}
+
+function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
+	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+
+	if (!revealExcludes) {
+		return {};
+	}
+
+	return revealExcludes;
 }

@@ -30,7 +30,7 @@ export class SortLinesCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let op = sortLines(model, this.selection, this.descending);
+		const op = sortLines(model, this.selection, this.descending);
 		if (op) {
 			builder.addEditOperation(op.range, op.text);
 		}
@@ -47,7 +47,7 @@ export class SortLinesCommand implements ICommand {
 			return false;
 		}
 
-		let data = getSortData(model, selection, descending);
+		const data = getSortData(model, selection, descending);
 
 		if (!data) {
 			return false;
@@ -64,7 +64,7 @@ export class SortLinesCommand implements ICommand {
 }
 
 function getSortData(model: ITextModel, selection: Selection, descending: boolean) {
-	let startLineNumber = selection.startLineNumber;
+	const startLineNumber = selection.startLineNumber;
 	let endLineNumber = selection.endLineNumber;
 
 	if (selection.endColumn === 1) {
@@ -76,7 +76,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 		return null;
 	}
 
-	let linesToSort: string[] = [];
+	const linesToSort: string[] = [];
 
 	// Get the contents of the selection to be sorted.
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
@@ -103,7 +103,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
  * Generate commands for sorting lines on a model.
  */
 function sortLines(model: ITextModel, selection: Selection, descending: boolean): ISingleEditOperation | null {
-	let data = getSortData(model, selection, descending);
+	const data = getSortData(model, selection, descending);
 
 	if (!data) {
 		return null;

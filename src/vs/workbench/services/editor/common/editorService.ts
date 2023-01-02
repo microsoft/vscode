@@ -88,8 +88,15 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
-export interface IEditorsChangeEvent extends IGroupModelChangeEvent {
+export interface IEditorsChangeEvent {
+	/**
+	 * The group which had the editor change
+	 */
 	groupId: GroupIdentifier;
+	/*
+	 * The event fired from the model
+	 */
+	event: IGroupModelChangeEvent;
 }
 
 export interface IEditorService {
@@ -198,7 +205,7 @@ export interface IEditorService {
 	 * @param editor the editor to open
 	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
@@ -228,7 +235,7 @@ export interface IEditorService {
 	 *
 	 * @param editors the editors to open with associated options
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editors that opened. The array can be empty or have less elements for editors

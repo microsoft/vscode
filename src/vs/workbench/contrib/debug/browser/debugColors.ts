@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, foreground, editorInfoForeground, editorWarningForeground, errorForeground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
@@ -125,6 +125,7 @@ export function registerColors() {
 		const debugViewStateLabelForegroundColor = theme.getColor(debugViewStateLabelForeground)!;
 		const debugViewStateLabelBackgroundColor = theme.getColor(debugViewStateLabelBackground)!;
 		const debugViewValueChangedHighlightColor = theme.getColor(debugViewValueChangedHighlight)!;
+		const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
 		collector.addRule(`
 			/* Text colour of the call stack row's filename */
@@ -181,6 +182,10 @@ export function registerColors() {
 				animation-name: debugViewletValueChanged;
 				animation-duration: 1s;
 				animation-fill-mode: forwards;
+			}
+
+			.monaco-list-row .expression .lazy-button:hover {
+				background-color: ${toolbarHoverBackgroundColor}
 			}
 		`);
 

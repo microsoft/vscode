@@ -23,7 +23,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { flatten } from 'vs/base/common/arrays';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 // format notebook
@@ -81,7 +80,7 @@ registerAction2(class extends Action2 {
 				const edits: ResourceTextEdit[] = [];
 
 				if (formatEdits) {
-					for (let edit of formatEdits) {
+					for (const edit of formatEdits) {
 						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
 					}
 
@@ -91,7 +90,7 @@ registerAction2(class extends Action2 {
 				return [];
 			}));
 
-			await bulkEditService.apply(/* edit */flatten(allCellEdits), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
+			await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
 
 		} finally {
 			disposable.dispose();

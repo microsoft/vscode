@@ -52,14 +52,17 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { connectionHealthToString } from 'vs/base/parts/ipc/common/ipc.net';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 
-export interface HelpInformation {
+interface HelpInformation {
 	extensionDescription: IExtensionDescription;
 	getStarted?: string;
 	documentation?: string;
 	feedback?: string;
 	issues?: string;
 	remoteName?: string[] | string;
+	virtualWorkspace?: string;
 }
 
 const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
@@ -161,9 +164,10 @@ class HelpModel {
 		quickInputService: IQuickInputService,
 		commandService: ICommandService,
 		remoteExplorerService: IRemoteExplorerService,
-		environmentService: IWorkbenchEnvironmentService
+		environmentService: IWorkbenchEnvironmentService,
+		workspaceContextService: IWorkspaceContextService
 	) {
-		let helpItems: IHelpItem[] = [];
+		const helpItems: IHelpItem[] = [];
 		const getStarted = viewModel.helpInformation.filter(info => info.getStarted);
 
 		if (getStarted.length) {
@@ -173,12 +177,14 @@ class HelpModel {
 				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.virtualWorkspace,
 					info.getStarted!)
 				)),
 				quickInputService,
 				environmentService,
 				openerService,
-				remoteExplorerService
+				remoteExplorerService,
+				workspaceContextService
 			));
 		}
 
@@ -191,12 +197,14 @@ class HelpModel {
 				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.virtualWorkspace,
 					info.documentation!)
 				)),
 				quickInputService,
 				environmentService,
 				openerService,
-				remoteExplorerService
+				remoteExplorerService,
+				workspaceContextService
 			));
 		}
 
@@ -209,12 +217,14 @@ class HelpModel {
 				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.virtualWorkspace,
 					info.feedback!)
 				)),
 				quickInputService,
 				environmentService,
 				openerService,
-				remoteExplorerService
+				remoteExplorerService,
+				workspaceContextService
 			));
 		}
 
@@ -227,12 +237,14 @@ class HelpModel {
 				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.virtualWorkspace,
 					info.issues!)
 				)),
 				quickInputService,
 				environmentService,
 				openerService,
-				remoteExplorerService
+				remoteExplorerService,
+				workspaceContextService
 			));
 		}
 
@@ -242,12 +254,14 @@ class HelpModel {
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.virtualWorkspace
 				))),
 				quickInputService,
 				environmentService,
 				commandService,
-				remoteExplorerService
+				remoteExplorerService,
+				workspaceContextService
 			));
 		}
 
@@ -259,7 +273,7 @@ class HelpModel {
 
 class HelpItemValue {
 	private _url: string | undefined;
-	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
+	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public readonly remoteAuthority: string[] | undefined, public readonly virtualWorkspace: string | undefined, private urlOrCommand?: string) { }
 
 	get url(): Promise<string> {
 		return this.getUrl();
@@ -268,7 +282,7 @@ class HelpItemValue {
 	private async getUrl(): Promise<string> {
 		if (this._url === undefined) {
 			if (this.urlOrCommand) {
-				let url = URI.parse(this.urlOrCommand);
+				const url = URI.parse(this.urlOrCommand);
 				if (url.authority) {
 					this._url = this.urlOrCommand;
 				} else {
@@ -294,7 +308,8 @@ abstract class HelpItemBase implements IHelpItem {
 		public values: HelpItemValue[],
 		private quickInputService: IQuickInputService,
 		private environmentService: IWorkbenchEnvironmentService,
-		private remoteExplorerService: IRemoteExplorerService
+		private remoteExplorerService: IRemoteExplorerService,
+		private workspaceContextService: IWorkspaceContextService
 	) {
 		this.iconClasses.push(...ThemeIcon.asClassNameArray(icon));
 		this.iconClasses.push('remote-help-tree-node-item-icon');
@@ -305,9 +320,9 @@ abstract class HelpItemBase implements IHelpItem {
 		if (remoteAuthority) {
 			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
 				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
-					for (let value of this.values) {
+					for (const value of this.values) {
 						if (value.remoteAuthority) {
-							for (let authority of value.remoteAuthority) {
+							for (const authority of value.remoteAuthority) {
 								if (remoteAuthority.startsWith(authority)) {
 									await this.takeAction(value.extensionDescription, await value.url);
 									return;
@@ -317,10 +332,27 @@ abstract class HelpItemBase implements IHelpItem {
 					}
 				}
 			}
+		} else {
+			const virtualWorkspace = getVirtualWorkspaceLocation(this.workspaceContextService.getWorkspace())?.scheme;
+			if (virtualWorkspace) {
+				for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
+					for (const value of this.values) {
+						if (value.virtualWorkspace && value.remoteAuthority) {
+							for (const authority of value.remoteAuthority) {
+								if (this.remoteExplorerService.targetType[i].startsWith(authority) && virtualWorkspace.startsWith(value.virtualWorkspace)) {
+									await this.takeAction(value.extensionDescription, await value.url);
+									return;
+								}
+							}
+						}
+
+					}
+				}
+			}
 		}
 
 		if (this.values.length > 1) {
-			let actions = (await Promise.all(this.values.map(async (value) => {
+			const actions = (await Promise.all(this.values.map(async (value) => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
 					description: await value.url,
@@ -334,8 +366,9 @@ abstract class HelpItemBase implements IHelpItem {
 					await this.takeAction(action.extensionDescription, action.description);
 				}
 			}
+		} else {
+			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
-		await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 
 	}
 
@@ -350,9 +383,10 @@ class HelpItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private openerService: IOpenerService,
-		remoteExplorerService: IRemoteExplorerService
+		remoteExplorerService: IRemoteExplorerService,
+		workspaceContextService: IWorkspaceContextService
 	) {
-		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService, workspaceContextService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
@@ -368,9 +402,10 @@ class IssueReporterItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
-		remoteExplorerService: IRemoteExplorerService
+		remoteExplorerService: IRemoteExplorerService,
+		workspaceContextService: IWorkspaceContextService
 	) {
-		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService, workspaceContextService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
@@ -399,6 +434,7 @@ class HelpPanel extends ViewPane {
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -427,7 +463,7 @@ class HelpPanel extends ViewPane {
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService);
+		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService);
 
 		this.tree.setInput(model);
 
@@ -456,7 +492,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	}
 }
 
-export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
+class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
 	private hasSetSwitchForConnection: boolean = false;
@@ -471,16 +507,15 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		remoteHelpExtPoint.setHandler((extensions) => {
-			let helpInformation: HelpInformation[] = [];
-			for (let extension of extensions) {
+			const helpInformation: HelpInformation[] = [];
+			for (const extension of extensions) {
 				this._handleRemoteInfoExtensionPoint(extension, helpInformation);
 			}
 
@@ -510,7 +545,8 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 			documentation: extension.value.documentation,
 			feedback: extension.value.feedback,
 			issues: extension.value.issues,
-			remoteName: extension.value.remoteName
+			remoteName: extension.value.remoteName,
+			virtualWorkspace: extension.value.virtualWorkspace
 		});
 	}
 
@@ -548,7 +584,7 @@ registerAction2(SwitchRemoteAction);
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: nls.localize('remote.explorer', "Remote Explorer"),
+		title: { value: nls.localize('remote.explorer', "Remote Explorer"), original: 'Remote Explorer' },
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
@@ -765,9 +801,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			const reconnectButton = {
 				label: nls.localize('reconnectNow', "Reconnect Now"),
 				callback: () => {
-					if (reconnectWaitEvent) {
-						reconnectWaitEvent.skipWait();
-					}
+					reconnectWaitEvent?.skipWait();
 				}
 			};
 
@@ -776,10 +810,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 				callback: () => {
 
 					type ReconnectReloadClassification = {
-						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-						attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+						owner: 'alexdima';
+						comment: 'The reload button in the builtin permanent reconnection failure dialog was pressed';
+						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+						attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 					};
 					type ReconnectReloadEvent = {
 						remoteName: string | undefined;
@@ -805,9 +841,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			// ReconnectionRunning -> ConnectionGain, ReconnectionPermanentFailure
 
 			connection.onDidStateChange((e) => {
-				if (visibleProgress) {
-					visibleProgress.stopTimer();
-				}
+				visibleProgress?.stopTimer();
 
 				if (disposableListener) {
 					disposableListener.dispose();
@@ -820,8 +854,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = 0;
 
 						type RemoteConnectionLostClassification = {
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionLost`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
 						};
 						type RemoteConnectionLostEvent = {
 							remoteName: string | undefined;
@@ -854,10 +890,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionRunningClassification = {
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionRunning`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 						};
 						type RemoteReconnectionRunningEvent = {
 							remoteName: string | undefined;
@@ -893,11 +931,13 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionPermanentFailureClassification = {
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							handled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionPermanentFailure`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
+							handled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error was handled by the resolver.' };
 						};
 						type RemoteReconnectionPermanentFailureEvent = {
 							remoteName: string | undefined;
@@ -936,10 +976,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteConnectionGainClassification = {
-							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionGain`';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Elapsed time (in ms) since data was last received.' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reconnection attempt counter.' };
 						};
 						type RemoteConnectionGainEvent = {
 							remoteName: string | undefined;
@@ -955,6 +997,26 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						});
 
 						hideProgress();
+						break;
+
+					case PersistentConnectionEventType.ConnectionHealthChanged:
+						type RemoteConnectionHealthClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection health has changed (round trip time)';
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the connection.' };
+							connectionHealth: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The health of the connection: good or poor.' };
+						};
+						type RemoteConnectionHealthEvent = {
+							remoteName: string | undefined;
+							reconnectionToken: string;
+							connectionHealth: 'good' | 'poor';
+						};
+						telemetryService.publicLog2<RemoteConnectionHealthEvent, RemoteConnectionHealthClassification>('remoteConnectionHealth', {
+							remoteName: getRemoteName(environmentService.remoteAuthority),
+							reconnectionToken: e.reconnectionToken,
+							connectionHealth: connectionHealthToString(e.connectionHealth)
+						});
 						break;
 				}
 			});

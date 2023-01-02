@@ -4,14 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { handleANSIOutput } from './ansi';
-import { truncatedArrayOfString } from './textHelper';
+import { insertOutput } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
 }
 
+interface HtmlRenderingHook {
+	/**
+	 * Invoked after the output item has been rendered but before it has been appended to the document.
+	 *
+	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
+	 */
+	postRender(outputItem: OutputItem, element: HTMLElement, signal: AbortSignal): HTMLElement | undefined | Promise<HTMLElement | undefined>;
+}
 
+interface JavaScriptRenderingHook {
+	/**
+	 * Invoked before the script is evaluated.
+	 *
+	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
+	 */
+	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+}
+
+interface RenderOptions {
+	readonly lineLimit: number;
+	readonly outputScrolling: boolean;
+}
+
+function clearContainer(container: HTMLElement) {
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
+}
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
 	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
@@ -60,26 +86,46 @@ const domEval = (container: Element) => {
 	}
 };
 
-function renderHTML(outputInfo: OutputItem, container: HTMLElement): void {
+async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<HtmlRenderingHook>): Promise<void> {
+	clearContainer(container);
+	let element: HTMLElement = document.createElement('div');
 	const htmlContent = outputInfo.text();
-	const element = document.createElement('div');
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
 	element.innerHTML = trustedHtml as string;
+
+	for (const hook of hooks) {
+		element = (await hook.postRender(outputInfo, element, signal)) ?? element;
+		if (signal.aborted) {
+			return;
+		}
+	}
+
 	container.appendChild(element);
 	domEval(element);
 }
 
-function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void {
-	const str = outputInfo.text();
-	const scriptVal = `<script type="application/javascript">${str}</script>`;
+async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<JavaScriptRenderingHook>): Promise<void> {
+	let scriptText = outputInfo.text();
+
+	for (const hook of hooks) {
+		scriptText = (await hook.preEvaluate(outputInfo, container, scriptText, signal)) ?? scriptText;
+		if (signal.aborted) {
+			return;
+		}
+	}
+
+	const script = document.createElement('script');
+	script.type = 'module';
+	script.textContent = scriptText;
+
 	const element = document.createElement('div');
-	const trustedHtml = ttPolicy?.createHTML(scriptVal) ?? scriptVal;
+	const trustedHtml = ttPolicy?.createHTML(script.outerHTML) ?? script.outerHTML;
 	element.innerHTML = trustedHtml as string;
 	container.appendChild(element);
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
@@ -96,7 +142,9 @@ function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 		const stack = document.createElement('pre');
 		stack.classList.add('traceback');
 		stack.style.margin = '8px 0';
-		stack.appendChild(handleANSIOutput(err.stack));
+		const element = document.createElement('span');
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
+		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
 		const header = document.createElement('div');
@@ -110,7 +158,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 	container.classList.add('error');
 }
 
-function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
 	const outputContainer = container.parentElement;
 	if (!outputContainer) {
 		// should never happen
@@ -124,10 +172,18 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 		const outputElement = (prev.firstChild as HTMLElement | null);
 		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
 			// same stream
-			const text = outputInfo.text();
 
-			const element = document.createElement('span');
-			truncatedArrayOfString(outputInfo.id, [text], 30, element);
+			// find child with same id
+			const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+			if (existing) {
+				clearContainer(existing);
+			}
+
+			const text = outputInfo.text();
+			const element = existing ?? document.createElement('span');
+			element.classList.add('output-stream');
+			element.setAttribute('output-item-id', outputInfo.id);
+			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -135,9 +191,10 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const element = document.createElement('span');
 	element.classList.add('output-stream');
+	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
@@ -148,74 +205,93 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	}
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
+	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
 	container.appendChild(contentNode);
-
 }
 
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
-	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
+	const htmlHooks = new Set<HtmlRenderingHook>();
+	const jsHooks = new Set<JavaScriptRenderingHook>();
+
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions });
 
 	const style = document.createElement('style');
 	style.textContent = `
 	.output-plaintext,
-	.output-stream {
-		line-height: 22px;
+	.output-stream,
+	.traceback {
+		display: inline-block;
+		width: 100%;
+		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
-		white-space: pre-wrap;
-		word-wrap: break-word;
-
 		font-size: var(--notebook-cell-output-font-size);
 		user-select: text;
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
 	}
+	output-plaintext,
+	.traceback {
+		word-wrap: break-word;
+	}
+	.output > span.scrollable {
+		overflow-y: scroll;
+		max-height: var(--notebook-cell-output-max-height);
+		border: var(--vscode-editorWidget-border);
+		border-style: solid;
+		padding-left: 4px;
+		box-sizing: border-box;
+		border-width: 1px;
+	}
 	.output-plaintext .code-bold,
-	.output-stream .code-bold {
+	.output-stream .code-bold,
+	.traceback .code-bold {
 		font-weight: bold;
 	}
 	.output-plaintext .code-italic,
-	.output-stream .code-italic {
+	.output-stream .code-italic,
+	.traceback .code-italic {
 		font-style: italic;
 	}
 	.output-plaintext .code-strike-through,
-	.output-stream .code-strike-through {
+	.output-stream .code-strike-through,
+	.traceback .code-strike-through {
 		text-decoration: line-through;
 	}
 	.output-plaintext .code-underline,
-	.output-stream .code-underline {
+	.output-stream .code-underline,
+	.traceback .code-underline {
 		text-decoration: underline;
 	}
 	`;
 	document.body.appendChild(style);
+
 	return {
-		renderOutputItem: (outputInfo, element) => {
+		renderOutputItem: async (outputInfo, element, signal?: AbortSignal) => {
 			switch (outputInfo.mime) {
 				case 'text/html':
-				case 'image/svg+xml':
-					{
-						if (!ctx.workspace.isTrusted) {
-							return;
-						}
-
-						renderHTML(outputInfo, element);
+				case 'image/svg+xml': {
+					if (!ctx.workspace.isTrusted) {
+						return;
 					}
-					break;
-				case 'application/javascript':
-					{
-						if (!ctx.workspace.isTrusted) {
-							return;
-						}
 
-						renderJavascript(outputInfo, element);
-					}
+					await renderHTML(outputInfo, element, signal!, htmlHooks);
 					break;
+				}
+				case 'application/javascript': {
+					if (!ctx.workspace.isTrusted) {
+						return;
+					}
+
+					renderJavascript(outputInfo, element, signal!, jsHooks);
+					break;
+				}
 				case 'image/gif':
 				case 'image/png':
 				case 'image/jpeg':
@@ -227,7 +303,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					break;
 				case 'application/vnd.code.notebook.error':
 					{
-						renderError(outputInfo, element);
+						renderError(outputInfo, element, latestContext);
 					}
 					break;
 				case 'application/vnd.code.notebook.stdout':
@@ -251,8 +327,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				default:
 					break;
 			}
-
-
 		},
 		disposeOutputItem: (id: string | undefined) => {
 			if (id) {
@@ -260,6 +334,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			} else {
 				disposables.forEach(d => d.dispose());
 			}
+		},
+		experimental_registerHtmlRenderingHook: (hook: HtmlRenderingHook): IDisposable => {
+			htmlHooks.add(hook);
+			return {
+				dispose: () => {
+					htmlHooks.delete(hook);
+				}
+			};
+		},
+		experimental_registerJavaScriptRenderingHook: (hook: JavaScriptRenderingHook): IDisposable => {
+			jsHooks.add(hook);
+			return {
+				dispose: () => {
+					jsHooks.delete(hook);
+				}
+			};
 		}
 	};
 };

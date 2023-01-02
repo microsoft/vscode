@@ -34,11 +34,11 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, inside workspace', function () {
 
-		let model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
-		let elements = model.getElements();
+		const model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
-		let [one, two, three] = elements as FileElement[];
+		const [one, two, three] = elements as FileElement[];
 		assert.strictEqual(one.kind, FileKind.FOLDER);
 		assert.strictEqual(two.kind, FileKind.FOLDER);
 		assert.strictEqual(three.kind, FileKind.FILE);
@@ -49,11 +49,11 @@ suite('Breadcrumb Model', function () {
 
 	test('display uri matters for FileElement', function () {
 
-		let model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
-		let elements = model.getElements();
+		const model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
-		let [one, two, three] = elements as FileElement[];
+		const [one, two, three] = elements as FileElement[];
 		assert.strictEqual(one.kind, FileKind.FOLDER);
 		assert.strictEqual(two.kind, FileKind.FOLDER);
 		assert.strictEqual(three.kind, FileKind.FILE);
@@ -64,11 +64,11 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		let model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
-		let elements = model.getElements();
+		const model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 2);
-		let [one, two] = elements as FileElement[];
+		const [one, two] = elements as FileElement[];
 		assert.strictEqual(one.kind, FileKind.FOLDER);
 		assert.strictEqual(two.kind, FileKind.FILE);
 		assert.strictEqual(one.uri.toString(), 'foo:/outside');

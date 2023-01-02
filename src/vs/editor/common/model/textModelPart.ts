@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class TextModelPart implements IDisposable {
+export class TextModelPart extends Disposable {
 	private _isDisposed = false;
 
-	public dispose(): void {
+	public override dispose(): void {
+		super.dispose();
 		this._isDisposed = true;
 	}
 	protected assertNotDisposed(): void {

@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { hash, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
@@ -102,9 +102,7 @@ class SharedProcessWorkerMain {
 
 	private terminate(configuration: ISharedProcessWorkerConfiguration): void {
 		const processDisposable = this.processes.get(hash(configuration));
-		if (processDisposable) {
-			processDisposable.dispose();
-		}
+		processDisposable?.dispose();
 	}
 }
 

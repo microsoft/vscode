@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -193,7 +193,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		});
 	}
 
-	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+	protected unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
 
 		// Registry (all)
 		this._workingCopies.delete(workingCopy);
@@ -290,4 +290,4 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	//#endregion
 }
 
-registerSingleton(IWorkingCopyService, WorkingCopyService, true);
+registerSingleton(IWorkingCopyService, WorkingCopyService, InstantiationType.Delayed);

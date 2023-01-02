@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { retry } from './retry';
-const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/utils/registry');
+process.env.DEBUG='pw:install'; // enable logging for this (https://github.com/microsoft/playwright/issues/17394)
+
+const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/server');
 
 async function install() {
-	await retry(() => installDefaultBrowsersForNpmInstall());
+	await installDefaultBrowsersForNpmInstall();
 }
 
 install();

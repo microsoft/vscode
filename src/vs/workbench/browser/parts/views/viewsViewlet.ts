@@ -19,7 +19,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
-	fromExtensionId?: ExtensionIdentifier;
+	readonly fromExtensionId?: ExtensionIdentifier;
 }
 
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
@@ -62,7 +62,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	private updateAllViews(viewDescriptors: ReadonlyArray<IViewDescriptor>) {
 		viewDescriptors.forEach(descriptor => {
-			let filterOnValue = this.getFilterOn(descriptor);
+			const filterOnValue = this.getFilterOn(descriptor);
 			if (!filterOnValue) {
 				return;
 			}
@@ -123,7 +123,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return views;
 	}
 
-	override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {

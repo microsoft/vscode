@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
@@ -80,12 +80,12 @@ class FormatOnType implements IEditorContribution {
 		}
 
 		// register typing listeners that will trigger the format
-		let triggerChars = new CharacterSet();
-		for (let ch of support.autoFormatTriggerCharacters) {
+		const triggerChars = new CharacterSet();
+		for (const ch of support.autoFormatTriggerCharacters) {
 			triggerChars.add(ch.charCodeAt(0));
 		}
 		this._sessionDisposables.add(this._editor.onDidType((text: string) => {
-			let lastCharCode = text.charCodeAt(text.length - 1);
+			const lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
 				this._trigger(String.fromCharCode(lastCharCode));
 			}
@@ -282,8 +282,8 @@ class FormatSelectionAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FormatOnType.ID, FormatOnType);
-registerEditorContribution(FormatOnPaste.ID, FormatOnPaste);
+registerEditorContribution(FormatOnType.ID, FormatOnType, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorContribution(FormatOnPaste.ID, FormatOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(FormatDocumentAction);
 registerEditorAction(FormatSelectionAction);
 

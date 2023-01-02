@@ -5,8 +5,6 @@
 
 // Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
 
-'use strict';
-
 import * as debug from 'debug';
 import * as extract from 'extract-zip';
 import * as fs from 'fs-extra';

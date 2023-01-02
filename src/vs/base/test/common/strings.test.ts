@@ -386,4 +386,13 @@ suite('Strings', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
 	});
+
+	test('replaceAsync', async () => {
+		let i = 0;
+		assert.strictEqual(await strings.replaceAsync('abcabcabcabc', /b(.)/g, async (match, after) => {
+			assert.strictEqual(match, 'bc');
+			assert.strictEqual(after, 'c');
+			return `${i++}${after}`;
+		}), 'a0ca1ca2ca3c');
+	});
 });

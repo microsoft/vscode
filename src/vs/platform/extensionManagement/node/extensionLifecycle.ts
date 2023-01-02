@@ -11,16 +11,16 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class ExtensionsLifecycle extends Disposable {
 
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IUserDataProfilesService private userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -130,6 +130,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
+		return join(this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
 	}
 }

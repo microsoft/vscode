@@ -10,7 +10,6 @@ import { basename } from 'vs/base/common/path';
 import { dirname, isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
@@ -20,9 +19,14 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IWebviewService, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+
+interface CustomEditorInputInitInfo {
+	readonly resource: URI;
+	readonly viewType: string;
+}
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -36,10 +40,14 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
-			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
-			const id = generateUuid();
-			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
-			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
+			const untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+			const webview = accessor.get(IWebviewService).createWebviewOverlay({
+				providedViewType: viewType,
+				options: { customClasses: options?.customClasses },
+				contentOptions: {},
+				extension: undefined,
+			});
+			const input = instantiationService.createInstance(CustomEditorInput, { resource, viewType }, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
 			if (typeof group !== 'undefined') {
 				input.updateGroup(group);
 			}
@@ -62,9 +70,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private _modelRef?: IReference<ICustomEditorModel>;
 
 	constructor(
-		resource: URI,
-		viewType: string,
-		id: string,
+		init: CustomEditorInputInitInfo,
 		webview: IOverlayWebview,
 		options: { startsDirty?: boolean; backupId?: string; untitledDocumentData?: VSBuffer; readonly oldResource?: URI },
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
@@ -75,8 +81,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super(id, viewType, '', webview, webviewWorkbenchService);
-		this._editorResource = resource;
+		super({ providedId: init.viewType, viewType: init.viewType, name: '' }, webview, webviewWorkbenchService);
+		this._editorResource = init.resource;
 		this.oldResource = options.oldResource;
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
@@ -123,6 +129,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.None;
+
+		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
 
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;
