@@ -627,7 +627,7 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 			let score: FuzzyScore | undefined;
 			if (this.tree.findMatchType === TreeFindMatchType.Contiguous) {
 				const index = labelStr.toLowerCase().indexOf(this._lowercasePattern);
-				if (index && index > -1) {
+				if (index > -1) {
 					score = [Number.MAX_SAFE_INTEGER, 0];
 					for (let i = this._lowercasePattern.length; i > 0; i--) {
 						score.push(index + i - 1);
