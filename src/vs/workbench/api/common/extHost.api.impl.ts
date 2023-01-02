@@ -1273,6 +1273,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FileType: files.FileType,
 			FilePermission: files.FilePermission,
 			FoldingRange: extHostTypes.FoldingRange,
+			FoldingRange2: extHostTypes.FoldingRange,
 			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			InlineCompletionItem: extHostTypes.InlineSuggestion,

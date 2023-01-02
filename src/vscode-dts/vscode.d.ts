@@ -5176,11 +5176,6 @@ declare module 'vscode' {
 		start: number;
 
 		/**
-		 * The zero-based character offset from where the folded range starts. If not defined, defaults to the length of the start line.
-		 */
-		startColumn?: number;
-
-		/**
 		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
 		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
@@ -5196,18 +5191,13 @@ declare module 'vscode' {
 		kind?: FoldingRangeKind;
 
 		/**
-		 * The text to be shown instead of the folded area.
-		 */
-		collapsedText?: string;
-
-		/**
 		 * Creates a new folding range.
 		 *
 		 * @param start The start line of the folded range.
 		 * @param end The end line of the folded range.
 		 * @param kind The kind of the folding range.
 		 */
-		constructor(start: number, end: number, kind?: FoldingRangeKind, collapsedText?: string);
+		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
 	/**
