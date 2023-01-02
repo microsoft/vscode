@@ -1635,6 +1635,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
+		const args = ['push', '--delete', remoteName, tagName];
+		await this.exec(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
@@ -2191,6 +2196,43 @@ export class Repository {
 				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
 			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
 				return { name: match[1], commit: match[3] ?? match[2], type: RefType.Tag };
+			}
+
+			return null;
+		};
+
+		return result.stdout.split('\n')
+			.filter(line => !!line)
+			.map(fn)
+			.filter(ref => !!ref) as Ref[];
+	}
+
+	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const args = ['ls-remote'];
+
+		if (opts?.heads) {
+			args.push('--heads');
+		}
+
+		if (opts?.tags) {
+			args.push('--tags');
+		}
+
+		args.push(remote);
+
+		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
+
+		const fn = (line: string): Ref | null => {
+			let match: RegExpExecArray | null;
+
+			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
+				return { name: match[1], commit: match[2], type: RefType.Head };
+			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
+				return { name: match[2], commit: match[1], type: RefType.Tag };
 			}
 
 			return null;
