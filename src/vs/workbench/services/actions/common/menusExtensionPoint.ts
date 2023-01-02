@@ -149,6 +149,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('view.itemContext', "The contributed view item context menu")
 	},
 	{
+		key: 'comments/comment/editorActions',
+		id: MenuId.CommentEditorActions,
+		description: localize('commentThread.editorActions', "The contributed comment editor actions"),
+		proposed: 'contribCommentEditorActionsMenu'
+	},
+	{
 		key: 'comments/commentThread/title',
 		id: MenuId.CommentThreadTitle,
 		description: localize('commentThread.title', "The contributed comment thread title menu")
@@ -669,7 +675,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
-			source: extension.description.displayName ?? extension.description.name,
+			source: { id: extension.description.identifier.value, title: extension.description.displayName ?? extension.description.name },
 			shortTitle,
 			tooltip: title,
 			category,

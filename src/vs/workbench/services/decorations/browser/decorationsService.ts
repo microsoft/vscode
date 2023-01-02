@@ -224,7 +224,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 	}
 
 	affectsResource(uri: URI): boolean {
-		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
+		return this._data.hasElementOrSubtree(uri);
 	}
 }
 

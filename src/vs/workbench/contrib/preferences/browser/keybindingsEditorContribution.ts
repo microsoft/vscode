@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +28,6 @@ import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRule
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { equals } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -262,28 +260,15 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			return true;
 		}
 
-		const aParts = KeybindingParser.parseUserBinding(a);
-		const bParts = KeybindingParser.parseUserBinding(b);
-		return equals(aParts, bParts, (a, b) => this._userBindingEquals(a, b));
-	}
-
-	private static _userBindingEquals(a: SimpleKeybinding | ScanCodeBinding, b: SimpleKeybinding | ScanCodeBinding): boolean {
-		if (a === null && b === null) {
+		const aKeybinding = KeybindingParser.parseKeybinding(a);
+		const bKeybinding = KeybindingParser.parseKeybinding(b);
+		if (aKeybinding === null && bKeybinding === null) {
 			return true;
 		}
-		if (!a || !b) {
+		if (!aKeybinding || !bKeybinding) {
 			return false;
 		}
-
-		if (a instanceof SimpleKeybinding && b instanceof SimpleKeybinding) {
-			return a.equals(b);
-		}
-
-		if (a instanceof ScanCodeBinding && b instanceof ScanCodeBinding) {
-			return a.equals(b);
-		}
-
-		return false;
+		return aKeybinding.equals(bKeybinding);
 	}
 
 	private _createDecoration(isError: boolean, uiLabel: string | null, usLabel: string | null, model: ITextModel, keyNode: Node): IModelDeltaDecoration {

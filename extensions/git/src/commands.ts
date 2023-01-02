@@ -68,6 +68,11 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 			return;
 		}
 
+		if (opts?.detached) {
+			await this.repository.checkout(this.ref.name, opts);
+			return;
+		}
+
 		const branches = await this.repository.findTrackingBranches(this.ref.name);
 
 		if (branches.length > 0) {
@@ -1141,6 +1146,7 @@ export class CommandCenter {
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedChanges.length) {
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -1299,6 +1305,7 @@ export class CommandCenter {
 		});
 
 		if (selectedChanges.length === changes.length) {
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -1388,6 +1395,7 @@ export class CommandCenter {
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 

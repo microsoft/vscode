@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { isIOS, OS } from 'vs/base/common/platform';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -37,7 +37,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -49,6 +48,10 @@ import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browse
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { isString } from 'vs/base/common/types';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 
 const $ = DOM.$;
 
@@ -435,14 +438,14 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				{
 					label: localize('when', "When"),
 					tooltip: '',
-					weight: 0.4,
+					weight: 0.35,
 					templateId: WhenColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
 				{
 					label: localize('source', "Source"),
 					tooltip: '',
-					weight: 0.1,
+					weight: 0.15,
 					templateId: SourceColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
@@ -777,10 +780,11 @@ class Delegate implements ITableVirtualDelegate<IKeybindingItemEntry> {
 		if (element.templateId === KEYBINDING_ENTRY_TEMPLATE_ID) {
 			const commandIdMatched = (<IKeybindingItemEntry>element).keybindingItem.commandLabel && (<IKeybindingItemEntry>element).commandIdMatches;
 			const commandDefaultLabelMatched = !!(<IKeybindingItemEntry>element).commandDefaultLabelMatches;
+			const extensionIdMatched = !!(<IKeybindingItemEntry>element).extensionIdMatches;
 			if (commandIdMatched && commandDefaultLabelMatched) {
 				return 60;
 			}
-			if (commandIdMatched || commandDefaultLabelMatched) {
+			if (extensionIdMatched || commandIdMatched || commandDefaultLabelMatched) {
 				return 40;
 			}
 		}
@@ -944,7 +948,26 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 }
 
 interface ISourceColumnTemplateData {
-	highlightedLabel: HighlightedLabel;
+	sourceColumn: HTMLElement;
+	sourceLabel: HighlightedLabel;
+	extensionContainer: HTMLElement;
+	extensionLabel: HTMLAnchorElement;
+	extensionId: HighlightedLabel;
+	disposables: DisposableStore;
+}
+
+function onClick(element: HTMLElement, callback: () => void): IDisposable {
+	const disposables = new DisposableStore();
+	disposables.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, DOM.finalHandler(callback)));
+	disposables.add(DOM.addDisposableListener(element, DOM.EventType.KEY_UP, e => {
+		const keyboardEvent = new StandardKeyboardEvent(e);
+		if (keyboardEvent.equals(KeyCode.Space) || keyboardEvent.equals(KeyCode.Enter)) {
+			e.preventDefault();
+			e.stopPropagation();
+			callback();
+		}
+	}));
+	return disposables;
 }
 
 class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISourceColumnTemplateData> {
@@ -953,51 +976,69 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	readonly templateId: string = SourceColumnRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) { }
+
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
-		const highlightedLabel = new HighlightedLabel(sourceColumn);
-		return { highlightedLabel };
+		const sourceLabel = new HighlightedLabel(DOM.append(sourceColumn, $('.source-label')));
+		const extensionContainer = DOM.append(sourceColumn, $('.extension-container'));
+		const extensionLabel = DOM.append<HTMLAnchorElement>(extensionContainer, $('a.extension-label', { tabindex: 0 }));
+		const extensionId = new HighlightedLabel(DOM.append(extensionContainer, $('.extension-id-container.code')));
+		return { sourceColumn, sourceLabel, extensionLabel, extensionContainer, extensionId, disposables: new DisposableStore() };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: ISourceColumnTemplateData, height: number | undefined): void {
-		templateData.highlightedLabel.set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+
+		if (isString(keybindingItemEntry.keybindingItem.source)) {
+			templateData.extensionContainer.classList.add('hide');
+			templateData.sourceLabel.element.classList.remove('hide');
+			templateData.sourceColumn.title = '';
+			templateData.sourceLabel.set(keybindingItemEntry.keybindingItem.source || '-', keybindingItemEntry.sourceMatches);
+		} else {
+			templateData.extensionContainer.classList.remove('hide');
+			templateData.sourceLabel.element.classList.add('hide');
+			const extension = keybindingItemEntry.keybindingItem.source;
+			const extensionLabel = extension.displayName ?? extension.identifier.value;
+			templateData.sourceColumn.title = localize('extension label', "Extension ({0})", extensionLabel);
+			templateData.extensionLabel.textContent = extensionLabel;
+			templateData.disposables.add(onClick(templateData.extensionLabel, () => {
+				this.extensionsWorkbenchService.open(extension.identifier.value);
+			}));
+			if (keybindingItemEntry.extensionIdMatches) {
+				templateData.extensionId.element.classList.remove('hide');
+				templateData.extensionId.set(extension.identifier.value, keybindingItemEntry.extensionIdMatches);
+			} else {
+				templateData.extensionId.element.classList.add('hide');
+				templateData.extensionId.set(undefined);
+			}
+		}
 	}
 
-	disposeTemplate(templateData: ISourceColumnTemplateData): void { }
+	disposeTemplate(templateData: ISourceColumnTemplateData): void {
+		templateData.disposables.dispose();
+	}
 }
 
-interface IWhenColumnTemplateData {
-	readonly element: HTMLElement;
-	readonly whenContainer: HTMLElement;
-	readonly whenLabel: HighlightedLabel;
-	readonly whenInput: InputBox;
-	readonly renderDisposables: DisposableStore;
-	readonly onDidAccept: Event<void>;
-	readonly onDidReject: Event<void>;
-	readonly disposables: DisposableStore;
-}
+class WhenInputWidget extends Disposable {
 
-class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenColumnTemplateData> {
+	private readonly input: InputBox;
+	readonly el: HTMLElement;
 
-	static readonly TEMPLATE_ID = 'when';
+	private readonly _onDidAccept = this._register(new Emitter<string>());
+	readonly onDidAccept = this._onDidAccept.event;
 
-	readonly templateId: string = WhenColumnRenderer.TEMPLATE_ID;
-	private whenFocusContextKey: IContextKey<boolean>;
+	private readonly _onDidReject = this._register(new Emitter<void>());
+	readonly onDidReject = this._onDidReject.event;
 
 	constructor(
-		private readonly keybindingsEditor: KeybindingsEditor,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
-		this.whenFocusContextKey = CONTEXT_WHEN_FOCUS.bindTo(contextKeyService);
-	}
+		super();
 
-	renderTemplate(container: HTMLElement): IWhenColumnTemplateData {
-		const element = DOM.append(container, $('.when'));
-
-		const whenContainer = DOM.append(element, $('div.when-label'));
-		const whenLabel = new HighlightedLabel(whenContainer);
-		const whenInput = new InputBox(element, this.contextViewService, {
+		this.input = new InputBox(this.el = DOM.$('.when-input'), contextViewService, {
 			validationOptions: {
 				validation: (value) => {
 					try {
@@ -1016,28 +1057,13 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			inputBoxStyles: defaultInputBoxStyles
 		});
 
-		const disposables = new DisposableStore();
-
-		const _onDidAccept: Emitter<void> = disposables.add(new Emitter<void>());
-		const onDidAccept: Event<void> = _onDidAccept.event;
-
-		const _onDidReject: Emitter<void> = disposables.add(new Emitter<void>());
-		const onDidReject: Event<void> = _onDidReject.event;
-
-		const hideInputBox = () => {
-			element.classList.remove('input-mode');
-			container.style.paddingLeft = '10px';
-		};
-
-		disposables.add(DOM.addStandardDisposableListener(whenInput.inputElement, DOM.EventType.KEY_DOWN, e => {
+		this._register(DOM.addStandardDisposableListener(this.input.inputElement, DOM.EventType.KEY_DOWN, e => {
 			let handled = false;
 			if (e.equals(KeyCode.Enter)) {
-				hideInputBox();
-				_onDidAccept.fire();
+				this._onDidAccept.fire(this.input.value);
 				handled = true;
 			} else if (e.equals(KeyCode.Escape)) {
-				hideInputBox();
-				_onDidReject.fire();
+				this._onDidReject.fire();
 				handled = true;
 			}
 			if (handled) {
@@ -1045,47 +1071,108 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				e.stopPropagation();
 			}
 		}));
-		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.FOCUS, () => {
-			this.whenFocusContextKey.set(true);
-		})));
-		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.BLUR, () => {
-			this.whenFocusContextKey.set(false);
-			hideInputBox();
-			_onDidReject.fire();
+
+		const whenFocusContextKey = CONTEXT_WHEN_FOCUS.bindTo(contextKeyService);
+		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.FOCUS, () => whenFocusContextKey.set(true))));
+		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.BLUR, () => {
+			whenFocusContextKey.set(false);
+			this._onDidReject.fire();
 		})));
 
 		// stop double click action on the input #148493
-		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
+		this._register((DOM.addDisposableListener(this.input.inputElement, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
+	}
 
-		const renderDisposables = disposables.add(new DisposableStore());
+	layout(dimension: DOM.Dimension): void {
+		this.input.element.style.height = `${dimension.height}px`;
+	}
+
+	show(value: string): void {
+		DOM.show(this.el);
+		this.input.value = value;
+		this.input.focus();
+		this.input.select();
+	}
+
+	hide(): void {
+		DOM.hide(this.el);
+	}
+}
+
+interface IWhenColumnTemplateData {
+	readonly element: HTMLElement;
+	readonly whenLabelContainer: HTMLElement;
+	readonly whenInputContainer: HTMLElement;
+	readonly whenLabel: HighlightedLabel;
+	readonly disposables: DisposableStore;
+}
+
+class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenColumnTemplateData> {
+
+	static readonly TEMPLATE_ID = 'when';
+
+	readonly templateId: string = WhenColumnRenderer.TEMPLATE_ID;
+	private readonly whenInputWidget: WhenInputWidget;
+
+	constructor(
+		private readonly keybindingsEditor: KeybindingsEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		this.whenInputWidget = instantiationService.createInstance(WhenInputWidget);
+	}
+
+	renderTemplate(container: HTMLElement): IWhenColumnTemplateData {
+		const element = DOM.append(container, $('.when'));
+
+		const whenLabelContainer = DOM.append(element, $('div.when-label'));
+		const whenLabel = new HighlightedLabel(whenLabelContainer);
+
+		const whenInputContainer = DOM.append(element, $('div.when-input-container'));
 
 		return {
 			element,
-			whenContainer,
+			whenLabelContainer,
 			whenLabel,
-			whenInput,
-			onDidAccept,
-			onDidReject,
-			renderDisposables,
-			disposables,
+			whenInputContainer,
+			disposables: new DisposableStore(),
 		};
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: IWhenColumnTemplateData, height: number | undefined): void {
-		templateData.renderDisposables.clear();
-
-		templateData.renderDisposables.add(this.keybindingsEditor.onDefineWhenExpression(e => {
+		templateData.disposables.clear();
+		const whenInputDisposables = templateData.disposables.add(new DisposableStore());
+		templateData.disposables.add(this.keybindingsEditor.onDefineWhenExpression(e => {
 			if (keybindingItemEntry === e) {
 				templateData.element.classList.add('input-mode');
-				templateData.whenInput.focus();
-				templateData.whenInput.select();
+				DOM.append(templateData.whenInputContainer, this.whenInputWidget.el);
+				this.whenInputWidget.show(keybindingItemEntry.keybindingItem.when || '');
+				this.whenInputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, 24));
+
+				const hideInputWidget = () => {
+					whenInputDisposables.clear();
+					templateData.element.classList.remove('input-mode');
+					templateData.element.parentElement!.style.paddingLeft = '10px';
+					DOM.clearNode(templateData.whenInputContainer);
+					this.whenInputWidget.hide();
+				};
+
+				whenInputDisposables.add(this.whenInputWidget.onDidAccept(value => {
+					hideInputWidget();
+					this.keybindingsEditor.updateKeybinding(keybindingItemEntry, keybindingItemEntry.keybindingItem.keybinding ? keybindingItemEntry.keybindingItem.keybinding.getUserSettingsLabel() || '' : '', value);
+					this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
+				}));
+
+				whenInputDisposables.add(this.whenInputWidget.onDidReject(value => {
+					hideInputWidget();
+					this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
+				}));
+
 				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
 		}));
 
-		templateData.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
-		templateData.whenContainer.classList.toggle('code', !!keybindingItemEntry.keybindingItem.when);
-		templateData.whenContainer.classList.toggle('empty', !keybindingItemEntry.keybindingItem.when);
+		templateData.whenLabelContainer.classList.toggle('code', !!keybindingItemEntry.keybindingItem.when);
+		templateData.whenLabelContainer.classList.toggle('empty', !keybindingItemEntry.keybindingItem.when);
 
 		if (keybindingItemEntry.keybindingItem.when) {
 			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
@@ -1097,20 +1184,10 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			templateData.element.title = '';
 		}
 
-		templateData.renderDisposables.add(templateData.onDidAccept(() => {
-			this.keybindingsEditor.updateKeybinding(keybindingItemEntry, keybindingItemEntry.keybindingItem.keybinding ? keybindingItemEntry.keybindingItem.keybinding.getUserSettingsLabel() || '' : '', templateData.whenInput.value);
-			this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
-		}));
-
-		templateData.renderDisposables.add(templateData.onDidReject(() => {
-			templateData.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
-			this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
-		}));
 	}
 
 	disposeTemplate(templateData: IWhenColumnTemplateData): void {
 		templateData.disposables.dispose();
-		templateData.renderDisposables.dispose();
 	}
 }
 
@@ -1123,8 +1200,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
 		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
 		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.source;
 		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
+		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
 		return ariaLabel;
 	}
 }

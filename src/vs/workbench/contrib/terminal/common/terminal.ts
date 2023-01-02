@@ -80,6 +80,7 @@ export interface ITerminalProfileService {
 	getPlatformKey(): Promise<string>;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
+	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
@@ -138,7 +139,7 @@ export interface ITerminalBackend {
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getWslPath(original: string): Promise<string>;
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
@@ -394,6 +395,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly remoteAuthority: string | undefined;
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
+	readonly initialCwd: string;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
@@ -425,7 +427,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	acknowledgeDataEvent(charCount: number): void;
 	processBinary(data: string): void;
 
-	getInitialCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;

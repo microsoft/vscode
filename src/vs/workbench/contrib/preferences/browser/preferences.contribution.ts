@@ -935,7 +935,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: { value: nls.localize('showDefaultKeybindings', "Show Default Keybindings"), original: 'Show Default Keybindings' },
+					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keybindings' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -948,7 +948,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor) {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.search('@source:default');
+					editorPane.search('@source:system');
 				}
 			}
 		});

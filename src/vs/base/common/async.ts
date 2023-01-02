@@ -875,6 +875,13 @@ export class RunOnceScheduler implements IDisposable {
 		return this.timeoutToken !== -1;
 	}
 
+	flush(): void {
+		if (this.isScheduled()) {
+			this.cancel();
+			this.doRun();
+		}
+	}
+
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
@@ -961,6 +968,7 @@ export class ProcessTimeRunOnceScheduler {
 }
 
 export class RunOnceWorker<T> extends RunOnceScheduler {
+
 	private units: T[] = [];
 
 	constructor(runner: (units: T[]) => void, timeout: number) {

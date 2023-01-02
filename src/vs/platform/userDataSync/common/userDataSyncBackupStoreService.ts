@@ -11,7 +11,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from 'vs/platform/files/common/files';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncBackupStoreService, IUserDataSyncLogService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -27,9 +27,40 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
+		this.cleanUp();
+	}
+
+	private async cleanUp(): Promise<void> {
 		for (const profile of this.userDataProfilesService.profiles) {
 			for (const resource of ALL_SYNC_RESOURCES) {
-				this.cleanUpBackup(this.getResourceBackupHome(profile, resource));
+				try {
+					await this.cleanUpBackup(this.getResourceBackupHome(profile, resource));
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+		}
+
+		let stat: IFileStat;
+		try {
+			stat = await this.fileService.resolve(this.environmentService.userDataSyncHome);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+			return;
+		}
+
+		if (stat.children) {
+			for (const child of stat.children) {
+				if (child.isDirectory && !this.userDataProfilesService.profiles.some(profile => profile.id === child.name)) {
+					try {
+						this.logService.info('Deleting non existing profile from backup', child.resource.path);
+						await this.fileService.del(child.resource, { recursive: true });
+					} catch (error) {
+						this.logService.error(error);
+					}
+				}
 			}
 		}
 	}
