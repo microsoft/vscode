@@ -17,6 +17,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
+import { match as matchGlobPattern } from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/path';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -31,7 +32,6 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { match as matchGlobPattern } from 'vs/base/common/glob';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
@@ -129,8 +129,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
-		this.registerListeners();
 		this.setGlobReadonly();    // and then track with onDidChangeConfiguration()
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
@@ -1148,10 +1148,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	// stable/semantic 'readonly'; typically based on filetype or directory.
-	// latest value derived from files.readonlyInclude/Exclude for this resource.path
+	// stable/semantic 'readonly' [nonEditable]; typically based on filetype or directory.
 	private globReadonly: boolean = false;
 
+	// latest value derived from files.readonlyInclude/Exclude for this resource.path
 	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
 
 	private checkDidChangeReadonly(newReadonly: boolean): boolean {
