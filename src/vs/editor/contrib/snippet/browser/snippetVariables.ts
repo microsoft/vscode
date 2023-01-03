@@ -30,7 +30,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'CURRENT_MONTH_NAME': true,
 	'CURRENT_MONTH_NAME_SHORT': true,
 	'CURRENT_SECONDS_UNIX': true,
-	'CURRENT_TIMEZONE': true,
+	'CURRENT_TIMEZONE_OFFSET': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
