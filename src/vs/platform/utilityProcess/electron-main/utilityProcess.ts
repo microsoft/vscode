@@ -201,11 +201,11 @@ export class UtilityProcess extends Disposable {
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
 
-		// Create message ports
-		this.createMessagePorts(this.process, this.configuration, responseWindow);
+		// Exchange message ports
+		this.exchangeMessagePorts(this.process, this.configuration, responseWindow);
 	}
 
-	private createMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
+	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
 		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
 
 		process.postMessage('null', [utilityProcessPort]);
@@ -294,8 +294,13 @@ export class UtilityProcess extends Disposable {
 			return;
 		}
 
-		this.log('killing the process', Severity.Info);
-		this.process.kill();
+		this.log('attempting to kill the process...', Severity.Info);
+		const killed = this.process.kill();
+		if (killed) {
+			this.log('successfully killed the process', Severity.Info);
+		} else {
+			this.log('unable to kill the process', Severity.Warning);
+		}
 	}
 
 	async waitForExit(maxWaitTimeMs: number): Promise<void> {
@@ -313,7 +318,7 @@ export class UtilityProcess extends Disposable {
 
 		if (!this.didExit) {
 			this.log('did not exit within ${maxWaitTimeMs}ms, will kill it now...', Severity.Info);
-			this.process.kill();
+			this.kill();
 		}
 	}
 }
