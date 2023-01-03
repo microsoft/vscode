@@ -52,10 +52,10 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		};
 	}
 
-	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender, options?: vscode.TelemetryLoggerOptions) {
+	instantiateLogger(extension: IExtensionDescription, sender: vscode.TelemetrySender, options?: vscode.TelemetryLoggerOptions) {
 		const telemetryDetails = this.getTelemetryDetails();
 		const logger = new ExtHostTelemetryLogger(
-			appender,
+			sender,
 			options,
 			extension,
 			this._outputLogger,
@@ -128,7 +128,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 }
 
 export class ExtHostTelemetryLogger {
-	private _appender: vscode.TelemetryAppender;
+	private _appender: vscode.TelemetrySender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
 	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
 	private _apiObject: vscode.TelemetryLogger | undefined;
@@ -136,7 +136,7 @@ export class ExtHostTelemetryLogger {
 	private readonly _additionalCommonProperties: Record<string, any> | undefined;
 	public readonly ignoreUnhandledExtHostErrors: boolean;
 	constructor(
-		appender: vscode.TelemetryAppender,
+		sender: vscode.TelemetrySender,
 		options: vscode.TelemetryLoggerOptions | undefined,
 		private readonly _extension: IExtensionDescription,
 		private readonly _logger: ILogger,
@@ -147,7 +147,7 @@ export class ExtHostTelemetryLogger {
 		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
 		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
 		this._additionalCommonProperties = options?.additionalCommonProperties;
-		this._appender = appender;
+		this._appender = sender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
 
@@ -192,7 +192,7 @@ export class ExtHostTelemetryLogger {
 		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
 		if (!this._inLoggingOnlyMode) {
-			this._appender.logEvent(eventName, data);
+			this._appender.sendEventData(eventName, data);
 		}
 		this._logger.trace(eventName, data);
 	}
@@ -212,7 +212,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.logError(eventNameOrException, data);
+			this._appender.sendErrorData(eventNameOrException, data);
 		}
 	}
 

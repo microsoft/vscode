@@ -9,8 +9,7 @@ declare module 'vscode' {
 	 * A special value wrapper denoting a value that is safe to not clean.
 	 * This is to be used when you can guarantee no identifiable information is contained in the value and the cleaning is improperly redacting it.
 	 */
-	// TODO@API name: TelemetryTrustedValue?
-	export class TrustedTelemetryValue<T = any> {
+	export class TelemetryTrustedValue<T = any> {
 		readonly value: T;
 
 		constructor(value: T);
@@ -19,7 +18,7 @@ declare module 'vscode' {
 	/**
 	 * A telemetry logger which can be used by extensions to log usage and error telementry.
 	 *
-	 * A logger wraps around an {@link TelemetryAppender appender} but it guarantees that
+	 * A logger wraps around an {@link TelemetrySender appender} but it guarantees that
 	 * - user settings to disable or tweak telemetry are respected, and that
 	 * - potential sensitive data is removed
 	 *
@@ -54,7 +53,7 @@ declare module 'vscode' {
 		 * @param eventName The event name to log
 		 * @param data The data to log
 		 */
-		logUsage(eventName: string, data?: Record<string, any | TrustedTelemetryValue>): void;
+		logUsage(eventName: string, data?: Record<string, any | TelemetryTrustedValue>): void;
 
 		/**
 		 * Log an error event.
@@ -64,7 +63,7 @@ declare module 'vscode' {
 		 * @param eventName The event name to log
 		 * @param data The data to log
 		 */
-		logError(eventName: string, data?: Record<string, any | TrustedTelemetryValue>): void;
+		logError(eventName: string, data?: Record<string, any | TelemetryTrustedValue>): void;
 
 		/**
 		 * Log an error event.
@@ -75,7 +74,7 @@ declare module 'vscode' {
 		 * @param error The error object which contains the stack trace cleaned of PII
 		 * @param data Additional data to log alongside the stack trace
 		 */
-		logError(error: Error, data?: Record<string, any | TrustedTelemetryValue>): void;
+		logError(error: Error, data?: Record<string, any | TelemetryTrustedValue>): void;
 
 		/**
 		 * Dispose this object and free resources.
@@ -84,11 +83,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The telemetry appender is the contract between a telemetry logger and some telemetry service. **Note** that extensions must NOT
-	 * call the methods of their appender directly as the logger provides extra guards and cleaning.
+	 * The telemetry sender is the contract between a telemetry logger and some telemetry service. **Note** that extensions must NOT
+	 * call the methods of their sender directly as the logger provides extra guards and cleaning.
 	 *
 	 * ```js
-	 * const appender: vscode.TelemetryAppender = {...};
+	 * const appender: vscode.TelemetrySender = {...};
 	 * const logger = vscode.env.createTelemetryLogger(appender);
 	 *
 	 * // GOOD - uses the logger
@@ -98,28 +97,25 @@ declare module 'vscode' {
 	 * appender.logEvent('myEvent', { myData: 'myValue' });
 	 * ```
 	 */
-	// TODO@API name: TelemetrySender?
-	export interface TelemetryAppender {
+	export interface TelemetrySender {
 		/**
-		 * Function to log usages data. Used within a {@link TelemetryLogger}
+		 * Function to send event data without a stacktrace. Used within a {@link TelemetryLogger}
 		 *
 		 * @param eventName The name of the event which you are logging
 		 * @param data A serializable key value pair that is being logged
 		 */
-		// TODO@API name: logUsage? sendEventData?
-		logEvent(eventName: string, data?: Record<string, any>): void;
+		sendEventData(eventName: string, data?: Record<string, any>): void;
 
 		/**
-		 * Function to log an error. Used within a {@link TelemetryLogger}
+		 * Function to send an error. Used within a {@link TelemetryLogger}
 		 *
 		 * @param error The error being logged
 		 * @param data Any additional data to be collected with the exception
 		 */
-		// TODO@API name: sendError? sendErrorData?
-		logError(error: Error, data?: Record<string, any>): void;
+		sendErrorData(error: Error, data?: Record<string, any>): void;
 
 		/**
-		 * Optional flush function which will give this appender a chance to send any remaining events
+		 * Optional flush function which will give this sender a chance to send any remaining events
 		 * as its {@link TelemetryLogger} is being disposed
 		 */
 		flush?(): void | Thenable<void>;
@@ -151,10 +147,10 @@ declare module 'vscode' {
 		/**
 		 * Creates a new {@link TelemetryLogger telemetry logger}.
 		 *
-		 * @param appender The telemetry appender that is used by the telemetry logger.
+		 * @param sender The telemetry sender that is used by the telemetry logger.
 		 * @param options Options for the telementry logger.
 		 * @returns A new telemetry logger
 		 */
-		export function createTelemetryLogger(appender: TelemetryAppender, options?: TelemetryLoggerOptions): TelemetryLogger;
+		export function createTelemetryLogger(sender: TelemetrySender, options?: TelemetryLoggerOptions): TelemetryLogger;
 	}
 }
