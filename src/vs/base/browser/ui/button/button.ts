@@ -401,7 +401,5 @@ export class ButtonBar extends Disposable {
 			}
 
 		}));
-
 	}
-
 }

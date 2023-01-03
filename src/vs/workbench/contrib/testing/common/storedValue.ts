@@ -31,6 +31,7 @@ export class StoredValue<T> {
 	private readonly key: string;
 	private readonly scope: StorageScope;
 	private readonly target: StorageTarget;
+	private value?: T;
 
 	/**
 	 * Emitted whenever the value is updated or deleted.
@@ -58,8 +59,12 @@ export class StoredValue<T> {
 	public get(defaultValue: T): T;
 
 	public get(defaultValue?: T): T | undefined {
-		const value = this.storage.get(this.key, this.scope);
-		return value === undefined ? defaultValue : this.serialization.deserialize(value);
+		if (this.value === undefined) {
+			const value = this.storage.get(this.key, this.scope);
+			this.value = value === undefined ? defaultValue : this.serialization.deserialize(value);
+		}
+
+		return this.value;
 	}
 
 	/**
@@ -67,6 +72,7 @@ export class StoredValue<T> {
 	 * @param value
 	 */
 	public store(value: T) {
+		this.value = value;
 		this.storage.store(this.key, this.serialization.serialize(value), this.scope, this.target);
 	}
 

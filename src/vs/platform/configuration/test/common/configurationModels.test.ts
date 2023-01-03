@@ -504,9 +504,9 @@ suite('CustomConfigurationModel', () => {
 	});
 });
 
-suite('CustomConfigurationModel', () => {
+suite('CustomConfigurationModel (2)', () => {
 
-	test('Default configuration model uses overrides', () => {
+	test('Default configuration model uses overrides (1/2)', () => {
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -523,7 +523,7 @@ suite('CustomConfigurationModel', () => {
 		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
 	});
 
-	test('Default configuration model uses overrides', () => {
+	test('Default configuration model uses overrides (2/2)', () => {
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -713,7 +713,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.zoomLevel', 'workbench.editor.enablePreview', 'files.autoSave']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window'));
@@ -745,7 +745,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', 'workbench.editor.enablePreview']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.zoomLevel', 'workbench.editor.enablePreview']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window'));
@@ -772,7 +772,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['files.autoSave', '[markdown]', '[typescript][jsonc]', 'editor.wordWrap', 'editor.lineNumbers']);
 
 		assert.ok(testObject.affectsConfiguration('files'));
 		assert.ok(testObject.affectsConfiguration('files.autoSave'));
@@ -830,7 +830,7 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, { data }, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.zoomLevel', '[markdown]', '[css][scss]', 'workbench.editor.enablePreview', 'editor.fontSize', 'editor.lineNumbers']);
 
 		assert.ok(!testObject.affectsConfiguration('files'));
 
@@ -882,7 +882,7 @@ suite('ConfigurationChangeEvent', () => {
 		);
 		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
 
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
 		assert.ok(testObject.affectsConfiguration('window.zoomLevel', { resource: URI.file('folder1') }));
@@ -980,7 +980,7 @@ suite('ConfigurationChangeEvent', () => {
 		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('file1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('file2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
 		const testObject = new ConfigurationChangeEvent(change, { data, workspace }, configuration, workspace);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['editor.lineNumbers', '[markdown]', '[json]', 'window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows', 'editor.wordWrap']);
 
 		assert.ok(testObject.affectsConfiguration('window.title'));
 		assert.ok(testObject.affectsConfiguration('window.title', { resource: URI.file('file1') }));
@@ -1066,10 +1066,18 @@ suite('ConfigurationChangeEvent', () => {
 		}));
 		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
 
-		assert.deepStrictEqual(testObject.affectedKeys, ['launch', 'launch.version', 'tasks']);
+		assert.deepStrictEqual([...testObject.affectedKeys], ['launch', 'launch.version', 'tasks']);
 		assert.ok(testObject.affectsConfiguration('launch'));
 		assert.ok(testObject.affectsConfiguration('launch.version'));
 		assert.ok(testObject.affectsConfiguration('tasks'));
+	});
+
+	test('affectsConfiguration returns false for empty string', () => {
+		const configuration = new Configuration(new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({ 'window.zoomLevel': 1 }));
+		const testObject = new ConfigurationChangeEvent(change, undefined, configuration);
+
+		assert.strictEqual(false, testObject.affectsConfiguration(''));
 	});
 
 });

@@ -51,6 +51,8 @@ export interface INotebookTextDiffEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
+	previousChange(): void;
+	nextChange(): void;
 }
 
 export interface IDiffNestedCellViewModel {

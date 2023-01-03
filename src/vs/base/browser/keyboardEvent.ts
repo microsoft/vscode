@@ -5,7 +5,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleKeybinding } from 'vs/base/common/keybindings';
+import { KeyCodeChord } from 'vs/base/common/keybindings';
 import * as platform from 'vs/base/common/platform';
 
 
@@ -65,7 +65,7 @@ export interface IKeyboardEvent {
 	/**
 	 * @internal
 	 */
-	toKeybinding(): SimpleKeybinding;
+	toKeyCodeChord(): KeyCodeChord;
 	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
@@ -127,7 +127,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly code: string;
 
 	private _asKeybinding: number;
-	private _asRuntimeKeybinding: SimpleKeybinding;
+	private _asKeyCodeChord: KeyCodeChord;
 
 	constructor(source: KeyboardEvent) {
 		const e = source;
@@ -151,7 +151,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.metaKey = this.metaKey || this.keyCode === KeyCode.Meta;
 
 		this._asKeybinding = this._computeKeybinding();
-		this._asRuntimeKeybinding = this._computeRuntimeKeybinding();
+		this._asKeyCodeChord = this._computeKeyCodeChord();
 
 		// console.log(`code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`);
 	}
@@ -168,8 +168,8 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 	}
 
-	public toKeybinding(): SimpleKeybinding {
-		return this._asRuntimeKeybinding;
+	public toKeyCodeChord(): KeyCodeChord {
+		return this._asKeyCodeChord;
 	}
 
 	public equals(other: number): boolean {
@@ -200,11 +200,11 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		return result;
 	}
 
-	private _computeRuntimeKeybinding(): SimpleKeybinding {
+	private _computeKeyCodeChord(): KeyCodeChord {
 		let key = KeyCode.Unknown;
 		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
 			key = this.keyCode;
 		}
-		return new SimpleKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
+		return new KeyCodeChord(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
 	}
 }

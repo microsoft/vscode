@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { OperationKind, Repository, RepositoryState } from './repository';
+import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -18,6 +18,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { OperationKind } from './operation';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -537,15 +538,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 					commitInProgress = true;
 				}
 
-				// When one of the following operations is running, we want to
-				// disable most commands in order to avoid multiple commands
-				// running at the same time.
-				if (repository.operations.isRunning(OperationKind.Checkout) ||
-					repository.operations.isRunning(OperationKind.CheckoutTracking) ||
-					repository.operations.isRunning(OperationKind.Commit) ||
-					repository.operations.isRunning(OperationKind.Pull) ||
-					repository.operations.isRunning(OperationKind.Push) ||
-					repository.operations.isRunning(OperationKind.Sync)) {
+				if (repository.operations.shouldDisableCommands()) {
 					operationInProgress = true;
 				}
 			}

@@ -48,6 +48,7 @@
 	max-width: 40vw;
 	font-variant-numeric: tabular-nums;
 }
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
 	position: relative;
 }
@@ -148,4 +149,31 @@
 	text-align: center;
 	font-size: 14px;
 	color: inherit;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item .status-bar-info {
+	color: var(--vscode-statusBarItem-prominentForeground);
+	background-color: var(--vscode-statusBarItem-prominentBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-prominentHoverBackground);
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
+	outline: 1px solid var(--vscode-contrastActiveBorder) !important;
+	outline-offset: -1px;
+}
+
+.monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-activeBackground) !important;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.monaco-workbench:not(.hc-light):not(.hc-black) .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
+	background-color: var(--vscode-statusBarItem-hoverBackground);
 }

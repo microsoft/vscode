@@ -565,7 +565,7 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(f => f.uri.toString()), [folder.toString()]);
@@ -614,7 +614,7 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1', 'initialization.testSetting2']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
@@ -660,7 +660,7 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
 		assert.strictEqual(target.callCount, 3);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
@@ -680,7 +680,7 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
@@ -997,7 +997,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
 			return promise;
 		});
-		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
+		assert.deepStrictEqual([...result.affectedKeys], ['configurationService.folder.policySetting']);
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
 	}));
@@ -1436,7 +1436,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		testObject.updateWorkspaceTrust(false);
 
 		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
+		assert.ok(event.affectedKeys.has('configurationService.folder.restrictedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	}));
 
@@ -1485,7 +1485,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		testObject.updateWorkspaceTrust(true);
 
 		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
+		assert.ok(event.affectedKeys.has('configurationService.folder.restrictedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	}));
 
@@ -1650,7 +1650,7 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await userDataProfileService.updateCurrentProfile(instantiationService.get(IUserDataProfilesService).defaultProfile, false);
 
 		const changeEvent = await promise;
-		assert.deepStrictEqual(changeEvent.affectedKeys, ['configurationService.profiles.testSetting']);
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'userValue');
 	}));
@@ -1666,9 +1666,22 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await userDataProfileService.updateCurrentProfile(profile, false);
 
 		const changeEvent = await promise;
-		assert.deepStrictEqual(changeEvent.affectedKeys, ['configurationService.profiles.testSetting']);
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.testSetting']);
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue2');
+	}));
+
+	test('In non-default profile, changing application settings shall include only application scope settings in the change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{}'));
+		await testObject.reloadConfiguration();
+
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "applicationValue" }'));
+
+		const changeEvent = await promise;
+		assert.deepStrictEqual([...changeEvent.affectedKeys], ['configurationService.profiles.applicationSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting'), 'applicationValue');
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'isSet');
 	}));
 
 });
@@ -2549,7 +2562,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.machineSetting']);
 					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
@@ -2569,7 +2582,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.deepStrictEqual([...event.affectedKeys], ['configurationService.remote.machineSetting']);
 					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {

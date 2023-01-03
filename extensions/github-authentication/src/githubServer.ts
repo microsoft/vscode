@@ -189,7 +189,11 @@ export class GitHubServer implements IGitHubServer {
 				this._logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
-		} else if (!supported) {
+		}
+
+		// In a supported environment, we can't use PAT auth because we use this auth for Settings Sync and it doesn't support PATs.
+		// With that said, GitHub Enterprise isn't used by Settings Sync so we can use PATs for that.
+		if (!supported || this._type === AuthProviderType.githubEnterprise) {
 			try {
 				await promptToContinue();
 				return await this.doLoginWithPat(scopes);
@@ -338,7 +342,23 @@ export class GitHubServer implements IGitHubServer {
 
 	private async doLoginWithPat(scopes: string): Promise<string> {
 		this._logger.info(`Trying to retrieve PAT... (${scopes})`);
-		const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+
+		const button = vscode.l10n.t('Continue to GitHub');
+		const modalResult = await vscode.window.showInformationMessage(
+			vscode.l10n.t('Continue to GitHub to create a Personal Access Token (PAT)'),
+			{
+				modal: true,
+				detail: vscode.l10n.t('To finish authenticating, navigate to GitHub to create a PAT then paste the PAT into the input box.')
+			}, button);
+
+		if (modalResult !== button) {
+			throw new Error('User Cancelled');
+		}
+
+		const description = `${vscode.env.appName} (${scopes})`;
+		const uriToOpen = await vscode.env.asExternalUri(this.baseUri.with({ path: '/settings/tokens/new', query: `description=${description}&scopes=${scopes.split(' ').join(',')}` }));
+		await vscode.env.openExternal(uriToOpen);
+		const token = await vscode.window.showInputBox({ placeHolder: `ghp_1a2b3c4...`, prompt: `GitHub Personal Access Token - ${scopes}`, ignoreFocusOut: true });
 		if (!token) { throw new Error('User Cancelled'); }
 
 		const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']

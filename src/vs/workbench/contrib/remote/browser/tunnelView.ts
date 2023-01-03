@@ -1504,6 +1504,8 @@ namespace ChangeTunnelPrivacyAction {
 					source: arg.source
 				});
 			}
+
+			return undefined;
 		};
 	}
 }

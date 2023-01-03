@@ -25,12 +25,22 @@ To read output from another program, append '-' (e.g. 'echo Hello World | ",
 {all-args}"
 );
 
+const COMMIT_IN_VERSION: &str = match constants::VSCODE_CLI_COMMIT {
+	Some(c) => c,
+	None => "unknown",
+};
+const NUMBER_IN_VERSION: &str = match constants::VSCODE_CLI_VERSION {
+	Some(c) => c,
+	None => "dev",
+};
+const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSION, ")");
+
 #[derive(Parser, Debug, Default)]
 #[clap(
    help_template = TEMPLATE,
    long_about = None,
    name = CLI_NAME,
-   version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
+   version = VERSION,
  )]
 pub struct IntegratedCli {
 	#[clap(flatten)]
@@ -62,7 +72,7 @@ pub struct CliCore {
    help_template = TEMPLATE,
    long_about = None,
    name = CLI_NAME,
-   version = match constants::VSCODE_CLI_VERSION { Some(v) => v, None => "dev" },
+   version = VERSION,
  )]
 pub struct StandaloneCli {
 	#[clap(flatten)]

@@ -16,7 +16,7 @@ import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
@@ -1126,8 +1126,8 @@ const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label:
 		visualIcon,
 		activeIcon: Codicon.eye,
 		inactiveIcon: Codicon.eyeClosed,
-		activeAriaLabel: localize('visible', "Visible"),
-		inactiveAriaLabel: localize('hidden', "Hidden"),
+		activeAriaLabel: localize('selectToHide', "Select to Hide"),
+		inactiveAriaLabel: localize('selectToShow', "Select to Show"),
 		useButtons: true,
 	};
 };
@@ -1184,6 +1184,9 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 }
 
 registerAction2(class CustomizeLayoutAction extends Action2 {
+
+	private _currentQuickPick?: IQuickPick<IQuickPickItem>;
+
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
@@ -1262,21 +1265,38 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		if (this._currentQuickPick) {
+			this._currentQuickPick.hide();
+			return;
+		}
+
+		const configurationService = accessor.get(IConfigurationService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const quickPick = quickInputService.createQuickPick();
+
+		this._currentQuickPick = quickPick;
 		quickPick.items = this.getItems(contextKeyService);
 		quickPick.ignoreFocusOut = true;
 		quickPick.hideInput = true;
 		quickPick.title = localize('customizeLayoutQuickPickTitle', "Customize Layout");
 
+		const closeButton = {
+			alwaysVisible: true,
+			iconClass: Codicon.close.classNames,
+			tooltip: localize('close', "Close")
+		};
+
+		const resetButton = {
+			alwaysVisible: true,
+			iconClass: Codicon.discard.classNames,
+			tooltip: localize('restore defaults', "Restore Defaults")
+		};
+
 		quickPick.buttons = [
-			{
-				alwaysVisible: true,
-				iconClass: Codicon.close.classNames,
-				tooltip: localize('close', "Close")
-			}
+			resetButton,
+			closeButton
 		];
 
 		const disposables = new DisposableStore();
@@ -1306,12 +1326,38 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			}
 		});
 
-		// Only one button, close
-		quickPick.onDidTriggerButton(() => {
-			quickPick.hide();
+		quickPick.onDidTriggerButton((button) => {
+			if (button === closeButton) {
+				quickPick.hide();
+			} else if (button === resetButton) {
+
+				const resetSetting = (id: string) => {
+					const config = configurationService.inspect(id);
+					configurationService.updateValue(id, config.defaultValue);
+				};
+
+				// Reset all layout options
+				resetSetting('workbench.activityBar.visible');
+				resetSetting('workbench.sideBar.location');
+				resetSetting('workbench.statusBar.visible');
+				resetSetting('workbench.panel.defaultLocation');
+
+				if (!isMacintosh || !isNative) {
+					resetSetting('window.menuBarVisibility');
+				}
+
+				commandService.executeCommand('workbench.action.alignPanelCenter');
+			}
 		});
 
-		quickPick.onDispose(() => disposables.dispose());
+		quickPick.onDidHide(() => {
+			quickPick.dispose();
+		});
+
+		quickPick.onDispose(() => {
+			this._currentQuickPick = undefined;
+			disposables.dispose();
+		});
 
 		quickPick.show();
 	}

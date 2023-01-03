@@ -46,23 +46,16 @@ const GUTTER_DECORATION_WIDTH = 2;
 class MinimapOptions {
 
 	public readonly renderMinimap: RenderMinimap;
-
 	public readonly size: 'proportional' | 'fill' | 'fit';
-
 	public readonly minimapHeightIsEditorHeight: boolean;
-
 	public readonly scrollBeyondLastLine: boolean;
-
+	public readonly paddingTop: number;
+	public readonly paddingBottom: number;
 	public readonly showSlider: 'always' | 'mouseover';
-
 	public readonly autohide: boolean;
-
 	public readonly pixelRatio: number;
-
 	public readonly typicalHalfwidthCharacterWidth: number;
-
 	public readonly lineHeight: number;
-
 	/**
 	 * container dom node left position (in CSS px)
 	 */
@@ -75,7 +68,6 @@ class MinimapOptions {
 	 * container dom node height (in CSS px)
 	 */
 	public readonly minimapHeight: number;
-
 	/**
 	 * canvas backing store width (in device px)
 	 */
@@ -84,7 +76,6 @@ class MinimapOptions {
 	 * canvas backing store height (in device px)
 	 */
 	public readonly canvasInnerHeight: number;
-
 	/**
 	 * canvas width (in CSS px)
 	 */
@@ -120,6 +111,8 @@ class MinimapOptions {
 		this.size = minimapOpts.size;
 		this.minimapHeightIsEditorHeight = minimapLayout.minimapHeightIsEditorHeight;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
+		this.paddingTop = options.get(EditorOption.padding).top;
+		this.paddingBottom = options.get(EditorOption.padding).bottom;
 		this.showSlider = minimapOpts.showSlider;
 		this.autohide = minimapOpts.autohide;
 		this.pixelRatio = pixelRatio;
@@ -167,6 +160,8 @@ class MinimapOptions {
 			&& this.size === other.size
 			&& this.minimapHeightIsEditorHeight === other.minimapHeightIsEditorHeight
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
+			&& this.paddingTop === other.paddingTop
+			&& this.paddingBottom === other.paddingBottom
 			&& this.showSlider === other.showSlider
 			&& this.autohide === other.autohide
 			&& this.pixelRatio === other.pixelRatio
@@ -193,56 +188,38 @@ class MinimapOptions {
 
 class MinimapLayout {
 
-	/**
-	 * The given editor scrollTop (input).
-	 */
-	public readonly scrollTop: number;
-
-	/**
-	* The given editor scrollHeight (input).
-	*/
-	public readonly scrollHeight: number;
-
-	public readonly sliderNeeded: boolean;
-	private readonly _computedSliderRatio: number;
-
-	/**
-	 * slider dom node top (in CSS px)
-	 */
-	public readonly sliderTop: number;
-	/**
-	 * slider dom node height (in CSS px)
-	 */
-	public readonly sliderHeight: number;
-
-	/**
-	 * minimap render start line number.
-	 */
-	public readonly startLineNumber: number;
-	/**
-	 * minimap render end line number.
-	 */
-	public readonly endLineNumber: number;
-
 	constructor(
-		scrollTop: number,
-		scrollHeight: number,
-		sliderNeeded: boolean,
-		computedSliderRatio: number,
-		sliderTop: number,
-		sliderHeight: number,
-		startLineNumber: number,
-		endLineNumber: number
-	) {
-		this.scrollTop = scrollTop;
-		this.scrollHeight = scrollHeight;
-		this.sliderNeeded = sliderNeeded;
-		this._computedSliderRatio = computedSliderRatio;
-		this.sliderTop = sliderTop;
-		this.sliderHeight = sliderHeight;
-		this.startLineNumber = startLineNumber;
-		this.endLineNumber = endLineNumber;
-	}
+		/**
+		 * The given editor scrollTop (input).
+		 */
+		public readonly scrollTop: number,
+		/**
+		 * The given editor scrollHeight (input).
+		 */
+		public readonly scrollHeight: number,
+		public readonly sliderNeeded: boolean,
+		private readonly _computedSliderRatio: number,
+		/**
+		 * slider dom node top (in CSS px)
+		 */
+		public readonly sliderTop: number,
+		/**
+		 * slider dom node height (in CSS px)
+		 */
+		public readonly sliderHeight: number,
+		/**
+		 * empty lines to reserve at the top of the minimap.
+		 */
+		public readonly topPaddingLineCount: number,
+		/**
+		 * minimap render start line number.
+		 */
+		public readonly startLineNumber: number,
+		/**
+		 * minimap render end line number.
+		 */
+		public readonly endLineNumber: number
+	) { }
 
 	/**
 	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
@@ -253,6 +230,26 @@ class MinimapLayout {
 
 	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
 		return Math.round((pageY - this.sliderHeight / 2) / this._computedSliderRatio);
+	}
+
+	/**
+	 * Intersect a line range with `this.startLineNumber` and `this.endLineNumber`.
+	 */
+	public intersectWithViewport(range: Range): [number, number] | null {
+		const startLineNumber = Math.max(this.startLineNumber, range.startLineNumber);
+		const endLineNumber = Math.min(this.endLineNumber, range.endLineNumber);
+		if (startLineNumber > endLineNumber) {
+			// entirely outside minimap's viewport
+			return null;
+		}
+		return [startLineNumber, endLineNumber];
+	}
+
+	/**
+	 * Get the inner minimap y coordinate for a line number.
+	 */
+	public getYForLineNumber(lineNumber: number, minimapLineHeight: number): number {
+		return + (lineNumber - this.startLineNumber + this.topPaddingLineCount) * minimapLineHeight;
 	}
 
 	public static create(
@@ -274,10 +271,14 @@ class MinimapLayout {
 		const lineHeight = options.lineHeight;
 
 		if (options.minimapHeightIsEditorHeight) {
-			const logicalScrollHeight = (
+			let logicalScrollHeight = (
 				realLineCount * options.lineHeight
-				+ (options.scrollBeyondLastLine ? viewportHeight - options.lineHeight : 0)
+				+ options.paddingTop
+				+ options.paddingBottom
 			);
+			if (options.scrollBeyondLastLine) {
+				logicalScrollHeight += Math.max(0, viewportHeight - options.lineHeight - options.paddingBottom);
+			}
 			const sliderHeight = Math.max(1, Math.floor(viewportHeight * viewportHeight / logicalScrollHeight));
 			const maxMinimapSliderTop = Math.max(0, options.minimapHeight - sliderHeight);
 			// The slider can move from 0 to `maxMinimapSliderTop`
@@ -286,7 +287,8 @@ class MinimapLayout {
 			const sliderTop = (scrollTop * computedSliderRatio);
 			const sliderNeeded = (maxMinimapSliderTop > 0);
 			const maxLinesFitting = Math.floor(options.canvasInnerHeight / options.minimapLineHeight);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, 1, Math.min(lineCount, maxLinesFitting));
+			const topPaddingLineCount = Math.floor(options.paddingTop / options.lineHeight);
+			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, topPaddingLineCount, 1, Math.min(lineCount, maxLinesFitting));
 		}
 
 		// The visible line count in a viewport can change due to a number of reasons:
@@ -311,13 +313,21 @@ class MinimapLayout {
 			sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
 		}
 
-		let maxMinimapSliderTop: number;
+		const extraLinesAtTheTop = Math.floor(options.paddingTop / lineHeight);
+		let extraLinesAtTheBottom = Math.floor(options.paddingBottom / lineHeight);
 		if (options.scrollBeyondLastLine) {
+			const expectedViewportLineCount = viewportHeight / lineHeight;
+			extraLinesAtTheBottom = Math.max(extraLinesAtTheBottom, expectedViewportLineCount - 1);
+		}
+
+		let maxMinimapSliderTop: number;
+		if (extraLinesAtTheBottom > 0) {
+			const expectedViewportLineCount = viewportHeight / lineHeight;
 			// The minimap slider, when dragged all the way down, will contain the last line at its top
-			maxMinimapSliderTop = (lineCount - 1) * minimapLineHeight / pixelRatio;
+			maxMinimapSliderTop = (extraLinesAtTheTop + lineCount + extraLinesAtTheBottom - expectedViewportLineCount - 1) * minimapLineHeight / pixelRatio;
 		} else {
 			// The minimap slider, when dragged all the way down, will contain the last line at its bottom
-			maxMinimapSliderTop = Math.max(0, lineCount * minimapLineHeight / pixelRatio - sliderHeight);
+			maxMinimapSliderTop = Math.max(0, (extraLinesAtTheTop + lineCount) * minimapLineHeight / pixelRatio - sliderHeight);
 		}
 		maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, maxMinimapSliderTop);
 
@@ -326,19 +336,27 @@ class MinimapLayout {
 		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
 		const sliderTop = (scrollTop * computedSliderRatio);
 
-		let extraLinesAtTheBottom = 0;
-		if (options.scrollBeyondLastLine) {
-			const expectedViewportLineCount = viewportHeight / lineHeight;
-			extraLinesAtTheBottom = expectedViewportLineCount - 1;
-		}
-		if (minimapLinesFitting >= lineCount + extraLinesAtTheBottom) {
+		if (minimapLinesFitting >= extraLinesAtTheTop + lineCount + extraLinesAtTheBottom) {
 			// All lines fit in the minimap
-			const startLineNumber = 1;
-			const endLineNumber = lineCount;
 			const sliderNeeded = (maxMinimapSliderTop > 0);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, extraLinesAtTheTop, 1, lineCount);
 		} else {
-			let startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+			let consideringStartLineNumber: number;
+			if (viewportStartLineNumber > 1) {
+				consideringStartLineNumber = viewportStartLineNumber + extraLinesAtTheTop;
+			} else {
+				consideringStartLineNumber = Math.max(1, scrollTop / lineHeight);
+			}
+
+			let topPaddingLineCount: number;
+			let startLineNumber = Math.max(1, Math.floor(consideringStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+			if (startLineNumber < extraLinesAtTheTop) {
+				topPaddingLineCount = extraLinesAtTheTop - startLineNumber + 1;
+				startLineNumber = 1;
+			} else {
+				topPaddingLineCount = 0;
+				startLineNumber = Math.max(1, startLineNumber - extraLinesAtTheTop);
+			}
 
 			// Avoid flickering caused by a partial viewport start line
 			// by being consistent w.r.t. the previous layout decision
@@ -346,18 +364,26 @@ class MinimapLayout {
 				if (previousLayout.scrollTop > scrollTop) {
 					// Scrolling up => never increase `startLineNumber`
 					startLineNumber = Math.min(startLineNumber, previousLayout.startLineNumber);
+					topPaddingLineCount = Math.max(topPaddingLineCount, previousLayout.topPaddingLineCount);
 				}
 				if (previousLayout.scrollTop < scrollTop) {
 					// Scrolling down => never decrease `startLineNumber`
 					startLineNumber = Math.max(startLineNumber, previousLayout.startLineNumber);
+					topPaddingLineCount = Math.min(topPaddingLineCount, previousLayout.topPaddingLineCount);
 				}
 			}
 
-			const endLineNumber = Math.min(lineCount, startLineNumber + minimapLinesFitting - 1);
+			const endLineNumber = Math.min(lineCount, startLineNumber - topPaddingLineCount + minimapLinesFitting - 1);
 			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
-			const sliderTopAligned = (viewportStartLineNumber - startLineNumber + partialLine) * minimapLineHeight / pixelRatio;
 
-			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTopAligned, sliderHeight, startLineNumber, endLineNumber);
+			let sliderTopAligned: number;
+			if (scrollTop > options.paddingTop) {
+				sliderTopAligned = (viewportStartLineNumber - startLineNumber + topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
+			} else {
+				sliderTopAligned = (scrollTop / options.paddingTop) * (topPaddingLineCount + partialLine) * minimapLineHeight / pixelRatio;
+			}
+
+			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTopAligned, sliderHeight, topPaddingLineCount, startLineNumber, endLineNumber);
 		}
 	}
 }
@@ -569,15 +595,14 @@ class MinimapSamplingState {
 
 		// ratio is intentionally not part of the layout to avoid the layout changing all the time
 		// so we need to recompute it again...
-		const pixelRatio = options.pixelRatio;
-		const lineHeight = options.lineHeight;
-		const scrollBeyondLastLine = options.scrollBeyondLastLine;
 		const { minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 			viewLineCount: viewLineCount,
-			scrollBeyondLastLine: scrollBeyondLastLine,
+			scrollBeyondLastLine: options.scrollBeyondLastLine,
+			paddingTop: options.paddingTop,
+			paddingBottom: options.paddingBottom,
 			height: options.editorHeight,
-			lineHeight: lineHeight,
-			pixelRatio: pixelRatio
+			lineHeight: options.lineHeight,
+			pixelRatio: options.pixelRatio
 		});
 		const ratio = viewLineCount / minimapLineCount;
 		const halfRatio = ratio / 2;
@@ -1161,7 +1186,7 @@ class InnerMinimap extends Disposable {
 			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.offsetY;
 			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
-			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
+			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber - this._lastRenderData.renderedLayout.topPaddingLineCount;
 			lineNumber = Math.min(lineNumber, this._model.getLineCount());
 
 			this._model.revealLineNumber(lineNumber);
@@ -1425,8 +1450,8 @@ class InnerMinimap extends Disposable {
 			decorations.sort((a, b) => (a.options.zIndex || 0) - (b.options.zIndex || 0));
 
 			const { canvasInnerWidth, canvasInnerHeight } = this._model.options;
-			const lineHeight = this._model.options.minimapLineHeight;
-			const characterWidth = this._model.options.minimapCharWidth;
+			const minimapLineHeight = this._model.options.minimapLineHeight;
+			const minimapCharWidth = this._model.options.minimapCharWidth;
 			const tabSize = this._model.getOptions().tabSize;
 			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
 
@@ -1438,12 +1463,12 @@ class InnerMinimap extends Disposable {
 			// is given to the selection.
 
 			const highlightedLines = new ContiguousLineMap<boolean>(layout.startLineNumber, layout.endLineNumber, false);
-			this._renderSelectionLineHighlights(canvasContext, selections, highlightedLines, layout, lineHeight);
-			this._renderDecorationsLineHighlights(canvasContext, decorations, highlightedLines, layout, lineHeight);
+			this._renderSelectionLineHighlights(canvasContext, selections, highlightedLines, layout, minimapLineHeight);
+			this._renderDecorationsLineHighlights(canvasContext, decorations, highlightedLines, layout, minimapLineHeight);
 
 			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
-			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, lineHeight, tabSize, characterWidth, canvasInnerWidth);
-			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
 		}
 	}
 
@@ -1452,7 +1477,7 @@ class InnerMinimap extends Disposable {
 		selections: Selection[],
 		highlightedLines: ContiguousLineMap<boolean>,
 		layout: MinimapLayout,
-		lineHeight: number
+		minimapLineHeight: number
 	): void {
 		if (!this._selectionColor || this._selectionColor.isTransparent()) {
 			return;
@@ -1464,19 +1489,19 @@ class InnerMinimap extends Disposable {
 		let y2 = 0;
 
 		for (const selection of selections) {
-			const startLineNumber = Math.max(layout.startLineNumber, selection.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, selection.endLineNumber);
-			if (startLineNumber > endLineNumber) {
+			const intersection = layout.intersectWithViewport(selection);
+			if (!intersection) {
 				// entirely outside minimap's viewport
 				continue;
 			}
+			const [startLineNumber, endLineNumber] = intersection;
 
 			for (let line = startLineNumber; line <= endLineNumber; line++) {
 				highlightedLines.set(line, true);
 			}
 
-			const yy1 = (startLineNumber - layout.startLineNumber) * lineHeight;
-			const yy2 = (endLineNumber - layout.startLineNumber) * lineHeight + lineHeight;
+			const yy1 = layout.getYForLineNumber(startLineNumber, minimapLineHeight);
+			const yy2 = layout.getYForLineNumber(endLineNumber, minimapLineHeight);
 
 			if (y2 >= yy1) {
 				// merge into previous
@@ -1502,7 +1527,7 @@ class InnerMinimap extends Disposable {
 		decorations: ViewModelDecoration[],
 		highlightedLines: ContiguousLineMap<boolean>,
 		layout: MinimapLayout,
-		lineHeight: number
+		minimapLineHeight: number
 	): void {
 
 		const highlightColors = new Map<string, string>();
@@ -1516,12 +1541,12 @@ class InnerMinimap extends Disposable {
 				continue;
 			}
 
-			const startLineNumber = Math.max(layout.startLineNumber, decoration.range.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, decoration.range.endLineNumber);
-			if (startLineNumber > endLineNumber) {
+			const intersection = layout.intersectWithViewport(decoration.range);
+			if (!intersection) {
 				// entirely outside minimap's viewport
 				continue;
 			}
+			const [startLineNumber, endLineNumber] = intersection;
 
 			const decorationColor = minimapOptions.getColor(this._theme.value);
 			if (!decorationColor || decorationColor.isTransparent()) {
@@ -1540,8 +1565,8 @@ class InnerMinimap extends Disposable {
 					continue;
 				}
 				highlightedLines.set(line, true);
-				const y = (startLineNumber - layout.startLineNumber) * lineHeight;
-				canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, lineHeight);
+				const y = layout.getYForLineNumber(startLineNumber, minimapLineHeight);
+				canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, minimapLineHeight);
 			}
 		}
 	}
@@ -1560,12 +1585,12 @@ class InnerMinimap extends Disposable {
 			return;
 		}
 		for (const selection of selections) {
-			const startLineNumber = Math.max(layout.startLineNumber, selection.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, selection.endLineNumber);
-			if (startLineNumber > endLineNumber) {
+			const intersection = layout.intersectWithViewport(selection);
+			if (!intersection) {
 				// entirely outside minimap's viewport
 				continue;
 			}
+			const [startLineNumber, endLineNumber] = intersection;
 
 			for (let line = startLineNumber; line <= endLineNumber; line++) {
 				this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
@@ -1578,7 +1603,7 @@ class InnerMinimap extends Disposable {
 		decorations: ViewModelDecoration[],
 		lineOffsetMap: ContiguousLineMap<number[] | null>,
 		layout: MinimapLayout,
-		lineHeight: number,
+		minimapLineHeight: number,
 		tabSize: number,
 		characterWidth: number,
 		canvasInnerWidth: number
@@ -1591,12 +1616,12 @@ class InnerMinimap extends Disposable {
 				continue;
 			}
 
-			const startLineNumber = Math.max(layout.startLineNumber, decoration.range.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, decoration.range.endLineNumber);
-			if (startLineNumber > endLineNumber) {
+			const intersection = layout.intersectWithViewport(decoration.range);
+			if (!intersection) {
 				// entirely outside minimap's viewport
 				continue;
 			}
+			const [startLineNumber, endLineNumber] = intersection;
 
 			const decorationColor = minimapOptions.getColor(this._theme.value);
 			if (!decorationColor || decorationColor.isTransparent()) {
@@ -1607,13 +1632,13 @@ class InnerMinimap extends Disposable {
 				switch (minimapOptions.position) {
 
 					case MinimapPosition.Inline:
-						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, minimapLineHeight, minimapLineHeight, tabSize, characterWidth, canvasInnerWidth);
 						continue;
 
 					case MinimapPosition.Gutter: {
-						const y = (line - layout.startLineNumber) * lineHeight;
+						const y = layout.getYForLineNumber(line, minimapLineHeight);
 						const x = 2;
-						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
+						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, minimapLineHeight);
 						continue;
 					}
 				}
@@ -1629,12 +1654,12 @@ class InnerMinimap extends Disposable {
 		layout: MinimapLayout,
 		lineNumber: number,
 		height: number,
-		lineHeight: number,
+		minimapLineHeight: number,
 		tabSize: number,
 		charWidth: number,
 		canvasInnerWidth: number
 	): void {
-		const y = (lineNumber - layout.startLineNumber) * lineHeight;
+		const y = layout.getYForLineNumber(lineNumber, minimapLineHeight);
 
 		// Skip rendering the line if it's vertically outside our viewport
 		if (y + height < 0 || y > this._model.options.canvasInnerHeight) {
@@ -1733,6 +1758,7 @@ class InnerMinimap extends Disposable {
 		// Render untouched lines by using last rendered data.
 		const [_dirtyY1, _dirtyY2, needed] = InnerMinimap._renderUntouchedLines(
 			imageData,
+			layout.topPaddingLineCount,
 			startLineNumber,
 			endLineNumber,
 			minimapLineHeight,
@@ -1764,7 +1790,7 @@ class InnerMinimap extends Disposable {
 			Math.round((background.b - defaultBackground.b) * backgroundA + defaultBackground.b),
 			255
 		);
-		let dy = 0;
+		let dy = layout.topPaddingLineCount * minimapLineHeight;
 		const renderedLines: MinimapLine[] = [];
 		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
 			if (needed[lineIndex]) {
@@ -1808,6 +1834,7 @@ class InnerMinimap extends Disposable {
 
 	private static _renderUntouchedLines(
 		target: ImageData,
+		topPaddingLineCount: number,
 		startLineNumber: number,
 		endLineNumber: number,
 		minimapLineHeight: number,
@@ -1839,7 +1866,7 @@ class InnerMinimap extends Disposable {
 		let copyDestStart = -1;
 		let copyDestEnd = -1;
 
-		let dest_dy = 0;
+		let dest_dy = topPaddingLineCount * minimapLineHeight;
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - startLineNumber;
 			const lastLineIndex = lineNumber - lastStartLineNumber;

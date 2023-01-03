@@ -24,7 +24,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 
 		this._registerListeners();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.includes('notebook.kernelPicker.type')) {
+			if (e.affectsConfiguration('notebook.kernelPicker.type')) {
 				this._registerListeners();
 			}
 		}));
