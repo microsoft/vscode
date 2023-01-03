@@ -891,7 +891,7 @@ export class GettingStartedPage extends EditorPane {
 		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
 			{
 				title: localize('recent', "Recent"),
-				klass: 'recently-opened',
+				class: 'recently-opened',
 				limit: 5,
 				empty: $('.empty-recent', {},
 					localize('noRecents', "You have no recent folders,"),
@@ -944,7 +944,7 @@ export class GettingStartedPage extends EditorPane {
 		const startList = this.startList = new GettingStartedIndexList(
 			{
 				title: localize('start', "Start"),
-				klass: 'start-container',
+				class: 'start-container',
 				limit: 10,
 				renderElement: renderStartEntry,
 				rankElement: e => -e.order,
@@ -1020,7 +1020,7 @@ export class GettingStartedPage extends EditorPane {
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
 			{
 				title: localize('walkthroughs', "Walkthroughs"),
-				klass: 'getting-started',
+				class: 'getting-started',
 				limit: 5,
 				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "More...")),
 				renderElement: renderGetttingStaredWalkthrough,

@@ -12,7 +12,7 @@ import { equals } from 'vs/base/common/arrays';
 
 type GettingStartedIndexListOptions<T> = {
 	title: string;
-	klass: string;
+	class: string;
 	limit: number;
 	empty?: HTMLElement | undefined;
 	more?: HTMLElement | undefined;
@@ -54,7 +54,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		this.list = $('ul');
 		this.scrollbar = this._register(new DomScrollableElement(this.list, {}));
 		this._register(this.onDidChangeEntries(() => this.scrollbar.scanDomNode()));
-		this.domElement = $('.index-list.' + options.klass, {},
+		this.domElement = $('.index-list.' + options.class, {},
 			$('h2', {}, options.title),
 			this.scrollbar.getDomNode());
 
