@@ -17,12 +17,9 @@ import { FileAccess } from 'vs/base/common/network';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
-import { UtilityProcessProposedApi } from 'vs/base/parts/sandbox/electron-main/electronTypes';
+import { UtilityProcess, UtilityProcessProposedApi, canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import * as electron from 'electron';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-
-const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).utilityProcess);
-const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
 	_serviceBrand: undefined;

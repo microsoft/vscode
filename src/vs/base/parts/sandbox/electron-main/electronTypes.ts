@@ -6,6 +6,7 @@
 // TODO@bpasero remove me once we are on Electron 22
 
 import type { EventEmitter } from 'events';
+import * as electron from 'electron';
 
 export declare namespace UtilityProcessProposedApi {
 	interface ForkOptions {
@@ -131,3 +132,6 @@ export declare namespace UtilityProcessProposedApi {
 		stdout: (NodeJS.ReadableStream) | (null);
 	}
 }
+
+export const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).utilityProcess);
+export const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
