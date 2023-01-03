@@ -89,6 +89,7 @@ export class UtilityProcess extends Disposable {
 	readonly onExit = this._onExit.event;
 
 	private process: UtilityProcessProposedApi.UtilityProcess | undefined = undefined;
+	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
 
 	private didExit: boolean = false;
@@ -101,7 +102,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	private log(msg: string, severity: Severity): void {
-		const logMsg = `[UtilityProcess id: ${this.id}, name: ${this.configuration?.name}, pid: ${this.process?.pid ?? '<none>'}]: ${msg}`;
+		const logMsg = `[UtilityProcess id: ${this.id}, name: ${this.configuration?.name}, pid: ${this.processPid ?? '<none>'}]: ${msg}`;
 		switch (severity) {
 			case Severity.Error:
 				this.logService.error(logMsg);
@@ -170,7 +171,7 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName);
+		this.registerListeners(this.process, serviceName);
 
 		// Create message ports
 		this.createMessagePorts(this.process, this.configuration, responseWindow);
@@ -183,7 +184,7 @@ export class UtilityProcess extends Disposable {
 		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 	}
 
-	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, serviceName: string): void {
 
 		// Stdout
 		const stdoutDecoder = new StringDecoder('utf-8');
@@ -198,6 +199,8 @@ export class UtilityProcess extends Disposable {
 
 		// Spawn
 		this._register(Event.fromNodeEventEmitter<void>(process, 'spawn')(() => {
+			this.processPid = process.pid;
+
 			this.log(`received spawn event`, Severity.Info);
 		}));
 
@@ -205,33 +208,43 @@ export class UtilityProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
 			this.log(`received exit event with code ${code}`, Severity.Info);
 
-			this.didExit = true;
-			this._onExit.fire({ pid: process.pid!, code, signal: 'unknown' });
+			this.handleDidExit(code);
 		}));
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
 			if (details.type === 'Utility' && details.name === serviceName) {
 				this.log(`received child-process-gone event with code ${details.exitCode} and reason ${details.reason}`, Severity.Error);
+
+				this.handleDidExit(details.exitCode);
 			}
 		}));
 	}
 
+	private handleDidExit(code: number): void {
+		if (this.didExit) {
+			return; // already handled
+		}
+
+		this.didExit = true;
+
+		this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
+	}
+
 	enableInspectPort(): boolean {
-		const pid = this.process?.pid;
-		if (!pid) {
+		if (typeof this.processPid !== 'number') {
 			return false;
 		}
 
 		this.log('enabling inspect port', Severity.Info);
 
 		interface ProcessExt {
-			_debugProcess?(n: number): unknown;
+			_debugProcess?(pid: number): unknown;
 		}
 
 		// use (undocumented) _debugProcess feature of node if available
 		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
-			(<ProcessExt>process)._debugProcess!(pid);
+			(<ProcessExt>process)._debugProcess!(this.processPid);
 			return true;
 		}
 
