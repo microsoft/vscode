@@ -475,7 +475,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 }
 
-class ExtensionScannerInput {
+export class ExtensionScannerInput {
 
 	constructor(
 		public readonly location: URI,
@@ -513,7 +513,7 @@ class ExtensionScannerInput {
 			&& isEqual(a.applicationExtensionslocation, b.applicationExtensionslocation)
 			&& a.applicationExtensionslocationMtime === b.applicationExtensionslocationMtime
 			&& a.profile === b.profile
-			&& a.profileScanOptions === b.profileScanOptions
+			&& objects.equals(a.profileScanOptions, b.profileScanOptions)
 			&& a.type === b.type
 			&& a.excludeObsolete === b.excludeObsolete
 			&& a.validate === b.validate
@@ -868,6 +868,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		const cacheContents = await this.readExtensionCache();
 		this.input = input;
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
+			this.logService.debug('Using cached extensions scan result', input.location.toString());
 			this.cacheValidatorThrottler.trigger(() => this.validateCache());
 			return cacheContents.result.map((extension) => {
 				// revive URI object
