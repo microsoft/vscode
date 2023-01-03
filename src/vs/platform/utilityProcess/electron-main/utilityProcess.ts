@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, MessageChannelMain, app } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -101,7 +101,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	private log(msg: string, severity: Severity): void {
-		const logMsg = `UtilityProcess<id: ${this.id}, name: ${this.configuration?.name}, pid: ${this.process?.pid ?? '<none>'}>: ${msg}`;
+		const logMsg = `[UtilityProcess id: ${this.id}, name: ${this.configuration?.name}, pid: ${this.process?.pid ?? '<none>'}]: ${msg}`;
 		switch (severity) {
 			case Severity.Error:
 				this.logService.error(logMsg);
@@ -210,9 +210,9 @@ export class UtilityProcess extends Disposable {
 		}));
 
 		// Child process gone
-		this._register(Event.fromNodeEventEmitter(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-			if (details.type === 'Utility' && details.serviceName === serviceName) {
-				this.log(`received child-process-gone event with code ${details.exitCode} and reason ${details.reason}`, Severity.Info);
+		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
+			if (details.type === 'Utility' && details.name === serviceName) {
+				this.log(`received child-process-gone event with code ${details.exitCode} and reason ${details.reason}`, Severity.Error);
 			}
 		}));
 	}
