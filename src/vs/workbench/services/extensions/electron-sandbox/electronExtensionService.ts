@@ -6,14 +6,15 @@
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { AbstractExtensionService, ExtensionHostCrashTracker, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
+import * as performance from 'vs/base/common/performance';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData, getRemoteAuthorityPrefix } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
+import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -417,15 +418,9 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		const MAX_ATTEMPTS = 5;
 
 		for (let attempt = 1; ; attempt++) {
-			const sw = StopWatch.create(false);
-			this._logService.info(`[attempt ${attempt}] Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 			try {
-				const resolverResult = await this._resolveAuthority(remoteAuthority);
-				this._logService.info(`[attempt ${attempt}] resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
-				return resolverResult;
+				return this._resolveAuthorityWithLogging(remoteAuthority);
 			} catch (err) {
-				this._logService.error(`[attempt ${attempt}] resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
-
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					// There is no point in retrying if there is no resolver found
 					throw err;
@@ -451,15 +446,28 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 		}
 
 		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
-		const sw = StopWatch.create(false);
-		this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 		try {
-			const result = await this._resolveAuthority(remoteAuthority);
-			this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed()} ms`);
+			const result = await this._resolveAuthorityWithLogging(remoteAuthority);
 			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
-			this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
 			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
+		}
+	}
+
+	private async _resolveAuthorityWithLogging(remoteAuthority: string): Promise<ResolverResult> {
+		const authorityPrefix = getRemoteAuthorityPrefix(remoteAuthority);
+		const sw = StopWatch.create(false);
+		this._logService.info(`Invoking resolveAuthority(${authorityPrefix})...`);
+		try {
+			performance.mark(`code/willResolveAuthority/${authorityPrefix}`);
+			const result = await this._resolveAuthority(remoteAuthority);
+			performance.mark(`code/didResolveAuthorityOK/${authorityPrefix}`);
+			this._logService.info(`resolveAuthority(${authorityPrefix}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed()} ms`);
+			return result;
+		} catch (err) {
+			performance.mark(`code/didResolveAuthorityError/${authorityPrefix}`);
+			this._logService.error(`resolveAuthority(${authorityPrefix}) returned an error after ${sw.elapsed()} ms`, err);
+			throw err;
 		}
 	}
 
@@ -478,12 +486,14 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 					// The current remote authority resolver cannot give the canonical URI for this URI
 					return uri;
 				}
+				performance.mark(`code/willGetCanonicalURI/${getRemoteAuthorityPrefix(remoteAuthority)}`);
 				if (isCI) {
 					this._logService.info(`Invoking getCanonicalURI for authority ${getRemoteAuthorityPrefix(remoteAuthority)}...`);
 				}
 				try {
 					return this._getCanonicalURI(remoteAuthority, uri);
 				} finally {
+					performance.mark(`code/didGetCanonicalURI/${getRemoteAuthorityPrefix(remoteAuthority)}`);
 					if (isCI) {
 						this._logService.info(`getCanonicalURI returned for authority ${getRemoteAuthorityPrefix(remoteAuthority)}.`);
 					}
