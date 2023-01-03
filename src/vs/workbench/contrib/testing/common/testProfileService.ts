@@ -68,7 +68,7 @@ export interface ITestProfileService {
 	/**
 	 * Sets the default profiles to be run for all run group.
 	 */
-	setGroupDefaultProfiles(profiles: ITestRunProfile[]): void;
+	setDefaultProfiles(profiles: ITestRunProfile[]): void;
 
 	/**
 	 * Gets the profiles for a controller, in priority order.
@@ -240,22 +240,20 @@ export class TestProfileService implements ITestProfileService {
 	}
 
 	/** @inheritdoc */
-	public setGroupDefaultProfiles(selectedProfiles: ITestRunProfile[]) {
+	public setDefaultProfiles(selectedDefaultProfiles: ITestRunProfile[]) {
 
-		// also include extra profiles apart from selected Profiles for different run group
-		const defaults: ITestRunProfile[] = [];
+		// Include profiles for different run group along with default selected profiles
+		const defaultProfiles: ITestRunProfile[] = [];
 		for (const { profiles } of this.controllerProfiles.values()) {
-			const extraProfiles = profiles.filter(p => selectedProfiles.find(s => s.label === p.label));
-			for (const profile of extraProfiles) {
-				if (profile) {
-					defaults.push(profile);
-				}
+			const profilesForAllRunGroup = profiles.filter(p => selectedDefaultProfiles.find(s => s.label === p.label));
+			for (const profile of profilesForAllRunGroup) {
+				defaultProfiles.push(profile);
 			}
 		}
 		for (const group of testRunProfileBitsetList) {
 			this.preferredDefaults.store({
 				...this.preferredDefaults.get(),
-				[group]: defaults.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
+				[group]: defaultProfiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
 			});
 		}
 		this.changeEmitter.fire();
