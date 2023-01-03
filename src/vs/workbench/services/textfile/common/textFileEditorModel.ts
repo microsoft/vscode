@@ -11,13 +11,12 @@ import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEdit
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
-import { match as matchGlobPattern } from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/path';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -32,7 +31,8 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -100,6 +100,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
+	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
+
 	private dirty = false;
 	private inConflictMode = false;
 	private inOrphanMode = false;
@@ -129,14 +131,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
-		this.setGlobReadonly();    // and then track with onDidChangeConfiguration()
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -1131,42 +1131,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return !!this.textEditorModel;
 	}
 
-	private anyGlobMatches(key: string, path: string): boolean {
-		const globs: { [glob: string]: boolean } = this.configurationService.getValue<{ [glob: string]: boolean }>(key);
-		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
-	}
-
-	private setGlobReadonly() {
-		this.globReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
-			&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
-	}
-
-	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
-		if (event.affectsConfiguration('files.readonlyInclude') ||
-			event.affectsConfiguration('files.readonlyExclude')) {
-			this.setGlobReadonly();
-		}
-	}
-
-	// stable/semantic 'readonly' [nonEditable]; typically based on filetype or directory.
-	private globReadonly: boolean = false;
-
-	// latest value derived from files.readonlyInclude/Exclude for this resource.path
-	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
-
-	private checkDidChangeReadonly(newReadonly: boolean): boolean {
-		if (this.oldReadonly !== newReadonly) {
-			this.oldReadonly = newReadonly;    // must set before fire(); reentrant.
-			this._onDidChangeReadonly.fire();
-		}
-		return newReadonly;
-	}
-
 	override isReadonly(): boolean {
-		return this.checkDidChangeReadonly(
-			this.globReadonly ||
-			this.lastResolvedFileStat?.readonly ||
-			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
+		return this._readonlyHelper.isReadonly();
 	}
 
 	override dispose(): void {
