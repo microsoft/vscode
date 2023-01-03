@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { isIOS, OS } from 'vs/base/common/platform';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -62,6 +62,12 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	private _onDefineWhenExpression: Emitter<IKeybindingItemEntry> = this._register(new Emitter<IKeybindingItemEntry>());
 	readonly onDefineWhenExpression: Event<IKeybindingItemEntry> = this._onDefineWhenExpression.event;
+
+	private _onRejectWhenExpression = this._register(new Emitter<IKeybindingItemEntry>());
+	readonly onRejectWhenExpression = this._onRejectWhenExpression.event;
+
+	private _onAcceptWhenExpression = this._register(new Emitter<IKeybindingItemEntry>());
+	readonly onAcceptWhenExpression = this._onAcceptWhenExpression.event;
 
 	private _onLayout: Emitter<void> = this._register(new Emitter<void>());
 	readonly onLayout: Event<void> = this._onLayout.event;
@@ -190,6 +196,14 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			this.selectEntry(keybindingEntry);
 			this._onDefineWhenExpression.fire(keybindingEntry);
 		}
+	}
+
+	rejectWhenExpression(keybindingEntry: IKeybindingItemEntry): void {
+		this._onRejectWhenExpression.fire(keybindingEntry);
+	}
+
+	acceptWhenExpression(keybindingEntry: IKeybindingItemEntry): void {
+		this._onAcceptWhenExpression.fire(keybindingEntry);
 	}
 
 	async updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined, add?: boolean): Promise<void> {
@@ -1025,7 +1039,6 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 class WhenInputWidget extends Disposable {
 
 	private readonly input: SuggestEnabledInput;
-	readonly el: HTMLElement;
 
 	private readonly _onDidAccept = this._register(new Emitter<string>());
 	readonly onDidAccept = this._onDidAccept.event;
@@ -1034,12 +1047,15 @@ class WhenInputWidget extends Disposable {
 	readonly onDidReject = this._onDidReject.event;
 
 	constructor(
+		parent: HTMLElement,
+		keybindingsEditor: KeybindingsEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.input = instantiationService.createInstance(SuggestEnabledInput, 'keyboardshortcutseditor#wheninput', this.el = DOM.$('.when-input'), {
+		const focusContextKey = CONTEXT_WHEN_FOCUS.bindTo(contextKeyService);
+		this.input = this._register(instantiationService.createInstance(SuggestEnabledInput, 'keyboardshortcutseditor#wheninput', parent, {
 			provideResults: () => {
 				const result = [];
 				for (const contextKey of RawContextKey.all()) {
@@ -1048,20 +1064,14 @@ class WhenInputWidget extends Disposable {
 				return result;
 			},
 			triggerCharacters: ['!'],
-		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey: CONTEXT_WHEN_FOCUS.bindTo(contextKeyService) });
+		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey }));
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.input, themeService, {}));
+		this._register((DOM.addDisposableListener(this.input.element, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
+		this._register(toDisposable(() => focusContextKey.reset()));
 
-		this._register(Event.any(this.input.onEnter, this.input.onDidBlur)(() => this._onDidAccept.fire(this.input.getValue())));
-		this._register(this.input.onEscape(() => this._onDidReject.fire()));
-
-		this._register((DOM.addDisposableListener(this.el, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
-		this._register(DOM.addStandardDisposableListener(this.el, DOM.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Escape)) {
-				e.preventDefault();
-				e.stopPropagation();
-			}
-		}));
+		this._register(Event.any(keybindingsEditor.onAcceptWhenExpression, this.input.onDidBlur)(() => this._onDidAccept.fire(this.input.getValue())));
+		this._register(keybindingsEditor.onRejectWhenExpression(() => this._onDidReject.fire()));
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -1069,15 +1079,10 @@ class WhenInputWidget extends Disposable {
 	}
 
 	show(value: string): void {
-		DOM.show(this.el);
 		this.input.setValue(value);
 		this.input.focus(true);
 	}
 
-	hide(): void {
-		DOM.hide(this.el);
-		this.input.onHide();
-	}
 }
 
 interface IWhenColumnTemplateData {
@@ -1093,14 +1098,11 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 	static readonly TEMPLATE_ID = 'when';
 
 	readonly templateId: string = WhenColumnRenderer.TEMPLATE_ID;
-	private readonly whenInputWidget: WhenInputWidget;
 
 	constructor(
 		private readonly keybindingsEditor: KeybindingsEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		this.whenInputWidget = instantiationService.createInstance(WhenInputWidget);
-	}
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
 
 	renderTemplate(container: HTMLElement): IWhenColumnTemplateData {
 		const element = DOM.append(container, $('.when'));
@@ -1125,25 +1127,25 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		templateData.disposables.add(this.keybindingsEditor.onDefineWhenExpression(e => {
 			if (keybindingItemEntry === e) {
 				templateData.element.classList.add('input-mode');
-				DOM.append(templateData.whenInputContainer, this.whenInputWidget.el);
-				this.whenInputWidget.show(keybindingItemEntry.keybindingItem.when || '');
-				this.whenInputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, 18));
+
+				const inputWidget = whenInputDisposables.add(this.instantiationService.createInstance(WhenInputWidget, templateData.whenInputContainer, this.keybindingsEditor));
+				inputWidget.layout(new DOM.Dimension(templateData.element.parentElement!.clientWidth, 18));
+				inputWidget.show(keybindingItemEntry.keybindingItem.when || '');
 
 				const hideInputWidget = () => {
 					whenInputDisposables.clear();
 					templateData.element.classList.remove('input-mode');
 					templateData.element.parentElement!.style.paddingLeft = '10px';
 					DOM.clearNode(templateData.whenInputContainer);
-					this.whenInputWidget.hide();
 				};
 
-				whenInputDisposables.add(this.whenInputWidget.onDidAccept(value => {
+				whenInputDisposables.add(inputWidget.onDidAccept(value => {
 					hideInputWidget();
 					this.keybindingsEditor.updateKeybinding(keybindingItemEntry, keybindingItemEntry.keybindingItem.keybinding ? keybindingItemEntry.keybindingItem.keybinding.getUserSettingsLabel() || '' : '', value);
 					this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
 				}));
 
-				whenInputDisposables.add(this.whenInputWidget.onDidReject(value => {
+				whenInputDisposables.add(inputWidget.onDidReject(() => {
 					hideInputWidget();
 					this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
 				}));
