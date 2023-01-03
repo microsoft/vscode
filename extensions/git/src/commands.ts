@@ -2405,7 +2405,7 @@ export class CommandCenter {
 
 		const remoteTagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
 			const remoteTags = await repository.getRemoteRefs(remoteName, { tags: true });
-			return remoteTags.length === 0 ? [{ label: l10n.t('Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
 		};
 
 		const tagPickPlaceholder = l10n.t('Select a tag to delete');
