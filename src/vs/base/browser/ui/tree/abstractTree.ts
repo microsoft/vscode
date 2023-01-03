@@ -1093,6 +1093,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly showNotFoundMessage?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
