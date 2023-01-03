@@ -23,8 +23,7 @@ function Global:__VSCode-Escape-Value([string]$value) {
 	[regex]::Replace($value, '[\\\n;]', { param($match)
 		# Encode the (ascii) matches as `\x<hex>`
 		-Join (
-			[System.Text.Encoding]::UTF8.GetBytes($match.Value)
-			| ForEach-Object { '\x{0:x2}' -f $_ }
+			[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
 		)
 	})
 }
