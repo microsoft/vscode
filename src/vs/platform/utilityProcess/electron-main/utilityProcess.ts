@@ -51,7 +51,7 @@ export interface IUtilityProcessConfiguration {
 	readonly allowLoadingUnsignedLibraries?: boolean;
 }
 
-export interface IUtilityProcessExitEvent {
+interface IUtilityProcessExitBaseEvent {
 
 	/**
 	 * The process id of the process that exited.
@@ -62,12 +62,23 @@ export interface IUtilityProcessExitEvent {
 	 * The exit code of the process.
 	 */
 	readonly code: number;
+}
+
+export interface IUtilityProcessExitEvent extends IUtilityProcessExitBaseEvent {
 
 	/**
 	 * The signal that caused the process to exit is unknown
 	 * for utility processes.
 	 */
 	readonly signal: 'unknown';
+}
+
+export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent {
+
+	/**
+	 * The reason of the utility process crash.
+	 */
+	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
 }
 
 export class UtilityProcess extends Disposable {
@@ -87,6 +98,9 @@ export class UtilityProcess extends Disposable {
 
 	private readonly _onExit = this._register(new Emitter<IUtilityProcessExitEvent>());
 	readonly onExit = this._onExit.event;
+
+	private readonly _onCrash = this._register(new Emitter<IUtilityProcessCrashEvent>());
+	readonly onCrash = this._onCrash.event;
 
 	private process: UtilityProcessProposedApi.UtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
@@ -201,34 +215,26 @@ export class UtilityProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<void>(process, 'spawn')(() => {
 			this.processPid = process.pid;
 
-			this.log(`received spawn event`, Severity.Info);
+			this.log(`successfully created`, Severity.Info);
 		}));
 
 		// Exit
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
 			this.log(`received exit event with code ${code}`, Severity.Info);
 
-			this.handleDidExit(code);
+			this.didExit = true;
+
+			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
 		}));
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
 			if (details.type === 'Utility' && details.name === serviceName) {
-				this.log(`received child-process-gone event with code ${details.exitCode} and reason ${details.reason}`, Severity.Error);
+				this.log(`crashed with code ${details.exitCode} and reason ${details.reason}`, Severity.Error);
 
-				this.handleDidExit(details.exitCode);
+				this._onCrash.fire({ pid: this.processPid!, code: details.exitCode, reason: details.reason });
 			}
 		}));
-	}
-
-	private handleDidExit(code: number): void {
-		if (this.didExit) {
-			return; // already handled
-		}
-
-		this.didExit = true;
-
-		this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
 	}
 
 	enableInspectPort(): boolean {
