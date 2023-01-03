@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
-import findUp = require('find-up');
+import * as findUp from 'find-up';
 import * as path from 'path';
-import whichPM = require('which-pm');
+import * as whichPM from 'which-pm';
 import { Uri, workspace } from 'vscode';
 
 interface PreferredProperties {

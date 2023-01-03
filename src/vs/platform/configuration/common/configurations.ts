@@ -31,7 +31,7 @@ export class DefaultConfiguration extends Disposable {
 
 	async initialize(): Promise<ConfigurationModel> {
 		this._configurationModel = undefined;
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(properties, defaultsOverrides)));
+		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(Array.from(properties), defaultsOverrides)));
 		return this.configurationModel;
 	}
 

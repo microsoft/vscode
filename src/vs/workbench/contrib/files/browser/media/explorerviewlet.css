@@ -102,3 +102,15 @@
 .monaco-workbench.hc-light .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }
+
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox input[type="text"] {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.monaco-workbench.context-menu-visible .explorer-folders-view.highlight .monaco-list-row {
+	outline: none !important;
+}

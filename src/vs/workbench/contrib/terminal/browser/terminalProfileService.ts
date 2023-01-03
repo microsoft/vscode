@@ -24,10 +24,12 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 /*
-* Links TerminalService with TerminalProfileResolverService
-* and keeps the available terminal profiles updated
-*/
+ * Links TerminalService with TerminalProfileResolverService
+ * and keeps the available terminal profiles updated
+ */
 export class TerminalProfileService implements ITerminalProfileService {
+	declare _serviceBrand: undefined;
+
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
@@ -49,6 +51,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	get contributedProfiles(): IExtensionTerminalProfile[] {
 		return this._contributedProfiles || [];
 	}
+
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -91,11 +94,37 @@ export class TerminalProfileService implements ITerminalProfileService {
 		});
 	}
 
-	_serviceBrand: undefined;
-
 	getDefaultProfileName(): string | undefined {
 		return this._defaultProfileName;
 	}
+
+	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined {
+		let defaultProfileName: string | undefined;
+		if (os) {
+			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
+			if (!defaultProfileName || typeof defaultProfileName !== 'string') {
+				return undefined;
+			}
+		} else {
+			defaultProfileName = this._defaultProfileName;
+		}
+		if (!defaultProfileName) {
+			return undefined;
+		}
+
+		// IMPORTANT: Only allow the default profile name to find non-auto detected profiles as
+		// to avoid unsafe path profiles being picked up.
+		return this.availableProfiles.find(e => e.profileName === this._defaultProfileName && !e.isAutoDetected);
+	}
+
+	private _getOsKey(os: OperatingSystem): string {
+		switch (os) {
+			case OperatingSystem.Linux: return 'linux';
+			case OperatingSystem.Macintosh: return 'osx';
+			case OperatingSystem.Windows: return 'windows';
+		}
+	}
+
 
 	@throttle(2000)
 	refreshAvailableProfiles(): void {

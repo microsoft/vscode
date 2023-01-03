@@ -124,7 +124,7 @@ registerAction2(class PrintEventProfiling extends Action2 {
 			return;
 		}
 		for (const item of EventProfiling.all) {
-			console.log(`${item.name}: ${item.invocationCount}invocations COST ${item.elapsedOverall}ms, ${item.listenerCount} listeners, avg cost is ${item.durations.reduce((a, b) => a + b, 0) / item.durations.length}ms`);
+			console.log(`${item.name}: ${item.invocationCount} invocations COST ${item.elapsedOverall}ms, ${item.listenerCount} listeners, avg cost is ${item.durations.reduce((a, b) => a + b, 0) / item.durations.length}ms`);
 		}
 	}
 });

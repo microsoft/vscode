@@ -16,7 +16,7 @@ export interface ITextResourceConfigurationChangeEvent {
 	/**
 	 * All affected keys. Also includes language overrides and keys changed under language overrides.
 	 */
-	readonly affectedKeys: string[];
+	readonly affectedKeys: ReadonlySet<string>;
 
 	/**
 	 * Returns `true` if the given section has changed for the given resource.

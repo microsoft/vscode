@@ -167,18 +167,18 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard()) {
+			// Sticky mode is on and the hover has been shown via keyboard
+			// so moving the mouse has no effect
+			return;
+		}
+
 		if (!this._isHoverEnabled) {
 			this._hideWidgets();
 			return;
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
-
-		if (this._isHoverSticky && contentWidget.isVisibleFromKeyboard()) {
-			// Sticky mode is on and the hover has been shown via keyboard
-			// so moving the mouse has no effect
-			return;
-		}
 
 		if (contentWidget.maybeShowAt(mouseEvent)) {
 			this._glyphWidget?.hide();

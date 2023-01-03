@@ -11,7 +11,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { EXTENSIONS_SYNC_CONTEXT_KEY, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
@@ -235,6 +235,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			const hadLastFoucs = await this.hostService.hadLastFocus();
 			for (const e of result) {
+				if (e.context?.[EXTENSIONS_SYNC_CONTEXT_KEY]) {
+					continue;
+				}
 				// If the window had last focus and the install didn't specify to skip the walkthrough
 				// Then add it to the sessionInstallExtensions to be opened
 				if (hadLastFoucs && !e?.context?.skipWalkthrough) {

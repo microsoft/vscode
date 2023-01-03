@@ -355,8 +355,8 @@ export class WalkThroughPart extends EditorPane {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
-						if (snippet.textEditorModel) {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+						if (e.affectsConfiguration('editor') && snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getLanguageId()));
 						}
 					}));

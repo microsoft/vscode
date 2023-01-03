@@ -49,7 +49,6 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
 			contributions: <IEditorContributionDescription[]>[
 				{ id: MenuPreventer.ID, ctor: MenuPreventer, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
 				{ id: ContextMenuController.ID, ctor: ContextMenuController, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
