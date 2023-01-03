@@ -312,7 +312,7 @@ function sanitizeRemoteName(name: string) {
 }
 
 class TagItem implements QuickPickItem {
-	get label(): string { return this.ref.name ?? ''; }
+	get label(): string { return `$(tag) ${this.ref.name ?? ''}`; }
 	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
 	constructor(readonly ref: Ref) { }
 }
@@ -2378,6 +2378,42 @@ export class CommandCenter {
 		}
 
 		await repository.deleteTag(choice.label);
+	}
+
+	@command('git.deleteRemoteTag', { repository: true })
+	async deleteRemoteTag(repository: Repository): Promise<void> {
+		const remotePicks = repository.remotes
+			.filter(r => r.pushUrl !== undefined)
+			.map(r => new RemoteItem(repository, r));
+
+		if (remotePicks.length === 0) {
+			window.showErrorMessage(l10n.t("Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		let remoteName = remotePicks[0].remoteName;
+		if (remotePicks.length > 1) {
+			const remotePickPlaceholder = l10n.t('Select a remote to delete a tag from');
+			const remotePick = await window.showQuickPick(remotePicks, { placeHolder: remotePickPlaceholder });
+
+			if (!remotePick) {
+				return;
+			}
+
+			remoteName = remotePick.remoteName;
+		}
+
+		const remoteTagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
+			const remoteTags = await repository.getRemoteRefs(remoteName, { tags: true });
+			return remoteTags.length === 0 ? [{ label: l10n.t('Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
+		};
+
+		const tagPickPlaceholder = l10n.t('Select a tag to delete');
+		const remoteTagPick = await window.showQuickPick<TagItem | QuickPickItem>(remoteTagPicks(), { placeHolder: tagPickPlaceholder });
+
+		if (remoteTagPick && remoteTagPick instanceof TagItem && remoteTagPick.ref.name) {
+			await repository.deleteRemoteTag(remoteName, remoteTagPick.ref.name);
+		}
 	}
 
 	@command('git.fetch', { repository: true })

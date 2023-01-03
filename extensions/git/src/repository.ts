@@ -1378,6 +1378,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
 	}
 
+	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
+		return await this.run(Operation.GetRemoteRefs, () => this.repository.getRemoteRefs(remote, opts));
+	}
+
 	async setBranchUpstream(name: string, upstream: string): Promise<void> {
 		await this.run(Operation.SetBranchUpstream, () => this.repository.setBranchUpstream(name, upstream));
 	}
@@ -1400,6 +1404,10 @@ export class Repository implements Disposable {
 
 	async deleteTag(name: string): Promise<void> {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	}
+
+	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
+		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remoteName, tagName));
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
