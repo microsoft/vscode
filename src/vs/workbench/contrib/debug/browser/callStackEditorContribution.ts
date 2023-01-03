@@ -12,7 +12,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -108,20 +107,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 	return result;
 }
 
-export class LazyCallStackEditorContribution extends Disposable {
-	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super();
-
-		const listener = editor.onDidChangeModel(() => {
-			if (editor.hasModel()) {
-				listener.dispose();
-				this._register(instantiationService.createInstance(CallStackEditorContribution, editor));
-			}
-		});
-	}
-}
-
-class CallStackEditorContribution extends Disposable implements IEditorContribution {
+export class CallStackEditorContribution extends Disposable implements IEditorContribution {
 	private decorations = this.editor.createDecorationsCollection();
 
 	constructor(

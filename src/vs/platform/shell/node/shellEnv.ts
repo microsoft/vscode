@@ -137,7 +137,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		} else {
 			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 
-			if (name === 'tcsh') {
+			if (name === 'tcsh' || name === 'csh') {
 				shellArgs = ['-ic'];
 			} else {
 				shellArgs = ['-i', '-l', '-c'];

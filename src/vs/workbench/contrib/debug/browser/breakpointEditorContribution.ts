@@ -13,7 +13,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, dispose, disposeIfDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, disposeIfDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
@@ -188,33 +188,7 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 	return result;
 }
 
-export class LazyBreakpointEditorContribution extends Disposable implements IBreakpointEditorContribution {
-	private _contrib: IBreakpointEditorContribution | undefined;
-
-	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super();
-
-		const listener = editor.onDidChangeModel(() => {
-			if (editor.hasModel()) {
-				listener.dispose();
-				this._contrib = this._register(instantiationService.createInstance(BreakpointEditorContribution, editor));
-			}
-		});
-	}
-	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext | undefined): void {
-		this._contrib?.showBreakpointWidget(lineNumber, column, context);
-	}
-
-	closeBreakpointWidget(): void {
-		this._contrib?.closeBreakpointWidget();
-	}
-
-	getContextMenuActionsAtPosition(lineNumber: number, model: ITextModel): IAction[] {
-		return this._contrib?.getContextMenuActionsAtPosition(lineNumber, model) ?? [];
-	}
-}
-
-class BreakpointEditorContribution implements IBreakpointEditorContribution {
+export class BreakpointEditorContribution implements IBreakpointEditorContribution {
 
 	private breakpointHintDecoration: string | null = null;
 	private breakpointWidget: BreakpointWidget | undefined;

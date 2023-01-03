@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
-import { Promises, ThrottledDelayer } from 'vs/base/common/async';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
-	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo
+	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionKey, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -28,7 +28,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -448,7 +448,7 @@ class Extensions extends Disposable {
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
-		this._register(server.extensionManagementService.onDidChangeProfile(e => this.onDidChangeProfile(e.added, e.removed)));
+		this._register(server.extensionManagementService.onDidChangeProfile(() => this.reset()));
 		this._register(extensionEnablementService.onEnablementChanged(e => this.onEnablementChanged(e)));
 		this._register(Event.any(this.onChange, this.onReset)(() => this._local = undefined));
 	}
@@ -470,25 +470,7 @@ class Extensions extends Disposable {
 	}
 
 	async queryInstalled(): Promise<IExtension[]> {
-		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
-		const all = await this.server.extensionManagementService.getInstalled();
-
-		// dedup user and system extensions by giving priority to user extensions.
-		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
-			const extension = extensions.length === 1 ? extensions[0]
-				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
-			result.push(extension!);
-			return result;
-		}, []);
-
-		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
-		this.installed = installed.map(local => {
-			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined);
-			extension.local = local;
-			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
-			Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
-			return extension;
-		});
+		await this.fetchInstalledExtensions();
 		this._onChange.fire(undefined);
 		return this.local;
 	}
@@ -577,20 +559,33 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private async onDidChangeProfile(added: ILocalExtension[], removed: ILocalExtension[]): Promise<void> {
+	private async fetchInstalledExtensions(): Promise<void> {
 		const extensionsControlManifest = await this.server.extensionManagementService.getExtensionsControlManifest();
-		for (const addedExtension of added) {
-			if (this.installed.find(e => areSameExtensions(e.identifier, addedExtension.identifier))) {
-				const extension = this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, addedExtension, undefined);
-				this.installed.push(extension);
-				Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
-			}
-		}
+		const all = await this.server.extensionManagementService.getInstalled();
 
-		if (removed.length) {
-			this.installed = this.installed.filter(e => !removed.some(removedExtension => areSameExtensions(e.identifier, removedExtension.identifier)));
-		}
+		// dedup user and system extensions by giving priority to user extensions.
+		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
+			const extension = extensions.length === 1 ? extensions[0]
+				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
+			result.push(extension!);
+			return result;
+		}, []);
 
+		const byId = index(this.installed, e => e.local ? e.local.identifier.id : e.identifier.id);
+		this.installed = installed.map(local => {
+			const extension = byId[local.identifier.id] || this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, local, undefined);
+			extension.local = local;
+			extension.enablementState = this.extensionEnablementService.getEnablementState(local);
+			Extensions.updateExtensionFromControlManifest(extension, extensionsControlManifest);
+			return extension;
+		});
+	}
+
+	private async reset(): Promise<void> {
+		this.installed = [];
+		this.installing = [];
+		this.uninstalling = [];
+		await this.fetchInstalledExtensions();
 		this._onReset.fire();
 	}
 
@@ -708,6 +703,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	readonly preferPreReleases = this.productService.quality !== 'stable';
 
 	private installing: IExtension[] = [];
+	private tasksInProgress: CancelablePromise<any>[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -733,6 +729,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILocaleService private readonly localeService: ILocaleService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -742,27 +739,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
-			this._register(this.localExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(this.localExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this._register(this.localExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
+			this._register(this.localExtensions.onReset(e => this.reset()));
 			this.extensionsServers.push(this.localExtensions);
 		}
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
 			this.remoteExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.remoteExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
-			this._register(this.remoteExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(this.remoteExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this._register(this.remoteExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
+			this._register(this.remoteExtensions.onReset(e => this.reset()));
 			this.extensionsServers.push(this.remoteExtensions);
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
 			this.webExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.webExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
-			this._register(this.webExtensions.onChange(e => this._onChange.fire(e ? e.extension : undefined)));
-			this._register(this.webExtensions.onReset(e => { this._onChange.fire(undefined); this._onReset.fire(); }));
+			this._register(this.webExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
+			this._register(this.webExtensions.onReset(e => this.reset()));
 			this.extensionsServers.push(this.webExtensions);
 		}
-
-		this._register(this.onChange(() => {
-			this._installed = undefined;
-			this._local = undefined;
-		}));
 
 		this.updatesCheckDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.UpdatesCheckInterval);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
@@ -860,6 +852,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const changedExtension of changedExtensions) {
 			this._onChange.fire(changedExtension);
 		}
+	}
+
+	private reset(): void {
+		for (const task of this.tasksInProgress) {
+			task.cancel();
+		}
+		this.tasksInProgress = [];
+		this.installing = [];
+		this.onDidChangeExtensions();
+		this._onReset.fire();
+	}
+
+	private onDidChangeExtensions(extension?: IExtension): void {
+		this._installed = undefined;
+		this._local = undefined;
+		this._onChange.fire(extension);
 	}
 
 	private _local: IExtension[] | undefined;
@@ -1023,7 +1031,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return null;
 	}
 
-	async open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void> {
+	async open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void> {
+		if (typeof extension === 'string') {
+			const id = extension;
+			extension = this.installed.find(e => areSameExtensions(e.identifier, { id })) ?? (await this.getExtensions([{ id: extension }], CancellationToken.None))[0];
+		}
+		if (!extension) {
+			throw new Error(`Extension not found. ${extension}`);
+		}
 		const editor = await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
 		if (options?.tab && editor instanceof ExtensionEditor) {
 			await editor.openTab(options.tab);
@@ -1234,12 +1249,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getExtensionState(extension: Extension): ExtensionState {
-		const isInstalling = this.installing.some(i => areSameExtensions(i.identifier, extension.identifier));
-		if (extension.server) {
-			const state = (extension.server === this.extensionManagementServerService.localExtensionManagementServer
-				? this.localExtensions! : extension.server === this.extensionManagementServerService.remoteExtensionManagementServer ? this.remoteExtensions! : this.webExtensions!).getExtensionState(extension);
-			return state === ExtensionState.Uninstalled && isInstalling ? ExtensionState.Installing : state;
-		} else if (isInstalling) {
+		if (this.installing.some(i => areSameExtensions(i.identifier, extension.identifier) && (!extension.server || i.server === extension.server))) {
 			return ExtensionState.Installing;
 		}
 		if (this.remoteExtensions) {
@@ -1397,21 +1407,49 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	install(extension: URI | IExtension, installOptions?: InstallOptions | InstallVSIXOptions, progressLocation?: ProgressLocation): Promise<IExtension> {
-		if (extension instanceof URI) {
-			return this.installWithProgress(() => this.installFromVSIX(extension, installOptions), undefined, progressLocation);
-		}
+		return this.doInstall(extension, async () => {
+			if (extension instanceof URI) {
+				return this.installFromVSIX(extension, installOptions);
+			}
+			if (extension.isMalicious) {
+				throw new Error(nls.localize('malicious', "This extension is reported to be problematic."));
+			}
+			if (!extension.gallery) {
+				throw new Error('Missing gallery');
+			}
+			return this.installFromGallery(extension, extension.gallery, installOptions);
+		}, progressLocation);
+	}
 
-		if (extension.isMalicious) {
-			return Promise.reject(new Error(nls.localize('malicious', "This extension is reported to be problematic.")));
-		}
+	async installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void> {
+		await this.doInstall(extension, async () => {
+			if (!extension.gallery) {
+				extension = (await this.getExtensions([extension.identifier], CancellationToken.None))[0] ?? extension;
+			}
+			if (extension.gallery) {
+				return server.extensionManagementService.installFromGallery(extension.gallery);
+			}
 
-		const gallery = extension.gallery;
+			if (!extension.local) {
+				throw new Error('Extension not found');
+			}
 
-		if (!gallery) {
-			return Promise.reject(new Error('Missing gallery'));
-		}
+			const targetPlatform = await server.extensionManagementService.getTargetPlatform();
+			if (!isTargetPlatformCompatible(extension.local.targetPlatform, [extension.local.targetPlatform], targetPlatform)) {
+				throw new Error(nls.localize('incompatible', "Can't install '{0}' extension because it is not compatible.", extension.identifier.id));
+			}
 
-		return this.installWithProgress(() => this.installFromGallery(extension, gallery, installOptions), gallery.displayName, progressLocation);
+			const vsix = await this.extensionManagementService.zip(extension.local);
+			try {
+				return await server.extensionManagementService.install(vsix);
+			} finally {
+				try {
+					await this.fileService.del(vsix);
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+		});
 	}
 
 	canSetLanguage(extension: IExtension): boolean {
@@ -1454,7 +1492,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!toUninstall) {
 			return Promise.reject(new Error('Missing local'));
 		}
-		return this.progressService.withProgress({
+		return this.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
 			source: `${toUninstall.identifier.id}`
@@ -1462,42 +1500,35 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async installVersion(extension: IExtension, version: string, installOptions: InstallOptions = {}): Promise<IExtension> {
-		if (!(extension instanceof Extension)) {
-			return extension;
-		}
+		return this.doInstall(extension, async () => {
+			if (!extension.gallery) {
+				throw new Error('Missing gallery');
+			}
 
-		if (!extension.gallery) {
-			throw new Error('Missing gallery');
-		}
+			const targetPlatform = extension.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
+			const [gallery] = await this.galleryService.getExtensions([{ id: extension.gallery.identifier.id, version }], { targetPlatform }, CancellationToken.None);
+			if (!gallery) {
+				throw new Error(nls.localize('not found', "Unable to install extension '{0}' because the requested version '{1}' is not found.", extension.gallery!.identifier.id, version));
+			}
 
-		const targetPlatform = extension.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
-		const [gallery] = await this.galleryService.getExtensions([{ id: extension.gallery.identifier.id, version }], { targetPlatform }, CancellationToken.None);
-		if (!gallery) {
-			throw new Error(nls.localize('not found', "Unable to install extension '{0}' because the requested version '{1}' is not found.", extension.gallery!.identifier.id, version));
-		}
-
-		return this.installWithProgress(async () => {
 			installOptions.installGivenVersion = true;
 			const installed = await this.installFromGallery(extension, gallery, installOptions);
 			if (extension.latestVersion !== version) {
 				this.ignoreAutoUpdate(new ExtensionKey(gallery.identifier, version));
 			}
 			return installed;
-		}, gallery.displayName);
+		});
 	}
 
 	reinstall(extension: IExtension): Promise<IExtension> {
-		const ext = extension.local ? extension : this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
-		const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
-
-		if (!toReinstall) {
-			return Promise.reject(new Error('Missing local'));
-		}
-
-		return this.progressService.withProgress({
-			location: ProgressLocation.Extensions,
-			source: `${toReinstall.identifier.id}`
-		}, () => this.extensionManagementService.reinstallFromGallery(toReinstall).then(() => this.local.filter(local => areSameExtensions(local.identifier, extension.identifier))[0]));
+		return this.doInstall(extension, () => {
+			const ext = extension.local ? extension : this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
+			const toReinstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
+			if (!toReinstall) {
+				throw new Error('Missing local');
+			}
+			return this.extensionManagementService.reinstallFromGallery(toReinstall);
+		});
 	}
 
 	isExtensionIgnoredToSync(extension: IExtension): boolean {
@@ -1537,39 +1568,44 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string, progressLocation?: ProgressLocation): Promise<T> {
-		const title = extensionName ? nls.localize('installing named extension', "Installing '{0}' extension....", extensionName) : nls.localize('installing extension', 'Installing extension....');
-		return this.progressService.withProgress({
+	private doInstall(extension: IExtension | URI, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation): Promise<IExtension> {
+		const title = extension instanceof URI ? nls.localize('installing extension', 'Installing extension....') : nls.localize('installing named extension', "Installing '{0}' extension....", extension.displayName);
+		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,
 			title
-		}, () => installTask());
+		}, async () => {
+			try {
+				if (!(extension instanceof URI)) {
+					this.installing.push(extension);
+					this._onChange.fire(extension);
+				}
+				const local = await installTask();
+				return await this.waitAndGetInstalledExtension(local.identifier);
+			} finally {
+				if (!(extension instanceof URI)) {
+					this.installing = this.installing.filter(e => e !== extension);
+					// Trigger the change without passing the extension because it is replaced by a new instance.
+					this._onChange.fire(undefined);
+				}
+			}
+		});
 	}
 
-	private async installFromVSIX(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension> {
+	private async installFromVSIX(vsix: URI, installOptions?: InstallVSIXOptions): Promise<ILocalExtension> {
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
-		const { identifier } = await this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
-
+		const local = await this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
 		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
-			this.ignoreAutoUpdate(new ExtensionKey(identifier, manifest.version));
+			this.ignoreAutoUpdate(new ExtensionKey(local.identifier, manifest.version));
 		}
-
-		return this.waitAndGetInstalledExtension(identifier);
+		return local;
 	}
 
-	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<IExtension> {
-		this.installing.push(extension);
-		this._onChange.fire(extension);
-		try {
-			if (extension.state === ExtensionState.Installed && extension.local) {
-				await this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
-			} else {
-				await this.extensionManagementService.installFromGallery(gallery, installOptions);
-			}
-			return this.waitAndGetInstalledExtension(gallery.identifier);
-		} finally {
-			this.installing = this.installing.filter(e => e !== extension);
-			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
+	private installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+		if (extension.local) {
+			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
+		} else {
+			return this.extensionManagementService.installFromGallery(gallery, installOptions);
 		}
 	}
 
@@ -1731,15 +1767,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	// Since we cannot differentiate between the two, we report progress for all extension install/uninstall changes
 	private _activityCallBack: ((value: void) => void) | undefined;
 	private reportProgressFromOtherSources(): void {
-		this.logService.info('Updating Activity');
 		if (this.installed.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling)) {
 			if (!this._activityCallBack) {
-				this.progressService.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
+				this.withProgress({ location: ProgressLocation.Extensions }, () => new Promise(resolve => this._activityCallBack = resolve));
 			}
 		} else {
 			this._activityCallBack?.();
 			this._activityCallBack = undefined;
 		}
+	}
+
+	private withProgress<T>(options: IProgressOptions, task: () => Promise<T>): Promise<T> {
+		return this.progressService.withProgress(options, async () => {
+			const cancelableTask = createCancelablePromise(() => task());
+			this.tasksInProgress.push(cancelableTask);
+			try {
+				return await cancelableTask;
+			} finally {
+				const index = this.tasksInProgress.indexOf(cancelableTask);
+				if (index !== -1) {
+					this.tasksInProgress.splice(index, 1);
+				}
+			}
+		});
 	}
 
 	private onError(err: any): void {

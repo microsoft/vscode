@@ -944,12 +944,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this._quickNavigate.keybindings;
 			const wasTriggerKeyPressed = quickNavKeys.some(k => {
-				const [firstPart, chordPart] = k.getParts();
-				if (chordPart) {
+				const [firstChord, secondChord] = k.getChords();// TODO@chords
+				if (secondChord) {
 					return false;
 				}
 
-				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
+				if (firstChord.shiftKey && keyCode === KeyCode.Shift) {
 					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 						return false; // this is an optimistic check for the shift key being used to navigate back in quick input
 					}
@@ -957,15 +957,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					return true;
 				}
 
-				if (firstPart.altKey && keyCode === KeyCode.Alt) {
+				if (firstChord.altKey && keyCode === KeyCode.Alt) {
 					return true;
 				}
 
-				if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
+				if (firstChord.ctrlKey && keyCode === KeyCode.Ctrl) {
 					return true;
 				}
 
-				if (firstPart.metaKey && keyCode === KeyCode.Meta) {
+				if (firstChord.metaKey && keyCode === KeyCode.Meta) {
 					return true;
 				}
 

@@ -815,7 +815,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				action: sourceAction,
 				picked: false,
 				label: sourceAction.action.label,
-				detail: (sourceAction.action as MenuItemAction)?.item?.source
+				detail: (sourceAction.action as MenuItemAction)?.item?.source?.title
 			};
 
 			quickPickItems.push(res);

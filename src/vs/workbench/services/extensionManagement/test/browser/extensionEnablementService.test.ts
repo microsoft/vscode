@@ -617,13 +617,6 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
 	});
 
-	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
-		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
-		testObject = new TestExtensionEnablementService(instantiationService);
-		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
-		assert.ok(!testObject.canChangeEnablement(extension));
-	});
-
 	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {
 		const extension = aLocalExtension2('pub.a', { capabilities: { virtualWorkspaces: false } });
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
