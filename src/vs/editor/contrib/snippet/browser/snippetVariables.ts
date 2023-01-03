@@ -295,7 +295,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return String(Math.floor(this._date.getTime() / 1000));
 		} else if (name === 'CURRENT_TIMEZONE_OFFSET') {
 			const rawTimeOffset = this._date.getTimezoneOffset();
-			const sign = rawTimeOffset < 0 ? '-' : '+';
+			const sign = rawTimeOffset > 0 ? '-' : '+';
 			const hours = Math.trunc(Math.abs(rawTimeOffset / 60));
 			const hoursString = (hours < 10 ? '0' + hours : hours);
 			const minutes = Math.abs(rawTimeOffset) - hours * 60;
