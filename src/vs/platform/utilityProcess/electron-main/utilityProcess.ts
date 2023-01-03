@@ -13,6 +13,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { UtilityProcess as ElectronUtilityProcess, UtilityProcessProposedApi, canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IUtilityProcessConfiguration {
 
@@ -25,9 +26,9 @@ export interface IUtilityProcessConfiguration {
 	// --- utility process options
 
 	/**
-	 * A way to identify the utility process among others.
+	 * A way to group utility processes of same type together.
 	 */
-	readonly name: string;
+	readonly type: string;
 
 	/**
 	 * Environment key-value pairs. Default is `process.env`.
@@ -49,6 +50,12 @@ export interface IUtilityProcessConfiguration {
 	 * Allow the utility process to load unsigned libraries.
 	 */
 	readonly allowLoadingUnsignedLibraries?: boolean;
+
+	/**
+	 * Used in log messages to correlate the process
+	 * with other components.
+	 */
+	readonly correlationId?: string;
 }
 
 interface IUtilityProcessExitBaseEvent {
@@ -110,13 +117,20 @@ export class UtilityProcess extends Disposable {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
 
 	private log(msg: string, severity: Severity): void {
-		const logMsg = `[UtilityProcess id: ${this.id}, name: ${this.configuration?.name}, pid: ${this.processPid ?? '<none>'}]: ${msg}`;
+		let logMsg: string;
+		if (this.configuration?.correlationId) {
+			logMsg = `[UtilityProcess id: ${this.configuration?.correlationId}, type: ${this.configuration?.type}, pid: ${this.processPid ?? '<none>'}]: ${msg}`;
+		} else {
+			logMsg = `[UtilityProcess type: ${this.configuration?.type}, pid: ${this.processPid ?? '<none>'}]: ${msg}`;
+		}
+
 		switch (severity) {
 			case Severity.Error:
 				this.logService.error(logMsg);
@@ -132,7 +146,7 @@ export class UtilityProcess extends Disposable {
 
 	private validateCanStart(configuration: IUtilityProcessConfiguration): BrowserWindow | undefined {
 		if (!canUseUtilityProcess) {
-			throw new Error(`Cannot use UtilityProcess!`);
+			throw new Error('Cannot use UtilityProcess API from Electron!');
 		}
 
 		if (this.process) {
@@ -157,9 +171,9 @@ export class UtilityProcess extends Disposable {
 
 		this.configuration = configuration;
 
-		const serviceName = `${this.configuration.name}-${this.id}`;
+		const serviceName = `${this.configuration.type}-${this.id}`;
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
-		const args = this.configuration.args;
+		const args = [...this.configuration.args ?? [], `--type=${this.configuration.type}`];
 		const execArgv = this.configuration.execArgv;
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const stdio = 'pipe';
@@ -185,7 +199,7 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(this.process, serviceName);
+		this.registerListeners(this.process, this.configuration, serviceName);
 
 		// Create message ports
 		this.createMessagePorts(this.process, this.configuration, responseWindow);
@@ -198,7 +212,7 @@ export class UtilityProcess extends Disposable {
 		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 	}
 
-	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, serviceName: string): void {
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
 		const stdoutDecoder = new StringDecoder('utf-8');
@@ -215,7 +229,7 @@ export class UtilityProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<void>(process, 'spawn')(() => {
 			this.processPid = process.pid;
 
-			this.log(`successfully created`, Severity.Info);
+			this.log('successfully created', Severity.Info);
 		}));
 
 		// Exit
@@ -230,8 +244,24 @@ export class UtilityProcess extends Disposable {
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
 			if (details.type === 'Utility' && details.name === serviceName) {
-				this.log(`crashed with code ${details.exitCode} and reason ${details.reason}`, Severity.Error);
+				this.log(`crashed with code ${details.exitCode} and reason '${details.reason}'`, Severity.Error);
 
+				// Telemetry
+				type UtilityProcessCrashClassification = {
+					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of utility process to understand the origin of the crash better.' };
+					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
+					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
+					owner: 'bpasero';
+					comment: 'Provides insight into reasons the utility process crashed.';
+				};
+				type UtilityProcessCrashEvent = {
+					type: string;
+					reason: string;
+					code: number;
+				};
+				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', { type: configuration.type, reason: details.reason, code: details.exitCode });
+
+				// Event
 				this._onCrash.fire({ pid: this.processPid!, code: details.exitCode, reason: details.reason });
 			}
 		}));
@@ -260,17 +290,17 @@ export class UtilityProcess extends Disposable {
 
 	kill(): void {
 		if (!this.process) {
-			this.log(`no running process to kill`, Severity.Warning);
+			this.log('no running process to kill', Severity.Warning);
 			return;
 		}
 
-		this.log(`killing the process`, Severity.Info);
+		this.log('killing the process', Severity.Info);
 		this.process.kill();
 	}
 
 	async waitForExit(maxWaitTimeMs: number): Promise<void> {
 		if (!this.process) {
-			this.log(`no running process to wait for exit`, Severity.Warning);
+			this.log('no running process to wait for exit', Severity.Warning);
 			return;
 		}
 
@@ -282,7 +312,7 @@ export class UtilityProcess extends Disposable {
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
 		if (!this.didExit) {
-			this.log(`did not exit within ${maxWaitTimeMs}ms, will kill it now...`, Severity.Info);
+			this.log('did not exit within ${maxWaitTimeMs}ms, will kill it now...', Severity.Info);
 			this.process.kill();
 		}
 	}

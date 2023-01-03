@@ -20,6 +20,7 @@ import { cwd } from 'vs/base/common/process';
 import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
 	_serviceBrand: undefined;
@@ -33,6 +34,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		@ILogService private readonly _logService: ILogService,
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._extHosts = new Map<string, ExtensionHostProcess | UtilityProcess>();
 
@@ -94,7 +96,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			if (!canUseUtilityProcess) {
 				throw new Error(`Cannot use UtilityProcess!`);
 			}
-			extHost = new UtilityProcess(this._logService, this._windowsMainService);
+			extHost = new UtilityProcess(this._logService, this._windowsMainService, this._telemetryService);
 		} else {
 			extHost = new ExtensionHostProcess(id, this._logService);
 		}
@@ -115,9 +117,10 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		}
 		return this._getExtHost(id).start({
 			...opts,
-			name: `extensionHost${id}`,
-			args: ['--type=extensionHost', '--skipWorkspaceStorageLock'],
-			allowLoadingUnsignedLibraries: true
+			type: 'extensionHost',
+			args: ['--skipWorkspaceStorageLock'],
+			allowLoadingUnsignedLibraries: true,
+			correlationId: id
 		});
 	}
 
