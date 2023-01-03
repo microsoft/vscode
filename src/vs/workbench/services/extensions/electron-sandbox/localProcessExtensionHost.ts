@@ -99,7 +99,7 @@ export class ExtensionHostProcess {
 	}
 }
 
-export class SandboxLocalProcessExtensionHost implements IExtensionHost {
+export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
 	public readonly lazyStart = false;
