@@ -76,6 +76,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
+	'!test/unit/assert-esm.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 

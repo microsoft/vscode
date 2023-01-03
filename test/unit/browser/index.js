@@ -16,11 +16,15 @@ const url = require('url');
 const minimatch = require('minimatch');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
+const http = require('http');
+const { join } = require('path');
+const { readFileSync } = require('fs');
 
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 const optimist = require('optimist')
 	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
+	.describe('esm', 'Assume ESM output').boolean('esm')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
@@ -125,11 +129,50 @@ function consoleLogFn(msg) {
 	return console.log;
 }
 
+
+
 async function runTestsInBrowser(testModules, browserType) {
+
+	let target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	let server;
+	if (argv.esm) {
+
+		const port = 3000 + Math.ceil(Math.random() * 5080);
+		const base = join(__dirname, '../../../');
+
+
+		server = http.createServer(function (req, res) {
+			try {
+				// @ts-ignore
+				const relative = req.url.replace(/\?.*$/, '');
+				const path = join(base, relative);
+				const buffer = readFileSync(path);
+				if (req.url?.endsWith('.js')) {
+					res.setHeader('Content-Type', 'text/javascript');
+				} else if (req.url?.endsWith('.css')) {
+					res.setHeader('Content-Type', 'text/css');
+				}
+				res.writeHead(200);
+				res.end(buffer);
+			} catch (err) {
+				console.error(err);
+				res.writeHead(404);
+				res.end();
+			}
+		});
+		server.on('error', (err) => {
+			console.error(err);
+		});
+
+		server.listen(port);
+
+		target = new URL(`http://localhost:${port}/test/unit/browser/renderer-esm.html`);
+	}
+
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+
 	if (argv.build) {
 		target.search = `?build=true`;
 	}
@@ -174,9 +217,10 @@ async function runTestsInBrowser(testModules, browserType) {
 		console.error(err);
 	}
 	await browser.close();
+	server?.close();
 
 	if (failingTests.length > 0) {
-		let res =  `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
+		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
 
 		if (failingModuleIds.length > 0) {
 			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
