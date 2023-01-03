@@ -115,7 +115,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		}
 		return this._getExtHost(id).start({
 			...opts,
-			serviceName: `extensionHost${id}`,
+			name: `extensionHost${id}`,
 			args: ['--type=extensionHost', '--skipWorkspaceStorageLock'],
 			allowLoadingUnsignedLibraries: true
 		});

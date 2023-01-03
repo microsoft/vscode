@@ -14,7 +14,7 @@ import { UtilityProcess as ElectronUtilityProcess, UtilityProcessProposedApi, ca
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
 
-export interface IUtilityProcessStarterConfiguration {
+export interface IUtilityProcessConfiguration {
 
 	// --- message port response related
 
@@ -27,7 +27,7 @@ export interface IUtilityProcessStarterConfiguration {
 	/**
 	 * A way to identify the utility process among others.
 	 */
-	readonly serviceName: string;
+	readonly name: string;
 
 	/**
 	 * Environment key-value pairs. Default is `process.env`.
@@ -72,6 +72,10 @@ export interface IUtilityProcessExitEvent {
 
 export class UtilityProcess extends Disposable {
 
+	private static ID_COUNTER = 0;
+
+	private readonly id = String(++UtilityProcess.ID_COUNTER);
+
 	private readonly _onStdout = this._register(new Emitter<string>());
 	readonly onStdout = this._onStdout.event;
 
@@ -85,9 +89,9 @@ export class UtilityProcess extends Disposable {
 	readonly onExit = this._onExit.event;
 
 	private process: UtilityProcessProposedApi.UtilityProcess | undefined = undefined;
-	private configuration: IUtilityProcessStarterConfiguration | undefined = undefined;
+	private configuration: IUtilityProcessConfiguration | undefined = undefined;
 
-	private hasExited: boolean = false;
+	private didExit: boolean = false;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -97,7 +101,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	private log(msg: string, severity: Severity): void {
-		const logMsg = `UtilityProcess<name: ${this.configuration?.serviceName}, pid: ${this.process?.pid ?? '<none>'}>: ${msg}`;
+		const logMsg = `UtilityProcess<id: ${this.id}, name: ${this.configuration?.name}, pid: ${this.process?.pid ?? '<none>'}>: ${msg}`;
 		switch (severity) {
 			case Severity.Error:
 				this.logService.error(logMsg);
@@ -111,7 +115,7 @@ export class UtilityProcess extends Disposable {
 		}
 	}
 
-	private validateCanStart(configuration: IUtilityProcessStarterConfiguration): BrowserWindow | undefined {
+	private validateCanStart(configuration: IUtilityProcessConfiguration): BrowserWindow | undefined {
 		if (!canUseUtilityProcess) {
 			throw new Error(`Cannot use UtilityProcess!`);
 		}
@@ -130,7 +134,7 @@ export class UtilityProcess extends Disposable {
 		return responseWindow;
 	}
 
-	start(configuration: IUtilityProcessStarterConfiguration): void {
+	start(configuration: IUtilityProcessConfiguration): void {
 		const responseWindow = this.validateCanStart(configuration);
 		if (!responseWindow) {
 			return;
@@ -138,7 +142,7 @@ export class UtilityProcess extends Disposable {
 
 		this.configuration = configuration;
 
-		const serviceName = this.configuration.serviceName;
+		const serviceName = `${this.configuration.name}-${this.id}`;
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
 		const args = this.configuration.args;
 		const execArgv = this.configuration.execArgv;
@@ -166,20 +170,20 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration);
+		this.registerListeners(this.process, this.configuration, serviceName);
 
 		// Create message ports
 		this.createMessagePorts(this.process, this.configuration, responseWindow);
 	}
 
-	private createMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessStarterConfiguration, responseWindow: BrowserWindow) {
+	private createMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
 		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
 
 		process.postMessage('null', [utilityProcessPort]);
 		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 	}
 
-	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessStarterConfiguration): void {
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
 		const stdoutDecoder = new StringDecoder('utf-8');
@@ -201,13 +205,13 @@ export class UtilityProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
 			this.log(`received exit event with code ${code}`, Severity.Info);
 
-			this.hasExited = true;
+			this.didExit = true;
 			this._onExit.fire({ pid: process.pid!, code, signal: 'unknown' });
 		}));
 
 		// Child process gone
 		this._register(Event.fromNodeEventEmitter(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
-			if (details.type === 'Utility' && details.serviceName === configuration.serviceName) {
+			if (details.type === 'Utility' && details.serviceName === serviceName) {
 				this.log(`received child-process-gone event with code ${details.exitCode} and reason ${details.reason}`, Severity.Info);
 			}
 		}));
@@ -251,14 +255,14 @@ export class UtilityProcess extends Disposable {
 			return;
 		}
 
-		if (this.hasExited) {
+		if (this.didExit) {
 			return;
 		}
 
 		this.log('waiting to exit...', Severity.Info);
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
-		if (!this.hasExited) {
+		if (!this.didExit) {
 			this.log(`did not exit within ${maxWaitTimeMs}ms, will kill it now...`, Severity.Info);
 			this.process.kill();
 		}
