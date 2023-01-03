@@ -18,7 +18,7 @@ declare module 'vscode' {
 	/**
 	 * A telemetry logger which can be used by extensions to log usage and error telementry.
 	 *
-	 * A logger wraps around an {@link TelemetrySender appender} but it guarantees that
+	 * A logger wraps around an {@link TelemetrySender sender} but it guarantees that
 	 * - user settings to disable or tweak telemetry are respected, and that
 	 * - potential sensitive data is removed
 	 *
@@ -48,7 +48,7 @@ declare module 'vscode' {
 		/**
 		 * Log a usage event.
 		 *
-		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetryAppender.logEvent` to log the event.
+		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetrySender.sendEventData` to log the event.
 		 * Automatically supports echoing to extension telemetry output channel.
 		 * @param eventName The event name to log
 		 * @param data The data to log
@@ -58,7 +58,7 @@ declare module 'vscode' {
 		/**
 		 * Log an error event.
 		 *
-		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetryAppender.logEvent` to log the event. Differs from `logUsage` in that it will log the event if the telemetry setting is Error+.
+		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetrySender.sendEventData` to log the event. Differs from `logUsage` in that it will log the event if the telemetry setting is Error+.
 		 * Automatically supports echoing to extension telemetry output channel.
 		 * @param eventName The event name to log
 		 * @param data The data to log
@@ -68,7 +68,7 @@ declare module 'vscode' {
 		/**
 		 * Log an error event.
 		 *
-		 * Calls `TelemetryAppender.logException`. Does cleaning, telemetry checks, and data mix-in.
+		 * Calls `TelemetrySender.sendErrorData`. Does cleaning, telemetry checks, and data mix-in.
 		 * Automatically supports echoing to extension telemetry output channel.
 		 * Will also automatically log any exceptions thrown within the extension host process.
 		 * @param error The error object which contains the stack trace cleaned of PII
@@ -87,14 +87,14 @@ declare module 'vscode' {
 	 * call the methods of their sender directly as the logger provides extra guards and cleaning.
 	 *
 	 * ```js
-	 * const appender: vscode.TelemetrySender = {...};
-	 * const logger = vscode.env.createTelemetryLogger(appender);
+	 * const sender: vscode.TelemetrySender = {...};
+	 * const logger = vscode.env.createTelemetryLogger(sender);
 	 *
 	 * // GOOD - uses the logger
 	 * logger.logUsage('myEvent', { myData: 'myValue' });
 	 *
-	 * // BAD - uses the appender directly: no data cleansing, ignores user settings, no echoing to the telemetry output channel etc
-	 * appender.logEvent('myEvent', { myData: 'myValue' });
+	 * // BAD - uses the sender directly: no data cleansing, ignores user settings, no echoing to the telemetry output channel etc
+	 * sender.logEvent('myEvent', { myData: 'myValue' });
 	 * ```
 	 */
 	export interface TelemetrySender {
@@ -132,7 +132,7 @@ declare module 'vscode' {
 		readonly ignoreBuiltInCommonProperties?: boolean;
 
 		/**
-		 * Whether or not unhandled errors on the extension host caused by your extension should be logged to your appender.
+		 * Whether or not unhandled errors on the extension host caused by your extension should be logged to your sender.
 		 * Defaults to `false` if not defined.
 		 */
 		readonly ignoreUnhandledErrors?: boolean;
