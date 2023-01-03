@@ -266,6 +266,13 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			},
+			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
+				type: 'boolean',
+				description: localize('sharedProcessUseUtilityProcess', "Experimental: When enabled, the shared process will use the utility process Electron API."),
+				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				'scope': ConfigurationScope.APPLICATION,
+				ignoreSync: true
+			}
 		}
 	});
 
