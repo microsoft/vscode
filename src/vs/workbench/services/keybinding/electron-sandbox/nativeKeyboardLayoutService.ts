@@ -8,27 +8,27 @@ import { IKeyboardLayoutInfo, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindo
 import { Emitter, Event } from 'vs/base/common/event';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
+import { INativeKeyboardLayoutService as IBaseNativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const ISandboxKeyboardLayoutService = createDecorator<ISandboxKeyboardLayoutService>('sandboxKeyboardLayoutService');
+export const INativeKeyboardLayoutService = createDecorator<INativeKeyboardLayoutService>('nativeKeyboardLayoutService');
 
-export interface ISandboxKeyboardLayoutService {
+export interface INativeKeyboardLayoutService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeKeyboardLayout: Event<void>;
 	getRawKeyboardMapping(): IKeyboardMapping | null;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
 }
 
-export class SandboxKeyboardLayoutService extends Disposable implements ISandboxKeyboardLayoutService {
+export class NativeKeyboardLayoutService extends Disposable implements INativeKeyboardLayoutService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
 	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;
 
-	private readonly _keyboardLayoutService: INativeKeyboardLayoutService;
+	private readonly _keyboardLayoutService: IBaseNativeKeyboardLayoutService;
 	private _initPromise: Promise<void> | null;
 	private _keyboardMapping: IKeyboardMapping | null;
 	private _keyboardLayoutInfo: IKeyboardLayoutInfo | null;
@@ -37,7 +37,7 @@ export class SandboxKeyboardLayoutService extends Disposable implements ISandbox
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
 		super();
-		this._keyboardLayoutService = ProxyChannel.toService<INativeKeyboardLayoutService>(mainProcessService.getChannel('keyboardLayout'));
+		this._keyboardLayoutService = ProxyChannel.toService<IBaseNativeKeyboardLayoutService>(mainProcessService.getChannel('keyboardLayout'));
 		this._initPromise = null;
 		this._keyboardMapping = null;
 		this._keyboardLayoutInfo = null;
