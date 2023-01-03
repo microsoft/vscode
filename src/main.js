@@ -323,9 +323,7 @@ function getArgvConfigPath() {
  * @param {string} newFilePath
  */
 function migrateArgvConfigPath(oldFilePath, newFilePath) {
-	if (!fs.existsSync(oldFilePath)) {
-		return;
-	}
+	if (!fs.existsSync(oldFilePath)) return;
 
 	if (fs.existsSync(newFilePath)) { // already exists
 		fs.unlinkSync(oldFilePath);
