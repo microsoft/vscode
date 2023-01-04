@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 
 import 'vs/css!./media/dirtydiffDecorator';
-import { ThrottledDelayer, first } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
@@ -15,7 +15,7 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
-import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IColorTheme, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
@@ -34,7 +34,7 @@ import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editor
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename, isEqualOrParent } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -51,11 +51,11 @@ import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys'
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
-import { Iterable } from 'vs/base/common/iterator';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
+import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1067,37 +1067,10 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
-export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
-	return (a, b) => {
-		const aIsParent = isEqualOrParent(uri, a.rootUri!);
-		const bIsParent = isEqualOrParent(uri, b.rootUri!);
 
-		if (aIsParent && bIsParent) {
-			return a.rootUri!.fsPath.length - b.rootUri!.fsPath.length;
-		} else if (aIsParent) {
-			return -1;
-		} else if (bIsParent) {
-			return 1;
-		} else {
-			return 0;
-		}
-	};
-}
-
-export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
-	const providers = Iterable.map(scmService.repositories, r => r.provider);
-	const rootedProviders = Array.from(Iterable.filter(providers, p => !!p.rootUri));
-
-	rootedProviders.sort(createProviderComparer(uri));
-
-	const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
-
-	if (result) {
-		return result;
-	}
-
-	const nonRootedProviders = Iterable.filter(providers, p => !p.rootUri);
-	return first(Array.from(nonRootedProviders, p => () => p.getOriginalResource(uri)));
+export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI): Promise<URI | null> {
+	const quickDiffs = await quickDiffService.getQuickDiffs(uri);
+	return quickDiffs ? quickDiffs[0].originalResource : null;
 }
 
 export class DirtyDiffModel extends Disposable {
@@ -1123,6 +1096,7 @@ export class DirtyDiffModel extends Disposable {
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
 		@ISCMService private readonly scmService: ISCMService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -1278,7 +1252,7 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		const uri = this._model.resource;
-		return getOriginalResource(this.scmService, uri);
+		return getOriginalResource(this.quickDiffService, uri);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {
