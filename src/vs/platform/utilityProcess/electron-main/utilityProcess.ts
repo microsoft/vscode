@@ -205,13 +205,6 @@ export class UtilityProcess extends Disposable {
 		this.exchangeMessagePorts(this.process, this.configuration, responseWindow);
 	}
 
-	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
-		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
-
-		process.postMessage('null', [utilityProcessPort]);
-		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
-	}
-
 	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
@@ -267,6 +260,13 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
+	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
+		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
+
+		process.postMessage('null', [utilityProcessPort]);
+		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+	}
+
 	enableInspectPort(): boolean {
 		if (typeof this.processPid !== 'number') {
 			return false;
@@ -279,8 +279,10 @@ export class UtilityProcess extends Disposable {
 		}
 
 		// use (undocumented) _debugProcess feature of node if available
-		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
-			(<ProcessExt>process)._debugProcess!(this.processPid);
+		const processExt = <ProcessExt>process;
+		if (typeof processExt._debugProcess === 'function') {
+			processExt._debugProcess(this.processPid);
+
 			return true;
 		}
 
