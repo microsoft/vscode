@@ -7,13 +7,12 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { match as matchGlobPattern } from 'vs/base/common/glob';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -29,7 +28,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
 
 /**
  * Stored file specific working copy model factory.
@@ -311,6 +311,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
+	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
+
 	//#endregion
 
 	constructor(
@@ -332,9 +334,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super(resource, fileService);
-
-		this.setGlobReadonly();    // and then track with onDidChangeConfiguration()
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
@@ -1216,44 +1215,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Utilities
 
-	private anyGlobMatches(key: string, path: string): boolean {
-		const globs: { [glob: string]: boolean } = this.configurationService.getValue<{ [glob: string]: boolean }>(key);
-		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
-	}
-
-	private setGlobReadonly() {
-		this.globReadonly = this.anyGlobMatches('files.readonlyInclude', this.resource.path)
-			&& !this.anyGlobMatches('files.readonlyExclude', this.resource.path);
-	}
-
-	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
-		if (event.affectsConfiguration('files.readonlyInclude') ||
-			event.affectsConfiguration('files.readonlyExclude')) {
-			this.setGlobReadonly();
-		}
-	}
-
-	// stable/semantic 'readonly' [nonEditable]; typically based on filetype or directory.
-	private globReadonly: boolean = false;
-
-	// latest value derived from files.readonlyInclude/Exclude for this resource.path
-	private oldReadonly = false; // fileEditorInput.test.ts counts changes from 'false' not 'undefined'
-
-	private checkDidChangeReadonly(newReadonly: boolean): boolean {
-		if (this.oldReadonly !== newReadonly) {
-			this.oldReadonly = newReadonly;    // must set before fire(); reentrant.
-			this._onDidChangeReadonly.fire();
-		}
-		return newReadonly;
-	}
-
 	isReadonly(): boolean {
-		return this.checkDidChangeReadonly(
-			this.globReadonly ||
-			this.lastResolvedFileStat?.readonly ||
-			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
+		return this._readonlyHelper.isReadonly();
 	}
-
 	private trace(msg: string): void {
 		this.logService.trace(`[stored file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}
