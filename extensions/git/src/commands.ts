@@ -2276,17 +2276,22 @@ export class CommandCenter {
 		const checkoutType = config.get<string | string[]>('checkoutType');
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new MergeItem(ref as Branch));
+		const getBranchPicks = async (): Promise<MergeItem[]> => {
+			const refs = await repository.getRefs();
 
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new MergeItem(ref as Branch));
+			const heads = refs.filter(ref => ref.type === RefType.Head)
+				.filter(ref => ref.name || ref.commit)
+				.map(ref => new MergeItem(ref as Branch));
 
-		const picks = [...heads, ...remoteHeads];
+			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+				.filter(ref => ref.name || ref.commit)
+				.map(ref => new MergeItem(ref as Branch));
+
+			return [...heads, ...remoteHeads];
+		};
+
 		const placeHolder = l10n.t('Select a branch to merge from');
-		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick<MergeItem>(getBranchPicks(), { placeHolder });
 
 		if (!choice) {
 			return;
@@ -2306,30 +2311,35 @@ export class CommandCenter {
 		const checkoutType = config.get<string | string[]>('checkoutType');
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name !== repository.HEAD?.name)
-			.filter(ref => ref.name || ref.commit);
+		const getBranchPicks = async () => {
+			const refs = await repository.getRefs();
 
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit);
+			const heads = refs.filter(ref => ref.type === RefType.Head)
+				.filter(ref => ref.name !== repository.HEAD?.name)
+				.filter(ref => ref.name || ref.commit);
 
-		const picks = [...heads, ...remoteHeads]
-			.map(ref => new RebaseItem(ref));
+			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+				.filter(ref => ref.name || ref.commit);
 
-		// set upstream branch as first
-		if (repository.HEAD?.upstream) {
-			const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
-			const index = picks.findIndex(e => e.ref.name === upstreamName);
+			const picks = [...heads, ...remoteHeads].map(ref => new RebaseItem(ref));
 
-			if (index > -1) {
-				const [ref] = picks.splice(index, 1);
-				ref.description = '(upstream)';
-				picks.unshift(ref);
+			// set upstream branch as first
+			if (repository.HEAD?.upstream) {
+				const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
+				const index = picks.findIndex(e => e.ref.name === upstreamName);
+
+				if (index > -1) {
+					const [ref] = picks.splice(index, 1);
+					ref.description = '(upstream)';
+					picks.unshift(ref);
+				}
 			}
-		}
+
+			return picks;
+		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
-		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick<RebaseItem>(getBranchPicks(), { placeHolder });
 
 		if (!choice) {
 			return;
@@ -2484,27 +2494,34 @@ export class CommandCenter {
 			return;
 		}
 
-		const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
-		const placeHolder = l10n.t('Pick a remote to pull the branch from');
-		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
+		let remoteName = remotes[0].name;
+		if (remotes.length > 1) {
+			const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
+			const placeHolder = l10n.t('Pick a remote to pull the branch from');
+			const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
-		if (!remotePick) {
-			return;
+			if (!remotePick) {
+				return;
+			}
+
+			remoteName = remotePick.label;
 		}
 
-		const remoteRefs = repository.refs;
-		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name! }));
+		const getBranchPicks = async (): Promise<QuickPickItem[]> => {
+			const remoteRefs = await repository.getRefs();
+			const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remoteName));
+			return remoteRefsFiltered.map(r => ({ label: r.name! }));
+		};
+
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
-		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
+		const branchPick = await window.showQuickPick(getBranchPicks(), { placeHolder: branchPlaceHolder });
 
 		if (!branchPick) {
 			return;
 		}
 
-		const remoteCharCnt = remotePick.label.length;
-
-		await repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		const remoteCharCnt = remoteName.length;
+		await repository.pullFrom(false, remoteName, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
