@@ -250,7 +250,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	return { merge, resolved, unresolved, deletionConflicts };
 }
 
-function createCheckoutItems(repository: Repository, detached = false): CheckoutItem[] {
+async function createCheckoutItems(repository: Repository, detached = false): Promise<CheckoutItem[]> {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
 	let checkoutTypes: string[];
@@ -268,10 +268,11 @@ function createCheckoutItems(repository: Repository, detached = false): Checkout
 		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
+	const refs = await repository.getRefs();
 	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
 		.filter(p => !!p) as CheckoutProcessor[];
 
-	for (const ref of repository.refs) {
+	for (const ref of refs) {
 		for (const processor of processors) {
 			processor.onRef(ref);
 		}
@@ -2025,15 +2026,17 @@ export class CommandCenter {
 			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
-		picks.push(...createCheckoutItems(repository, opts?.detached));
-
 		const quickpick = window.createQuickPick();
-		quickpick.items = picks;
+		quickpick.busy = true;
 		quickpick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickpick.show();
+
+		picks.push(... await createCheckoutItems(repository, opts?.detached));
+		quickpick.items = picks;
+		quickpick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
 		quickpick.hide();
@@ -2090,7 +2093,7 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private generateRandomBranchName(repository: Repository, separator: string): string {
+	private async generateRandomBranchName(repository: Repository, separator: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
 
@@ -2123,7 +2126,8 @@ export class CommandCenter {
 			});
 
 			// Check for local ref conflict
-			if (!repository.refs.find(r => r.type === RefType.Head && r.name === randomName)) {
+			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
+			if (refs.length === 0) {
 				return randomName;
 			}
 		}
@@ -2146,7 +2150,9 @@ export class CommandCenter {
 			// Branch name
 			if (!initialValue) {
 				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
-				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository, branchWhitespaceChar) : ''}`;
+				const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
+
+				initialValue = `${branchPrefix}${branchName}`;
 			}
 
 			// Branch name selection
@@ -2192,9 +2198,12 @@ export class CommandCenter {
 		let target = 'HEAD';
 
 		if (from) {
-			const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
+			const getRefPicks = async () => {
+				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
+			};
+
 			const placeHolder = l10n.t('Select a ref to create the "{0}" branch from', branchName);
-			const choice = await window.showQuickPick(picks, { placeHolder });
+			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
 				return;
@@ -2214,12 +2223,16 @@ export class CommandCenter {
 		if (typeof name === 'string') {
 			run = force => repository.deleteBranch(name, force);
 		} else {
-			const currentHead = repository.HEAD && repository.HEAD.name;
-			const heads = repository.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
-				.map(ref => new BranchDeleteItem(ref));
+			const getBranchPicks = async () => {
+				const refs = await repository.getRefs({ pattern: 'refs/heads/*' });
+				const currentHead = repository.HEAD && repository.HEAD.name;
+
+				return refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+					.map(ref => new BranchDeleteItem(ref));
+			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+			const choice = await window.showQuickPick<BranchDeleteItem>(getBranchPicks(), { placeHolder });
 
 			if (!choice || !choice.branchName) {
 				return;
