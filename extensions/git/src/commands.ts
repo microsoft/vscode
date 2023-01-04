@@ -2362,22 +2362,17 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
-		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
-			.map(ref => new TagItem(ref));
-
-		if (picks.length === 0) {
-			window.showWarningMessage(l10n.t('This repository has no tags.'));
-			return;
-		}
+		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
+		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const choice = await window.showQuickPick<TagItem | QuickPickItem>(tagPicks(), { placeHolder });
 
-		if (!choice) {
-			return;
+		if (choice && choice instanceof TagItem && choice.ref.name) {
+			await repository.deleteTag(choice.ref.name);
 		}
-
-		await repository.deleteTag(choice.label);
 	}
 
 	@command('git.deleteRemoteTag', { repository: true })
