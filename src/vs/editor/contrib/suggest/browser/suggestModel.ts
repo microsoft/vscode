@@ -654,7 +654,10 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
 			// started a new word while IntelliSense shows -> retrigger but reuse all items that we currently have
-			if (LineContext.shouldAutoTrigger(this._editor)) {
+			const shouldAutoTrigger = LineContext.shouldAutoTrigger(this._editor);
+			if (shouldAutoTrigger && this._context) {
+				// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
+				// suggestions to be cancelled, which causes `this._context` to be undefined
 				const map = this._completionModel.getItemsByProvider();
 				this.trigger({
 					auto: this._context.triggerOptions.auto,

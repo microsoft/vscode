@@ -46,10 +46,13 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { URI } from 'vs/base/common/uri';
-import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
+import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { LegacyNativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
-export abstract class ElectronExtensionService extends AbstractExtensionService implements IExtensionService {
+export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private readonly _enableLocalWebWorker: boolean;
 	private readonly _lazyLocalWebWorker: boolean;
@@ -189,7 +192,7 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 	}
 
 	protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
-		const result = ElectronExtensionService.pickExtensionHostKind(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
+		const result = NativeExtensionService.pickExtensionHostKind(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
 		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionHostKindToString(result)}`);
 		return result;
 	}
@@ -236,7 +239,11 @@ export abstract class ElectronExtensionService extends AbstractExtensionService 
 	protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
-				return this._instantiationService.createInstance(SandboxLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+				if (!process.sandboxed) {
+					// TODO@bpasero remove me once electron utility process has landed
+					return this._instantiationService.createInstance(LegacyNativeLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+				}
+				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._enableLocalWebWorker) {
@@ -712,3 +719,5 @@ class RestartExtensionHostAction extends Action2 {
 }
 
 registerAction2(RestartExtensionHostAction);
+
+registerSingleton(IExtensionService, NativeExtensionService, InstantiationType.Eager);
