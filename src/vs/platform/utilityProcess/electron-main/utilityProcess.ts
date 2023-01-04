@@ -208,15 +208,19 @@ export class UtilityProcess extends Disposable {
 	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
-		const stdoutDecoder = new StringDecoder('utf-8');
-		process.stdout?.on('data', chunk => this._onStdout.fire(typeof chunk === 'string' ? chunk : stdoutDecoder.write(chunk)));
+		if (process.stdout) {
+			const stdoutDecoder = new StringDecoder('utf-8');
+			this._register(Event.fromNodeEventEmitter<string | Buffer>(process.stdout, 'data')(chunk => this._onStdout.fire(typeof chunk === 'string' ? chunk : stdoutDecoder.write(chunk))));
+		}
 
 		// Stderr
-		const stderrDecoder = new StringDecoder('utf-8');
-		process.stderr?.on('data', chunk => this._onStderr.fire(typeof chunk === 'string' ? chunk : stderrDecoder.write(chunk)));
+		if (process.stderr) {
+			const stderrDecoder = new StringDecoder('utf-8');
+			this._register(Event.fromNodeEventEmitter<string | Buffer>(process.stderr, 'data')(chunk => this._onStderr.fire(typeof chunk === 'string' ? chunk : stderrDecoder.write(chunk))));
+		}
 
 		//Messages
-		process.on('message', msg => this._onMessage.fire(msg));
+		this._register(Event.fromNodeEventEmitter(process, 'message')(msg => this._onMessage.fire(msg)));
 
 		// Spawn
 		this._register(Event.fromNodeEventEmitter<void>(process, 'spawn')(() => {
