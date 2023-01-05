@@ -62,6 +62,7 @@ export const enum TerminalSettingId {
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
 	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
+	TabSize = 'terminal.integrated.tabSize',
 	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
 	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
 	BellDuration = 'terminal.integrated.bellDuration',
