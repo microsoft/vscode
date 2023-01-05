@@ -5,7 +5,7 @@
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -16,17 +16,19 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { generateUuid } from 'vs/base/common/uuid';
-import { joinPath } from 'vs/base/common/resources';
 import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
-	readonly onDidChangeProfileExtensions = Event.None;
+	readonly onDidChangeProfile = Event.None;
+	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
+	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
+	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
+	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
 
 	constructor(
 		channel: IChannel,
@@ -35,19 +37,39 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(channel);
 	}
 
+	override getInstalled(type: ExtensionType | null = null, profileLocation?: URI): Promise<ILocalExtension[]> {
+		if (profileLocation) {
+			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
+		}
+		return super.getInstalled(type);
+	}
+
+	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
+		if (options?.profileLocation) {
+			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
+		}
+		return super.uninstall(extension, options);
+	}
+
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+		if (options?.profileLocation) {
+			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
+		}
 		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
 	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+		if (installOptions?.profileLocation) {
+			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
+		}
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
@@ -94,13 +116,20 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
-		const location = joinPath(this.environmentService.tmpDir, generateUuid());
 		this.logService.trace('Downloading extension:', compatible.identifier.id);
-		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
+		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
-		const local = await super.install(location, installOptions);
-		this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
-		return local;
+		try {
+			const local = await super.install(location, installOptions);
+			this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
+			return local;
+		} finally {
+			try {
+				await this.fileService.del(location);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 
 	private async checkAndGetCompatible(extension: IGalleryExtension, includePreRelease: boolean): Promise<IGalleryExtension> {

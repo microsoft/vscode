@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { isWindows } from 'vs/base/common/platform';
-import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Source', () => {
 

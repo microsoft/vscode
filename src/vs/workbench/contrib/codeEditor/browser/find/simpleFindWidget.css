@@ -28,6 +28,10 @@
 	align-items: center;
 	pointer-events: all;
 	transition: top 200ms linear;
+	background-color: var(--vscode-editorWidget-background) !important;
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	border: 1px solid var(--vscode-contrastBorder);
 }
 
 .monaco-workbench.reduce-motion .monaco-editor .find-widget {
@@ -38,12 +42,27 @@
 	visibility: visible;
 }
 
+.monaco-workbench .simple-find-part.suppress-transition {
+	transition: none;
+}
+
 .monaco-workbench .simple-find-part.visible-transition {
 	top: 0;
 }
 
 .monaco-workbench .simple-find-part .monaco-findInput {
 	flex: 1;
+}
+
+.monaco-workbench .simple-find-part .matchesCount {
+	width: 68px;
+	max-width: 68px;
+	min-width: 68px;
+	padding-left: 5px;
+}
+
+.monaco-workbench .simple-find-part.reduced-find-widget .matchesCount {
+	display: none;
 }
 
 .monaco-workbench .simple-find-part .button {
@@ -67,4 +86,14 @@
 
 div.simple-find-part-wrapper div.button {
 	border-radius: 5px;
+}
+
+.no-results.matchesCount {
+	color: var(--vscode-errorForeground);
+}
+
+div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
 }

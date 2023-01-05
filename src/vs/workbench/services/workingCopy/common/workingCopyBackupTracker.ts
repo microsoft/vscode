@@ -16,7 +16,6 @@ import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
@@ -102,7 +101,10 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	private readonly mapWorkingCopyToContentVersion = new Map<IWorkingCopy, number>();
 
 	// A map of scheduled pending backup operations for working copies
-	protected readonly pendingBackupOperations = new Map<IWorkingCopy, IDisposable>();
+	// Given https://github.com/microsoft/vscode/issues/158038, we explicitly
+	// do not store `IWorkingCopy` but the identifier in the map, since it
+	// looks like GC is not runnin for the working copy otherwise.
+	protected readonly pendingBackupOperations = new Map<IWorkingCopyIdentifier, IDisposable>();
 
 	private suspended = false;
 
@@ -174,6 +176,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString(), workingCopy.typeId);
 
 		// Schedule new backup
+		const workingCopyIdentifier = { resource: workingCopy.resource, typeId: workingCopy.typeId };
 		const cts = new CancellationTokenSource();
 		const handle = setTimeout(async () => {
 			if (cts.token.isCancellationRequested) {
@@ -203,12 +206,12 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Clear disposable unless we got canceled which would
 			// indicate another operation has started meanwhile
 			if (!cts.token.isCancellationRequested) {
-				this.pendingBackupOperations.delete(workingCopy);
+				this.pendingBackupOperations.delete(workingCopyIdentifier);
 			}
 		}, this.getBackupScheduleDelay(workingCopy));
 
 		// Keep in map for disposal as needed
-		this.pendingBackupOperations.set(workingCopy, toDisposable(() => {
+		this.pendingBackupOperations.set(workingCopyIdentifier, toDisposable(() => {
 			this.logService.trace(`[backup tracker] clearing pending backup creation`, workingCopy.resource.toString(), workingCopy.typeId);
 
 			cts.dispose(true);
@@ -235,35 +238,54 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this.cancelBackupOperation(workingCopy);
 
 		// Schedule backup discard asap
+		const workingCopyIdentifier = { resource: workingCopy.resource, typeId: workingCopy.typeId };
 		const cts = new CancellationTokenSource();
-		(async () => {
-			this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString(), workingCopy.typeId);
-
-			// Discard backup
-			try {
-				await this.workingCopyBackupService.discardBackup(workingCopy, cts.token);
-			} catch (error) {
-				this.logService.error(error);
-			}
-
-			// Clear disposable unless we got canceled which would
-			// indicate another operation has started meanwhile
-			if (!cts.token.isCancellationRequested) {
-				this.pendingBackupOperations.delete(workingCopy);
-			}
-		})();
+		this.doDiscardBackup(workingCopyIdentifier, cts);
 
 		// Keep in map for disposal as needed
-		this.pendingBackupOperations.set(workingCopy, toDisposable(() => {
+		this.pendingBackupOperations.set(workingCopyIdentifier, toDisposable(() => {
 			this.logService.trace(`[backup tracker] clearing pending backup discard`, workingCopy.resource.toString(), workingCopy.typeId);
 
 			cts.dispose(true);
 		}));
 	}
 
+	private async doDiscardBackup(workingCopyIdentifier: IWorkingCopyIdentifier, cts: CancellationTokenSource) {
+		this.logService.trace(`[backup tracker] discarding backup`, workingCopyIdentifier.resource.toString(), workingCopyIdentifier.typeId);
+
+		// Discard backup
+		try {
+			await this.workingCopyBackupService.discardBackup(workingCopyIdentifier, cts.token);
+		} catch (error) {
+			this.logService.error(error);
+		}
+
+		// Clear disposable unless we got canceled which would
+		// indicate another operation has started meanwhile
+		if (!cts.token.isCancellationRequested) {
+			this.pendingBackupOperations.delete(workingCopyIdentifier);
+		}
+	}
+
 	private cancelBackupOperation(workingCopy: IWorkingCopy): void {
-		dispose(this.pendingBackupOperations.get(workingCopy));
-		this.pendingBackupOperations.delete(workingCopy);
+
+		// Given a working copy we want to find the matching
+		// identifier in our pending operations map because
+		// we cannot use the working copy directly, as the
+		// identifier might have different object identity.
+
+		let workingCopyIdentifier: IWorkingCopyIdentifier | undefined = undefined;
+		for (const [identifier] of this.pendingBackupOperations) {
+			if (identifier.resource.toString() === workingCopy.resource.toString() && identifier.typeId === workingCopy.typeId) {
+				workingCopyIdentifier = identifier;
+				break;
+			}
+		}
+
+		if (workingCopyIdentifier) {
+			dispose(this.pendingBackupOperations.get(workingCopyIdentifier));
+			this.pendingBackupOperations.delete(workingCopyIdentifier);
+		}
 	}
 
 	protected cancelBackupOperations(): void {
@@ -351,8 +373,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true,
-					override: EditorResolution.DISABLED // very important to disable overrides because the editor input we got is proper
+					inactive: true
 				}
 			})));
 

@@ -15,7 +15,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -99,14 +99,17 @@ export class VariablesView extends ViewPane {
 			// Automatically expand the first non-expensive scope
 			const scopes = await stackFrame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand) {
+
+			// A race condition could be present causing the scopes here to be different from the scopes that the tree just retrieved.
+			// If that happened, don't try to reveal anything, it will be straightened out on the next update
+			if (toExpand && this.tree.hasNode(toExpand)) {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
 		}, 400);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -171,7 +174,7 @@ export class VariablesView extends ViewPane {
 			}
 		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
-			if (e instanceof Variable) {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
 				await this.tree.updateChildren(e, false, true);
 				await this.tree.expand(e);
 			}
@@ -182,7 +185,7 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	override layoutBody(width: number, height: number): void {
+	protected override layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
@@ -216,11 +219,10 @@ export class VariablesView extends ViewPane {
 
 			const context: IVariablesContext = getVariablesContext(variable);
 			const secondary: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+			createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => secondary,
-				onHide: () => dispose(actionsDisposable)
+				getActions: () => secondary
 			});
 		} finally {
 			toDispose.dispose();
@@ -293,7 +295,7 @@ function isStackFrame(obj: any): obj is IStackFrame {
 	return obj instanceof StackFrame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
+class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
 
 	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
 		if (!element) {
@@ -400,9 +402,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	get templateId(): string {
@@ -437,14 +438,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		};
 	}
 
-	protected override renderActionBar(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData) {
+	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
 		const variable = expression as Variable;
 		const contextKeyService = getContextForVariableMenu(this.contextKeyService, variable);
 		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 
 		const primary: IAction[] = [];
 		const context = getVariablesContext(variable);
-		data.elementDisposable.push(createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline'));
+		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;
@@ -524,9 +525,27 @@ const HEX_EDITOR_EDITOR_ID = 'hexEditor.hexedit';
 
 CommandsRegistry.registerCommand({
 	id: VIEW_MEMORY_ID,
-	handler: async (accessor: ServicesAccessor, arg: IVariablesContext, ctx?: (Variable | Expression)[]) => {
-		if (!arg.sessionId || !arg.variable.memoryReference) {
-			return;
+	handler: async (accessor: ServicesAccessor, arg: IVariablesContext | IExpression, ctx?: (Variable | Expression)[]) => {
+		const debugService = accessor.get(IDebugService);
+		let sessionId: string;
+		let memoryReference: string;
+		if ('sessionId' in arg) { // IVariablesContext
+			if (!arg.sessionId || !arg.variable.memoryReference) {
+				return;
+			}
+			sessionId = arg.sessionId;
+			memoryReference = arg.variable.memoryReference;
+		} else { // IExpression
+			if (!arg.memoryReference) {
+				return;
+			}
+			const focused = debugService.getViewModel().focusedSession;
+			if (!focused) {
+				return;
+			}
+
+			sessionId = focused.getId();
+			memoryReference = arg.memoryReference;
 		}
 
 		const commandService = accessor.get(ICommandService);
@@ -535,7 +554,6 @@ CommandsRegistry.registerCommand({
 		const progressService = accessor.get(IProgressService);
 		const extensionService = accessor.get(IExtensionService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const debugService = accessor.get(IDebugService);
 
 		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
 		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
@@ -546,11 +564,11 @@ CommandsRegistry.registerCommand({
 				}
 			*/
 			telemetryService.publicLog('debug/didViewMemory', {
-				debugType: debugService.getModel().getSession(arg.sessionId)?.configuration.type,
+				debugType: debugService.getModel().getSession(sessionId)?.configuration.type,
 			});
 
 			await editorService.openEditor({
-				resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
+				resource: getUriForDebugMemory(sessionId, memoryReference),
 				options: {
 					revealIfOpened: true,
 					override: HEX_EDITOR_EDITOR_ID,

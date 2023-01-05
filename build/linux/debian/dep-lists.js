@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.referenceGeneratedDepsByArch = exports.bundledDeps = exports.recommendedDeps = exports.additionalDeps = void 0;
+exports.referenceGeneratedDepsByArch = exports.recommendedDeps = exports.additionalDeps = void 0;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/additional_deps
 // Additional dependencies not in the dpkg-shlibdeps output.
 exports.additionalDeps = [
@@ -20,18 +20,6 @@ exports.additionalDeps = [
 exports.recommendedDeps = [
     'libvulkan1' // Move to additionalDeps once support for Trusty and Jessie are dropped.
 ];
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-exports.bundledDeps = [
-    'libEGL.so',
-    'libGLESv2.so',
-    'libvulkan.so.1',
-    'swiftshader_libEGL.so',
-    'swiftshader_libGLESv2.so',
-    'libvk_swiftshader.so',
-    'libffmpeg.so'
-];
 exports.referenceGeneratedDepsByArch = {
     'amd64': [
         'ca-certificates',
@@ -43,12 +31,12 @@ exports.referenceGeneratedDepsByArch = {
         'libc6 (>= 2.17)',
         'libc6 (>= 2.2.5)',
         'libcairo2 (>= 1.6.0)',
+        'libcups2 (>= 1.6.0)',
         'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
         'libdbus-1-3 (>= 1.5.12)',
         'libdrm2 (>= 2.4.38)',
         'libexpat1 (>= 2.0.1)',
         'libgbm1 (>= 8.1~0)',
-        'libgcc1 (>= 1:3.0)',
         'libglib2.0-0 (>= 2.16.0)',
         'libglib2.0-0 (>= 2.39.4)',
         'libgtk-3-0 (>= 3.9.10)',
@@ -80,13 +68,12 @@ exports.referenceGeneratedDepsByArch = {
         'libc6 (>= 2.4)',
         'libc6 (>= 2.9)',
         'libcairo2 (>= 1.6.0)',
+        'libcups2 (>= 1.6.0)',
         'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
         'libdbus-1-3 (>= 1.5.12)',
         'libdrm2 (>= 2.4.38)',
         'libexpat1 (>= 2.0.1)',
         'libgbm1 (>= 8.1~0)',
-        'libgcc1 (>= 1:3.0)',
-        'libgcc1 (>= 1:3.5)',
         'libglib2.0-0 (>= 2.16.0)',
         'libglib2.0-0 (>= 2.39.4)',
         'libgtk-3-0 (>= 3.9.10)',
@@ -120,6 +107,7 @@ exports.referenceGeneratedDepsByArch = {
         'libatspi2.0-0 (>= 2.9.90)',
         'libc6 (>= 2.17)',
         'libcairo2 (>= 1.6.0)',
+        'libcups2 (>= 1.6.0)',
         'libcurl3-gnutls | libcurl3-nss | libcurl4 | libcurl3',
         'libdbus-1-3 (>= 1.0.2)',
         'libdrm2 (>= 2.4.38)',
@@ -154,3 +142,4 @@ exports.referenceGeneratedDepsByArch = {
         'xdg-utils (>= 1.0.2)'
     ]
 };
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZGVwLWxpc3RzLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiZGVwLWxpc3RzLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7QUFBQTs7O2dHQUdnRzs7O0FBRWhHLGtIQUFrSDtBQUNsSCw0REFBNEQ7QUFDL0MsUUFBQSxjQUFjLEdBQUc7SUFDN0IsaUJBQWlCO0lBQ2pCLHFDQUFxQztJQUNyQyxtQkFBbUI7SUFDbkIsc0RBQXNEO0lBQ3RELHNCQUFzQixDQUFDLGlCQUFpQjtDQUN4QyxDQUFDO0FBRUYsb0hBQW9IO0FBQ3BILDBDQUEwQztBQUMxQyw4REFBOEQ7QUFDakQsUUFBQSxlQUFlLEdBQUc7SUFDOUIsWUFBWSxDQUFDLHlFQUF5RTtDQUN0RixDQUFDO0FBRVcsUUFBQSw0QkFBNEIsR0FBRztJQUMzQyxPQUFPLEVBQUU7UUFDUixpQkFBaUI7UUFDakIsd0JBQXdCO1FBQ3hCLCtCQUErQjtRQUMvQix3QkFBd0I7UUFDeEIsMkJBQTJCO1FBQzNCLGlCQUFpQjtRQUNqQixpQkFBaUI7UUFDakIsa0JBQWtCO1FBQ2xCLHNCQUFzQjtRQUN0QixxQkFBcUI7UUFDckIsc0RBQXNEO1FBQ3RELHlCQUF5QjtRQUN6QixxQkFBcUI7UUFDckIsc0JBQXNCO1FBQ3RCLG9CQUFvQjtRQUNwQiwwQkFBMEI7UUFDMUIsMEJBQTBCO1FBQzFCLHdCQUF3QjtRQUN4QixxQ0FBcUM7UUFDckMsd0JBQXdCO1FBQ3hCLHFCQUFxQjtRQUNyQixtQkFBbUI7UUFDbkIsNEJBQTRCO1FBQzVCLHlCQUF5QjtRQUN6QixVQUFVO1FBQ1YsMEJBQTBCO1FBQzFCLG9CQUFvQjtRQUNwQiwrQkFBK0I7UUFDL0Isd0JBQXdCO1FBQ3hCLFVBQVU7UUFDVixZQUFZO1FBQ1osMEJBQTBCO1FBQzFCLGFBQWE7UUFDYixZQUFZO1FBQ1osc0JBQXNCO0tBQ3RCO0lBQ0QsT0FBTyxFQUFFO1FBQ1IsaUJBQWlCO1FBQ2pCLHdCQUF3QjtRQUN4QiwrQkFBK0I7UUFDL0Isd0JBQXdCO1FBQ3hCLDJCQUEyQjtRQUMzQixpQkFBaUI7UUFDakIsZ0JBQWdCO1FBQ2hCLGdCQUFnQjtRQUNoQixzQkFBc0I7UUFDdEIscUJBQXFCO1FBQ3JCLHNEQUFzRDtRQUN0RCx5QkFBeUI7UUFDekIscUJBQXFCO1FBQ3JCLHNCQUFzQjtRQUN0QixvQkFBb0I7UUFDcEIsMEJBQTBCO1FBQzFCLDBCQUEwQjtRQUMxQix3QkFBd0I7UUFDeEIscUNBQXFDO1FBQ3JDLHdCQUF3QjtRQUN4QixxQkFBcUI7UUFDckIsbUJBQW1CO1FBQ25CLDRCQUE0QjtRQUM1Qix5QkFBeUI7UUFDekIsdUJBQXVCO1FBQ3ZCLG1CQUFtQjtRQUNuQixxQkFBcUI7UUFDckIsbUJBQW1CO1FBQ25CLFVBQVU7UUFDViwwQkFBMEI7UUFDMUIsb0JBQW9CO1FBQ3BCLCtCQUErQjtRQUMvQix3QkFBd0I7UUFDeEIsVUFBVTtRQUNWLFlBQVk7UUFDWiwwQkFBMEI7UUFDMUIsYUFBYTtRQUNiLFlBQVk7UUFDWixzQkFBc0I7S0FDdEI7SUFDRCxPQUFPLEVBQUU7UUFDUixpQkFBaUI7UUFDakIsd0JBQXdCO1FBQ3hCLCtCQUErQjtRQUMvQix3QkFBd0I7UUFDeEIsMkJBQTJCO1FBQzNCLGlCQUFpQjtRQUNqQixzQkFBc0I7UUFDdEIscUJBQXFCO1FBQ3JCLHNEQUFzRDtRQUN0RCx3QkFBd0I7UUFDeEIscUJBQXFCO1FBQ3JCLHNCQUFzQjtRQUN0QixvQkFBb0I7UUFDcEIsb0JBQW9CO1FBQ3BCLG9CQUFvQjtRQUNwQixvQkFBb0I7UUFDcEIsMEJBQTBCO1FBQzFCLDBCQUEwQjtRQUMxQix3QkFBd0I7UUFDeEIscUNBQXFDO1FBQ3JDLHdCQUF3QjtRQUN4QixxQkFBcUI7UUFDckIsbUJBQW1CO1FBQ25CLDRCQUE0QjtRQUM1Qix5QkFBeUI7UUFDekIsdUJBQXVCO1FBQ3ZCLG1CQUFtQjtRQUNuQixxQkFBcUI7UUFDckIsbUJBQW1CO1FBQ25CLFVBQVU7UUFDViwwQkFBMEI7UUFDMUIsb0JBQW9CO1FBQ3BCLCtCQUErQjtRQUMvQix3QkFBd0I7UUFDeEIsVUFBVTtRQUNWLFlBQVk7UUFDWiwwQkFBMEI7UUFDMUIsYUFBYTtRQUNiLFlBQVk7UUFDWixzQkFBc0I7S0FDdEI7Q0FDRCxDQUFDIn0=

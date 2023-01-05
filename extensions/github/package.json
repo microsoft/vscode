@@ -13,7 +13,9 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onProfile",
+    "onProfile:github"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -27,7 +29,8 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions"
+    "contribEditSessions",
+    "profileContentHandlers"
   ],
   "contributes": {
     "commands": [
@@ -45,20 +48,22 @@
       },
       {
         "command": "github.openOnVscodeDev",
-        "title": "Open on vscode.dev"
+        "title": "Open on vscode.dev",
+        "icon": "$(globe)"
       }
     ],
     "continueEditSession": [
       {
         "command": "github.openOnVscodeDev",
-        "when": "github.hasGitHubRepo"
+        "when": "github.hasGitHubRepo",
+        "qualifiedName": "Continue Working in VS Code for the Web"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "github.publish",
-          "when": "git-base.gitEnabled"
+          "when": "git-base.gitEnabled && remoteName != 'codespaces'"
         },
         {
           "command": "github.copyVscodeDevLink",
@@ -76,13 +81,15 @@
       "file/share": [
         {
             "command": "github.copyVscodeDevLinkFile",
-            "when": "github.hasGitHubRepo"
+            "when": "github.hasGitHubRepo",
+            "group": "0_vscode@0"
         }
       ],
       "editor/context/share": [
         {
             "command": "github.copyVscodeDevLink",
-            "when": "github.hasGitHubRepo && resourceScheme != untitled"
+            "when": "github.hasGitHubRepo && resourceScheme != untitled",
+            "group": "0_vscode@0"
         }
       ]
     },
@@ -112,12 +119,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.unsafeRepositoryCount == 0"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.unsafeRepositoryCount == 0"
       }
     ],
     "markdown.previewStyles": [
@@ -130,9 +137,8 @@
     "watch": "gulp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/rest": "^18.0.1",
-    "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "@octokit/rest": "19.0.4",
+    "tunnel": "^0.0.6"
   },
   "devDependencies": {
     "@types/node": "16.x"

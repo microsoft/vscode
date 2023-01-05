@@ -12,25 +12,21 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
-import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
+import { ICommentInfo, ICommentService, WorkspaceHasCommenting } from 'vs/workbench/contrib/comments/browser/commentService';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -47,9 +43,12 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
-import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { URI } from 'vs/base/common/uri';
 
 export const ID = 'editor.contrib.review';
 
@@ -147,7 +146,7 @@ class CommentingRangeDecorator {
 		const hoverDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph comment-diff-added line-hover`
+			linesDecorationsClassName: `comment-range-glyph line-hover`
 		};
 
 		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
@@ -155,7 +154,7 @@ class CommentingRangeDecorator {
 		const multilineDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph comment-diff-added multiline-add`
+			linesDecorationsClassName: `comment-range-glyph multiline-add`
 		};
 
 		this.multilineDecorationOptions = ModelDecorationOptions.createDynamic(multilineDecorationOptions);
@@ -179,10 +178,16 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		this._editor = editor;
-		this._infos = commentInfos;
-		this._doUpdate(editor, commentInfos);
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[], cursorLine?: number, range?: Range) {
+		if (editor) {
+			this._editor = editor;
+			this._infos = commentInfos;
+			this._doUpdate(editor, commentInfos, cursorLine, range);
+		}
+	}
+
+	private _lineHasThread(editor: ICodeEditor, lineRange: Range) {
+		return editor.getDecorationsInRange(lineRange)?.find(decoration => decoration.options.description === CommentGlyphWidget.description);
 	}
 
 	private _doUpdate(editor: ICodeEditor, commentInfos: ICommentInfo[], emphasisLine: number = -1, selectionRange: Range | undefined = this._lastSelection) {
@@ -203,7 +208,7 @@ class CommentingRangeDecorator {
 					// If there's only one selection line, then just drop into the else if and show an emphasis line.
 					&& !((intersectingSelectionRange.startLineNumber === intersectingSelectionRange.endLineNumber)
 						&& (emphasisLine === intersectingSelectionRange.startLineNumber))) {
-					// The emphasisLine should be the within the commenting range, even if the selection range stretches
+					// The emphasisLine should be within the commenting range, even if the selection range stretches
 					// outside of the commenting range.
 					// Clip the emphasis and selection ranges to the commenting range
 					let intersectingEmphasisRange: Range;
@@ -215,7 +220,10 @@ class CommentingRangeDecorator {
 						intersectingSelectionRange = new Range(intersectingSelectionRange.startLineNumber, 1, intersectingSelectionRange.endLineNumber - 1, 1);
 					}
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingSelectionRange, this.multilineDecorationOptions, info.commentingRanges, true));
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingEmphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+
+					if (!this._lineHasThread(editor, intersectingEmphasisRange)) {
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingEmphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+					}
 
 					const beforeRangeEndLine = Math.min(intersectingEmphasisRange.startLineNumber, intersectingSelectionRange.startLineNumber) - 1;
 					const hasBeforeRange = rangeObject.startLineNumber <= beforeRangeEndLine;
@@ -230,11 +238,18 @@ class CommentingRangeDecorator {
 						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
 					}
 				} else if ((rangeObject.startLineNumber <= emphasisLine) && (emphasisLine <= rangeObject.endLineNumber)) {
-					const beforeRange = new Range(range.startLineNumber, 1, emphasisLine, 1);
-					const afterRange = new Range(emphasisLine, 1, range.endLineNumber, 1);
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, new Range(emphasisLine, 1, emphasisLine, 1), this.hoverDecorationOptions, info.commentingRanges, true));
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+					if (rangeObject.startLineNumber < emphasisLine) {
+						const beforeRange = new Range(range.startLineNumber, 1, emphasisLine - 1, 1);
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+					}
+					const emphasisRange = new Range(emphasisLine, 1, emphasisLine, 1);
+					if (!this._lineHasThread(editor, emphasisRange)) {
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, emphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+					}
+					if (emphasisLine < rangeObject.endLineNumber) {
+						const afterRange = new Range(emphasisLine + 1, 1, range.endLineNumber, 1);
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+					}
 				} else {
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
 				}
@@ -294,15 +309,10 @@ const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorH
 	type: 'boolean'
 });
 
-const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
-	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
-	type: 'boolean'
-});
-
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
-	private editor!: ICodeEditor;
+	private editor: ICodeEditor | undefined;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator!: CommentingRangeDecorator;
@@ -317,25 +327,24 @@ export class CommentController implements IEditorContribution {
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
-	private _workspaceHasCommenting: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
 		@ICommentService private readonly commentService: ICommentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
-		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -367,17 +376,13 @@ export class CommentController implements IEditorContribution {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetAllCommentThreads(e => {
-			if (e.commentThreads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
-		}));
 
 		this.globalToDispose.add(this.commentService.onDidChangeCommentingEnabled(e => {
 			if (e) {
 				this.registerEditorListeners();
 				this.beginCompute();
 			} else {
+				this.tryUpdateReservedSpace();
 				this.clearEditorListeners();
 				this._commentingRangeDecorator.update(this.editor, []);
 				this._commentThreadRangeDecorator.update(this.editor, []);
@@ -386,16 +391,20 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
 
 	private registerEditorListeners() {
 		this._editorDisposables = [];
+		if (!this.editor) {
+			return;
+		}
 		this._editorDisposables.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
 		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
-		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor.getPosition())));
+		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(withUndefinedAsNull(this.editor?.getPosition()))));
 		this._editorDisposables.push(this.editor.onDidChangeCursorSelection(e => this.onEditorChangeCursorSelection(e)));
 		this._editorDisposables.push(this.editor.onDidBlurEditorWidget(() => this.onEditorChangeCursorSelection()));
 	}
@@ -415,14 +424,14 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorChangeCursorSelection(e?: ICursorSelectionChangedEvent): void {
-		const position = this.editor.getPosition()?.lineNumber;
+		const position = this.editor?.getPosition()?.lineNumber;
 		if (position) {
 			this._commentingRangeDecorator.updateSelection(position, e?.selection);
 		}
 	}
 
 	private onEditorChangeCursorPosition(e: Position | null) {
-		const decorations = e ? this.editor.getDecorationsInRange(Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber })) : undefined;
+		const decorations = e ? this.editor?.getDecorationsInRange(Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber })) : undefined;
 		let hasCommentingRange = false;
 		if (decorations) {
 			for (const decoration of decorations) {
@@ -436,6 +445,13 @@ export class CommentController implements IEditorContribution {
 			}
 		}
 		this._activeCursorHasCommentingRange.set(hasCommentingRange);
+	}
+
+	private isEditorInlineOriginal(editorURI: URI | undefined, activeEditor: EditorInput | undefined): activeEditor is DiffEditorInput {
+		if (editorURI && activeEditor instanceof DiffEditorInput && !this.configurationService.getValue('diffEditor.renderSideBySide')) {
+			return activeEditor.original.resource?.toString() === editorURI.toString();
+		}
+		return false;
 	}
 
 	private beginCompute(): Promise<void> {
@@ -473,7 +489,7 @@ export class CommentController implements IEditorContribution {
 			}).then(commentInfos => {
 				if (this.commentService.isCommentingEnabled) {
 					const meaningfulCommentInfos = coalesce(commentInfos);
-					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
+					this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos, this.editor?.getPosition()?.lineNumber, withNullAsUndefined(this.editor?.getSelection()));
 				}
 			}, (err) => {
 				onUnexpectedError(err);
@@ -503,12 +519,24 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
+	public collapseAll(): void {
+		for (const widget of this._commentWidgets) {
+			widget.collapse();
+		}
+	}
+
+	public expandAll(): void {
+		for (const widget of this._commentWidgets) {
+			widget.expand();
+		}
+	}
+
 	public nextCommentThread(): void {
 		this._findNearestCommentThread();
 	}
 
 	private _findNearestCommentThread(reverse?: boolean): void {
-		if (!this._commentWidgets.length || !this.editor.hasModel()) {
+		if (!this._commentWidgets.length || !this.editor?.hasModel()) {
 			return;
 		}
 
@@ -580,10 +608,13 @@ export class CommentController implements IEditorContribution {
 		this.editor = null!; // Strict null override - nulling out in dispose
 	}
 
-	public onModelChanged(e: IModelChangedEvent): void {
+	public onModelChanged(): void {
 		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
+		if (!this.editor) {
+			return;
+		}
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -595,9 +626,7 @@ export class CommentController implements IEditorContribution {
 		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
 		this.localToDispose.add({
 			dispose: () => {
-				if (this._computeCommentingRangeScheduler) {
-					this._computeCommentingRangeScheduler.cancel();
-				}
+				this._computeCommentingRangeScheduler?.cancel();
 				this._computeCommentingRangeScheduler = null;
 			}
 		});
@@ -654,7 +683,7 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
+				const matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
 
 				if (matchedNewCommentThreadZones.length) {
 					matchedNewCommentThreadZones[0].update(thread);
@@ -687,6 +716,13 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
+		if (!this.editor) {
+			return;
+		}
+		const activeEditor = this.editorService.activeEditor;
+		if (this.isEditorInlineOriginal(this.editor.getModel()?.uri, activeEditor)) {
+			return;
+		}
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
 		zoneWidget.display(thread.range.endLineNumber);
 		this._commentWidgets.push(zoneWidget);
@@ -701,10 +737,10 @@ export class CommentController implements IEditorContribution {
 		const matchedLineNumber = isMouseUpEventDragFromMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
-		if (matchedLineNumber === null || !e.target.element) {
+		if (!this.editor || matchedLineNumber === null || !e.target.element) {
 			return;
 		}
-		const mouseUpIsOnDecorator = (e.target.element.className.indexOf('comment-diff-added') >= 0);
+		const mouseUpIsOnDecorator = (e.target.element.className.indexOf('comment-range-glyph') >= 0);
 
 		const lineNumber = e.target.position!.lineNumber;
 		let range: Range | undefined;
@@ -762,7 +798,7 @@ export class CommentController implements IEditorContribution {
 
 	public addCommentAtLine(range: Range, e: IEditorMouseEvent | undefined): Promise<void> {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
-		if (!newCommentInfos.length || !this.editor.hasModel()) {
+		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			return Promise.resolve();
 		}
 
@@ -837,47 +873,77 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public addCommentAtLine2(range: Range, ownerId: string) {
+		if (!this.editor) {
+			return;
+		}
 		this.commentService.createCommentThreadTemplate(ownerId, this.editor.getModel()!.uri, range);
 		this.processNextThreadToAdd();
 		return;
 	}
 
+	private getExistingCommentEditorOptions(editor: ICodeEditor) {
+		const lineDecorationsWidth: number = editor.getOption(EditorOption.lineDecorationsWidth);
+		let extraEditorClassName: string[] = [];
+		const configuredExtraClassName = editor.getRawOptions().extraEditorClassName;
+		if (configuredExtraClassName) {
+			extraEditorClassName = configuredExtraClassName.split(' ');
+		}
+		return { lineDecorationsWidth, extraEditorClassName };
+	}
+
+	private getWithoutCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
+		let lineDecorationsWidth = startingLineDecorationsWidth;
+		const inlineCommentPos = extraEditorClassName.findIndex(name => name === 'inline-comment');
+		if (inlineCommentPos >= 0) {
+			extraEditorClassName.splice(inlineCommentPos, 1);
+		}
+
+		const options = editor.getOptions();
+		if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
+			lineDecorationsWidth += 11; // 11 comes from https://github.com/microsoft/vscode/blob/94ee5f58619d59170983f453fe78f156c0cc73a3/src/vs/workbench/contrib/comments/browser/media/review.css#L485
+		}
+		lineDecorationsWidth -= 24;
+		return { extraEditorClassName, lineDecorationsWidth };
+	}
+
+	private getWithCommentsEditorOptions(editor: ICodeEditor, extraEditorClassName: string[], startingLineDecorationsWidth: number) {
+		let lineDecorationsWidth = startingLineDecorationsWidth;
+		const options = editor.getOptions();
+		if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
+			lineDecorationsWidth -= 11;
+		}
+		lineDecorationsWidth += 24;
+		extraEditorClassName.push('inline-comment');
+		return { lineDecorationsWidth, extraEditorClassName };
+	}
+
+	private updateEditorLayoutOptions(editor: ICodeEditor, extraEditorClassName: string[], lineDecorationsWidth: number) {
+		editor.updateOptions({
+			extraEditorClassName: extraEditorClassName.join(' '),
+			lineDecorationsWidth: lineDecorationsWidth
+		});
+	}
+
 	private tryUpdateReservedSpace() {
-		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
+		if (!this.editor) {
+			return;
+		}
+
 		const hasCommentsOrRanges = this._commentInfos.some(info => {
 			const hasRanges = Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length);
 			return hasRanges || (info.threads.length > 0);
 		});
 
-		if (hasCommentsOrRanges) {
-			this._workspaceHasCommenting.set(true);
-			if (!this._commentingRangeSpaceReserved) {
-				this._commentingRangeSpaceReserved = true;
-				let extraEditorClassName: string[] = [];
-				const configuredExtraClassName = this.editor.getRawOptions().extraEditorClassName;
-				if (configuredExtraClassName) {
-					extraEditorClassName = configuredExtraClassName.split(' ');
-				}
-
-				const options = this.editor.getOptions();
-				if (options.get(EditorOption.folding) && options.get(EditorOption.showFoldingControls) !== 'never') {
-					lineDecorationsWidth -= 16;
-				}
-				lineDecorationsWidth += 9;
-				extraEditorClassName.push('inline-comment');
-				this.editor.updateOptions({
-					extraEditorClassName: extraEditorClassName.join(' '),
-					lineDecorationsWidth: lineDecorationsWidth
-				});
-
-				// we only update the lineDecorationsWidth property but keep the width of the whole editor.
-				const originalLayoutInfo = this.editor.getLayoutInfo();
-
-				this.editor.layout({
-					width: originalLayoutInfo.width,
-					height: originalLayoutInfo.height
-				});
-			}
+		if (hasCommentsOrRanges && !this._commentingRangeSpaceReserved && this.commentService.isCommentingEnabled) {
+			this._commentingRangeSpaceReserved = true;
+			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
+			const newOptions = this.getWithCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
+			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
+		} else if ((!hasCommentsOrRanges || !this.commentService.isCommentingEnabled) && this._commentingRangeSpaceReserved) {
+			this._commentingRangeSpaceReserved = false;
+			const { lineDecorationsWidth, extraEditorClassName } = this.getExistingCommentEditorOptions(this.editor);
+			const newOptions = this.getWithoutCommentsEditorOptions(this.editor, extraEditorClassName, lineDecorationsWidth);
+			this.updateEditorLayoutOptions(this.editor, newOptions.extraEditorClassName, newOptions.lineDecorationsWidth);
 		}
 	}
 
@@ -892,9 +958,6 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
-			if (info.threads.length > 0) {
-				this._workspaceHasCommenting.set(true);
-			}
 			const providerCacheStore = this._pendingCommentCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
@@ -917,9 +980,10 @@ export class CommentController implements IEditorContribution {
 
 	public closeWidget(): void {
 		this._commentWidgets?.forEach(widget => widget.hide());
-
-		this.editor.focus();
-		this.editor.revealRangeInCenter(this.editor.getSelection()!);
+		if (this.editor) {
+			this.editor.focus();
+			this.editor.revealRangeInCenter(this.editor.getSelection()!);
+		}
 	}
 
 	private removeCommentWidgetsAndStoreCache() {
@@ -974,9 +1038,7 @@ export class NextCommentThreadAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = CommentController.get(editor);
-		if (controller) {
-			controller.nextCommentThread();
-		}
+		controller?.nextCommentThread();
 	}
 }
 
@@ -997,14 +1059,12 @@ export class PreviousCommentThreadAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = CommentController.get(editor);
-		if (controller) {
-			controller.previousCommentThread();
-		}
+		controller?.previousCommentThread();
 	}
 }
 
 
-registerEditorContribution(ID, CommentController);
+registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
 
@@ -1055,6 +1115,40 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: ActiveCursorHasCommentingRange
 });
 
+const COLLAPSE_ALL_COMMENT_COMMAND = 'workbench.action.collapseAllComments';
+CommandsRegistry.registerCommand({
+	id: COLLAPSE_ALL_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.collapseAll();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: COLLAPSE_ALL_COMMENT_COMMAND,
+		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
+const EXPAND_ALL_COMMENT_COMMAND = 'workbench.action.expandAllComments';
+CommandsRegistry.registerCommand({
+	id: EXPAND_ALL_COMMENT_COMMAND,
+	handler: (accessor) => {
+		return getActiveController(accessor)?.expandAll();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: EXPAND_ALL_COMMENT_COMMAND,
+		title: nls.localize('comments.expandAll', "Expand All Comments"),
+		category: 'Comments'
+	},
+	when: WorkspaceHasCommenting
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.submitComment',
 	weight: KeybindingWeight.EditorContrib,
@@ -1100,105 +1194,16 @@ export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor |
 	return activeTextEditorControl;
 }
 
-registerThemingParticipant((theme, collector) => {
-	const peekViewBackground = theme.getColor(peekViewResultsBackground);
-	if (peekViewBackground) {
-		collector.addRule(
-			`.monaco-editor .review-widget,` +
-			`.monaco-editor .review-widget {` +
-			`	background-color: ${peekViewBackground};` +
-			`}`);
+function getActiveController(accessor: ServicesAccessor): CommentController | undefined {
+	const activeEditor = getActiveEditor(accessor);
+	if (!activeEditor) {
+		return undefined;
 	}
 
-	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
-	if (monacoEditorBackground) {
-		collector.addRule(
-			`.review-widget .body .comment-form .review-thread-reply-button {` +
-			`	background-color: ${monacoEditorBackground}` +
-			`}`
-		);
+	const controller = CommentController.get(activeEditor);
+	if (!controller) {
+		return undefined;
 	}
+	return controller;
+}
 
-	const monacoEditorForeground = theme.getColor(editorForeground);
-	if (monacoEditorForeground) {
-		collector.addRule(
-			`.review-widget .body .monaco-editor {` +
-			`	color: ${monacoEditorForeground}` +
-			`}` +
-			`.review-widget .body .comment-form .review-thread-reply-button {` +
-			`	color: ${monacoEditorForeground};` +
-			`	font-size: inherit` +
-			`}`
-		);
-	}
-
-	const selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
-
-	if (selectionBackground) {
-		collector.addRule(
-			`@keyframes monaco-review-widget-focus {` +
-			`	0% { background: ${selectionBackground}; }` +
-			`	100% { background: transparent; }` +
-			`}` +
-			`.review-widget .body .review-comment.focus {` +
-			`	animation: monaco-review-widget-focus 3s ease 0s;` +
-			`}`
-		);
-	}
-
-	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
-	if (commentingRangeForeground) {
-		collector.addRule(`
-			.monaco-editor .comment-diff-added {
-				border-left: 3px solid ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-diff-added:before {
-				background: ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-thread {
-				border-left: 3px solid ${commentingRangeForeground};
-			}
-			.monaco-editor .comment-thread:before {
-				background: ${commentingRangeForeground};
-			}
-		`);
-	}
-
-	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
-	if (statusBarItemHoverBackground) {
-		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
-	}
-
-	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
-	if (statusBarItemActiveBackground) {
-		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
-	}
-
-	const commentThreadRangeBackgroundColor = theme.getColor(commentThreadRangeBackground);
-	if (commentThreadRangeBackgroundColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range { background-color: ${commentThreadRangeBackgroundColor};}`);
-	}
-
-	const commentThreadRangeBorderColor = theme.getColor(commentThreadRangeBorder);
-	if (commentThreadRangeBorderColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range {
-		border-color: ${commentThreadRangeBorderColor};
-		border-width: 1px;
-		border-style: solid;
-		box-sizing: border-box; }`);
-	}
-
-	const commentThreadRangeActiveBackgroundColor = theme.getColor(commentThreadRangeActiveBackground);
-	if (commentThreadRangeActiveBackgroundColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range-current { background-color: ${commentThreadRangeActiveBackgroundColor};}`);
-	}
-
-	const commentThreadRangeActiveBorderColor = theme.getColor(commentThreadRangeActiveBorder);
-	if (commentThreadRangeActiveBorderColor) {
-		collector.addRule(`.monaco-editor .comment-thread-range-current {
-		border-color: ${commentThreadRangeActiveBorderColor};
-		border-width: 1px;
-		border-style: solid;
-		box-sizing: border-box; }`);
-	}
-});

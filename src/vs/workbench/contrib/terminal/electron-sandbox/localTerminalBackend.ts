@@ -131,8 +131,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
-		await this._localPtyService.updateIcon(id, icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
+		await this._localPtyService.updateIcon(id, userInitiated, icon, color);
 	}
 
 	updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
@@ -163,7 +163,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process ${e.message}`);
+			this._logService.warn(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
 	}
@@ -173,7 +173,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			const newId = await this._localPtyService.getRevivedPtyNewId(id) ?? id;
 			return await this.attachToProcess(newId);
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process ${e.message}`);
+			this._logService.warn(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
 	}
@@ -202,8 +202,8 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._shellEnvironmentService.getShellEnv();
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		return this._localPtyService.getWslPath(original);
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._localPtyService.getWslPath(original, direction);
 	}
 
 	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {

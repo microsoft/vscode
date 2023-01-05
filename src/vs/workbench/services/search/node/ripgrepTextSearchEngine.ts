@@ -66,13 +66,9 @@ export class RipgrepTextSearchEngine {
 			const cancel = () => {
 				isDone = true;
 
-				if (rgProc) {
-					rgProc.kill();
-				}
+				rgProc?.kill();
 
-				if (ripgrepParser) {
-					ripgrepParser.cancel();
-				}
+				ripgrepParser?.cancel();
 			};
 
 			let limitHit = false;
@@ -96,7 +92,10 @@ export class RipgrepTextSearchEngine {
 			rgProc.stderr!.on('data', data => {
 				const message = data.toString();
 				this.outputChannel.appendLine(message);
-				stderr += message;
+
+				if (stderr.length + message.length < 1e6) {
+					stderr += message;
+				}
 			});
 
 			rgProc.on('close', () => {
@@ -132,7 +131,7 @@ export class RipgrepTextSearchEngine {
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */
-export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
+function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const lines = msg.split('\n');
 	const firstLine = lines[0].trim();
 
@@ -162,7 +161,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	return undefined;
 }
 
-export function buildRegexParseError(lines: string[]): string {
+function buildRegexParseError(lines: string[]): string {
 	const errorMessage: string[] = ['Regex parse error'];
 	const pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
 	if (pcre2ErrorLine.length >= 1) {
@@ -302,11 +301,15 @@ export class RipgrepParser extends EventEmitter {
 			}
 
 			const matchText = bytesOrTextToString(match.match);
-			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
-			const startCol = prevMatchEndCol + inBetweenChars;
+
+			const inBetweenText = fullTextBytes.slice(prevMatchEnd, match.start).toString();
+			const inBetweenStats = getNumLinesAndLastNewlineLength(inBetweenText);
+			const startCol = inBetweenStats.numLines > 0 ?
+				inBetweenStats.lastLineLength :
+				inBetweenStats.lastLineLength + prevMatchEndCol;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
-			const startLineNumber = prevMatchEndLine;
+			const startLineNumber = inBetweenStats.numLines + prevMatchEndLine;
 			const endLineNumber = stats.numLines + startLineNumber;
 			const endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
@@ -492,7 +495,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 /**
  * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
  */
-export function spreadGlobComponents(globArg: string): string[] {
+function spreadGlobComponents(globArg: string): string[] {
 	const components = splitGlobAware(globArg, '/');
 	return components.map((_, i) => components.slice(0, i + 1).join('/'));
 }

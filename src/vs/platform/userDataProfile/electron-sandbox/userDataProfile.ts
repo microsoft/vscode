@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriDto } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfilesService, reviveProfile, UseDefaultProfileFlags, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class UserDataProfilesNativeService extends Disposable implements IUserDataProfilesService {
 
@@ -29,8 +28,12 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 	private readonly _onDidChangeProfiles = this._register(new Emitter<DidChangeProfilesEvent>());
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
+	readonly onDidResetWorkspaces: Event<void>;
+
+	private enabled: boolean = true;
+
 	constructor(
-		profiles: UriDto<IUserDataProfile>[],
+		profiles: readonly UriDto<IUserDataProfile>[],
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
@@ -45,26 +48,56 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 			this._profiles = e.all.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 			this._onDidChangeProfiles.fire({ added, removed, updated, all: this.profiles });
 		}));
+		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
 	}
 
-	async createProfile(name: string, useDefaultFlags?: UseDefaultProfileFlags, workspaceIdentifier?: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [name, useDefaultFlags, workspaceIdentifier]);
+	setEnablement(enabled: boolean) {
+		this.enabled = enabled;
+	}
+
+	isEnabled(): boolean {
+		return this.enabled;
+	}
+
+	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createNamedProfile', [name, options, workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	async setProfileForWorkspace(profile: IUserDataProfile, workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): Promise<void> {
-		await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [profile, workspaceIdentifier]);
+	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [id, name, options, workspaceIdentifier]);
+		return reviveProfile(result, this.profilesHome.scheme);
+	}
+
+	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createTransientProfile', [workspaceIdentifier]);
+		return reviveProfile(result, this.profilesHome.scheme);
+	}
+
+	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profile: IUserDataProfile): Promise<void> {
+		await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [workspaceIdentifier, profile]);
 	}
 
 	removeProfile(profile: IUserDataProfile): Promise<void> {
 		return this.channel.call('removeProfile', [profile]);
 	}
 
-	async updateProfile(profile: IUserDataProfile, name: string, useDefaultFlags?: UseDefaultProfileFlags): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('updateProfile', [profile, name, useDefaultFlags]);
+	async updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('updateProfile', [profile, updateOptions]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	getProfile(workspaceIdentifier: WorkspaceIdentifier): IUserDataProfile { throw new Error('Not implemented'); }
+	resetWorkspaces(): Promise<void> {
+		return this.channel.call('resetWorkspaces');
+	}
+
+	cleanUp(): Promise<void> {
+		return this.channel.call('cleanUp');
+	}
+
+	cleanUpTransientProfiles(): Promise<void> {
+		return this.channel.call('cleanUpTransientProfiles');
+	}
+
 }
 

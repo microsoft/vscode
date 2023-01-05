@@ -10,6 +10,9 @@
 	position: relative;
 }
 
+.monaco-tl-row.disabled {
+	cursor: default;
+}
 .monaco-tl-indent {
 	height: 100%;
 	position: absolute;
@@ -80,7 +83,7 @@
 }
 
 .monaco-tree-type-filter.disabled {
-	top: -40px;
+	top: -40px !important;
 }
 
 .monaco-tree-type-filter-grab {

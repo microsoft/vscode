@@ -18,7 +18,7 @@ import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/commo
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -30,7 +30,6 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -81,11 +80,11 @@ export interface ExtensionUrlHandlerEvent {
 	readonly extensionId: string;
 }
 
-export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
+type ExtensionUrlHandlerClassification = {
 	owner: 'joaomoreno';
 	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension that should handle the URI' };
 	comment: 'This is used to understand the drop funnel of extension URI handling by the OS & VS Code.';
-}
+};
 
 /**
  * This class handles URLs which are directed towards extensions.
@@ -383,7 +382,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 }
 
-registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
+registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler, InstantiationType.Eager);
 
 /**
  * This class handles URLs before `ExtensionUrlHandler` is instantiated.

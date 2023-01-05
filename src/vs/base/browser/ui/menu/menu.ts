@@ -446,7 +446,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 		// Set mnemonic
 		if (this.options.label && options.enableMnemonics) {
-			const label = this.getAction().label;
+			const label = this.action.label;
 			if (label) {
 				const matches = MENU_MNEMONIC_REGEX.exec(label);
 				if (matches) {
@@ -552,9 +552,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	override focus(): void {
 		super.focus();
 
-		if (this.item) {
-			this.item.focus();
-		}
+		this.item?.focus();
 
 		this.applyStyle();
 	}
@@ -566,7 +564,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (!this.label) {
 			return;
 		}
@@ -574,7 +572,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.options.label) {
 			clearNode(this.label);
 
-			let label = stripIcons(this.getAction().label);
+			let label = stripIcons(this.action.label);
 			if (label) {
 				const cleanLabel = cleanMnemonic(label);
 				if (!this.options.enableMnemonics) {
@@ -617,16 +615,16 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateTooltip(): void {
+	protected override updateTooltip(): void {
 		// menus should function like native menus and they do not have tooltips
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		if (this.cssClass && this.item) {
 			this.item.classList.remove(...this.cssClass.split(' '));
 		}
 		if (this.options.icon && this.label) {
-			this.cssClass = this.getAction().class || '';
+			this.cssClass = this.action.class || '';
 			this.label.classList.add('icon');
 			if (this.cssClass) {
 				this.label.classList.add(...this.cssClass.split(' '));
@@ -637,8 +635,8 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateEnabled(): void {
-		if (this.getAction().enabled) {
+	protected override updateEnabled(): void {
+		if (this.action.enabled) {
 			if (this.element) {
 				this.element.classList.remove('disabled');
 				this.element.removeAttribute('aria-disabled');
@@ -662,12 +660,12 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		if (!this.item) {
 			return;
 		}
 
-		const checked = this.getAction().checked;
+		const checked = this.action.checked;
 		this.item.classList.toggle('checked', !!checked);
 		if (checked !== undefined) {
 			this.item.setAttribute('role', 'menuitemcheckbox');
@@ -807,7 +805,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 	}
 
-	override updateEnabled(): void {
+	protected override updateEnabled(): void {
 		// override on submenu entry
 		// native menus do not observe enablement on sumbenus
 		// we mimic that behavior
@@ -1130,6 +1128,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	height: 2em;
 	align-items: center;
 	position: relative;
+	margin: 0 4px;
+	border-radius: 4px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
@@ -1253,7 +1253,7 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
-	padding: .6em 0;
+	padding: 4px 0;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {

@@ -12,6 +12,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -93,10 +94,6 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	set actionRunner(actionRunner: IActionRunner) {
 		this._actionRunner = actionRunner;
-	}
-
-	getAction(): IAction {
-		return this._action;
 	}
 
 	isEnabled(): boolean {
@@ -214,7 +211,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	}
 
 	protected getTooltip(): string | undefined {
-		return this.getAction().tooltip;
+		return this.action.tooltip;
 	}
 
 	protected updateTooltip(): void {
@@ -222,7 +219,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			return;
 		}
 		const title = this.getTooltip() ?? '';
-		this.element.setAttribute('aria-label', title);
+		this.updateAriaLabel();
 		if (!this.options.hoverDelegate) {
 			this.element.title = title;
 		} else {
@@ -233,6 +230,13 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			} else {
 				this.customHover.update(title);
 			}
+		}
+	}
+
+	protected updateAriaLabel(): void {
+		if (this.element) {
+			const title = this.getTooltip() ?? '';
+			this.element.setAttribute('aria-label', title);
 		}
 	}
 
@@ -249,7 +253,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			this.element.remove();
 			this.element = undefined;
 		}
-
+		this._context = undefined;
 		super.dispose();
 	}
 }
@@ -258,6 +262,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
+	toggleStyles?: IToggleStyles;
 }
 
 export class ActionViewItem extends BaseActionViewItem {
@@ -267,7 +272,7 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	private cssClass?: string;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
 		this.options = options;
@@ -331,20 +336,20 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
-			this.label.textContent = this.getAction().label;
+			this.label.textContent = this.action.label;
 		}
 	}
 
-	override getTooltip() {
+	protected override getTooltip() {
 		let title: string | null = null;
 
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
+		if (this.action.tooltip) {
+			title = this.action.tooltip;
 
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
+		} else if (!this.options.label && this.action.label && this.options.icon) {
+			title = this.action.label;
 
 			if (this.options.keybinding) {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
@@ -353,13 +358,13 @@ export class ActionViewItem extends BaseActionViewItem {
 		return title ?? undefined;
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
 
 		if (this.options.icon) {
-			this.cssClass = this.getAction().class;
+			this.cssClass = this.action.class;
 
 			if (this.label) {
 				this.label.classList.add('codicon');
@@ -374,8 +379,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateEnabled(): void {
-		if (this.getAction().enabled) {
+	protected override updateEnabled(): void {
+		if (this.action.enabled) {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
 				this.label.classList.remove('disabled');
@@ -392,9 +397,16 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override updateChecked(): void {
+	protected override updateAriaLabel(): void {
 		if (this.label) {
-			if (this.getAction().checked) {
+			const title = this.getTooltip() ?? '';
+			this.label.setAttribute('aria-label', title);
+		}
+	}
+
+	protected override updateChecked(): void {
+		if (this.label) {
+			if (this.action.checked) {
 				this.label.classList.add('checked');
 			} else {
 				this.label.classList.remove('checked');
@@ -425,9 +437,11 @@ export class SelectActionViewItem extends BaseActionViewItem {
 	}
 
 	private registerListeners(): void {
-		this._register(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected, e.index));
-		}));
+		this._register(this.selectBox.onDidSelect(e => this.runAction(e.selected, e.index)));
+	}
+
+	protected runAction(option: string, index: number): void {
+		this.actionRunner.run(this._action, this.getActionContext(option, index));
 	}
 
 	protected getActionContext(option: string, index: number) {
@@ -439,15 +453,11 @@ export class SelectActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		if (this.selectBox) {
-			this.selectBox.focus();
-		}
+		this.selectBox?.focus();
 	}
 
 	override blur(): void {
-		if (this.selectBox) {
-			this.selectBox.blur();
-		}
+		this.selectBox?.blur();
 	}
 
 	override render(container: HTMLElement): void {

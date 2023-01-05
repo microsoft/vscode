@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel, isResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -33,7 +33,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		super();
 	}
 
-	createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
+	protected createReferencedObject(key: string): Promise<IResolvedTextEditorModel> {
 		return this.doCreateReferencedObject(key);
 	}
 
@@ -100,7 +100,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 		throw new Error(`Unable to resolve resource ${key}`);
 	}
 
-	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
+	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
 		// untitled and inMemory are bound to a different lifecycle
 		const resource = URI.parse(key);
@@ -193,8 +193,23 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ = this.instantiationService.createInstance(ResourceModelCollection);
-	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+	private _resourceModelCollection: ResourceModelCollection & ReferenceCollection<Promise<IResolvedTextEditorModel>> /* TS Fail */ | undefined = undefined;
+	private get resourceModelCollection() {
+		if (!this._resourceModelCollection) {
+			this._resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
+		}
+
+		return this._resourceModelCollection;
+	}
+
+	private _asyncModelCollection: AsyncReferenceCollection<IResolvedTextEditorModel> | undefined = undefined;
+	private get asyncModelCollection() {
+		if (!this._asyncModelCollection) {
+			this._asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
+		}
+
+		return this._asyncModelCollection;
+	}
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -231,4 +246,4 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	}
 }
 
-registerSingleton(ITextModelService, TextModelResolverService, true);
+registerSingleton(ITextModelService, TextModelResolverService, InstantiationType.Delayed);

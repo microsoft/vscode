@@ -68,8 +68,9 @@ The server supports the following settings:
     - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there is at least one matching pattern and the last matching pattern is not an exclusion pattern.
     - `url`: The URL of the schema, optional when also a schema is provided.
     - `schema`: The schema content.
-  - `resultLimit`: The max number folding ranges and outline symbols to be computed (for performance reasons)
-
+  - `resultLimit`: The max number of color decorators and outline symbols to be computed (for performance reasons)
+  - `jsonFoldingLimit`: The max number of folding ranges to be computed for json documents (for performance reasons)
+  - `jsoncFoldingLimit`: The max number of folding ranges to be computed for jsonc documents (for performance reasons)
 ```json
     {
         "http": {
@@ -187,7 +188,8 @@ Notification:
 
 ### Item Limit
 
-If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
+If the setting `resultLimit` is set, the JSON language server will limit the number of color symbols and document symbols computed.
+If the setting `jsonFoldingLimit` or `jsoncFoldingLimit` is set, the JSON language server will limit the number of folding ranges computed.
 
 ## Try
 

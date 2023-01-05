@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { distinct, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
-	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode, IServerExtensionManagementService,
-	ServerInstallOptions, ServerInstallVSIXOptions, ServerUninstallOptions, Metadata, ServerInstallExtensionEvent, ServerInstallExtensionResult, ServerUninstallExtensionEvent, ServerDidUninstallExtensionEvent
+	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
+	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -24,15 +24,24 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
+export const enum ExtensionVerificationStatus {
+	'Verified' = 'Verified',
+	'Unverified' = 'Unverified',
+	'UnknownError' = 'UnknownError',
+}
+
+export type InstallExtensionTaskOptions = InstallOptions & InstallVSIXOptions & { readonly profileLocation: URI };
 export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
+	readonly verificationStatus?: ExtensionVerificationStatus;
 	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
 	cancel(): void;
 }
 
+export type UninstallExtensionTaskOptions = UninstallOptions & { readonly profileLocation: URI };
 export interface IUninstallExtensionTask {
 	readonly extension: ILocalExtension;
 	run(): Promise<void>;
@@ -40,26 +49,26 @@ export interface IUninstallExtensionTask {
 	cancel(): void;
 }
 
-export abstract class AbstractExtensionManagementService extends Disposable implements IServerExtensionManagementService {
+export abstract class AbstractExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private extensionsControlManifest: Promise<IExtensionsControlManifest> | undefined;
 	private lastReportTimestamp = 0;
-	private readonly installingExtensions = new Map<string, IInstallExtensionTask>();
+	private readonly installingExtensions = new Map<string, { task: IInstallExtensionTask; waitingTasks: IInstallExtensionTask[] }>();
 	private readonly uninstallingExtensions = new Map<string, IUninstallExtensionTask>();
 
-	private readonly _onInstallExtension = this._register(new Emitter<ServerInstallExtensionEvent>());
-	readonly onInstallExtension = this._onInstallExtension.event;
+	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
+	get onInstallExtension() { return this._onInstallExtension.event; }
 
-	protected readonly _onDidInstallExtensions = this._register(new Emitter<ServerInstallExtensionResult[]>());
-	readonly onDidInstallExtensions = this._onDidInstallExtensions.event;
+	protected readonly _onDidInstallExtensions = this._register(new Emitter<InstallExtensionResult[]>());
+	get onDidInstallExtensions() { return this._onDidInstallExtensions.event; }
 
-	protected readonly _onUninstallExtension = this._register(new Emitter<ServerUninstallExtensionEvent>());
-	readonly onUninstallExtension = this._onUninstallExtension.event;
+	protected readonly _onUninstallExtension = this._register(new Emitter<UninstallExtensionEvent>());
+	get onUninstallExtension() { return this._onUninstallExtension.event; }
 
-	protected _onDidUninstallExtension = this._register(new Emitter<ServerDidUninstallExtensionEvent>());
-	readonly onDidUninstallExtension = this._onDidUninstallExtension.event;
+	protected _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
+	get onDidUninstallExtension() { return this._onDidUninstallExtension.event; }
 
 	private readonly participants: IExtensionManagementParticipant[] = [];
 
@@ -72,7 +81,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this.installingExtensions.forEach(task => task.cancel());
+			this.installingExtensions.forEach(({ task }) => task.cancel());
 			this.uninstallingExtensions.forEach(promise => promise.cancel());
 			this.installingExtensions.clear();
 			this.uninstallingExtensions.clear();
@@ -84,7 +93,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
 	}
 
-	async installFromGallery(extension: IGalleryExtension, options: ServerInstallOptions = {}): Promise<ILocalExtension> {
+	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		try {
 			if (!this.galleryService.isEnabled()) {
 				throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
@@ -99,25 +108,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
-	async uninstall(extension: ILocalExtension, options: ServerUninstallOptions = {}): Promise<void> {
+	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.uninstallExtension(extension, options);
-	}
-
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
-		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
-		if (!this.galleryService.isEnabled()) {
-			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
-		}
-
-		const targetPlatform = await this.getTargetPlatform();
-		const [galleryExtension] = await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: extension.preRelease }], { targetPlatform, compatible: true }, CancellationToken.None);
-		if (!galleryExtension) {
-			throw new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled"));
-		}
-
-		await this.createUninstallExtensionTask(extension, { remove: true, versionOnly: true }).run();
-		await this.installFromGallery(galleryExtension);
 	}
 
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
@@ -135,48 +128,71 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		this.participants.push(participant);
 	}
 
-	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): Promise<ILocalExtension> {
+	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 
-		const getInstallExtensionTaskKey = (extension: IGalleryExtension) => `${ExtensionKey.create(extension).toString()}${options.profileLocation ? `-${options.profileLocation.toString()}` : ''}`;
+		const installExtensionTaskOptions: InstallExtensionTaskOptions = {
+			...options,
+			installOnlyNewlyAddedFromExtensionPack: URI.isUri(extension) ? options.installOnlyNewlyAddedFromExtensionPack : true, /* always true for gallery extensions */
+			profileLocation: isApplicationScopedExtension(manifest) ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
+		};
+		const getInstallExtensionTaskKey = (extension: IGalleryExtension) => `${ExtensionKey.create(extension).toString()}${installExtensionTaskOptions.profileLocation ? `-${installExtensionTaskOptions.profileLocation.toString()}` : ''}`;
 
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
-			const installExtensionTask = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
-			if (installExtensionTask) {
+			const installingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
+			if (installingExtension) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
-				const { local } = await installExtensionTask.waitUntilTaskIsFinished();
+				const { local } = await installingExtension.task.waitUntilTaskIsFinished();
 				return local;
 			}
-			options = { ...options, installOnlyNewlyAddedFromExtensionPack: true /* always true for gallery extensions */ };
 		}
 
 		const allInstallExtensionTasks: { task: IInstallExtensionTask; manifest: IExtensionManifest }[] = [];
-		const installResults: (ServerInstallExtensionResult & { local: ILocalExtension })[] = [];
-		const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
+		const alreadyRequestedInstallations: Promise<void>[] = [];
+		const installResults: (InstallExtensionResult & { local: ILocalExtension })[] = [];
+		const installExtensionTask = this.createInstallExtensionTask(manifest, extension, installExtensionTaskOptions);
 		if (!URI.isUri(extension)) {
-			this.installingExtensions.set(getInstallExtensionTaskKey(extension), installExtensionTask);
+			this.installingExtensions.set(getInstallExtensionTaskKey(extension), { task: installExtensionTask, waitingTasks: [] });
 		}
-		this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension, profileLocation: options.profileLocation });
+		this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension, profileLocation: installExtensionTaskOptions.profileLocation });
 		this.logService.info('Installing extension:', installExtensionTask.identifier.id);
 		allInstallExtensionTasks.push({ task: installExtensionTask, manifest });
 		let installExtensionHasDependents: boolean = false;
 
 		try {
-			if (options.donotIncludePackAndDependencies) {
+			if (installExtensionTaskOptions.donotIncludePackAndDependencies) {
 				this.logService.info('Installing the extension without checking dependencies and pack', installExtensionTask.identifier.id);
 			} else {
 				try {
-					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensionsToInstall(installExtensionTask.identifier, manifest, !!options.installOnlyNewlyAddedFromExtensionPack, !!options.installPreReleaseVersion, options.profileLocation);
-					for (const { gallery, manifest } of allDepsAndPackExtensionsToInstall) {
+					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensions(installExtensionTask.identifier, manifest, !!installExtensionTaskOptions.installOnlyNewlyAddedFromExtensionPack, !!installExtensionTaskOptions.installPreReleaseVersion, installExtensionTaskOptions.profileLocation);
+					const installed = await this.getInstalled(undefined, installExtensionTaskOptions.profileLocation);
+					for (const { gallery, manifest } of distinct(allDepsAndPackExtensionsToInstall, ({ gallery }) => gallery.identifier.id)) {
 						installExtensionHasDependents = installExtensionHasDependents || !!manifest.extensionDependencies?.some(id => areSameExtensions({ id }, installExtensionTask.identifier));
 						const key = getInstallExtensionTaskKey(gallery);
-						if (this.installingExtensions.has(key)) {
-							this.logService.info('Extension is already requested to install', gallery.identifier.id);
-						} else {
-							const task = this.createInstallExtensionTask(manifest, gallery, { ...options, donotIncludePackAndDependencies: true });
-							this.installingExtensions.set(key, task);
-							this._onInstallExtension.fire({ identifier: task.identifier, source: gallery, profileLocation: options.profileLocation });
-							this.logService.info('Installing extension:', task.identifier.id);
+						const existingInstallingExtension = this.installingExtensions.get(key);
+						if (existingInstallingExtension) {
+							if (this.canWaitForTask(installExtensionTask, existingInstallingExtension.task)) {
+								const identifier = existingInstallingExtension.task.identifier;
+								this.logService.info('Waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
+								existingInstallingExtension.waitingTasks.push(installExtensionTask);
+								// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
+								alreadyRequestedInstallations.push(
+									Event.toPromise(
+										Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
+									).then(results => {
+										this.logService.info('Finished waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
+										const result = results.find(result => areSameExtensions(result.identifier, identifier));
+										if (!result?.local) {
+											// Extension failed to install
+											throw new Error(`Extension ${identifier.id} is not installed`);
+										}
+									}));
+							}
+						} else if (!installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
+							const task = this.createInstallExtensionTask(manifest, gallery, { ...installExtensionTaskOptions, donotIncludePackAndDependencies: true });
+							this.installingExtensions.set(key, { task, waitingTasks: [installExtensionTask] });
+							this._onInstallExtension.fire({ identifier: task.identifier, source: gallery, profileLocation: installExtensionTaskOptions.profileLocation });
+							this.logService.info('Installing extension:', task.identifier.id, installExtensionTask.identifier.id);
 							allInstallExtensionTasks.push({ task, manifest });
 						}
 					}
@@ -219,12 +235,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					const startTime = new Date().getTime();
 					try {
 						const { local } = await task.run();
-						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
+						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, installExtensionTaskOptions, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							const isUpdate = task.operation === InstallOperation.Update;
 							const durationSinceUpdate = isUpdate ? undefined : (new Date().getTime() - task.source.lastUpdated) / 1000;
 							reportTelemetry(this.telemetryService, isUpdate ? 'extensionGallery:update' : 'extensionGallery:install', {
 								extensionData: getGalleryExtensionTelemetryData(task.source),
+								verificationStatus: task.verificationStatus,
 								duration: new Date().getTime() - startTime,
 								durationSinceUpdate
 							});
@@ -235,15 +252,24 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 								} catch (error) { /* ignore */ }
 							}
 						}
-						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: options.context, profileLocation: options.profileLocation, applicationScoped: local.isApplicationScoped });
+						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: installExtensionTaskOptions.context, profileLocation: installExtensionTaskOptions.profileLocation, applicationScoped: local.isApplicationScoped });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', { extensionData: getGalleryExtensionTelemetryData(task.source), duration: new Date().getTime() - startTime, error });
+							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {
+								extensionData: getGalleryExtensionTelemetryData(task.source),
+								verificationStatus: task.verificationStatus,
+								duration: new Date().getTime() - startTime,
+								error
+							});
 						}
 						this.logService.error('Error while installing the extension:', task.identifier.id);
 						throw error;
 					} finally { extensionsToInstallMap.delete(task.identifier.id.toLowerCase()); }
 				}));
+			}
+
+			if (alreadyRequestedInstallations.length) {
+				await this.joinAllSettled(alreadyRequestedInstallations);
 			}
 
 			installResults.forEach(({ identifier }) => this.logService.info(`Extension installed successfully:`, identifier.id));
@@ -258,7 +284,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			// rollback installed extensions
 			if (installResults.length) {
 				try {
-					const result = await Promise.allSettled(installResults.map(({ local }) => this.createUninstallExtensionTask(local, { versionOnly: true, profileLocation: options.profileLocation }).run()));
+					const result = await Promise.allSettled(installResults.map(({ local }) => this.createUninstallExtensionTask(local, { versionOnly: true, profileLocation: installExtensionTaskOptions.profileLocation }).run()));
 					for (let index = 0; index < result.length; index++) {
 						const r = result[index];
 						const { identifier } = installResults[index];
@@ -274,19 +300,37 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				}
 			}
 
-			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: options.context, profileLocation: options.profileLocation })));
+			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source, context: installExtensionTaskOptions.context, profileLocation: installExtensionTaskOptions.profileLocation })));
 			throw error;
 		} finally {
-			/* Remove the gallery tasks from the cache */
+			// Finally, remove all the tasks from the cache
 			for (const { task } of allInstallExtensionTasks) {
-				if (!URI.isUri(task.source)) {
-					const key = getInstallExtensionTaskKey(task.source);
-					if (!this.installingExtensions.delete(key)) {
-						this.logService.warn('Installation task is not found in the cache', key);
-					}
+				if (task.source && !URI.isUri(task.source)) {
+					this.installingExtensions.delete(getInstallExtensionTaskKey(task.source));
 				}
 			}
 		}
+	}
+
+	private canWaitForTask(taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask): boolean {
+		for (const [, { task, waitingTasks }] of this.installingExtensions.entries()) {
+			if (task === taskToWait) {
+				// Cannot be waited, If taskToWaitFor is waiting for taskToWait
+				if (waitingTasks.includes(taskToWaitFor)) {
+					return false;
+				}
+				// Cannot be waited, If taskToWaitFor is waiting for tasks waiting for taskToWait
+				if (waitingTasks.some(waitingTask => this.canWaitForTask(waitingTask, taskToWaitFor))) {
+					return false;
+				}
+			}
+			// Cannot be waited, if the taskToWait cannot be waited for the task created the taskToWaitFor
+			// Because, the task waits for the tasks it created
+			if (task === taskToWaitFor && waitingTasks[0] && !this.canWaitForTask(taskToWait, waitingTasks[0])) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private async joinAllSettled<T>(promises: Promise<T>[]): Promise<T[]> {
@@ -305,16 +349,17 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return results;
 	}
 
-	private async getAllDepsAndPackExtensionsToInstall(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
+	private async getAllDepsAndPackExtensions(extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest, getOnlyNewlyAddedFromExtensionPack: boolean, installPreRelease: boolean, profile: URI | undefined): Promise<{ gallery: IGalleryExtension; manifest: IExtensionManifest }[]> {
 		if (!this.galleryService.isEnabled()) {
 			return [];
 		}
 
-		let installed = await this.getInstalled(undefined, profile);
-		const knownIdentifiers = [extensionIdentifier, ...(installed).map(i => i.identifier)];
+		const installed = await this.getInstalled(undefined, profile);
+		const knownIdentifiers: IExtensionIdentifier[] = [];
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
+			knownIdentifiers.push(extensionIdentifier);
 			const dependecies: string[] = manifest.extensionDependencies || [];
 			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
@@ -330,13 +375,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}
 
 			if (dependenciesAndPackExtensions.length) {
-				// filter out installed and known extensions
-				const identifiers = [...knownIdentifiers, ...allDependenciesAndPacks.map(r => r.gallery.identifier)];
-				const ids = dependenciesAndPackExtensions.filter(id => identifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
+				// filter out known extensions
+				const ids = dependenciesAndPackExtensions.filter(id => knownIdentifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
 				if (ids.length) {
 					const galleryExtensions = await this.galleryService.getExtensions(ids.map(id => ({ id, preRelease: installPreRelease })), CancellationToken.None);
 					for (const galleryExtension of galleryExtensions) {
-						if (identifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
+						if (knownIdentifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
 						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
@@ -359,8 +403,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		};
 
 		await collectDependenciesAndPackExtensionsToInstall(extensionIdentifier, manifest);
-		installed = await this.getInstalled(undefined, profile);
-		return allDependenciesAndPacks.filter(e => !installed.some(i => areSameExtensions(i.identifier, e.gallery.identifier)));
+		return allDependenciesAndPacks;
 	}
 
 	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, installPreRelease: boolean): Promise<{ extension: IGalleryExtension; manifest: IExtensionManifest }> {
@@ -423,51 +466,55 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return compatibleExtension;
 	}
 
-	private async uninstallExtension(extension: ILocalExtension, options: ServerUninstallOptions): Promise<void> {
-		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${options.versionOnly ? `-${extension.manifest.version}` : ''}${options.profileLocation ? `@${options.profileLocation.toString()}` : ''}`;
+	private async uninstallExtension(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
+		const uninstallOptions: UninstallExtensionTaskOptions = {
+			...options,
+			profileLocation: extension.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
+		};
+		const getUninstallExtensionTaskKey = (identifier: IExtensionIdentifier) => `${identifier.id.toLowerCase()}${uninstallOptions.versionOnly ? `-${extension.manifest.version}` : ''}${uninstallOptions.profileLocation ? `@${uninstallOptions.profileLocation.toString()}` : ''}`;
 		const uninstallExtensionTask = this.uninstallingExtensions.get(getUninstallExtensionTaskKey(extension.identifier));
 		if (uninstallExtensionTask) {
 			this.logService.info('Extensions is already requested to uninstall', extension.identifier.id);
 			return uninstallExtensionTask.waitUntilTaskIsFinished();
 		}
 
-		const createUninstallExtensionTask = (extension: ILocalExtension, uninstallOptions: ServerUninstallOptions): IUninstallExtensionTask => {
+		const createUninstallExtensionTask = (extension: ILocalExtension): IUninstallExtensionTask => {
 			const uninstallExtensionTask = this.createUninstallExtensionTask(extension, uninstallOptions);
 			this.uninstallingExtensions.set(getUninstallExtensionTaskKey(uninstallExtensionTask.extension.identifier), uninstallExtensionTask);
-			if (options.profileLocation) {
-				this.logService.info('Uninstalling extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, options.profileLocation.toString());
+			if (uninstallOptions.profileLocation) {
+				this.logService.info('Uninstalling extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
 			} else {
 				this.logService.info('Uninstalling extension:', `${extension.identifier.id}@${extension.manifest.version}`);
 			}
-			this._onUninstallExtension.fire({ identifier: extension.identifier, profileLocation: options.profileLocation, applicationScoped: extension.isApplicationScoped });
+			this._onUninstallExtension.fire({ identifier: extension.identifier, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
 			return uninstallExtensionTask;
 		};
 
 		const postUninstallExtension = (extension: ILocalExtension, error?: ExtensionManagementError): void => {
 			if (error) {
-				if (options.profileLocation) {
-					this.logService.error('Failed to uninstall extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, options.profileLocation.toString(), error.message);
+				if (uninstallOptions.profileLocation) {
+					this.logService.error('Failed to uninstall extension from the profile:', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString(), error.message);
 				} else {
 					this.logService.error('Failed to uninstall extension:', `${extension.identifier.id}@${extension.manifest.version}`, error.message);
 				}
 			} else {
-				if (options.profileLocation) {
-					this.logService.info('Successfully uninstalled extension from the profile', `${extension.identifier.id}@${extension.manifest.version}`, options.profileLocation.toString());
+				if (uninstallOptions.profileLocation) {
+					this.logService.info('Successfully uninstalled extension from the profile', `${extension.identifier.id}@${extension.manifest.version}`, uninstallOptions.profileLocation.toString());
 				} else {
 					this.logService.info('Successfully uninstalled extension:', `${extension.identifier.id}@${extension.manifest.version}`);
 				}
 			}
 			reportTelemetry(this.telemetryService, 'extensionGallery:uninstall', { extensionData: getLocalExtensionTelemetryData(extension), error });
-			this._onDidUninstallExtension.fire({ identifier: extension.identifier, version: extension.manifest.version, error: error?.code, profileLocation: options.profileLocation, applicationScoped: extension.isApplicationScoped });
+			this._onDidUninstallExtension.fire({ identifier: extension.identifier, error: error?.code, profileLocation: uninstallOptions.profileLocation, applicationScoped: extension.isApplicationScoped });
 		};
 
 		const allTasks: IUninstallExtensionTask[] = [];
 		const processedTasks: IUninstallExtensionTask[] = [];
 
 		try {
-			allTasks.push(createUninstallExtensionTask(extension, options));
-			const installed = await this.getInstalled(ExtensionType.User, options.profileLocation);
-			if (options.donotIncludePack) {
+			allTasks.push(createUninstallExtensionTask(extension));
+			const installed = await this.getInstalled(ExtensionType.User, uninstallOptions.profileLocation);
+			if (uninstallOptions.donotIncludePack) {
 				this.logService.info('Uninstalling the extension without including packed extension', `${extension.identifier.id}@${extension.manifest.version}`);
 			} else {
 				const packedExtensions = this.getAllPackExtensionsToUninstall(extension, installed);
@@ -475,12 +522,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					if (this.uninstallingExtensions.has(getUninstallExtensionTaskKey(packedExtension.identifier))) {
 						this.logService.info('Extensions is already requested to uninstall', packedExtension.identifier.id);
 					} else {
-						allTasks.push(createUninstallExtensionTask(packedExtension, options));
+						allTasks.push(createUninstallExtensionTask(packedExtension));
 					}
 				}
 			}
 
-			if (options.donotCheckDependents) {
+			if (uninstallOptions.donotCheckDependents) {
 				this.logService.info('Uninstalling the extension without checking dependents', `${extension.identifier.id}@${extension.manifest.version}`);
 			} else {
 				this.checkForDependents(allTasks.map(task => task.extension), installed, extension);
@@ -490,7 +537,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			await this.joinAllSettled(allTasks.map(async task => {
 				try {
 					await task.run();
-					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, options, CancellationToken.None)));
+					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, uninstallOptions, CancellationToken.None)));
 					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
 					if (task.extension.identifier.uuid) {
 						try {
@@ -601,33 +648,23 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
-	private createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask {
-		if (options.profileLocation && isApplicationScopedExtension(manifest)) {
-			options = { ...options, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource };
-		}
-		return this.doCreateInstallExtensionTask(manifest, extension, options);
-	}
-
-	private createUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask {
-		if (options.profileLocation && extension.isApplicationScoped) {
-			options = { ...options, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource };
-		}
-		return this.doCreateUninstallExtensionTask(extension, options);
-	}
-
 	abstract getTargetPlatform(): Promise<TargetPlatform>;
 	abstract zip(extension: ILocalExtension): Promise<URI>;
 	abstract unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
-	abstract install(vsix: URI, options?: ServerInstallVSIXOptions): Promise<ILocalExtension>;
+	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
+	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
+	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
+	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 
 	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
-	protected abstract doCreateInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: ServerInstallOptions & ServerInstallVSIXOptions): IInstallExtensionTask;
-	protected abstract doCreateUninstallExtensionTask(extension: ILocalExtension, options: ServerUninstallOptions): IUninstallExtensionTask;
+	protected abstract getCurrentExtensionsManifestLocation(): URI;
+	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
+	protected abstract createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask;
 }
 
 export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
@@ -649,8 +686,22 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, duration, error, durationSinceUpdate }: { extensionData: any; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
-	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Internal : undefined;
+export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+	let errorcode: ExtensionManagementErrorCode | undefined;
+	let errorcodeDetail: string | undefined;
+
+	if (error) {
+		if (error instanceof ExtensionManagementError) {
+			errorcode = error.code;
+
+			if (error.code === ExtensionManagementErrorCode.Signature) {
+				errorcodeDetail = error.message;
+			}
+		} else {
+			errorcode = ExtensionManagementErrorCode.Internal;
+		}
+	}
+
 	/* __GDPR__
 		"extensionGallery:install" : {
 			"owner": "sandy081",
@@ -658,7 +709,9 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"durationSinceUpdate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
@@ -681,12 +734,14 @@ export function reportTelemetry(telemetryService: ITelemetryService, eventName: 
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
 				"${GalleryExtensionTelemetryData}"
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, success: !error, duration, errorcode, durationSinceUpdate });
+	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate });
 }
 
 export abstract class AbstractExtensionTask<T> {

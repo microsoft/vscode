@@ -5,7 +5,7 @@
 
 import { IURLService } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event } from 'vs/base/common/event';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -91,4 +91,4 @@ export class BrowserURLService extends AbstractURLService {
 	}
 }
 
-registerSingleton(IURLService, BrowserURLService, true);
+registerSingleton(IURLService, BrowserURLService, InstantiationType.Delayed);

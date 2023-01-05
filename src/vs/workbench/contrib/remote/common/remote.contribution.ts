@@ -10,7 +10,7 @@ import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
@@ -25,7 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -33,6 +33,7 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
 import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -71,7 +72,8 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDownloadService downloadService: IDownloadService
+		@IDownloadService downloadService: IDownloadService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
 		const updateRemoteLogLevel = () => {
@@ -86,7 +88,7 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService));
+			connection.registerChannel('logger', new LogLevelChannel(logService, loggerService));
 		}
 	}
 }
@@ -99,8 +101,8 @@ class RemoteLogOutputChannels implements IWorkbenchContribution {
 		remoteAgentService.getEnvironment().then(remoteEnv => {
 			if (remoteEnv) {
 				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: 'remotePtyHostLog', label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
+				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
+				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
 			}
 		});
 	}
@@ -281,7 +283,7 @@ if (enableDiagnostics) {
 			super({
 				id: 'workbench.action.triggerReconnect',
 				title: { value: localize('triggerReconnect', "Connection: Trigger Reconnect"), original: 'Connection: Trigger Reconnect' },
-				category: CATEGORIES.Developer,
+				category: Categories.Developer,
 				f1: true,
 			});
 		}
@@ -296,7 +298,7 @@ if (enableDiagnostics) {
 			super({
 				id: 'workbench.action.pauseSocketWriting',
 				title: { value: localize('pauseSocketWriting', "Connection: Pause socket writing"), original: 'Connection: Pause socket writing' },
-				category: CATEGORIES.Developer,
+				category: Categories.Developer,
 				f1: true,
 			});
 		}
@@ -360,6 +362,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
 				],
 				default: 'process'
+			},
+			'remote.forwardOnOpen': {
+				type: 'boolean',
+				description: localize('remote.forwardOnClick', "Controls whether local URLs with a port will be forwarded when opened from the terminal and the debug console."),
+				default: true
 			},
 			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
 			// and extensions\configuration-editing\schemas\attachContainer.schema.json

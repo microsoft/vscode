@@ -38,9 +38,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 	}
 
 	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
-		if (data.disposable) {
-			data.disposable.dispose();
-		}
+		data.disposable?.dispose();
 
 		if (!data.data) {
 			return;
@@ -110,6 +108,7 @@ export interface IPagedListOptions<T> {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly additionalScrollHeight?: number;
 }
 

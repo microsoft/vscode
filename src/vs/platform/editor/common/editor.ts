@@ -167,11 +167,6 @@ export enum EditorResolution {
 	PICK,
 
 	/**
-	 * Disables editor resolving.
-	 */
-	DISABLED,
-
-	/**
 	 * Only exclusive editors are considered.
 	 */
 	EXCLUSIVE_ONLY

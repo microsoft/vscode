@@ -50,13 +50,15 @@ suite('Indentation Folding', () => {
 		const model = createTextModel(lines.join('\n'));
 
 		function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			const indentRanges = computeRanges(model, true, undefined, maxEntries);
+			let reported: number | false = false;
+			const indentRanges = computeRanges(model, true, undefined, { limit: maxEntries, report: r => reported = r.limited });
 			assert.ok(indentRanges.length <= maxEntries, 'max ' + message);
 			const actual: IndentRange[] = [];
 			for (let i = 0; i < indentRanges.length; i++) {
 				actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 			}
 			assert.deepStrictEqual(actual, expectedRanges, message);
+			assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
 		}
 
 		assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');

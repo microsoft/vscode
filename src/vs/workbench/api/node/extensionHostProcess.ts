@@ -23,11 +23,14 @@ import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { MessagePortMain } from 'electron';
 import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
+
+// TODO this is a layer breaker for types only provided in Electron
+import type { MessagePortMain } from 'electron';
+import type { UtilityNodeJSProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
 interface ParsedExtHostArgs {
 	transformURIs?: boolean;
@@ -62,7 +65,7 @@ const args = minimist(process.argv.slice(2), {
 // happening we essentially blocklist this module from getting loaded in any
 // extension by patching the node require() function.
 (function () {
-	const Module = require.__$__nodeRequire('module') as any;
+	const Module = globalThis._VSCODE_NODE_MODULES.module as any;
 	const originalLoad = Module._load;
 
 	Module._load = function (request: string) {
@@ -132,14 +135,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			if ((<any>global).vscodePorts) {
-				const ports = (<any>global).vscodePorts;
-				delete (<any>global).vscodePorts;
-				withPorts(ports);
-			} else {
-				(<any>global).vscodePortsCallback = withPorts;
-			}
-
+			(process as UtilityNodeJSProcess).parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
@@ -180,7 +176,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol = new PersistentProtocol({ socket, initialChunk: initialDataChunk });
 						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
@@ -217,7 +213,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				const protocol = new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer'));
+				const protocol = new PersistentProtocol({ socket: new NodeSocket(socket, 'extHost-renderer') });
 				protocol.sendResume();
 				resolve(protocol);
 			});
@@ -313,7 +309,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				// So also use the native node module to do it from a separate thread
 				let watchdog: typeof nativeWatchdog;
 				try {
-					watchdog = require.__$__nodeRequire('native-watchdog');
+					watchdog = globalThis._VSCODE_NODE_MODULES['native-watchdog'];
 					watchdog.start(initData.parentPid);
 				} catch (err) {
 					// no problem...
@@ -332,7 +328,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-export async function startExtensionHostProcess(): Promise<void> {
+async function startExtensionHostProcess(): Promise<void> {
 
 	// Print a console message when rejection isn't handled within N seconds. For details:
 	// see https://nodejs.org/api/process.html#process_event_unhandledrejection

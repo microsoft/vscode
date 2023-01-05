@@ -12,7 +12,16 @@ const week = day * 7;
 const month = day * 30;
 const year = day * 365;
 
-export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean): string {
+/**
+ * Create a localized of the time between now and the specified date.
+ * @param date The date to generate the difference from.
+ * @param appendAgoLabel Whether to append the " ago" to the end.
+ * @param useFullTimeWords Whether to use full words (eg. seconds) instead of
+ * shortened (eg. secs).
+ * @param disallowNow Whether to disallow the string "now" when the difference
+ * is less than 30 seconds.
+ */
+export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
 	if (typeof date !== 'number') {
 		date = date.getTime();
 	}
@@ -22,7 +31,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 		return localize('date.fromNow.in', 'in {0}', fromNow(new Date().getTime() + seconds * 1000, false));
 	}
 
-	if (seconds < 30) {
+	if (!disallowNow && seconds < 30) {
 		return localize('date.fromNow.now', 'now');
 	}
 

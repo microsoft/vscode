@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -20,8 +20,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Barrier } from 'vs/base/common/async';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Barrier, IntervalTimer } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -63,7 +63,7 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 	return instantiationService.createInstance(ExtensionHostManager, extensionHostId, extensionHost, initialActivationEvents, internalExtensionService);
 }
 
-export type ExtensionHostStartupClassification = {
+type ExtensionHostStartupClassification = {
 	owner: 'alexdima';
 	comment: 'The startup state of the extension host';
 	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The time reported by Date.now().' };
@@ -74,7 +74,7 @@ export type ExtensionHostStartupClassification = {
 	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error stack.' };
 };
 
-export type ExtensionHostStartupEvent = {
+type ExtensionHostStartupEvent = {
 	time: number;
 	action: 'starting' | 'success' | 'error';
 	kind: string;
@@ -143,7 +143,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				};
 				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', successTelemetryEvent);
 
-				return this._createExtensionHostCustomers(protocol);
+				return this._createExtensionHostCustomers(this.kind, protocol);
 			},
 			(err) => {
 				this._logService.error(`Error received from starting extension host (kind: ${extensionHostKindToString(this.kind)})`);
@@ -165,7 +165,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				if (err && err.stack) {
 					failureTelemetryEvent.errorStack = err.stack;
 				}
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent, true);
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent);
 
 				return null;
 			}
@@ -258,11 +258,11 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return ExtensionHostManager._convert(SIZE, sw.elapsed());
 	}
 
-	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): IExtensionHostProxy {
+	private _createExtensionHostCustomers(kind: ExtensionHostKind, protocol: IMessagePassingProtocol): IExtensionHostProxy {
 
 		let logger: IRPCProtocolLogger | null = null;
 		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
-			logger = new RPCLogger();
+			logger = new RPCLogger(kind);
 		}
 
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
@@ -298,8 +298,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				this._customers.push(instance);
 				this._rpcProtocol.set(id, instance);
 			} catch (err) {
-				this._logService.critical(`Cannot instantiate named customer: '${id.sid}'`);
-				this._logService.critical(err);
+				this._logService.error(`Cannot instantiate named customer: '${id.sid}'`);
+				this._logService.error(err);
 				errors.onUnexpectedError(err);
 			}
 		}
@@ -311,7 +311,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				const instance = this._instantiationService.createInstance(ctor, extHostContext);
 				this._customers.push(instance);
 			} catch (err) {
-				this._logService.critical(err);
+				this._logService.error(err);
 				errors.onUnexpectedError(err);
 			}
 		}
@@ -377,8 +377,15 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		const sw = StopWatch.create(false);
+		const prefix = () => `[${extensionHostKindToString(this._extensionHost.runningLocation.kind)}${this._extensionHost.runningLocation.affinity}][resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
+		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
+
+		logInfo(`obtaining proxy...`);
 		const proxy = await this._proxy;
 		if (!proxy) {
+			logError(`no proxy`);
 			return {
 				type: 'error',
 				error: {
@@ -388,10 +395,21 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				}
 			};
 		}
-
+		logInfo(`invoking...`);
+		const intervalLogger = new IntervalTimer();
 		try {
-			return proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
+			const resolverResult = await proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.dispose();
+			if (resolverResult.type === 'ok') {
+				logInfo(`returned ${resolverResult.value.authority.host}:${resolverResult.value.authority.port}`);
+			} else {
+				logError(`returned an error`, resolverResult.error);
+			}
+			return resolverResult;
 		} catch (err) {
+			intervalLogger.dispose();
+			logError(`returned an error`, err);
 			return {
 				type: 'error',
 				error: {
@@ -643,12 +661,16 @@ class RPCLogger implements IRPCProtocolLogger {
 	private _totalIncoming = 0;
 	private _totalOutgoing = 0;
 
+	constructor(
+		private readonly _kind: ExtensionHostKind
+	) { }
+
 	private _log(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 		data = pretty(data);
 
 		const colorTable = colorTables[initiator];
 		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
-		let args = [`%c[${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
+		let args = [`%c[${extensionHostKindToString(this._kind)}][${direction}]%c[${String(totalLength).padStart(7)}]%c[len: ${String(msgLength).padStart(5)}]%c${String(req).padStart(5)} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
 		if (/\($/.test(str)) {
 			args = args.concat(data);
 			args.push(')');
@@ -708,7 +730,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
 				original: 'Measure Extension Host Latency'
 			},
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

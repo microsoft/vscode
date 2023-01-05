@@ -18,6 +18,8 @@ export interface IQuickPickItemHighlights {
 	detail?: IMatch[];
 }
 
+export type QuickPickItem = IQuickPickSeparator | IQuickPickItem;
+
 export interface IQuickPickItem {
 	type?: 'item';
 	id?: string;
@@ -32,18 +34,21 @@ export interface IQuickPickItem {
 	 * keyboard shortcut.
 	 */
 	keybinding?: ResolvedKeybinding;
-	iconClasses?: string[];
+	iconClasses?: readonly string[];
 	italic?: boolean;
 	strikethrough?: boolean;
 	highlights?: IQuickPickItemHighlights;
-	buttons?: IQuickInputButton[];
+	buttons?: readonly IQuickInputButton[];
 	picked?: boolean;
 	alwaysShow?: boolean;
 }
 
 export interface IQuickPickSeparator {
 	type: 'separator';
+	id?: string;
 	label?: string;
+	ariaLabel?: string;
+	buttons?: readonly IQuickInputButton[];
 }
 
 export interface IKeyMods {
@@ -54,7 +59,7 @@ export interface IKeyMods {
 export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
 
 export interface IQuickNavigateConfiguration {
-	keybindings: ResolvedKeybinding[];
+	keybindings: readonly ResolvedKeybinding[];
 }
 
 export interface IPickOptions<T extends IQuickPickItem> {
@@ -124,6 +129,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
 	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
+	onDidTriggerSeparatorButton?: (context: IQuickPickSeparatorButtonEvent) => void;
 }
 
 export interface IInputOptions {
@@ -139,9 +145,9 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
-	 * the selection of value, default to the whole word
+	 * the selection of value, default to the whole prefilled value
 	 */
-	valueSelection?: [number, number];
+	valueSelection?: readonly [number, number];
 
 	/**
 	 * the text to display underneath the input box
@@ -158,6 +164,9 @@ export interface IInputOptions {
 	 */
 	password?: boolean;
 
+	/**
+	 * an optional flag to not close the input on focus lost
+	 */
 	ignoreFocusLost?: boolean;
 
 	/**
@@ -282,7 +291,11 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidTriggerItemButton: Event<IQuickPickItemButtonEvent<T>>;
 
+	readonly onDidTriggerSeparatorButton: Event<IQuickPickSeparatorButtonEvent>;
+
 	items: ReadonlyArray<T | IQuickPickSeparator>;
+
+	scrollTop: number; // used in tests
 
 	canSelectMany: boolean;
 
@@ -338,30 +351,73 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	hideInput: boolean;
 
 	hideCheckAll: boolean;
+
+	/**
+	 * A set of `Toggle` objects to add to the input box.
+	 */
+	toggles: IQuickInputToggle[] | undefined;
+}
+
+export interface IQuickInputToggle {
+	onChange: Event<boolean /* via keyboard */>;
 }
 
 export interface IInputBox extends IQuickInput {
 
+	/**
+	 * Value shown in the input box.
+	 */
 	value: string;
 
+	/**
+	 * Provide start and end values to be selected in the input box.
+	 */
 	valueSelection: Readonly<[number, number]> | undefined;
 
+	/**
+	 * Value shown as example for input.
+	 */
 	placeholder: string | undefined;
 
+	/**
+	 * Determines if the input value should be hidden while typing.
+	 */
 	password: boolean;
 
+	/**
+	 * Event called when the input value changes.
+	 */
 	readonly onDidChangeValue: Event<string>;
 
+	/**
+	 * Event called when the user submits the input.
+	 */
 	readonly onDidAccept: Event<void>;
 
+	/**
+	 * Buttons to show in addition to user input submission.
+	 */
 	buttons: ReadonlyArray<IQuickInputButton>;
 
+	/**
+	 * Event called when a button is selected.
+	 */
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
+	/**
+	 * Text show below the input box.
+	 */
 	prompt: string | undefined;
 
+	/**
+	 * An optional validation message indicating a problem with the current input value.
+	 * Returning undefined clears the validation message.
+	 */
 	validationMessage: string | undefined;
 
+	/**
+	 * Severity of the input validation message.
+	 */
 	severity: Severity;
 }
 
@@ -381,6 +437,11 @@ export interface IQuickInputButton {
 export interface IQuickPickItemButtonEvent<T extends IQuickPickItem> {
 	button: IQuickInputButton;
 	item: T;
+}
+
+export interface IQuickPickSeparatorButtonEvent {
+	button: IQuickInputButton;
+	separator: IQuickPickSeparator;
 }
 
 export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends IQuickPickItemButtonEvent<T> {

@@ -193,7 +193,8 @@ const AssetType = {
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
-	Repository: 'Microsoft.VisualStudio.Services.Links.Source'
+	Repository: 'Microsoft.VisualStudio.Services.Links.Source',
+	Signature: 'Microsoft.VisualStudio.Services.VsixSignature'
 };
 
 const PropertyType = {
@@ -301,6 +302,7 @@ class Query {
 	get sortBy(): number { return this.state.sortBy; }
 	get sortOrder(): number { return this.state.sortOrder; }
 	get flags(): number { return this.state.flags; }
+	get criteria(): ICriterium[] { return this.state.criteria; }
 
 	withPage(pageNumber: number, pageSize: number = this.state.pageSize): Query {
 		return new Query({ ...this.state, pageNumber, pageSize });
@@ -504,6 +506,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		repository: getRepositoryAsset(version),
 		download: getDownloadAsset(version),
 		icon: getVersionAsset(version, AssetType.Icon),
+		signature: getVersionAsset(version, AssetType.Signature),
 		coreTranslations: getCoreTranslationAssets(version)
 	};
 
@@ -541,6 +544,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		hasPreReleaseVersion: isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
 		preview: getIsPreview(galleryExtension.flags),
+		isSigned: !!assets.signature
 	};
 }
 
@@ -559,6 +563,7 @@ interface IRawExtensionsControlManifest {
 			displayName: string;
 		};
 		settings?: string[];
+		additionalInfo?: string;
 	}>;
 }
 
@@ -566,8 +571,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 	declare readonly _serviceBrand: undefined;
 
-	private extensionsGalleryUrl: string | undefined;
-	private extensionsControlUrl: string | undefined;
+	private readonly extensionsGalleryUrl: string | undefined;
+	private readonly extensionsGallerySearchUrl: string | undefined;
+	private readonly extensionsControlUrl: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string }>;
 
@@ -582,8 +588,10 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		const config = productService.extensionsGallery;
-		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.extensionsControlUrl = config && config.controlUrl;
+		const isPPEEnabled = config?.servicePPEUrl && configurationService.getValue('_extensionsGallery.enablePPE');
+		this.extensionsGalleryUrl = isPPEEnabled ? config.servicePPEUrl : config?.serviceUrl;
+		this.extensionsGallerySearchUrl = isPPEEnabled ? undefined : config?.searchUrl;
+		this.extensionsControlUrl = config?.controlUrl;
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
 			productService,
@@ -710,10 +718,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	}
 
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
-		if (!this.isEnabled()) {
-			throw new Error('No extension gallery service configured.');
-		}
-
 		let text = options.text || '';
 		const pageSize = options.pageSize ?? 50;
 
@@ -944,7 +948,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		try {
 			context = await this.requestService.request({
 				type: 'POST',
-				url: this.api('/extensionquery'),
+				url: this.extensionsGallerySearchUrl && query.criteria.some(c => c.filterType === FilterType.SearchText) ? this.extensionsGallerySearchUrl : this.api('/extensionquery'),
 				data,
 				headers
 			}, token);
@@ -1026,6 +1030,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const context = await this.getAsset(downloadAsset);
 		await this.fileService.writeFile(location, context.stream);
 		log(new Date().getTime() - startTime);
+	}
+
+	async downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void> {
+		if (!extension.assets.signature) {
+			throw new Error('No signature asset found');
+		}
+
+		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
+
+		const context = await this.getAsset(extension.assets.signature);
+		await this.fileService.writeFile(location, context.stream);
 	}
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {

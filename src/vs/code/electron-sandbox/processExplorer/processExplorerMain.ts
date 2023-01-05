@@ -23,9 +23,11 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
-const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
-const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
+const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
+const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
 
 class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
@@ -257,6 +259,7 @@ class ProcessExplorer {
 				await this.createProcessTree(processRoots);
 			} else {
 				this.tree.setInput({ processes: { processRoots } });
+				this.tree.layout(window.innerHeight, window.innerWidth);
 			}
 
 			this.requestProcessList(0);
@@ -332,21 +335,35 @@ class ProcessExplorer {
 
 						return 'header';
 					}
-				},
+				}
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
 		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.onKeyDown(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.KeyE && event.altKey) {
+				const selectionPids = this.getSelectedPids();
+				void Promise.all(selectionPids.map((pid) => this.nativeHostService.killProcess(pid, 'SIGTERM'))).then(() => this.tree?.refresh());
+			}
+		});
 		this.tree.onContextMenu(e => {
 			if (isProcessItem(e.element)) {
 				this.showContextMenu(e.element, true);
 			}
 		});
+
+		container.style.height = `${window.innerHeight}px`;
+
+		window.addEventListener('resize', () => {
+			container.style.height = `${window.innerHeight}px`;
+			this.tree?.layout(window.innerHeight, window.innerWidth);
+		});
 	}
 
 	private isDebuggable(cmd: string): boolean {
 		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
-		return (matches && matches.length >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
+		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
 	private attachTo(item: ProcessItem) {
@@ -357,12 +374,8 @@ class ProcessExplorer {
 		};
 
 		let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
-		if (matches && matches.length >= 2) {
-			// attach via port
-			if (matches.length === 4 && matches[3]) {
-				config.port = parseInt(matches[3]);
-			}
-			config.protocol = matches[1] === 'debug' ? 'legacy' : 'inspector';
+		if (matches) {
+			config.port = Number(matches.groups!.port);
 		} else {
 			// no port -> try to attach via pid (send SIGUSR1)
 			config.processId = String(item.pid);
@@ -370,9 +383,9 @@ class ProcessExplorer {
 
 		// a debug-port=n or inspect-port=n overrides the port
 		matches = DEBUG_PORT_PATTERN.exec(item.cmd);
-		if (matches && matches.length === 3) {
+		if (matches) {
 			// override port
-			config.port = parseInt(matches[2]);
+			config.port = Number(matches.groups!.port);
 		}
 
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
@@ -416,6 +429,47 @@ class ProcessExplorer {
 			content.push(`.monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
+		// Scrollbars
+		if (styles.scrollbarShadowColor) {
+			content.push(`
+				.monaco-scrollable-element > .shadow.top {
+					box-shadow: ${styles.scrollbarShadowColor} 0 6px 6px -6px inset;
+				}
+
+				.monaco-scrollable-element > .shadow.left {
+					box-shadow: ${styles.scrollbarShadowColor} 6px 0 6px -6px inset;
+				}
+
+				.monaco-scrollable-element > .shadow.top.left {
+					box-shadow: ${styles.scrollbarShadowColor} 6px 6px 6px -6px inset;
+				}
+			`);
+		}
+
+		if (styles.scrollbarSliderBackgroundColor) {
+			content.push(`
+				.monaco-scrollable-element > .scrollbar > .slider {
+					background: ${styles.scrollbarSliderBackgroundColor};
+				}
+			`);
+		}
+
+		if (styles.scrollbarSliderHoverBackgroundColor) {
+			content.push(`
+				.monaco-scrollable-element > .scrollbar > .slider:hover {
+					background: ${styles.scrollbarSliderHoverBackgroundColor};
+				}
+			`);
+		}
+
+		if (styles.scrollbarSliderActiveBackgroundColor) {
+			content.push(`
+				.monaco-scrollable-element > .scrollbar > .slider.active {
+					background: ${styles.scrollbarSliderActiveBackgroundColor};
+				}
+			`);
+		}
+
 		styleElement.textContent = content.join('\n');
 
 		if (styles.color) {
@@ -451,12 +505,7 @@ class ProcessExplorer {
 			label: localize('copy', "Copy"),
 			click: () => {
 				// Collect the selected pids
-				const selectionPids = this.tree?.getSelection()?.map(e => {
-					if (!e || !('pid' in e)) {
-						return undefined;
-					}
-					return e.pid;
-				}).filter(e => !!e) as number[];
+				const selectionPids = this.getSelectedPids();
 				// If the selection does not contain the right clicked item, copy the right clicked
 				// item only.
 				if (!selectionPids?.includes(pid)) {
@@ -511,6 +560,15 @@ class ProcessExplorer {
 				this.requestProcessList(waited);
 			}
 		}, 200);
+	}
+
+	private getSelectedPids() {
+		return this.tree?.getSelection()?.map(e => {
+			if (!e || !('pid' in e)) {
+				return undefined;
+			}
+			return e.pid;
+		}).filter(e => !!e) as number[];
 	}
 }
 

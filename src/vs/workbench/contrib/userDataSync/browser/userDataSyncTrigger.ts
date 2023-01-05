@@ -65,4 +65,3 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 		return undefined;
 	}
 }
-
