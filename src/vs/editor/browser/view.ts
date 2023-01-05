@@ -215,6 +215,7 @@ export class View extends ViewEventHandler {
 
 		if (overflowWidgetsDomNode) {
 			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
+			overflowWidgetsDomNode.appendChild(this._overlayWidgets.getDomNode().domNode);
 		} else {
 			this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
 		}

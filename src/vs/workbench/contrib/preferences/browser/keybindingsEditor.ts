@@ -98,6 +98,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private readonly recordKeysAction: Action;
 
 	private ariaLabelElement!: HTMLElement;
+	readonly overflowWidgetsDomNode: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -126,6 +127,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 		this.sortByPrecedenceAction = new Action(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, localize('sortByPrecedeneLabel', "Sort by Precedence (Highest first)"), ThemeIcon.asClassName(keybindingsSortIcon));
 		this.sortByPrecedenceAction.checked = false;
+		this.overflowWidgetsDomNode = $('.keybindings-overflow-widgets-container.monaco-editor');
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -506,6 +508,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				this.defineKeybinding(activeKeybindingEntry, false);
 			}
 		}));
+
+		DOM.append(this.keybindingsTableContainer, this.overflowWidgetsDomNode);
 	}
 
 	private async render(preserveFocus: boolean): Promise<void> {
@@ -1064,14 +1068,14 @@ class WhenInputWidget extends Disposable {
 				return result;
 			},
 			triggerCharacters: ['!'],
-		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey }));
+		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey, overflowWidgetsDomNode: keybindingsEditor.overflowWidgetsDomNode }));
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.input, themeService, {}));
 		this._register((DOM.addDisposableListener(this.input.element, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
 		this._register(toDisposable(() => focusContextKey.reset()));
 
-		this._register(Event.any(keybindingsEditor.onAcceptWhenExpression, this.input.onDidBlur)(() => this._onDidAccept.fire(this.input.getValue())));
-		this._register(keybindingsEditor.onRejectWhenExpression(() => this._onDidReject.fire()));
+		this._register(keybindingsEditor.onAcceptWhenExpression(() => this._onDidAccept.fire(this.input.getValue())));
+		this._register(Event.any(keybindingsEditor.onRejectWhenExpression, this.input.onDidBlur)(() => this._onDidReject.fire()));
 	}
 
 	layout(dimension: DOM.Dimension): void {

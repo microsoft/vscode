@@ -40,6 +40,7 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 
 export interface SuggestResultsProvider {
 	/**
@@ -72,12 +73,22 @@ interface SuggestEnabledInputOptions {
 	 * Defaults to the empty string.
 	 */
 	placeholderText?: string;
+
+	/**
+	 * Initial value to be shown
+	 */
 	value?: string;
 
 	/**
 	 * Context key tracking the focus state of this element
 	 */
 	focusContextKey?: IContextKey<boolean>;
+
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
 }
 
 export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
@@ -138,9 +149,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.element = parent;
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
-		const editorOptions: IEditorOptions = mixin(
+		const editorOptions: IEditorConstructionOptions = mixin(
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
+		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
