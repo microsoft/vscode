@@ -485,6 +485,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
+				transformOptimization: false // disable transform optimization as it causes the editor overflow widgets to be mispositioned
 			}
 		)) as WorkbenchTable<IKeybindingItemEntry>;
 
