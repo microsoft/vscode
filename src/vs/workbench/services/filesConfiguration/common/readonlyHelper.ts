@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { match as matchGlobPattern } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class ReadonlyHelper extends Disposable {
@@ -38,8 +38,25 @@ export class ReadonlyHelper extends Disposable {
 		if (event.affectsConfiguration('files.readonlyInclude') ||
 			event.affectsConfiguration('files.readonlyExclude')) {
 			this.setGlobReadonly();
+		} else if (event.affectsConfiguration('files.readonlyPath')) {
+			const readonlyPath = this.configurationService.getValue<{ [glob: string]: boolean | null | 'toggle' }>('files.readonlyPath');
+			if (readonlyPath !== undefined) {
+				const pathValue = readonlyPath[this.resource.path];
+				if (pathValue !== undefined) {
+					if (pathValue === 'toggle') {
+						// must modify settings, so subsequent 'toggle' will be seen as a change:
+						this.pathReadonly = readonlyPath[this.resource.path] = !this.oldReadonly;
+						this.configurationService.updateValue('files.readonlyPath', readonlyPath, ConfigurationTarget.USER);
+					} else {
+						this.pathReadonly = pathValue;
+					}
+				}
+			}
 		}
 	}
+
+	// tri-state: true | false overrides globReadonly; null does not.
+	private pathReadonly: boolean | null = null;
 
 	// stable/semantic 'readonly' [nonEditable]; typically based on filetype or directory.
 	private globReadonly: boolean = false;
@@ -56,10 +73,11 @@ export class ReadonlyHelper extends Disposable {
 	}
 
 	/** return true if associated resource is treated as nonEditable. */
-	public isReadonly(): boolean {
+	isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
-			this.globReadonly ||
-			this.lastResolvedFileStat?.readonly ||
-			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
+			this.pathReadonly !== null ? this.pathReadonly :
+				this.globReadonly ||
+				this.lastResolvedFileStat?.readonly ||
+				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
 }
