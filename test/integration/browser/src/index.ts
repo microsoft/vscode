@@ -35,11 +35,6 @@ type BrowserType = 'chromium' | 'firefox' | 'webkit';
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const context = await browser.newContext();
-	try {
-		await context.grantPermissions([`clipboard-read`, `clipboard-write`]); // some tests need clipboard access
-	} catch (error) {
-		// ignore, seems to fail on Windows
-	}
 
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
