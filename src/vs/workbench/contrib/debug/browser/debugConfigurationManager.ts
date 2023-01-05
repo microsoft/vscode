@@ -119,34 +119,25 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
-		// activate debuggers early for the provided type in case any '*' typed debug configuration providers are activated
-		// based on the provided type.
-		await this.adapterManager.activateDebuggers('onDebugResolve', type);
-		const anyTypeProviders = this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration);
-
 		const resolveDebugConfigurationForType = async (type: string | undefined, config: IConfig | null | undefined) => {
-			await this.adapterManager.activateDebuggers('onDebugResolve', type);
-			// pipe the config through the promises sequentially. Append at the end the '*' types
-			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
-				.concat(anyTypeProviders);
+			if (type !== '*') {
+				await this.adapterManager.activateDebuggers('onDebugResolve', type);
+			}
 
-			let result: IConfig | null | undefined = config;
-			await sequence(providers.map(provider => async () => {
-				// If any provider returned undefined or null make sure to respect that and do not pass the result to more resolver
-				if (result) {
-					result = await provider.resolveDebugConfiguration!(folderUri, result, token);
+			for (const p of this.configProviders) {
+				if (p.type === type && p.resolveDebugConfiguration && config) {
+					config = await p.resolveDebugConfiguration(folderUri, config, token);
 				}
-			}));
-			return result;
+			}
+
+			return config;
 		};
 
-		let result = await resolveDebugConfigurationForType(type, config);
-		const seenTypes = new Set<string | undefined>().add(type);
-
-		while (result && !seenTypes.has(result.type)) {
-			seenTypes.add(result.type);
-
+		let result: IConfig | null | undefined = config;
+		for (let seen = new Set(); result && !seen.has(result.type);) {
+			seen.add(result?.type);
 			result = await resolveDebugConfigurationForType(result.type, result);
+			result = await resolveDebugConfigurationForType('*', result);
 		}
 
 		return result;
