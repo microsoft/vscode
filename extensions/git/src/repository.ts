@@ -1378,6 +1378,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
 	}
 
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		return await this.run(Operation.GetRefs, () => this.repository.getRefs(opts));
+	}
+
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
 		return await this.run(Operation.GetRemoteRefs, () => this.repository.getRemoteRefs(remote, opts));
 	}

@@ -31,6 +31,7 @@ export const enum OperationKind {
 	GetBranches = 'GetBranches',
 	GetCommitTemplate = 'GetCommitTemplate',
 	GetObjectDetails = 'GetObjectDetails',
+	GetRefs = 'GetRefs',
 	GetRemoteRefs = 'GetRemoteRefs',
 	HashObject = 'HashObject',
 	Ignore = 'Ignore',
@@ -65,11 +66,11 @@ export const enum OperationKind {
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
 	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation |
 	DeleteRefOperation | DeleteRemoteTagOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
-	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRemoteRefsOperation | HashObjectOperation |
-	IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation | MoveOperation |
-	PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation | ResetOperation |
-	RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation | ShowOperation |
-	StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
+	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
+	MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation |
+	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation |
+	ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -94,6 +95,7 @@ export type GetBranchOperation = BaseOperation & { kind: OperationKind.GetBranch
 export type GetBranchesOperation = BaseOperation & { kind: OperationKind.GetBranches };
 export type GetCommitTemplateOperation = BaseOperation & { kind: OperationKind.GetCommitTemplate };
 export type GetObjectDetailsOperation = BaseOperation & { kind: OperationKind.GetObjectDetails };
+export type GetRefsOperation = BaseOperation & { kind: OperationKind.GetRefs };
 export type GetRemoteRefsOperation = BaseOperation & { kind: OperationKind.GetRemoteRefs };
 export type HashObjectOperation = BaseOperation & { kind: OperationKind.HashObject };
 export type IgnoreOperation = BaseOperation & { kind: OperationKind.Ignore };
@@ -146,6 +148,7 @@ export const Operation = {
 	GetBranches: { kind: OperationKind.GetBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchesOperation,
 	GetCommitTemplate: { kind: OperationKind.GetCommitTemplate, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetCommitTemplateOperation,
 	GetObjectDetails: { kind: OperationKind.GetObjectDetails, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
+	GetRefs: { kind: OperationKind.GetRefs, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetRefsOperation,
 	GetRemoteRefs: { kind: OperationKind.GetRemoteRefs, blocking: false, readOnly: true, remote: true, retry: false, showProgress: false } as GetRemoteRefsOperation,
 	HashObject: { kind: OperationKind.HashObject, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
 	Ignore: { kind: OperationKind.Ignore, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,
