@@ -274,7 +274,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: ManageProfilesSubMenu,
 							group: '2_manage_current',
 							when: PROFILES_ENABLEMENT_CONTEXT,
-							order: 1
+							order: 3
 						}, {
 							id: MenuId.CommandPalette
 						}
