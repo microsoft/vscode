@@ -21,6 +21,7 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo:339:12', suffix: ':339:12', hasRow: true, hasCol: true },
 	{ link: 'foo 339', suffix: ' 339', hasRow: true, hasCol: false },
 	{ link: 'foo 339:12', suffix: ' 339:12', hasRow: true, hasCol: true },
+
 	{ link: '"foo",339', suffix: '",339', hasRow: true, hasCol: false },
 	{ link: '"foo",339:12', suffix: '",339:12', hasRow: true, hasCol: true },
 	{ link: '"foo", line 339', suffix: '", line 339', hasRow: true, hasCol: false },
@@ -35,15 +36,38 @@ const testLinks: ITestLink[] = [
 	{ link: '"foo" on line 339', suffix: '" on line 339', hasRow: true, hasCol: false },
 	{ link: '"foo" on line 339, col 12', suffix: '" on line 339, col 12', hasRow: true, hasCol: true },
 	{ link: '"foo" on line 339, column 12', suffix: '" on line 339, column 12', hasRow: true, hasCol: true },
+
+	{ link: '\'foo\',339', suffix: '\',339', hasRow: true, hasCol: false },
+	{ link: '\'foo\',339:12', suffix: '\',339:12', hasRow: true, hasCol: true },
+	{ link: '\'foo\', line 339', suffix: '\', line 339', hasRow: true, hasCol: false },
+	{ link: '\'foo\', line 339, col 12', suffix: '\', line 339, col 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\', line 339, column 12', suffix: '\', line 339, column 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\':line 339', suffix: '\':line 339', hasRow: true, hasCol: false },
+	{ link: '\'foo\':line 339, col 12', suffix: '\':line 339, col 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\':line 339, column 12', suffix: '\':line 339, column 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\': line 339', suffix: '\': line 339', hasRow: true, hasCol: false },
+	{ link: '\'foo\': line 339, col 12', suffix: '\': line 339, col 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\': line 339, column 12', suffix: '\': line 339, column 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\' on line 339', suffix: '\' on line 339', hasRow: true, hasCol: false },
+	{ link: '\'foo\' on line 339, col 12', suffix: '\' on line 339, col 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\' on line 339, column 12', suffix: '\' on line 339, column 12', hasRow: true, hasCol: true },
+
 	{ link: 'foo(339)', suffix: '(339)', hasRow: true, hasCol: false },
 	{ link: 'foo(339,12)', suffix: '(339,12)', hasRow: true, hasCol: true },
 	{ link: 'foo(339, 12)', suffix: '(339, 12)', hasRow: true, hasCol: true },
 	{ link: 'foo (339)', suffix: ' (339)', hasRow: true, hasCol: false },
 	{ link: 'foo (339,12)', suffix: ' (339,12)', hasRow: true, hasCol: true },
 	{ link: 'foo (339, 12)', suffix: ' (339, 12)', hasRow: true, hasCol: true },
+
+	{ link: 'foo[339]', suffix: '[339]', hasRow: true, hasCol: false },
+	{ link: 'foo[339,12]', suffix: '[339,12]', hasRow: true, hasCol: true },
+	{ link: 'foo[339, 12]', suffix: '[339, 12]', hasRow: true, hasCol: true },
+	{ link: 'foo [339]', suffix: ' [339]', hasRow: true, hasCol: false },
+	{ link: 'foo [339,12]', suffix: ' [339,12]', hasRow: true, hasCol: true },
+	{ link: 'foo [339, 12]', suffix: ' [339, 12]', hasRow: true, hasCol: true },
 ];
 
-suite('TerminalLinkParsing', () => {
+suite.only('TerminalLinkParsing', () => {
 	suite('removeLinkSuffix', () => {
 		for (const testLink of testLinks) {
 			test('`' + testLink.link + '`', () => {
