@@ -24,5 +24,5 @@ export interface IQuickDiffService {
 	readonly _serviceBrand: undefined;
 
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
-	getQuickDiffs(uri: URI): Promise<QuickDiff[] | undefined>;
+	getQuickDiffs(uri: URI): Promise<QuickDiff[]>;
 }

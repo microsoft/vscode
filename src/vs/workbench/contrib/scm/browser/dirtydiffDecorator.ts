@@ -1070,7 +1070,7 @@ function compareChanges(a: IChange, b: IChange): number {
 
 export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI): Promise<URI | null> {
 	const quickDiffs = await quickDiffService.getQuickDiffs(uri);
-	return quickDiffs ? quickDiffs[0].originalResource : null;
+	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }
 
 export class DirtyDiffModel extends Disposable {

@@ -51,7 +51,7 @@ export class QuickDiffService implements IQuickDiffService {
 		return !!diff.originalResource;
 	}
 
-	async getQuickDiffs(uri: URI): Promise<QuickDiff[] | undefined> {
+	async getQuickDiffs(uri: URI): Promise<QuickDiff[]> {
 		const sorted = Array.from(this.quickDiffProviders).sort(createProviderComparer(uri));
 
 		const diffs = await Promise.all(Array.from(sorted.values()).map(async (provider) => {
