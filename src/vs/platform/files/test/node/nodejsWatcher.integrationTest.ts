@@ -64,6 +64,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 	setup(async () => {
 		watcher = new TestNodeJSWatcher();
+		watcher?.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {

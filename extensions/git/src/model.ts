@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Operation, Repository, RepositoryState } from './repository';
+import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -18,6 +18,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { OperationKind } from './operation';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -529,21 +530,26 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		});
 		checkForSubmodules();
 
-		const updateCommitInProgressContext = () => {
+		const updateOperationInProgressContext = () => {
 			let commitInProgress = false;
+			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(Operation.Commit)) {
+				if (repository.operations.isRunning(OperationKind.Commit)) {
 					commitInProgress = true;
-					break;
+				}
+
+				if (repository.operations.shouldDisableCommands()) {
+					operationInProgress = true;
 				}
 			}
 
 			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
 		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
-		const operationListener = operationEvent(() => updateCommitInProgressContext());
-		updateCommitInProgressContext();
+		const operationListener = operationEvent(() => updateOperationInProgressContext());
+		updateOperationInProgressContext();
 
 		const dispose = () => {
 			disappearListener.dispose();

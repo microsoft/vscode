@@ -5,7 +5,7 @@
 
 import { $ } from 'vs/base/browser/dom';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';

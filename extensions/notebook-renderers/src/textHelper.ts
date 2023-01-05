@@ -31,13 +31,13 @@ function generateViewMoreElement(outputId: string, adjustableSize: boolean) {
 	return container;
 }
 
-function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement) {
+function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement, trustHtml: boolean) {
 	const lineCount = buffer.length;
 	container.appendChild(generateViewMoreElement(id, true));
 
 	const div = document.createElement('div');
 	container.appendChild(div);
-	div.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n')));
+	div.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
 
 	// view more ...
 	const viewMoreSpan = document.createElement('span');
@@ -46,10 +46,10 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 
 	const div2 = document.createElement('div');
 	container.appendChild(div2);
-	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n')));
+	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
 }
 
-function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement) {
+function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement, trustHtml: boolean) {
 	container.classList.add('scrollable');
 
 	if (buffer.length > 5000) {
@@ -57,22 +57,22 @@ function scrollableArrayOfString(id: string, buffer: string[], container: HTMLEl
 	}
 	const div = document.createElement('div');
 	container.appendChild(div);
-	div.appendChild(handleANSIOutput(buffer.slice(0, 5000).join('\n')));
+	div.appendChild(handleANSIOutput(buffer.slice(0, 5000).join('\n'), trustHtml));
 }
 
-export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, container: HTMLElement) {
+export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, container: HTMLElement, trustHtml: boolean) {
 	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
 	const lineCount = buffer.length;
 
 	if (lineCount < linesLimit) {
-		const spanElement = handleANSIOutput(buffer.join('\n'));
+		const spanElement = handleANSIOutput(buffer.join('\n'), trustHtml);
 		container.appendChild(spanElement);
 		return;
 	}
 
 	if (scrollable) {
-		scrollableArrayOfString(id, buffer, container);
+		scrollableArrayOfString(id, buffer, container, trustHtml);
 	} else {
-		truncatedArrayOfString(id, buffer, linesLimit, container);
+		truncatedArrayOfString(id, buffer, linesLimit, container, trustHtml);
 	}
 }

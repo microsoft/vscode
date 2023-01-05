@@ -12,19 +12,16 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): TerminalQuickFix[] | TerminalQuickFix | undefined;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<(TerminalQuickFixCommand | TerminalQuickFixOpener)[] | TerminalQuickFixCommand | TerminalQuickFixOpener>;
 	}
 
-	interface TerminalQuickFix {
-		type: TerminalQuickFixType;
-	}
 
 	export interface TerminalCommandMatchResult {
 		commandLine: string;
 		commandLineMatch: RegExpMatchArray;
 		outputMatch?: {
 			regexMatch: RegExpMatchArray;
-			outputLines?: string[];
+			outputLines: string[];
 		};
 	}
 
@@ -36,13 +33,19 @@ declare module 'vscode' {
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export interface TerminalQuickFixCommandAction extends TerminalQuickFix {
-		type: TerminalQuickFixType.command;
+	export class TerminalQuickFixCommand {
+		/**
+		 * The terminal command to run
+		 */
 		terminalCommand: string;
+		constructor(terminalCommand: string);
 	}
-	export interface TerminalQuickFixOpenerAction extends TerminalQuickFix {
-		type: TerminalQuickFixType.opener;
+	export class TerminalQuickFixOpener {
+		/**
+		 * The uri to open
+		 */
 		uri: Uri;
+		constructor(uri: Uri);
 	}
 
 	/**
@@ -67,21 +70,15 @@ declare module 'vscode' {
 		 * reasons. This is capped at 40.
 		 */
 		length: number;
-
-		/**
-		 * If multiple matches are expected - this will result in {@link outputLines} being returned
-		 * when there's a {@link regexMatch} from {@link offset} to {@link length}
-		 */
-		multipleMatches?: boolean;
 	}
 
 	enum TerminalOutputAnchor {
-		top = 'top',
-		bottom = 'bottom'
+		Top = 0,
+		Bottom = 1
 	}
 
 	enum TerminalQuickFixType {
-		command = 'command',
-		opener = 'opener'
+		Command = 0,
+		Opener = 1
 	}
 }

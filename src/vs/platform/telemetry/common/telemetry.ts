@@ -79,6 +79,7 @@ export const machineIdKey = 'telemetry.machineId';
 // Configuration Keys
 export const TELEMETRY_SECTION_ID = 'telemetry';
 export const TELEMETRY_SETTING_ID = 'telemetry.telemetryLevel';
+export const TELEMETRY_CRASH_REPORTER_SETTING_ID = 'telemetry.enableCrashReporter';
 export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
 
 export const enum TelemetryLevel {

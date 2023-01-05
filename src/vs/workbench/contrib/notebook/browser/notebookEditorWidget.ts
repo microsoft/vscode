@@ -9,6 +9,9 @@ import 'vs/css!./media/notebookCellStatusBar';
 import 'vs/css!./media/notebookCellTitleToolbar';
 import 'vs/css!./media/notebookFocusIndicator';
 import 'vs/css!./media/notebookToolbar';
+import 'vs/css!./media/notebookDnd';
+import 'vs/css!./media/notebookFolding';
+import 'vs/css!./media/notebookCellOutput';
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -96,7 +99,8 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
-		'store.contrib.stickyScrollController'
+		'store.contrib.stickyScrollController',
+		'editor.contrib.findController'
 	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
@@ -189,10 +193,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _scrollBeyondLastLine: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
-	private _isVisible = false;
 	private readonly _uuid = generateUuid();
 	private _focusTracker!: DOM.IFocusTracker;
 	private _webviewFocused: boolean = false;
+	private _isVisible = false;
+	get isVisible() {
+		return this._isVisible;
+	}
 
 	private _isDisposed: boolean = false;
 
@@ -1650,6 +1657,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (!state) {
 			return {
 				editingCells: {},
+				cellLineNumberStates: {},
 				editorViewStates: {},
 				collapsedInputCells: {},
 				collapsedOutputCells: {},
@@ -1661,11 +1669,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const cellHeights: { [key: number]: number } = {};
 			for (let i = 0; i < this.viewModel!.length; i++) {
 				const elm = this.viewModel!.cellAt(i) as CellViewModel;
-				if (elm.cellKind === CellKind.Code) {
-					cellHeights[i] = elm.layoutInfo.totalHeight;
-				} else {
-					cellHeights[i] = elm.layoutInfo.totalHeight;
-				}
+				cellHeights[i] = elm.layoutInfo.totalHeight;
 			}
 
 			state.cellTotalHeights = cellHeights;
@@ -2119,6 +2123,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			if (!this.hasEditorFocus()) {
+				const cellIndex = this.viewModel?.getCellIndex(cell);
+				const visibleRanges = this.visibleRanges;
+				if (cellIndex !== undefined
+					&& visibleRanges && visibleRanges.length && visibleRanges[0].start === cellIndex
+					// cell is partially visible
+					&& this._list.scrollTop > this.getAbsoluteTopOfElement(cell)
+				) {
+					return this._list.updateElementHeight2(cell, height, Math.min(cellIndex + 1, this.getLength() - 1));
+				}
+			}
+
 			this._list.updateElementHeight2(cell, height);
 		};
 
@@ -2514,7 +2530,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		if (!this.viewModel) {
+		if (!this.viewModel || !this._list.viewModel) {
 			return;
 		}
 

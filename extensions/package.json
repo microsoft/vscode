@@ -10,7 +10,7 @@
     "postinstall": "node ./postinstall.mjs"
   },
   "devDependencies": {
-    "@parcel/watcher": "2.0.7",
+    "@parcel/watcher": "2.1.0",
     "esbuild": "^0.15.14",
     "vscode-grammar-updater": "^1.1.0"
   }

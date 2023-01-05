@@ -9,21 +9,16 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalAction } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
-
-export const enum TerminalQuickFixType {
-	Command = 'command',
-	Opener = 'opener',
-	Port = 'port'
-}
 
 export class TerminalQuickFix implements IActionItem {
 	action: ITerminalAction;
-	type: string;
+	type: TerminalQuickFixType;
 	disabled?: boolean;
 	title?: string;
 	source: string;
-	constructor(action: ITerminalAction, type: string, source: string, title?: string, disabled?: boolean) {
+	constructor(action: ITerminalAction, type: TerminalQuickFixType, source: string, title?: string, disabled?: boolean) {
 		this.action = action;
 		this.disabled = disabled;
 		this.title = title;
@@ -72,5 +67,4 @@ function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
 		case TerminalQuickFixType.Port:
 			return { codicon: Codicon.debugDisconnect };
 	}
-	return { codicon: Codicon.lightBulb };
 }
