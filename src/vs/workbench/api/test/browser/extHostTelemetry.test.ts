@@ -13,7 +13,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { IEnvironment } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import type { TelemetryAppender } from 'vscode';
+import type { TelemetrySender } from 'vscode';
 
 interface TelemetryLoggerSpy {
 	dataArr: any[];
@@ -75,11 +75,11 @@ suite('ExtHostTelemetry', function () {
 	const createLogger = (functionSpy: TelemetryLoggerSpy, extHostTelemetry?: ExtHostTelemetry) => {
 		const extensionTelemetry = extHostTelemetry ?? createExtHostTelemetry();
 		// This is the appender which the extension would contribute
-		const appender: TelemetryAppender = {
-			logEvent: (eventName: string, data) => {
+		const appender: TelemetrySender = {
+			sendEventData: (eventName: string, data) => {
 				functionSpy.dataArr.push({ eventName, data });
 			},
-			logError: (exception, data) => {
+			sendErrorData: (exception, data) => {
 				functionSpy.exceptionArr.push({ exception, data });
 			},
 			flush: () => {

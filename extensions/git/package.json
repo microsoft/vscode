@@ -421,6 +421,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.deleteRemoteTag",
+        "title": "%command.deleteRemoteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.fetch",
         "title": "%command.fetch%",
         "category": "Git",
@@ -984,6 +990,10 @@
         },
         {
           "command": "git.deleteTag",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteRemoteTag",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1929,6 +1939,10 @@
         {
           "command": "git.deleteTag",
           "group": "tags@2"
+        },
+        {
+          "command": "git.deleteRemoteTag",
+          "group": "tags@3"
         }
       ]
     },
@@ -2846,7 +2860,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "0.7.3-preview",
+    "@vscode/extension-telemetry": "0.7.4-preview",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",

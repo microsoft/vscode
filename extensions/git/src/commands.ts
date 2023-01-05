@@ -36,7 +36,8 @@ class CheckoutItem implements QuickPickItem {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
-		await this.repository.checkout(this.ref.name, { ...opts, pullBeforeCheckout });
+		const treeish = opts?.detached ? this.ref.commit ?? this.ref.name : this.ref.name;
+		await this.repository.checkout(treeish, { ...opts, pullBeforeCheckout });
 	}
 }
 
@@ -69,7 +70,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		}
 
 		if (opts?.detached) {
-			await this.repository.checkout(this.ref.name, opts);
+			await this.repository.checkout(this.ref.commit ?? this.ref.name, opts);
 			return;
 		}
 
@@ -249,7 +250,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	return { merge, resolved, unresolved, deletionConflicts };
 }
 
-function createCheckoutItems(repository: Repository): CheckoutItem[] {
+function createCheckoutItems(repository: Repository, detached = false): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
 	let checkoutTypes: string[];
@@ -260,6 +261,11 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 		checkoutTypes = [checkoutTypeConfig];
 	} else {
 		checkoutTypes = checkoutTypeConfig;
+	}
+
+	if (detached) {
+		// Remove tags when in detached mode
+		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
 	}
 
 	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
@@ -306,7 +312,7 @@ function sanitizeRemoteName(name: string) {
 }
 
 class TagItem implements QuickPickItem {
-	get label(): string { return this.ref.name ?? ''; }
+	get label(): string { return `$(tag) ${this.ref.name ?? ''}`; }
 	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
 	constructor(readonly ref: Ref) { }
 }
@@ -2019,12 +2025,12 @@ export class CommandCenter {
 			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
-		picks.push(...createCheckoutItems(repository));
+		picks.push(...createCheckoutItems(repository, opts?.detached));
 
 		const quickpick = window.createQuickPick();
 		quickpick.items = picks;
 		quickpick.placeholder = opts?.detached
-			? l10n.t('Select a branch or tag to checkout in detached mode')
+			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickpick.show();
@@ -2356,22 +2362,53 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
-		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
-			.map(ref => new TagItem(ref));
-
-		if (picks.length === 0) {
-			window.showWarningMessage(l10n.t('This repository has no tags.'));
-			return;
-		}
+		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
+		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const choice = await window.showQuickPick<TagItem | QuickPickItem>(tagPicks(), { placeHolder });
 
-		if (!choice) {
+		if (choice && choice instanceof TagItem && choice.ref.name) {
+			await repository.deleteTag(choice.ref.name);
+		}
+	}
+
+	@command('git.deleteRemoteTag', { repository: true })
+	async deleteRemoteTag(repository: Repository): Promise<void> {
+		const remotePicks = repository.remotes
+			.filter(r => r.pushUrl !== undefined)
+			.map(r => new RemoteItem(repository, r));
+
+		if (remotePicks.length === 0) {
+			window.showErrorMessage(l10n.t("Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		await repository.deleteTag(choice.label);
+		let remoteName = remotePicks[0].remoteName;
+		if (remotePicks.length > 1) {
+			const remotePickPlaceholder = l10n.t('Select a remote to delete a tag from');
+			const remotePick = await window.showQuickPick(remotePicks, { placeHolder: remotePickPlaceholder });
+
+			if (!remotePick) {
+				return;
+			}
+
+			remoteName = remotePick.remoteName;
+		}
+
+		const remoteTagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
+			const remoteTags = await repository.getRemoteRefs(remoteName, { tags: true });
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
+		};
+
+		const tagPickPlaceholder = l10n.t('Select a tag to delete');
+		const remoteTagPick = await window.showQuickPick<TagItem | QuickPickItem>(remoteTagPicks(), { placeHolder: tagPickPlaceholder });
+
+		if (remoteTagPick && remoteTagPick instanceof TagItem && remoteTagPick.ref.name) {
+			await repository.deleteRemoteTag(remoteName, remoteTagPick.ref.name);
+		}
 	}
 
 	@command('git.fetch', { repository: true })

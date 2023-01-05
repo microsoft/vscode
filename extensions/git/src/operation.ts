@@ -21,6 +21,7 @@ export const enum OperationKind {
 	Config = 'Config',
 	DeleteBranch = 'DeleteBranch',
 	DeleteRef = 'DeleteRef',
+	DeleteRemoteTag = 'DeleteRemoteTag',
 	DeleteTag = 'DeleteTag',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
@@ -30,6 +31,8 @@ export const enum OperationKind {
 	GetBranches = 'GetBranches',
 	GetCommitTemplate = 'GetCommitTemplate',
 	GetObjectDetails = 'GetObjectDetails',
+	GetRefs = 'GetRefs',
+	GetRemoteRefs = 'GetRemoteRefs',
 	HashObject = 'HashObject',
 	Ignore = 'Ignore',
 	Log = 'Log',
@@ -62,12 +65,12 @@ export const enum OperationKind {
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
 	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation |
-	DeleteRefOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation | GetBranchOperation |
-	GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | HashObjectOperation | IgnoreOperation | LogOperation |
-	LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation | MoveOperation | PostCommitCommandOperation |
-	PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation | ResetOperation | RebaseOperation |
-	RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation |
-	StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	DeleteRefOperation | DeleteRemoteTagOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
+	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
+	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
+	MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation |
+	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation |
+	ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -83,6 +86,7 @@ export type CommitOperation = BaseOperation & { kind: OperationKind.Commit };
 export type ConfigOperation = BaseOperation & { kind: OperationKind.Config };
 export type DeleteBranchOperation = BaseOperation & { kind: OperationKind.DeleteBranch };
 export type DeleteRefOperation = BaseOperation & { kind: OperationKind.DeleteRef };
+export type DeleteRemoteTagOperation = BaseOperation & { kind: OperationKind.DeleteRemoteTag };
 export type DeleteTagOperation = BaseOperation & { kind: OperationKind.DeleteTag };
 export type DiffOperation = BaseOperation & { kind: OperationKind.Diff };
 export type FetchOperation = BaseOperation & { kind: OperationKind.Fetch };
@@ -91,6 +95,8 @@ export type GetBranchOperation = BaseOperation & { kind: OperationKind.GetBranch
 export type GetBranchesOperation = BaseOperation & { kind: OperationKind.GetBranches };
 export type GetCommitTemplateOperation = BaseOperation & { kind: OperationKind.GetCommitTemplate };
 export type GetObjectDetailsOperation = BaseOperation & { kind: OperationKind.GetObjectDetails };
+export type GetRefsOperation = BaseOperation & { kind: OperationKind.GetRefs };
+export type GetRemoteRefsOperation = BaseOperation & { kind: OperationKind.GetRemoteRefs };
 export type HashObjectOperation = BaseOperation & { kind: OperationKind.HashObject };
 export type IgnoreOperation = BaseOperation & { kind: OperationKind.Ignore };
 export type LogOperation = BaseOperation & { kind: OperationKind.Log };
@@ -133,6 +139,7 @@ export const Operation = {
 	Config: { kind: OperationKind.Config, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ConfigOperation,
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
+	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
 	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as DiffOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
@@ -141,6 +148,8 @@ export const Operation = {
 	GetBranches: { kind: OperationKind.GetBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchesOperation,
 	GetCommitTemplate: { kind: OperationKind.GetCommitTemplate, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetCommitTemplateOperation,
 	GetObjectDetails: { kind: OperationKind.GetObjectDetails, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
+	GetRefs: { kind: OperationKind.GetRefs, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetRefsOperation,
+	GetRemoteRefs: { kind: OperationKind.GetRemoteRefs, blocking: false, readOnly: true, remote: true, retry: false, showProgress: false } as GetRemoteRefsOperation,
 	HashObject: { kind: OperationKind.HashObject, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
 	Ignore: { kind: OperationKind.Ignore, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,
 	Log: { kind: OperationKind.Log, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as LogOperation,

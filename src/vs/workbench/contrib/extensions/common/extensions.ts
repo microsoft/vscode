@@ -112,7 +112,7 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void;
 	isExtensionIgnoresUpdates(extension: IExtension): boolean;
-	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
+	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 

@@ -10,7 +10,7 @@ import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui
 import { DefaultStyleController, IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { ITableOptions, ITableOptionsUpdate, Table } from 'vs/base/browser/ui/table/tableWidget';
-import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
+import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides, TreeFindMatchType } from 'vs/base/browser/ui/tree/abstractTree';
 import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -147,6 +147,8 @@ const defaultFindModeSettingKey = 'workbench.list.defaultFindMode';
 const typeNavigationModeSettingKey = 'workbench.list.typeNavigationMode';
 /** @deprecated in favor of `workbench.list.defaultFindMode` and `workbench.list.typeNavigationMode` */
 const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
+const scrollByPageKey = 'workbench.list.scrollByPage';
+const defaultFindMatchTypeSettingKey = 'workbench.list.defaultFindMatchType';
 const treeIndentKey = 'workbench.tree.indent';
 const treeRenderIndentGuidesKey = 'workbench.tree.renderIndentGuides';
 const listSmoothScrolling = 'workbench.list.smoothScrolling';
@@ -206,6 +208,7 @@ function toWorkbenchListOptions<T>(
 		fastScrollSensitivity: configurationService.getValue<number>(fastScrollSensitivityKey),
 		multipleSelectionController: options.multipleSelectionController ?? disposables.add(new MultipleSelectionController(configurationService)),
 		keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(keybindingService),
+		scrollByPage: Boolean(configurationService.getValue(scrollByPageKey))
 	};
 
 	return [result, disposables];
@@ -308,6 +311,10 @@ export class WorkbenchList<T> extends List<T> {
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
 				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(scrollByPageKey)) {
+				const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+				options = { ...options, scrollByPage };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
 				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
@@ -433,6 +440,10 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
 				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(scrollByPageKey)) {
+				const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+				options = { ...options, scrollByPage };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
 				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
@@ -581,6 +592,10 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
 				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(scrollByPageKey)) {
+				const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+				options = { ...options, scrollByPage };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
 				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
@@ -1079,6 +1094,17 @@ function getDefaultTreeFindMode(configurationService: IConfigurationService) {
 	return undefined;
 }
 
+function getDefaultTreeFindMatchType(configurationService: IConfigurationService) {
+	const value = configurationService.getValue<'fuzzy' | 'contiguous'>(defaultFindMatchTypeSettingKey);
+
+	if (value === 'fuzzy') {
+		return TreeFindMatchType.Fuzzy;
+	} else if (value === 'contiguous') {
+		return TreeFindMatchType.Contiguous;
+	}
+	return undefined;
+}
+
 function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>>(
 	accessor: ServicesAccessor,
 	options: TOptions,
@@ -1132,7 +1158,9 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
 			smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
 			defaultFindMode: getDefaultTreeFindMode(configurationService),
+			defaultFindMatchType: getDefaultTreeFindMatchType(configurationService),
 			horizontalScrolling,
+			scrollByPage: Boolean(configurationService.getValue(scrollByPageKey)),
 			additionalScrollHeight,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
@@ -1261,14 +1289,24 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					newOptions = { ...newOptions, smoothScrolling };
 				}
 				if (e.affectsConfiguration(defaultFindModeSettingKey) || e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					tree.updateOptions({ defaultFindMode: getDefaultTreeFindMode(configurationService) });
+					const defaultFindMode = getDefaultTreeFindMode(configurationService);
+					newOptions = { ...newOptions, defaultFindMode };
 				}
 				if (e.affectsConfiguration(typeNavigationModeSettingKey) || e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					tree.updateOptions({ typeNavigationMode: getTypeNavigationMode() });
+					const typeNavigationMode = getTypeNavigationMode();
+					newOptions = { ...newOptions, typeNavigationMode };
+				}
+				if (e.affectsConfiguration(defaultFindMatchTypeSettingKey)) {
+					const defaultFindMatchType = getDefaultTreeFindMatchType(configurationService);
+					newOptions = { ...newOptions, defaultFindMatchType };
 				}
 				if (e.affectsConfiguration(horizontalScrollingKey) && options.horizontalScrolling === undefined) {
 					const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 					newOptions = { ...newOptions, horizontalScrolling };
+				}
+				if (e.affectsConfiguration(scrollByPageKey)) {
+					const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+					newOptions = { ...newOptions, scrollByPage };
 				}
 				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
 					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
@@ -1356,6 +1394,11 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench. Warning: turning on this setting has a performance implication.")
 		},
+		[scrollByPageKey]: {
+			type: 'boolean',
+			default: false,
+			description: localize('list.scrollByPage', "Controls whether clicks in the scrollbar scroll page by page.")
+		},
 		[treeIndentKey]: {
 			type: 'number',
 			default: 8,
@@ -1406,6 +1449,16 @@ configurationRegistry.registerConfiguration({
 			description: localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees in the workbench. Can be simple, highlight and filter."),
 			deprecated: true,
 			deprecationMessage: localize('keyboardNavigationSettingKeyDeprecated', "Please use 'workbench.list.defaultFindMode' and	'workbench.list.typeNavigationMode' instead.")
+		},
+		[defaultFindMatchTypeSettingKey]: {
+			type: 'string',
+			enum: ['fuzzy', 'contiguous'],
+			enumDescriptions: [
+				localize('defaultFindMatchTypeSettingKey.fuzzy', "Use fuzzy matching when searching."),
+				localize('defaultFindMatchTypeSettingKey.contiguous', "Use contiguous matching when searching.")
+			],
+			default: 'fuzzy',
+			description: localize('defaultFindMatchTypeSettingKey', "Controls the type of matching used when searching lists and trees in the workbench.")
 		},
 		[treeExpandMode]: {
 			type: 'string',

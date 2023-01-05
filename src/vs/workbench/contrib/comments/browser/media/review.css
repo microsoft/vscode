@@ -170,6 +170,7 @@
 .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
 	background-size: 16px;
+	font-size: 16px;
 	width: 26px;
 	height: 16px;
 	background-repeat: no-repeat;
@@ -500,7 +501,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: var(--vscode-editor-foreground);
+	color: var(--vscode-editorGutter-commentGlyphForground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;

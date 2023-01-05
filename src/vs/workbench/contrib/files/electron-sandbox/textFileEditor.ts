@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { FileOperationError, FileOperationResult, IFileService, MIN_MAX_MEMORY_SIZE_MB, FALLBACK_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
+import { createEditorOpenError } from 'vs/workbench/common/editor';
 import { toAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +27,8 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import Severity from 'vs/base/common/severity';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 /**
  * An implementation of editor for file system resources.
@@ -46,14 +48,15 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IPreferencesService preferencesService: IPreferencesService,
 		@IExplorerService explorerService: IExplorerService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IProductService private readonly productService: IProductService,
 		@IPathService pathService: IPathService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHostService hostService: IHostService
 	) {
-		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService, pathService, configurationService);
+		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService, pathService, configurationService, preferencesService, hostService);
 	}
 
 	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
@@ -62,9 +65,9 @@ export class NativeTextFileEditor extends TextFileEditor {
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
 			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.textResourceConfigurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-			throw createErrorWithActions(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", this.productService.nameShort), [
+			throw createEditorOpenError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory.", this.productService.nameShort), [
 				toAction({
-					id: 'workbench.window.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
+					id: 'workbench.action.relaunchWithIncreasedMemoryLimit', label: localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), run: () => {
 						return this.nativeHostService.relaunch({
 							addArgs: [
 								`--max-memory=${memoryLimit}`
@@ -73,11 +76,14 @@ export class NativeTextFileEditor extends TextFileEditor {
 					}
 				}),
 				toAction({
-					id: 'workbench.window.action.configureMemoryLimit', label: localize('configureMemoryLimit', 'Configure Memory Limit'), run: () => {
+					id: 'workbench.action.configureMemoryLimit', label: localize('configureMemoryLimit', "Configure Limit"), run: () => {
 						return this.preferencesService.openUserSettings({ query: 'files.maxMemoryForLargeFilesMB' });
 					}
 				}),
-			]);
+			], {
+				forceMessage: true,
+				forceSeverity: Severity.Warning
+			});
 		}
 
 		// Fallback to handling in super type

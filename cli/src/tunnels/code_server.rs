@@ -240,15 +240,6 @@ pub enum AnyCodeServer {
 	Port(PortCodeServer),
 }
 
-// impl AnyCodeServer {
-//     pub fn origin(&mut self) -> &mut CodeServerOrigin {
-//         match self {
-//             AnyCodeServer::Socket(p) => &mut p.origin,
-//             AnyCodeServer::Port(p) => &mut p.origin,
-//         }
-//     }
-// }
-
 pub enum CodeServerOrigin {
 	/// A new code server, that opens the barrier when it exits.
 	New(Box<Child>),

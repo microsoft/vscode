@@ -105,11 +105,17 @@ export interface IProfileResourceChildTreeItem extends ITreeItem {
 	parent: IProfileResourceTreeItem;
 }
 
+export interface ISaveProfileResult {
+	readonly id: string;
+	readonly link: URI;
+}
+
 export interface IUserDataProfileContentHandler {
 	readonly name: string;
+	readonly description?: string;
 	readonly extensionId?: string;
-	saveProfile(name: string, content: string, token: CancellationToken): Promise<URI | null>;
-	readProfile(uri: URI, token: CancellationToken): Promise<string | null>;
+	saveProfile(name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null>;
+	readProfile(idOrUri: string | URI, token: CancellationToken): Promise<string | null>;
 }
 
 export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
