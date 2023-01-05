@@ -66,9 +66,9 @@ export interface ITestProfileService {
 	getGroupDefaultProfiles(group: TestRunProfileBitset): ITestRunProfile[];
 
 	/**
-	 * Sets the default profiles to be run for all run group.
+	 * Sets the default profiles to be run for a given run group.
 	 */
-	setDefaultProfiles(profiles: ITestRunProfile[]): void;
+	setGroupDefaultProfiles(group: TestRunProfileBitset, profiles: ITestRunProfile[]): void;
 
 	/**
 	 * Gets the profiles for a controller, in priority order.
@@ -240,22 +240,24 @@ export class TestProfileService implements ITestProfileService {
 	}
 
 	/** @inheritdoc */
-	public setDefaultProfiles(selectedDefaultProfiles: ITestRunProfile[]) {
+	public setGroupDefaultProfiles(group: TestRunProfileBitset, profiles: ITestRunProfile[]) {
 
-		// Include profiles for different run group along with default selected profiles
-		const defaultProfiles: ITestRunProfile[] = [];
-		for (const { profiles } of this.controllerProfiles.values()) {
-			const profilesForAllRunGroup = profiles.filter(p => selectedDefaultProfiles.find(s => s.label === p.label));
-			for (const profile of profilesForAllRunGroup) {
-				defaultProfiles.push(profile);
+		if (group === TestRunProfileBitset.Run || group === TestRunProfileBitset.Debug) {
+			const runGroup = group === TestRunProfileBitset.Run ? TestRunProfileBitset.Debug : TestRunProfileBitset.Run;
+			const defaultProfiles = profiles.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(c => c.label === p.label && c.group === runGroup)).filter(isDefined);
+			if (defaultProfiles?.length) {
+				this.preferredDefaults.store({
+					...this.preferredDefaults.get(),
+					[runGroup]: defaultProfiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
+				});
 			}
 		}
-		for (const group of testRunProfileBitsetList) {
-			this.preferredDefaults.store({
-				...this.preferredDefaults.get(),
-				[group]: defaultProfiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
-			});
-		}
+
+		this.preferredDefaults.store({
+			...this.preferredDefaults.get(),
+			[group]: profiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
+		});
+
 		this.changeEmitter.fire();
 	}
 
