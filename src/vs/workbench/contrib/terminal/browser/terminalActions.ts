@@ -2059,6 +2059,11 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					when: TerminalContextKeys.focus,
+				}
 			});
 		}
 		run(accessor: ServicesAccessor) {
