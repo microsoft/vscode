@@ -10,14 +10,13 @@ import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } fro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { isEqualOrParent, randomPath } from 'vs/base/common/extpath';
+import { randomPath } from 'vs/base/common/extpath';
 import { GLOBSTAR, ParsedPattern, patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { dirname, isAbsolute, join, normalize, sep } from 'vs/base/common/path';
+import { dirname, normalize } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -67,18 +66,6 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			['delete', FileChangeType.DELETED]
 		]
 	);
-
-	private static readonly GLOB_MARKERS = {
-		Star: '*',
-		GlobStar: '**',
-		GlobStarPosix: '**/**',
-		GlobStarWindows: '**\\**',
-		GlobStarPathStartPosix: '**/',
-		GlobStarPathEndPosix: '/**',
-		StarPathEndPosix: '/*',
-		GlobStarPathStartWindows: '**\\',
-		GlobStarPathEndWindows: '\\**'
-	};
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
@@ -184,98 +171,6 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	protected toExcludePaths(path: string, excludes: string[] | undefined): string[] | undefined {
-		if (!Array.isArray(excludes)) {
-			return undefined;
-		}
-
-		const excludePaths = new Set<string>();
-
-		// Parcel watcher currently does not support glob patterns
-		// for native exclusions. As long as that is the case, try
-		// to convert exclude patterns into absolute paths that the
-		// watcher supports natively to reduce the overhead at the
-		// level of the file watcher as much as possible.
-		// Refs: https://github.com/parcel-bundler/watcher/issues/64
-		for (const exclude of excludes) {
-			const isGlob = exclude.includes(ParcelWatcher.GLOB_MARKERS.Star);
-
-			// Glob pattern: check for typical patterns and convert
-			let normalizedExclude: string | undefined = undefined;
-			if (isGlob) {
-
-				// Examples: **, **/**, **\**
-				if (
-					exclude === ParcelWatcher.GLOB_MARKERS.GlobStar ||
-					exclude === ParcelWatcher.GLOB_MARKERS.GlobStarPosix ||
-					exclude === ParcelWatcher.GLOB_MARKERS.GlobStarWindows
-				) {
-					normalizedExclude = path;
-				}
-
-				// Examples:
-				// - **/node_modules/**
-				// - **/.git/objects/**
-				// - **/build-folder
-				// - output/**
-				else {
-					const startsWithGlobStar = exclude.startsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartPosix) || exclude.startsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartWindows);
-					const endsWithGlobStar = exclude.endsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathEndPosix) || exclude.endsWith(ParcelWatcher.GLOB_MARKERS.GlobStarPathEndWindows);
-					if (startsWithGlobStar || endsWithGlobStar) {
-						if (startsWithGlobStar && endsWithGlobStar) {
-							normalizedExclude = exclude.substring(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartPosix.length, exclude.length - ParcelWatcher.GLOB_MARKERS.GlobStarPathEndPosix.length);
-						} else if (startsWithGlobStar) {
-							normalizedExclude = exclude.substring(ParcelWatcher.GLOB_MARKERS.GlobStarPathStartPosix.length);
-						} else {
-							normalizedExclude = exclude.substring(0, exclude.length - ParcelWatcher.GLOB_MARKERS.GlobStarPathEndPosix.length);
-						}
-					}
-
-					// Support even more glob patterns on Linux where we know
-					// that each folder requires a file handle to watch.
-					// Examples:
-					// - node_modules/* (full form: **/node_modules/*/**)
-					if (isLinux && normalizedExclude) {
-						const endsWithStar = normalizedExclude?.endsWith(ParcelWatcher.GLOB_MARKERS.StarPathEndPosix);
-						if (endsWithStar) {
-							normalizedExclude = normalizedExclude.substring(0, normalizedExclude.length - ParcelWatcher.GLOB_MARKERS.StarPathEndPosix.length);
-						}
-					}
-				}
-			}
-
-			// Not a glob pattern, take as is
-			else {
-				normalizedExclude = exclude;
-			}
-
-			if (!normalizedExclude || normalizedExclude.includes(ParcelWatcher.GLOB_MARKERS.Star)) {
-				continue; // skip for parcel (will be applied later by our glob matching)
-			}
-
-			// Absolute path: normalize to watched path and
-			// exclude if not a parent of it otherwise.
-			if (isAbsolute(normalizedExclude)) {
-				if (!isEqualOrParent(normalizedExclude, path, !isLinux)) {
-					continue; // exclude points to path outside of watched folder, ignore
-				}
-
-				// convert to relative path to ensure we
-				// get the correct path casing going forward
-				normalizedExclude = normalizedExclude.substr(path.length);
-			}
-
-			// Finally take as relative path joined to watched path
-			excludePaths.add(rtrim(join(path, normalizedExclude), sep));
-		}
-
-		if (excludePaths.size > 0) {
-			return Array.from(excludePaths);
-		}
-
-		return undefined;
-	}
-
 	private startPolling(request: IRecursiveWatchRequest, pollingInterval: number, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
@@ -305,13 +200,10 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		// Warm up exclude/include patterns for usage
-		const excludePatterns = parseWatcherPatterns(request.path, request.excludes);
+		// Warm up include patterns for usage
 		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
 
-		const ignore = this.toExcludePaths(realPath, watcher.request.excludes);
-
-		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}' and native excludes '${ignore?.join(', ')}'`);
+		this.trace(`Started watching: '${realPath}' with polling interval '${pollingInterval}'`);
 
 		let counter = 0;
 
@@ -324,18 +216,18 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 			// We already ran before, check for events since
 			if (counter > 1) {
-				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
 
 				// Handle & emit events
-				this.onParcelEvents(parcelEvents, watcher, excludePatterns, includePatterns, realPathDiffers, realPathLength);
+				this.onParcelEvents(parcelEvents, watcher, includePatterns, realPathDiffers, realPathLength);
 			}
 
 			// Store a snapshot of files to the snapshot file
-			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
@@ -379,11 +271,9 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		// Warm up exclude/include patterns for usage
-		const excludePatterns = parseWatcherPatterns(request.path, request.excludes);
+		// Warm up include patterns for usage
 		const includePatterns = request.includes ? parseWatcherPatterns(request.path, request.includes) : undefined;
 
-		const ignore = this.toExcludePaths(realPath, watcher.request.excludes);
 		parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
 			if (watcher.token.isCancellationRequested) {
 				return; // return early when disposed
@@ -398,12 +288,12 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			}
 
 			// Handle & emit events
-			this.onParcelEvents(parcelEvents, watcher, excludePatterns, includePatterns, realPathDiffers, realPathLength);
+			this.onParcelEvents(parcelEvents, watcher, includePatterns, realPathDiffers, realPathLength);
 		}, {
 			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-			ignore
+			ignore: watcher.request.excludes
 		}).then(parcelWatcher => {
-			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}' and native excludes '${ignore?.join(', ')}'`);
+			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
 
 			instance.complete(parcelWatcher);
 		}).catch(error => {
@@ -413,18 +303,18 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		});
 	}
 
-	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, excludes: ParsedPattern[], includes: ParsedPattern[] | undefined, realPathDiffers: boolean, realPathLength: number): void {
+	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: IParcelWatcherInstance, includes: ParsedPattern[] | undefined, realPathDiffers: boolean, realPathLength: number): void {
 		if (parcelEvents.length === 0) {
 			return;
 		}
 
 		// Normalize events: handle NFC normalization and symlinks
 		// It is important to do this before checking for includes
-		// and excludes to check on the original path.
+		// to check on the original path.
 		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
-		// Check for excludes
-		const includedEvents = this.handleExcludeIncludes(parcelEvents, excludes, includes);
+		// Check for includes
+		const includedEvents = this.handleIncludes(parcelEvents, includes);
 
 		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
@@ -432,7 +322,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private handleExcludeIncludes(parcelEvents: parcelWatcher.Event[], excludes: ParsedPattern[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
+	private handleIncludes(parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
 		const events: IDiskFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
@@ -441,12 +331,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				this.trace(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
-			// Add to buffer unless excluded or not included (not if explicitly disabled)
-			if (excludes.some(exclude => exclude(path))) {
-				if (this.verboseLogging) {
-					this.trace(` >> ignored (excluded) ${path}`);
-				}
-			} else if (includes && includes.length > 0 && !includes.some(include => include(path))) {
+			// Apply include filter if any
+			if (includes && includes.length > 0 && !includes.some(include => include(path))) {
 				if (this.verboseLogging) {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
