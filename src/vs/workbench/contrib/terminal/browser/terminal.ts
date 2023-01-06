@@ -627,7 +627,7 @@ export interface ITerminalInstance {
 	/**
 	 * The shell type of the terminal.
 	 */
-	readonly shellType: TerminalShellType;
+	readonly shellType: TerminalShellType | undefined;
 
 	/**
 	 * The focus state of the terminal before exiting.
@@ -788,7 +788,7 @@ export interface ITerminalInstance {
 	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
 	 * platform. This defaults to `true`.
 	 */
-	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
+	sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void>;
 
 	runCommand(command: string, addNewLine?: boolean): void;
 
@@ -962,6 +962,11 @@ export interface IXtermTerminal {
 	 * Gets a view of the current texture atlas used by the renderers.
 	 */
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
+
+	/**
+	 * Whether the `disableStdin` option in xterm.js is set.
+	 */
+	readonly isStdinDisabled: boolean;
 
 	/**
 	 * The position of the terminal.

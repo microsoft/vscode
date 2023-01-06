@@ -1048,6 +1048,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
 		const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+		const elementOriginalHeight = this.view.elementHeight(viewIndex);
+		if (positionOffset >= elementOriginalHeight) {
+			// we are revealing a range that is beyond current element height
+			// if we don't update the element height now, and directly `setTop` to reveal the range
+			// the element might be scrolled out of view
+			// next frame, when we update the element height, the element will never be scrolled back into view
+			const newTotalHeight = element.layoutInfo.totalHeight;
+			this.updateElementHeight(viewIndex, newTotalHeight);
+		}
 		const elementTop = this.view.elementTop(viewIndex);
 		const positionTop = elementTop + positionOffset;
 

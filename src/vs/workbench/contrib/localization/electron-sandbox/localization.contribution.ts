@@ -173,9 +173,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 						const installAndRestartAction = {
 							label: translations['installAndRestart'],
-							run: () => {
+							run: async () => {
 								logUserReaction('installAndRestart');
-								this.installExtension(extensionToInstall!).then(() => this.hostService.restart());
+								await this.installExtension(extensionToInstall!);
+								await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
+								await this.hostService.restart();
 							}
 						};
 

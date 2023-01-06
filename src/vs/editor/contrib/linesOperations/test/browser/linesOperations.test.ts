@@ -11,7 +11,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
+import { CamelCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -781,6 +781,49 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(7, 1, 7, 23));
 				executeAction(titlecaseAction, editor);
 				assert.strictEqual(model.getLineContent(7), '\'Physician\'s Assistant\'');
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'camel from words',
+				'from_snake_case',
+				'from-kebab-case',
+				'alreadyCamel',
+				'ReTain_any_CAPitalization',
+				'my_var.test_function()',
+				'öçş_öç_şğü_ğü'
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const camelcaseAction = new CamelCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 18));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
+
+				editor.setSelection(new Selection(2, 1, 2, 15));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'fromSnakeCase');
+
+				editor.setSelection(new Selection(3, 1, 3, 15));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'fromKebabCase');
+
+				editor.setSelection(new Selection(4, 1, 4, 12));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'alreadyCamel');
+
+				editor.setSelection(new Selection(5, 1, 5, 26));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'ReTainAnyCAPitalization');
+
+				editor.setSelection(new Selection(6, 1, 6, 23));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'myVar.testFunction()');
+
+				editor.setSelection(new Selection(7, 1, 7, 14));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'öçşÖçŞğüĞü');
 			}
 		);
 
