@@ -400,6 +400,7 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 
 	const id = isISubmenuItem(command) ? command.submenu.id : command.id;
 	const title = typeof command.title === 'string' ? command.title : command.title.value;
+	const isHiddenByDefault = isISubmenuItem(command) ? true : !!command.isHiddenByDefault;
 
 	const hide = toAction({
 		id: `hide/${menu.id}/${id}`,
@@ -410,7 +411,13 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 	const toggle = toAction({
 		id: `toggle/${menu.id}/${id}`,
 		label: title,
-		get checked() { return !states.isHidden(menu, id); },
+		get checked() {
+			// Invert the meaning of the isHidden state when the default is hidden
+			if (isHiddenByDefault) {
+				return states.isHidden(menu, id);
+			}
+			return !states.isHidden(menu, id);
+		},
 		run() {
 			const newValue = !states.isHidden(menu, id);
 			states.updateHidden(menu, id, newValue);
