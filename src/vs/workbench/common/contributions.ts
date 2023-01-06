@@ -96,40 +96,62 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
 			this.toBeInstantiated.delete(phase);
-			if (phase !== LifecyclePhase.Eventually) {
 
-				// instantiate everything synchronously and blocking
-				// measure the time it takes as perf marks for diagnosis
+			switch (phase) {
+				case LifecyclePhase.Starting:
+				case LifecyclePhase.Ready: {
 
-				mark(`code/willCreateWorkbenchContributions/${phase}`);
+					// instantiate everything synchronously and blocking
+					// measure the time it takes as perf marks for diagnosis
 
-				for (const ctor of toBeInstantiated) {
-					this.safeCreateInstance(instantiationService, logService, environmentService, ctor, phase); // catch error so that other contributions are still considered
+					mark(`code/willCreateWorkbenchContributions/${phase}`);
+
+					for (const ctor of toBeInstantiated) {
+						this.safeCreateInstance(instantiationService, logService, environmentService, ctor, phase);
+					}
+
+					mark(`code/didCreateWorkbenchContributions/${phase}`);
+
+					break;
 				}
 
-				mark(`code/didCreateWorkbenchContributions/${phase}`);
-			} else {
+				case LifecyclePhase.Restored:
+				case LifecyclePhase.Eventually: {
 
-				// for the Eventually-phase we instantiate contributions
-				// only when idle. this might take a few idle-busy-cycles
-				// but will finish within the timeouts
+					// for the Restored/Eventually-phase we instantiate contributions
+					// only when idle. this might take a few idle-busy-cycles but will
+					// finish within the timeouts
 
-				const forcedTimeout = 3000;
-				let i = 0;
-				const instantiateSome = (idle: IdleDeadline) => {
-					while (i < toBeInstantiated.length) {
-						const ctor = toBeInstantiated[i++];
-						this.safeCreateInstance(instantiationService, logService, environmentService, ctor, phase); // catch error so that other contributions are still considered
-						if (idle.timeRemaining() < 1) {
-							// time is up -> reschedule
-							runWhenIdle(instantiateSome, forcedTimeout);
-							break;
-						}
-					}
-				};
-				runWhenIdle(instantiateSome, forcedTimeout);
+					this.doInstantiateWhenIdle(toBeInstantiated, phase === LifecyclePhase.Restored ? 500 : 3000, instantiationService, logService, environmentService, phase);
+
+					break;
+				}
 			}
 		}
+	}
+
+	private doInstantiateWhenIdle(ctors: IConstructorSignature<IWorkbenchContribution>[], forcedTimeout: number, instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, phase: LifecyclePhase): void {
+		let i = 0;
+
+		mark(`code/willCreateWorkbenchContributions/${phase}`);
+
+		const instantiateSome = (idle: IdleDeadline) => {
+			while (i < ctors.length) {
+				const ctor = ctors[i++];
+				this.safeCreateInstance(instantiationService, logService, environmentService, ctor, phase);
+				if (idle.timeRemaining() < 1) {
+					// time is up -> reschedule
+					runWhenIdle(instantiateSome, forcedTimeout);
+					break;
+				}
+			}
+
+			if (i === ctors.length) {
+				mark(`code/didCreateWorkbenchContributions/${phase}`);
+			}
+		};
+
+		runWhenIdle(instantiateSome, forcedTimeout);
 	}
 
 	private safeCreateInstance(instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase): void {
