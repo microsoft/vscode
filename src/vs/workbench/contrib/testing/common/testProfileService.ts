@@ -244,14 +244,16 @@ export class TestProfileService implements ITestProfileService {
 
 		if (group === TestRunProfileBitset.Run || group === TestRunProfileBitset.Debug) {
 			const runGroup = group === TestRunProfileBitset.Run ? TestRunProfileBitset.Debug : TestRunProfileBitset.Run;
-			const defaultProfiles = profiles.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(c => c.label === p.label && c.group === runGroup)).filter(isDefined);
-			if (defaultProfiles?.length) {
+			const defaultProfiles: ITestRunProfile[] = [];
+			const newProfiles = profiles.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(c => c.label === p.label && c.group === runGroup)).filter(isDefined);
+			if (newProfiles?.length) {
+				newProfiles.forEach(profile => defaultProfiles.push(profile));
 				const preferred = this.preferredDefaults.get();
 				if (preferred && preferred[runGroup]) {
 					const previousDefaultsProfiles = preferred[runGroup]?.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(c => c.profileId === p.profileId && c.group === runGroup)).filter(isDefined);
 					if (previousDefaultsProfiles?.length) {
 						for (const profile of previousDefaultsProfiles) {
-							if (!profiles.find(p => p.controllerId === profile.controllerId)) {
+							if (!newProfiles.find(p => p.controllerId === profile.controllerId)) {
 								defaultProfiles.push(profile);
 							}
 						}
