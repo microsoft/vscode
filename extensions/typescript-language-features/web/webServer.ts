@@ -24,7 +24,8 @@ function fromResource(extensionUri: URI, uri: URI) {
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`
 }
-function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ts.server.ServerHost {
+type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
+function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
 	/**
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
@@ -45,6 +46,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const fs = apiClient.vscode.workspace.fileSystem
 	// TODO: Remove all this logging when I'm confident it's working
 	logger.info(`starting serverhost`)
+	let watchId = 0
 	return {
 		/**
 		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
@@ -52,24 +54,24 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
 			logger.info(`calling watchFile on ${path} (${watchFiles.has(path) ? 'OLD' : 'new'})`)
 			watchFiles.set(path, { path, callback, pollingInterval, options })
-			const uri = toResource(path)
-			fsWatcher.postMessage({ type: 'watchFile', uri })
+			watchId++
+			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId })
 			return {
 				close() {
 					watchFiles.delete(path)
-					fsWatcher.postMessage({ type: "dispose", uri })
+					fsWatcher.postMessage({ type: "dispose", id: watchId })
 				}
 			}
 		},
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logger.info(`calling watchDirectory on ${path} (${watchDirectories.has(path) ? 'OLD' : 'new'})`)
 			watchDirectories.set(path, { path, callback, recursive, options })
-			const uri = toResource(path)
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri })
+			watchId++
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId })
 			return {
 				close() {
 					watchDirectories.delete(path)
-					fsWatcher.postMessage({ type: "dispose", uri })
+					fsWatcher.postMessage({ type: "dispose", id: watchId })
 				}
 			}
 		},
@@ -94,9 +96,18 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			this.clearTimeout(timeoutId)
 		},
 		trace: logger.info,
-		// require?(initialPath: string, moduleName: string): ModuleImportResult {},
+		// require?(initialPath: string, moduleName: string): ts.server.ModuleImportResult {},
 		// TODO: This definitely needs to be implemented
-		// importServicePlugin?(root: string, moduleName: string): Promise<ModuleImportResult> {},
+		// Jake says that vscode has an implementation called serverCreateWebSystem
+		importPlugin(root, moduleName) {
+			return Promise.resolve({
+				module: undefined,
+				error: {
+					stack: root,
+					message: moduleName,
+				},
+			})
+		},
 		args,
 		newLine: '\n',
 		useCaseSensitiveFileNames: true,

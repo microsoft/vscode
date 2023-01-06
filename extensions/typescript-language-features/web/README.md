@@ -43,11 +43,14 @@ Language server host for typescript using vscode's sync-api in the browser
    - looks like `isWeb()` is a way to check for being on the web
 - [x] create multiple watchers
    - on-demand instead of watching everything and checking on watch firing
-- [ ] get file watching to work
+- [x] get file watching to work
    - it could *already* work, I just don't know how to test it
    - look at extensions/markdown-language-features/src/client/fileWatchingManager.ts to see if I can use that
    - later: it is OK. its main difference is that you can watch files in not-yet-created directories, and it maintains
      a web of directory watches that then check whether the file is eventually created.
+   - even later: well, it works even though it is similar to my code.
+     I'm not sure what is different.
+
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
 - [x] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
 - [ ] clear out TODOs

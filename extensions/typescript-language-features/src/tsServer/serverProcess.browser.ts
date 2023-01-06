@@ -12,14 +12,19 @@ import { TypeScriptVersion } from './versionProvider';
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { Requests, ApiService } from '@vscode/sync-api-service';
 import { TypeScriptVersionManager } from './versionManager';
+import { FileWatcherManager } from '../../../markdown-language-features/src/client/fileWatchingManager';
 type BrowserWatchEvent = {
-	type: 'dispose' | 'watchDirectory' | 'watchFile';
+	type: 'watchDirectory' | 'watchFile';
 	recursive?: boolean;
 	uri: {
 		scheme: string;
 		authority: string;
 		path: string;
 	};
+	id: number;
+} | {
+	type: 'dispose';
+	id: number;
 };
 
 export class WorkerServerProcess implements TsServerProcess {
@@ -45,7 +50,7 @@ export class WorkerServerProcess implements TsServerProcess {
 	private readonly _onDataHandlers = new Set<(data: Proto.Response) => void>();
 	private readonly _onErrorHandlers = new Set<(err: Error) => void>();
 	private readonly _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
-	private readonly fsWatchers = new Map<vscode.Uri, vscode.FileSystemWatcher>();
+	private readonly watches = new FileWatcherManager();
 	/** For communicating with TS server synchronously */
 	private readonly tsserver: MessagePort;
 	/** For communicating watches asynchronously */
@@ -77,24 +82,16 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.watcher.onmessage = (event: MessageEvent<BrowserWatchEvent>) => {
 			switch (event.data.type) {
 				case 'dispose': {
-					const uri = vscode.Uri.from(event.data.uri);
-					const fsWatcher = this.fsWatchers.get(uri);
-					if (fsWatcher) {
-						fsWatcher.dispose();
-						this.fsWatchers.delete(uri);
-					} else {
-						console.error(`tried to dispose watcher for unwatched path: ${JSON.stringify(event.data)}`);
-					}
+					this.watches.delete(event.data.id);
 					break;
 				}
 				case 'watchDirectory':
 				case 'watchFile': {
-					const uri = vscode.Uri.from(event.data.uri);
-					const fsWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, event.data.recursive ? '**' : ''));
-					fsWatcher.onDidChange(e => this.watcher.postMessage({ type: 'watch', event: 'change', uri: e }));
-					fsWatcher.onDidCreate(e => this.watcher.postMessage({ type: 'watch', event: 'create', uri: e }));
-					fsWatcher.onDidDelete(e => this.watcher.postMessage({ type: 'watch', event: 'delete', uri: e }));
-					this.fsWatchers.set(uri, fsWatcher);
+					this.watches.create(event.data.id, vscode.Uri.from(event.data.uri), /*watchParentDirs*/ true, !!event.data.recursive, {
+						change: uri => this.watcher.postMessage({ type: 'watch', event: 'change', uri }),
+						create: uri => this.watcher.postMessage({ type: 'watch', event: 'create', uri }),
+						delete: uri => this.watcher.postMessage({ type: 'watch', event: 'delete', uri }),
+					});
 					break;
 				}
 				default:
