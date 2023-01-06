@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem, ViewBadge as ExtHostViewBadge } from 'vs/workbench/api/common/extHostTypes';
@@ -146,7 +146,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
+			return Promise.reject(new NoTreeViewError(treeViewId));
 		}
 		return treeView.getChildren(treeItemHandle);
 	}
@@ -155,7 +155,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const treeView = this.treeViews.get(destinationViewId);
 		if (!treeView) {
-			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', destinationViewId)));
+			return Promise.reject(new NoTreeViewError(destinationViewId));
 		}
 
 		const treeDataTransfer = DataTransfer.toDataTransfer(treeDataTransferDTO, async dataItemIndex => {
@@ -187,7 +187,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	async $handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined> {
 		const treeView = this.treeViews.get(sourceViewId);
 		if (!treeView) {
-			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', sourceViewId)));
+			return Promise.reject(new NoTreeViewError(sourceViewId));
 		}
 
 		const treeDataTransfer = await this.addAdditionalTransferItems(new types.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
@@ -201,7 +201,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	async $hasResolve(treeViewId: string): Promise<boolean> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		return treeView.hasResolve;
 	}
@@ -209,7 +209,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$resolve(treeViewId: string, treeItemHandle: string, token: vscode.CancellationToken): Promise<ITreeItem | undefined> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		return treeView.resolveTreeItem(treeItemHandle, token);
 	}
@@ -217,7 +217,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setExpanded(treeItemHandle, expanded);
 	}
@@ -225,7 +225,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setSelection(treeItemHandles);
 	}
@@ -233,7 +233,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$setFocus(treeViewId: string, treeItemHandles: string) {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setFocus(treeItemHandles);
 	}
@@ -241,7 +241,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$setVisible(treeViewId: string, isVisible: boolean): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setVisible(isVisible);
 	}
@@ -249,7 +249,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	$changeCheckboxState(treeViewId: string, checkboxUpdate: CheckboxUpdate[]): void {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
-			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+			throw new NoTreeViewError(treeViewId);
 		}
 		treeView.setCheckboxState(checkboxUpdate);
 	}
