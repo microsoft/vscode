@@ -674,6 +674,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			// select from kernel sources
 			const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
 			quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
+			quickPick.placeholder = localize('selectKernel.placeholder', "Type to choose a kernel source");
 			quickPick.busy = true;
 			quickPick.buttons = [this._quickInputService.backButton];
 			quickPick.show();
@@ -814,7 +815,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				action: sourceAction,
 				picked: false,
 				label: sourceAction.action.label,
-				detail: (sourceAction.action as MenuItemAction)?.item?.source
+				detail: (sourceAction.action as MenuItemAction)?.item?.source?.title
 			};
 
 			quickPickItems.push(res);

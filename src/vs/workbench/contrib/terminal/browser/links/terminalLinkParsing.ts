@@ -52,7 +52,7 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		// foo (339)
 		// foo (339,12)
 		// foo (339, 12)
-		` ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]`,
+		` ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]$`,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
-import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
-import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
+import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
+import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Type of test element in the list.
@@ -76,7 +76,7 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
-	constructor(lastState: AbstractTreeViewState, @ITestService testService: ITestService, @ITestResultService results: ITestResultService) {
+	constructor(lastState: ISerializedTestTreeCollapseState, @ITestService testService: ITestService, @ITestResultService results: ITestResultService) {
 		super(lastState, testService, results);
 
 		const originalRenderNode = this.renderNode.bind(this);

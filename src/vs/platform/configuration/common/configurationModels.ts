@@ -161,10 +161,6 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this;
 	}
 
-	clone(): ConfigurationModel {
-		return new ConfigurationModel(objects.deepClone(this.contents), [...this.keys], objects.deepClone(this.overrides));
-	}
-
 	private createOverrideConfigurationModel(identifier: string): ConfigurationModel {
 		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
 
@@ -1076,20 +1072,30 @@ export function mergeChanges(...changes: IConfigurationChange[]): IConfiguration
 
 export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
-	private readonly affectedKeysTree: any;
-	readonly affectedKeys: string[];
+	private readonly _marker = '\n';
+	private readonly _markerCode1 = this._marker.charCodeAt(0);
+	private readonly _markerCode2 = '.'.charCodeAt(0);
+	private readonly _affectsConfigStr: string;
+
+	readonly affectedKeys = new Set<string>();
 	source!: ConfigurationTarget;
 	sourceConfig: any;
 
 	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
-		const keysSet = new Set<string>();
-		change.keys.forEach(key => keysSet.add(key));
-		change.overrides.forEach(([, keys]) => keys.forEach(key => keysSet.add(key)));
-		this.affectedKeys = [...keysSet.values()];
+		for (const key of change.keys) {
+			this.affectedKeys.add(key);
+		}
+		for (const [, keys] of change.overrides) {
+			for (const key of keys) {
+				this.affectedKeys.add(key);
+			}
+		}
 
-		const configurationModel = new ConfigurationModel();
-		this.affectedKeys.forEach(key => configurationModel.setValue(key, {}));
-		this.affectedKeysTree = configurationModel.contents;
+		// Example: '\nfoo.bar\nabc.def\n'
+		this._affectsConfigStr = this._marker;
+		for (const key of this.affectedKeys) {
+			this._affectsConfigStr += key + this._marker;
+		}
 	}
 
 	private _previousConfiguration: Configuration | undefined = undefined;
@@ -1101,27 +1107,27 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	}
 
 	affectsConfiguration(section: string, overrides?: IConfigurationOverrides): boolean {
-		if (this.doesAffectedKeysTreeContains(this.affectedKeysTree, section)) {
-			if (overrides) {
-				const value1 = this.previousConfiguration ? this.previousConfiguration.getValue(section, overrides, this.previous?.workspace) : undefined;
-				const value2 = this.currentConfiguraiton.getValue(section, overrides, this.currentWorkspace);
-				return !objects.equals(value1, value2);
-			}
-			return true;
+		// we have one large string with all keys that have changed. we pad (marker) the section
+		// and check that either find it padded or before a segment character
+		const needle = this._marker + section;
+		const idx = this._affectsConfigStr.indexOf(needle);
+		if (idx < 0) {
+			// NOT: (marker + section)
+			return false;
 		}
-		return false;
-	}
-
-	private doesAffectedKeysTreeContains(affectedKeysTree: any, section: string): boolean {
-		let requestedTree = toValuesTree({ [section]: true }, () => { });
-
-		let key;
-		while (typeof requestedTree === 'object' && (key = Object.keys(requestedTree)[0])) { // Only one key should present, since we added only one property
-			affectedKeysTree = affectedKeysTree[key];
-			if (!affectedKeysTree) {
-				return false; // Requested tree is not found
-			}
-			requestedTree = requestedTree[key];
+		const pos = idx + needle.length;
+		if (pos >= this._affectsConfigStr.length) {
+			return false;
+		}
+		const code = this._affectsConfigStr.charCodeAt(pos);
+		if (code !== this._markerCode1 && code !== this._markerCode2) {
+			// NOT: section + (marker | segment)
+			return false;
+		}
+		if (overrides) {
+			const value1 = this.previousConfiguration ? this.previousConfiguration.getValue(section, overrides, this.previous?.workspace) : undefined;
+			const value2 = this.currentConfiguraiton.getValue(section, overrides, this.currentWorkspace);
+			return !objects.equals(value1, value2);
 		}
 		return true;
 	}

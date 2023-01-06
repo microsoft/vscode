@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import { IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ICheckboxStyles, IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IDialogStyles } from 'vs/base/browser/ui/dialog/dialog';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IFindWidgetStyles } from 'vs/base/browser/ui/tree/abstractTree';
+import { ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { IBreadcrumbsWidgetStyles } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 
 export type IStyleOverride<T> = {
 	[P in keyof T]?: ColorIdentifier;
@@ -69,8 +71,6 @@ export function getCheckboxStyles(override: IStyleOverride<ICheckboxStyles>): IC
 	};
 }
 
-export type IDialogStyleOverrides = IStyleOverride<IDialogStyles>;
-
 export const defaultDialogStyles = getDialogStyle({});
 
 export function getDialogStyle(override: IStyleOverride<IDialogStyles>): IDialogStyles {
@@ -113,3 +113,25 @@ export const defaultFindWidgetStyles: IFindWidgetStyles = {
 	inputBoxStyles: defaultInputBoxStyles,
 	toggleStyles: defaultToggleStyles
 };
+
+export const defaultCountBadgeStyles = getCountBadgeStyle({});
+
+export function getCountBadgeStyle(override: IStyleOverride<ICountBadgeStyles>): ICountBadgeStyles {
+	return {
+		badgeBackground: asCssValue(override.badgeBackground ?? badgeBackground),
+		badgeForeground: asCssValue(override.badgeForeground ?? badgeForeground),
+		badgeBorder: asCssValue(contrastBorder)
+	};
+}
+
+export const defaultBreadcrumbsWidgetStyles = getBreadcrumbsWidgetStyles({});
+
+export function getBreadcrumbsWidgetStyles(override: IStyleOverride<IBreadcrumbsWidgetStyles>): IBreadcrumbsWidgetStyles {
+	return {
+		breadcrumbsBackground: asCssValue(override.breadcrumbsBackground ?? breadcrumbsBackground),
+		breadcrumbsForeground: asCssValue(override.breadcrumbsForeground ?? breadcrumbsForeground),
+		breadcrumbsHoverForeground: asCssValue(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
+		breadcrumbsFocusForeground: asCssValue(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
+		breadcrumbsFocusAndSelectionForeground: asCssValue(override.breadcrumbsFocusAndSelectionForeground ?? breadcrumbsActiveSelectionForeground)
+	};
+}

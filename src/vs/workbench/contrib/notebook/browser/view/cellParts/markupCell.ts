@@ -445,12 +445,15 @@ export class MarkupCell extends Disposable {
 	private layoutFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
+				this.templateData.foldingIndicator.style.display = 'none';
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
 				break;
 			case CellFoldingState.Expanded:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
 				break;
 
@@ -465,16 +468,8 @@ export class MarkupCell extends Disposable {
 		this.focusSwitchDisposable.clear();
 
 		this.localDisposables.add(editor.onDidContentSizeChange(e => {
-			const viewLayout = editor.getLayoutInfo();
-
 			if (e.contentHeightChanged) {
-				this.viewCell.editorHeight = e.contentHeight;
-				editor.layout(
-					{
-						width: viewLayout.width,
-						height: e.contentHeight
-					}
-				);
+				this.onCellEditorHeightChange(editor, e.contentHeight);
 			}
 		}));
 
@@ -487,6 +482,12 @@ export class MarkupCell extends Disposable {
 			const selections = editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(editor, contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
@@ -509,5 +510,16 @@ export class MarkupCell extends Disposable {
 		}));
 
 		updateFocusMode();
+	}
+
+	private onCellEditorHeightChange(editor: CodeEditorWidget, newHeight: number): void {
+		const viewLayout = editor.getLayoutInfo();
+		this.viewCell.editorHeight = newHeight;
+		editor.layout(
+			{
+				width: viewLayout.width,
+				height: newHeight
+			}
+		);
 	}
 }

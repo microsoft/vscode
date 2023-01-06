@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor, isResourceEditorInput, IFileEditorInputOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, FileSystemProviderCapabilities, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -23,6 +23,7 @@ import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 const enum ForceOpenAs {
 	None,
@@ -95,7 +96,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
 
@@ -303,7 +305,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
-	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	override resolve(options?: IFileEditorInputOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
@@ -311,10 +313,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 
 		// Resolve as text
-		return this.doResolveAsText();
+		return this.doResolveAsText(options);
 	}
 
-	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	private async doResolveAsText(options?: IFileEditorInputOptions): Promise<ITextFileEditorModel | BinaryEditorModel> {
 		try {
 
 			// Unset preferred contents after having applied it once
@@ -331,7 +333,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
-				reason: TextFileResolveReason.EDITOR
+				reason: TextFileResolveReason.EDITOR,
+				limits: this.ensureLimits(options)
 			});
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
@@ -354,17 +357,31 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			return model;
 		} catch (error) {
 
-			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
-			if (
-				(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
-				(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
-			) {
+			// Handle binary files with binary model
+			if ((<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY) {
 				return this.doResolveAsBinary();
 			}
 
 			// Bubble any other error up
 			throw error;
 		}
+	}
+
+	private ensureLimits(options?: IFileEditorInputOptions): IFileReadLimits | undefined {
+		if (options?.limits) {
+			return options.limits; // respect passed in limits if any
+		}
+
+		let sizeLimit: number | undefined = undefined;
+
+		const largeFileThresholdMB = this.textResourceConfigurationService.getValue<number>(this.resource, 'workbench.editorLargeFileConfirmation');
+		if (typeof largeFileThresholdMB === 'number') {
+			sizeLimit = largeFileThresholdMB * ByteSize.MB;
+		}
+
+		return {
+			size: sizeLimit
+		};
 	}
 
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
