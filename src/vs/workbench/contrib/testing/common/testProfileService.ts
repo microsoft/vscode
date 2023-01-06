@@ -129,6 +129,7 @@ export class TestProfileService implements ITestProfileService {
 			[TestRunProfileBitset.Coverage]: TestingContextKeys.hasCoverableTests.bindTo(contextKeyService),
 			[TestRunProfileBitset.HasNonDefaultProfile]: TestingContextKeys.hasNonDefaultProfile.bindTo(contextKeyService),
 			[TestRunProfileBitset.HasConfigurable]: TestingContextKeys.hasConfigurableProfile.bindTo(contextKeyService),
+			[TestRunProfileBitset.SupportsContinuousRun]: TestingContextKeys.supportsContinuousRun.bindTo(contextKeyService),
 		};
 
 		this.refreshContextKeys();
@@ -286,6 +287,7 @@ export class TestProfileService implements ITestProfileService {
 		for (const { profiles } of this.controllerProfiles.values()) {
 			for (const profile of profiles) {
 				allCapabilities |= allCapabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
+				allCapabilities |= profile.supportsContinuousRun ? TestRunProfileBitset.SupportsContinuousRun : 0;
 			}
 		}
 

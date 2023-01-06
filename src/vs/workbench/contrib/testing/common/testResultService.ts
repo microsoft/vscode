@@ -146,7 +146,7 @@ export class TestResultService implements ITestResultService {
 			isUiTriggered: false,
 			targets: [],
 			exclude: req.exclude,
-			isAutoRun: false,
+			continuous: req.continuous,
 		};
 
 		if (profile) {
