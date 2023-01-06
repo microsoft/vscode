@@ -241,36 +241,31 @@ export class TestProfileService implements ITestProfileService {
 
 	/** @inheritdoc */
 	public setGroupDefaultProfiles(group: TestRunProfileBitset, profiles: ITestRunProfile[]) {
-
-		if (group === TestRunProfileBitset.Run || group === TestRunProfileBitset.Debug) {
-			const runGroup = group === TestRunProfileBitset.Run ? TestRunProfileBitset.Debug : TestRunProfileBitset.Run;
-			const defaultProfiles: ITestRunProfile[] = [];
-			const newProfiles = profiles.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(c => c.label === p.label && c.group === runGroup)).filter(isDefined);
-			if (newProfiles?.length) {
-				newProfiles.forEach(profile => defaultProfiles.push(profile));
-				const preferred = this.preferredDefaults.get();
-				if (preferred && preferred[runGroup]) {
-					const previousDefaultsProfiles = preferred[runGroup]?.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(c => c.profileId === p.profileId && c.group === runGroup)).filter(isDefined);
-					if (previousDefaultsProfiles?.length) {
-						for (const profile of previousDefaultsProfiles) {
-							if (!newProfiles.find(p => p.controllerId === profile.controllerId)) {
-								defaultProfiles.push(profile);
-							}
-						}
-					}
-				}
-				this.preferredDefaults.store({
-					...this.preferredDefaults.get(),
-					[runGroup]: defaultProfiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
-				});
-			}
-		}
-
-		this.preferredDefaults.store({
+		const next = {
 			...this.preferredDefaults.get(),
 			[group]: profiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
-		});
+		};
 
+		// When switching a run/debug profile, if the controller has a same-named
+		// profile in the other group, use that instead of anything else that was selected.
+		if (group === TestRunProfileBitset.Run || group === TestRunProfileBitset.Debug) {
+			const otherGroup = group === TestRunProfileBitset.Run ? TestRunProfileBitset.Debug : TestRunProfileBitset.Run;
+
+			const previousDefaults = next[otherGroup] || [];
+			let newDefaults = previousDefaults.slice();
+			for (const [ctrlId, { profiles: ctrlProfiles }] of this.controllerProfiles) {
+				const labels = new Set(profiles.filter(p => p.controllerId === ctrlId).map(p => p.label));
+				const nextByLabels = ctrlProfiles.filter(p => labels.has(p.label) && p.group === otherGroup);
+				if (nextByLabels.length) {
+					newDefaults = newDefaults.filter(p => p.controllerId !== ctrlId);
+					newDefaults.push(...nextByLabels.map(p => ({ profileId: p.profileId, controllerId: p.controllerId })));
+				}
+			}
+
+			next[otherGroup] = newDefaults;
+		}
+
+		this.preferredDefaults.store(next);
 		this.changeEmitter.fire();
 	}
 
