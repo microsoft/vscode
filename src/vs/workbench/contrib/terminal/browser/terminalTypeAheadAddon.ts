@@ -371,7 +371,7 @@ class TentativeBoundary implements IPrediction {
 	}
 }
 
-export const isTenativeCharacterPrediction = (p: unknown): p is (TentativeBoundary & { inner: CharacterPrediction }) =>
+const isTenativeCharacterPrediction = (p: unknown): p is (TentativeBoundary & { inner: CharacterPrediction }) =>
 	p instanceof TentativeBoundary && p.inner instanceof CharacterPrediction;
 
 /**
