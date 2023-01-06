@@ -618,6 +618,19 @@ export function registerTerminalActions() {
 			}
 
 			let instance = terminalService.activeInstance;
+
+			// Don't use task terminals or other terminals that don't accept input
+			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
+				instance = await terminalService.createTerminal();
+				// TODO: Refactor
+				terminalService.setActiveInstance(instance);
+				if (instance.target === TerminalLocation.Editor) {
+					await instance.focusWhenReady(true);
+				} else {
+					await terminalGroupService.showPanel(true);
+				}
+			}
+
 			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
 			const uri = editor.getModel().uri;
 			if ((!isRemote && uri.scheme !== Schemas.file) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
