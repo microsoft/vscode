@@ -1341,7 +1341,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.sendText(await this.preparePathForShell(originalPath), addNewLine);
 	}
 
-	preparePathForShell(originalPath: string | URI): Promise<string> {
+	async preparePathForShell(originalPath: string | URI): Promise<string> {
+		// Wait for shell type to be ready
+		await this.processReady;
 		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
