@@ -466,9 +466,9 @@ export class CellOutputContainer extends CellContentPart {
 		});
 	}
 
-	render(editorHeight: number) {
+	render() {
 		if (this.viewCell.outputsViewModels.length > 0) {
-			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
+			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
 				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 				this._relayoutCell();
 			}
@@ -481,7 +481,6 @@ export class CellOutputContainer extends CellContentPart {
 				entry.render(undefined);
 			}
 
-			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputsViewModels.length > this.options.limit) {
 				DOM.show(this.templateData.outputShowMoreContainer.domNode);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
@@ -491,7 +490,6 @@ export class CellOutputContainer extends CellContentPart {
 			this._validateFinalOutputHeight(false);
 		} else {
 			// noop
-			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
 			DOM.hide(this.templateData.outputContainer.domNode);
 		}

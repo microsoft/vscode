@@ -68,7 +68,7 @@ import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TreeViewPane extends ViewPane {
 
@@ -723,7 +723,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			}
 		}));
 
-		this._register(treeMenus.onDidChange((changed) => this.tree?.rerender(changed)));
+		this._register(treeMenus.onDidChange((changed) => {
+			if (this.tree?.hasNode(changed)) {
+				this.tree?.rerender(changed);
+			}
+		}));
 	}
 
 	private async resolveCommand(element: ITreeItem | undefined): Promise<TreeCommand | undefined> {
@@ -1464,7 +1468,7 @@ export class CustomTreeView extends AbstractTreeView {
 	protected activate() {
 		if (!this.activated) {
 			type ExtensionViewTelemetry = {
-				extensionId: TrustedTelemetryValue<string>;
+				extensionId: TelemetryTrustedValue<string>;
 				id: string;
 			};
 			type ExtensionViewTelemetryMeta = {
@@ -1474,7 +1478,7 @@ export class CustomTreeView extends AbstractTreeView {
 				comment: 'Helps to gain insights on what extension contributed views are most popular';
 			};
 			this.telemetryService.publicLog2<ExtensionViewTelemetry, ExtensionViewTelemetryMeta>('Extension:ViewActivate', {
-				extensionId: new TrustedTelemetryValue(this.extensionId),
+				extensionId: new TelemetryTrustedValue(this.extensionId),
 				id: this.id,
 			});
 			this.createTree();

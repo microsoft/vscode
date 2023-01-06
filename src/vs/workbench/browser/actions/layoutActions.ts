@@ -1270,6 +1270,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			return;
 		}
 
+		const configurationService = accessor.get(IConfigurationService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -1281,12 +1282,21 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		quickPick.hideInput = true;
 		quickPick.title = localize('customizeLayoutQuickPickTitle', "Customize Layout");
 
+		const closeButton = {
+			alwaysVisible: true,
+			iconClass: Codicon.close.classNames,
+			tooltip: localize('close', "Close")
+		};
+
+		const resetButton = {
+			alwaysVisible: true,
+			iconClass: Codicon.discard.classNames,
+			tooltip: localize('restore defaults', "Restore Defaults")
+		};
+
 		quickPick.buttons = [
-			{
-				alwaysVisible: true,
-				iconClass: Codicon.close.classNames,
-				tooltip: localize('close', "Close")
-			}
+			resetButton,
+			closeButton
 		];
 
 		const disposables = new DisposableStore();
@@ -1316,9 +1326,28 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			}
 		});
 
-		// Only one button, close
-		quickPick.onDidTriggerButton(() => {
-			quickPick.hide();
+		quickPick.onDidTriggerButton((button) => {
+			if (button === closeButton) {
+				quickPick.hide();
+			} else if (button === resetButton) {
+
+				const resetSetting = (id: string) => {
+					const config = configurationService.inspect(id);
+					configurationService.updateValue(id, config.defaultValue);
+				};
+
+				// Reset all layout options
+				resetSetting('workbench.activityBar.visible');
+				resetSetting('workbench.sideBar.location');
+				resetSetting('workbench.statusBar.visible');
+				resetSetting('workbench.panel.defaultLocation');
+
+				if (!isMacintosh || !isNative) {
+					resetSetting('window.menuBarVisibility');
+				}
+
+				commandService.executeCommand('workbench.action.alignPanelCenter');
+			}
 		});
 
 		quickPick.onDidHide(() => {

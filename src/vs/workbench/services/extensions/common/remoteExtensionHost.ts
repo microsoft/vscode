@@ -285,10 +285,3 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 }
 
-export function getRemoteAuthorityPrefix(remoteAuthority: string): string {
-	const plusIndex = remoteAuthority.indexOf('+');
-	if (plusIndex === -1) {
-		return remoteAuthority;
-	}
-	return remoteAuthority.substring(0, plusIndex);
-}

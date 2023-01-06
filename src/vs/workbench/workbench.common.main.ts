@@ -280,9 +280,6 @@ import 'vs/workbench/contrib/themes/browser/themes.contribution';
 // Update
 import 'vs/workbench/contrib/update/browser/update.contribution';
 
-// Watermark
-import 'vs/workbench/contrib/watermark/browser/watermark';
-
 // Surveys
 import 'vs/workbench/contrib/surveys/browser/nps.contribution';
 import 'vs/workbench/contrib/surveys/browser/ces.contribution';
