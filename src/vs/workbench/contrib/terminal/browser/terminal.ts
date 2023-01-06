@@ -964,6 +964,11 @@ export interface IXtermTerminal {
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
 
 	/**
+	 * Whether the `disableStdin` option in xterm.js is set.
+	 */
+	readonly isStdinDisabled: boolean;
+
+	/**
 	 * The position of the terminal.
 	 */
 	target?: TerminalLocation;
