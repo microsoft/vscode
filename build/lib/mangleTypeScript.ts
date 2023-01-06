@@ -367,7 +367,7 @@ export class Mangler {
 				ts.forEachChild(file, visit);
 			}
 		}
-		this.log(`done COLLECTING ${this.allClassDataByKey.size} classes`);
+		this.log(`Done collecting classes: ${this.allClassDataByKey.size}`);
 
 
 		//  STEP: connect sub and super-types
@@ -423,7 +423,7 @@ export class Mangler {
 		for (const data of this.allClassDataByKey.values()) {
 			ClassData.fillInReplacement(data);
 		}
-		this.log(`done creating REPLACEMENTS`);
+		this.log(`Done creating replacements`);
 
 		// STEP: prepare rename edits
 		type Edit = { newText: string; offset: number; length: number };
@@ -471,7 +471,7 @@ export class Mangler {
 			}
 		}
 
-		this.log(`done preparing EDITS for ${editsByFile.size} files`);
+		this.log(`Done preparing edits: ${editsByFile.size} files`);
 
 		// STEP: apply all rename edits (per file)
 		const result = new Map<string, MangleOutput>();
@@ -507,7 +507,7 @@ export class Mangler {
 					if (lastEdit && lastEdit.offset === edit.offset) {
 						//
 						if (lastEdit.length !== edit.length || lastEdit.newText !== edit.newText) {
-							this.log('OVERLAPPING edit', item.fileName, edit.offset, edits);
+							this.log('ERROR: Overlapping edit', item.fileName, edit.offset, edits);
 							throw new Error('OVERLAPPING edit');
 						} else {
 							continue;
@@ -557,7 +557,7 @@ export class Mangler {
 			result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
 		}
 
-		this.log(`DONE saved ${savedBytes / 1000}kb`);
+		this.log(`Done: ${savedBytes / 1000}kb saved`);
 		return result;
 	}
 }

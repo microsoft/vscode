@@ -293,8 +293,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
 	}
-	getWslPath(original: string): Promise<string> {
-		return this._proxy.getWslPath(original);
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._proxy.getWslPath(original, direction);
 	}
 
 	getRevivedPtyNewId(id: number): Promise<number | undefined> {

@@ -40,6 +40,7 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 
 export interface SuggestResultsProvider {
 	/**
@@ -72,12 +73,22 @@ interface SuggestEnabledInputOptions {
 	 * Defaults to the empty string.
 	 */
 	placeholderText?: string;
+
+	/**
+	 * Initial value to be shown
+	 */
 	value?: string;
 
 	/**
 	 * Context key tracking the focus state of this element
 	 */
 	focusContextKey?: IContextKey<boolean>;
+
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
 }
 
 export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
@@ -104,9 +115,6 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
-
-	private readonly _onEnter = new Emitter<void>();
-	readonly onEnter: Event<void> = this._onEnter.event;
 
 	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
@@ -141,9 +149,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.element = parent;
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
-		const editorOptions: IEditorOptions = mixin(
+		const editorOptions: IEditorConstructionOptions = mixin(
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
+		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
@@ -184,7 +193,6 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); this._onEnter.fire(); }, this));
 		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();

@@ -98,6 +98,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (UTILITY_EXTENSION_HOST_HINT.exec(cmd)) {
 						return 'extension-host';
 					}
+				} else if (matches[1] === 'extensionHost') {
+					return 'extension-host'; // normalize remote extension host type
 				}
 				return matches[1];
 			}
