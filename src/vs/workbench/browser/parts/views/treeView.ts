@@ -344,8 +344,16 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
-						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-						children = node.children ?? [];
+						try {
+							node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+							children = node.children ?? [];
+						} catch (e) {
+							// It can happen that a tree view is hidden right as `getChildren` is called. This results in an error because the data provider gets removed.
+							// The tree will shortly get cleaned up in this case. We just need to handle the error here.
+							node.children = [];
+							children = [];
+							return children;
+						}
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
