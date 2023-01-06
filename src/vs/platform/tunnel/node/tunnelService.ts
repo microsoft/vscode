@@ -90,11 +90,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 		// if that fails, the method above returns 0, which works out fine below...
 		let address: string | net.AddressInfo | null = null;
-		if (isAllInterfaces(this.defaultTunnelHost)) {
-			this._server.listen(localPort);
-		} else {
-			this._server.listen(localPort, this.defaultTunnelHost);
-		}
+		this._server.listen(localPort, this.defaultTunnelHost);
 		await this._barrier.wait();
 		address = <net.AddressInfo>this._server.address();
 
@@ -107,7 +103,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		}
 
 		this.tunnelLocalPort = address.port;
-		this.localAddress = `${isAllInterfaces(this.defaultTunnelHost) ? hostname : (this.tunnelRemoteHost === '127.0.0.1' ? '127.0.0.1' : 'localhost')}:${address.port}`;
+		this.localAddress = `${this.tunnelRemoteHost === '127.0.0.1' ? '127.0.0.1' : 'localhost'}:${address.port}`;
 		return this;
 	}
 
