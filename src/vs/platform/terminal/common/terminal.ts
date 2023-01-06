@@ -134,7 +134,7 @@ export const enum WindowsShellType {
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
