@@ -68,6 +68,7 @@ import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { isString } from 'vs/base/common/types';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -324,7 +325,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
-			let detail = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
+			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			let action: () => Promise<any> = async () => undefined;
 			const buttons = [
 				localize('install anyway', "Install Anyway"),
@@ -342,13 +343,24 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 				buttons.splice(1, 0, localize('configure in settings', "Configure Settings"));
 				const settings = this.extension.deprecationInfo.settings;
 				action = () => this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
+			} else if (this.extension.deprecationInfo.additionalInfo) {
+				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
 			}
 
 			const result = await this.dialogService.show(
 				Severity.Warning,
 				localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
 				buttons,
-				{ detail, cancelId: buttons.length - 1 });
+				{
+					detail: isString(detail) ? detail : undefined,
+					cancelId: buttons.length - 1,
+					custom: isString(detail) ? undefined : {
+						markdownDetails: [{
+							markdown: detail
+						}]
+					}
+				},
+			);
 			if (result.choice === 1) {
 				return action();
 			}
@@ -2271,7 +2283,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained.")) }, true);
+				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
+				if (this.extension.deprecationInfo.additionalInfo) {
+					message.appendMarkdown(` ${this.extension.deprecationInfo.additionalInfo}`);
+				}
+				this.updateStatus({ icon: warningIcon, message }, true);
 			}
 			return;
 		}

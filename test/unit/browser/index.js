@@ -176,12 +176,13 @@ async function runTestsInBrowser(testModules, browserType) {
 	if (argv.build) {
 		target.search = `?build=true`;
 	}
-	await page.goto(target.href);
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
 		emitter.emit(type, data1, data2);
 	});
+
+	await page.goto(target.href);
 
 	page.on('console', async msg => {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));

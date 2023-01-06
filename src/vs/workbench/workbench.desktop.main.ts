@@ -85,7 +85,7 @@ import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
-import 'vs/workbench/services/extensions/electron-sandbox/sandboxExtensionService';
+import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';

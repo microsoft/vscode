@@ -441,6 +441,9 @@ export interface IWatchOptions {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	excludes: string[];
 
@@ -448,6 +451,9 @@ export interface IWatchOptions {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }

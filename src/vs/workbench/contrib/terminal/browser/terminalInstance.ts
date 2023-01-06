@@ -2532,7 +2532,10 @@ export class TerminalLabelComputer extends Disposable {
 
 		// Only set cwdFolder if detection is on
 		if (templateProperties.cwd && detection && (!this._instance.shellLaunchConfig.isFeatureTerminal || labelType === TerminalLabelType.Title)) {
-			const cwdUri = URI.from({ scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file, path: this._instance.cwd });
+			const cwdUri = URI.from({
+				scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file,
+				path: this._instance.cwd ? path.resolve(this._instance.cwd) : undefined
+			});
 			// Multi-root workspaces always show cwdFolder to disambiguate them, otherwise only show
 			// when it differs from the workspace folder in which it was launched from
 			let showCwd = false;

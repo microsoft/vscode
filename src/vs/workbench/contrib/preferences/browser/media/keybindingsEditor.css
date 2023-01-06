@@ -7,6 +7,16 @@
 	padding: 11px 0px 0px 27px;
 }
 
+.keybindings-overflow-widgets-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	z-index: 5000;
+}
+
 /* header styling */
 
 .keybindings-editor > .keybindings-header {
