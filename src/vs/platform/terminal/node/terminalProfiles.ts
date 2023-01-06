@@ -201,7 +201,7 @@ async function transformToTerminalProfiles(
 			paths = new Array(originalPaths.length);
 			for (let i = 0; i < originalPaths.length; i++) {
 				if (typeof originalPaths[i] === 'string') {
-					paths[i] = originalPaths[i];
+					paths[i] = resolved[i];
 				} else {
 					paths[i] = {
 						path: resolved[i],
