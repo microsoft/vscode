@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
 import { withUndefinedAsNull } from 'vs/base/common/types';
@@ -19,7 +19,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -27,9 +27,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { launchSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -63,7 +62,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
-		private readonly adapterManager: AdapterManager,
+		private readonly adapterManager: IAdapterManager,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -120,22 +119,25 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
-		await this.adapterManager.activateDebuggers('onDebugResolve', type);
-		// pipe the config through the promises sequentially. Append at the end the '*' types
-		const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
-			.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
+		const resolveDebugConfigurationForType = async (type: string | undefined, config: IConfig | null | undefined) => {
+			if (type !== '*') {
+				await this.adapterManager.activateDebuggers('onDebugResolve', type);
+			}
+
+			for (const p of this.configProviders) {
+				if (p.type === type && p.resolveDebugConfiguration && config) {
+					config = await p.resolveDebugConfiguration(folderUri, config, token);
+				}
+			}
+
+			return config;
+		};
 
 		let result: IConfig | null | undefined = config;
-		await sequence(providers.map(provider => async () => {
-			// If any provider returned undefined or null make sure to respect that and do not pass the result to more resolver
-			if (result) {
-				result = await provider.resolveDebugConfiguration!(folderUri, result, token);
-			}
-		}));
-
-		// The resolver can change the type, ensure activation happens, #135090
-		if (result?.type && result.type !== config.type) {
-			await this.adapterManager.activateDebuggers('onDebugResolve', result.type);
+		for (let seen = new Set(); result && !seen.has(result.type);) {
+			seen.add(result?.type);
+			result = await resolveDebugConfigurationForType(result.type, result);
+			result = await resolveDebugConfigurationForType('*', result);
 		}
 
 		return result;
@@ -477,7 +479,7 @@ abstract class AbstractLaunch implements ILaunch {
 
 	constructor(
 		protected configurationManager: ConfigurationManager,
-		private readonly adapterManager: AdapterManager
+		private readonly adapterManager: IAdapterManager
 	) { }
 
 	getCompound(name: string): ICompound | undefined {
@@ -550,7 +552,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 
 	constructor(
 		configurationManager: ConfigurationManager,
-		adapterManager: AdapterManager,
+		adapterManager: IAdapterManager,
 		public workspace: IWorkspaceFolder,
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -633,7 +635,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	constructor(
 		configurationManager: ConfigurationManager,
-		adapterManager: AdapterManager,
+		adapterManager: IAdapterManager,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
@@ -685,7 +687,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 
 	constructor(
 		configurationManager: ConfigurationManager,
-		adapterManager: AdapterManager,
+		adapterManager: IAdapterManager,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
