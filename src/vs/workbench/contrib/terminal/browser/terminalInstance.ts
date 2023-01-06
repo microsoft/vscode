@@ -165,7 +165,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
 	private _aliases: string[][] | undefined;
-	private _shellType: TerminalShellType;
+	private _shellType: TerminalShellType | undefined;
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
@@ -292,7 +292,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
-	get shellType(): TerminalShellType { return this._shellType; }
+	get shellType(): TerminalShellType | undefined { return this._shellType; }
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
@@ -1944,7 +1944,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	setShellType(shellType: TerminalShellType) {
+	setShellType(shellType: TerminalShellType | undefined) {
 		this._shellType = shellType;
 		if (shellType) {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
