@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, IBufferLine, IBuffer } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
@@ -38,7 +38,7 @@ export function convertLinkRangeToBuffer(
 	let startOffset = 0;
 	const startWrappedLineCount = Math.ceil(range.startColumn / bufferWidth);
 	for (let y = 0; y < Math.min(startWrappedLineCount); y++) {
-		const lineLength = Math.min(bufferWidth, range.startColumn - y * bufferWidth);
+		const lineLength = Math.min(bufferWidth, (range.startColumn - 1) - y * bufferWidth);
 		let lineOffset = 0;
 		const line = lines[y];
 		// Sanity check for line, apparently this can happen but it's not clear under what
@@ -65,9 +65,8 @@ export function convertLinkRangeToBuffer(
 	let endOffset = 0;
 	const endWrappedLineCount = Math.ceil(range.endColumn / bufferWidth);
 	for (let y = Math.max(0, startWrappedLineCount - 1); y < endWrappedLineCount; y++) {
-		const start = (y === startWrappedLineCount - 1 ? (range.startColumn + startOffset) % bufferWidth : 0);
+		const start = (y === startWrappedLineCount - 1 ? (range.startColumn - 1 + startOffset) % bufferWidth : 0);
 		const lineLength = Math.min(bufferWidth, range.endColumn + startOffset - y * bufferWidth);
-		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
 		let lineOffset = 0;
 		const line = lines[y];
 		// Sanity check for line, apparently this can happen but it's not clear under what
@@ -76,21 +75,26 @@ export function convertLinkRangeToBuffer(
 		if (!line) {
 			break;
 		}
-		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
+		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
 			const cell = line.getCell(x);
 			// This is unexpected but it means the character doesn't exist, so we shouldn't add to
 			// the offset
 			if (!cell) {
 				break;
 			}
-			// Offset for 0 cells following wide characters
 			const width = cell.getWidth();
+			const chars = cell.getChars();
+			// Offset for null cells following wide characters
 			if (width === 2) {
 				lineOffset++;
 			}
 			// Offset for early wrapping when the last cell in row is a wide character
-			if (x === bufferWidth - 1 && cell.getChars() === '') {
+			if (x === bufferWidth - 1 && chars === '') {
 				lineOffset++;
+			}
+			// Offset multi-code characters like emoji
+			if (chars.length > 1) {
+				lineOffset -= chars.length - 1;
 			}
 		}
 		endOffset += lineOffset;
@@ -141,6 +145,53 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 		}
 	}
 	return content;
+}
+
+export function getXtermRangesByAttr(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): IBufferRange[] {
+	let bufferRangeStart: IBufferCellPosition | undefined = undefined;
+	let lastFgAttr: number = -1;
+	let lastBgAttr: number = -1;
+	const ranges: IBufferRange[] = [];
+	for (let y = lineStart; y <= lineEnd; y++) {
+		const line = buffer.getLine(y);
+		if (!line) {
+			continue;
+		}
+		for (let x = 0; x < cols; x++) {
+			const cell = line.getCell(x);
+			if (!cell) {
+				break;
+			}
+			// HACK: Re-construct the attributes from fg and bg, this is hacky as it relies
+			// upon the internal buffer bit layout
+			const thisFgAttr = (
+				cell.isBold() |
+				cell.isInverse() |
+				cell.isStrikethrough() |
+				cell.isUnderline()
+			);
+			const thisBgAttr = (
+				cell.isDim() |
+				cell.isItalic()
+			);
+			if (lastFgAttr === -1 || lastBgAttr === -1) {
+				bufferRangeStart = { x, y };
+			} else {
+				if (lastFgAttr !== thisFgAttr || lastBgAttr !== thisBgAttr) {
+					// TODO: x overflow
+					const bufferRangeEnd = { x, y };
+					ranges.push({
+						start: bufferRangeStart!,
+						end: bufferRangeEnd
+					});
+					bufferRangeStart = { x, y };
+				}
+			}
+			lastFgAttr = thisFgAttr;
+			lastBgAttr = thisBgAttr;
+		}
+	}
+	return ranges;
 }
 
 

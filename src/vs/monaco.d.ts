@@ -1256,7 +1256,7 @@ declare namespace monaco.editor {
 		 */
 		'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 		/**
-		 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+		 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 		 * Defaults to false.
 		 */
 		stablePeek?: boolean;
@@ -4393,7 +4393,7 @@ declare namespace monaco.editor {
 		/**
 		 * Select suggestions when triggered via quick suggest or trigger characters
 		 */
-		selectQuickSuggestions?: boolean;
+		selectionMode?: 'always' | 'never' | 'whenTriggerCharacter' | 'whenQuickSuggestion';
 		/**
 		 * Enable or disable icons in suggestions. Defaults to true.
 		 */

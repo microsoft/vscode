@@ -290,7 +290,7 @@ export class LabelService extends Disposable implements ILabelService {
 	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
-			if (identifier) {
+			if (isSingleFolderWorkspaceIdentifier(identifier) || isWorkspaceIdentifier(identifier)) {
 				return this.getWorkspaceLabel(identifier, options);
 			}
 

@@ -6,6 +6,14 @@
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+
+export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
+export interface ITerminalLinkResolverService {
+	readonly _serviceBrand: undefined;
+	resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink>;
+}
 
 /**
  * A link detector can search for and return links within the xterm.js buffer. A single link

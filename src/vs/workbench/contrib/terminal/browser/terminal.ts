@@ -480,11 +480,6 @@ export interface ITerminalInstance {
 	readonly persistentProcessId: number | undefined;
 
 	/**
-	 * The id of a persistent process during the shutdown process
-	 */
-	shutdownPersistentProcessId: number | undefined;
-
-	/**
 	 * Whether the process should be persisted across reloads.
 	 */
 	readonly shouldPersist: boolean;
@@ -793,7 +788,7 @@ export interface ITerminalInstance {
 	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
 	 * platform. This defaults to `true`.
 	 */
-	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
+	sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void>;
 
 	runCommand(command: string, addNewLine?: boolean): void;
 

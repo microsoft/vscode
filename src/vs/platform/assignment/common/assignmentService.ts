@@ -10,18 +10,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
 
-class NullAssignmentServiceTelemetry implements IExperimentationTelemetry {
-	constructor() { }
-
-	setSharedProperty(name: string, value: string): void {
-		// noop due to lack of telemetry service
-	}
-
-	postEvent(eventName: string, props: Map<string, string>): void {
-		// noop due to lack of telemetry service
-	}
-}
-
 export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;
 	protected tasClient: Promise<TASClient> | undefined;
@@ -110,14 +98,5 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 		tasClient.initialFetch.then(() => this.networkInitialized = true);
 
 		return tasClient;
-	}
-}
-
-export class AssignmentService extends BaseAssignmentService {
-	constructor(
-		machineId: string,
-		configurationService: IConfigurationService,
-		productService: IProductService) {
-		super(() => Promise.resolve(machineId), configurationService, productService, new NullAssignmentServiceTelemetry());
 	}
 }

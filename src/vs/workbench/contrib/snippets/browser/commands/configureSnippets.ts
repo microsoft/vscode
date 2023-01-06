@@ -12,6 +12,7 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -32,12 +33,13 @@ interface ISnippetPick extends IQuickPickItem {
 	hint?: true;
 }
 
-async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService) {
+async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService, labelService: ILabelService) {
 
 	const existing: ISnippetPick[] = [];
 	const future: ISnippetPick[] = [];
 
 	const seen = new Set<string>();
+	const added = new Map<string, { snippet: ISnippetPick; detail: string }>();
 
 	for (const file of await snippetService.getSnippetFiles()) {
 
@@ -52,7 +54,13 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 
 			// list scopes for global snippets
 			const names = new Set<string>();
+			let source: string | undefined;
+
 			outer: for (const snippet of file.data) {
+				if (!source) {
+					source = snippet.source;
+				}
+
 				for (const scope of snippet.scopes) {
 					const name = languageService.getLanguageName(scope);
 					if (name) {
@@ -66,13 +74,26 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				}
 			}
 
-			existing.push({
+			const snippet: ISnippetPick = {
 				label: basename(file.location),
 				filepath: file.location,
 				description: names.size === 0
 					? nls.localize('global.scope', "(global)")
 					: nls.localize('global.1', "({0})", [...names].join(', '))
-			});
+			};
+			existing.push(snippet);
+
+			if (!source) {
+				continue;
+			}
+
+			const detail = nls.localize('detail.label', "({0}) {1}", source, labelService.getUriLabel(file.location, { relative: true }));
+			const lastItem = added.get(basename(file.location));
+			if (lastItem) {
+				snippet.detail = detail;
+				lastItem.snippet.detail = lastItem.detail;
+			}
+			added.set(basename(file.location), { snippet, detail });
 
 		} else {
 			// language snippet
@@ -232,8 +253,9 @@ export class ConfigureSnippets extends SnippetsAction {
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
+		const labelService = accessor.get(ILabelService);
 
-		const picks = await computePicks(snippetService, userDataProfileService, languageService);
+		const picks = await computePicks(snippetService, userDataProfileService, languageService, labelService);
 		const existing: QuickPickInput[] = picks.existing;
 
 		type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };

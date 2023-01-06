@@ -284,3 +284,4 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		}
 	}
 }
+

@@ -11,7 +11,8 @@
 
 .search-view .results {
 	flex-grow: 1;
-	min-height: 0; /* Allow it to be smaller than its contents */
+	min-height: 0;
+	/* Allow it to be smaller than its contents */
 }
 
 .search-view .search-widgets-container {
@@ -34,6 +35,14 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-workbench .search-view .search-widget .toggle-replace-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground)
+}
+
+.monaco-workbench .search-view .search-widget .toggle-replace-button:active {
+	background-color: var(--vscode-toolbar-activeBackground)
 }
 
 .search-view .search-widget .search-container,
@@ -163,6 +172,15 @@
 	-webkit-user-select: text;
 }
 
+.search-view .message a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.search-view .message a:hover,
+.search-view .message a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .search-view .foldermatch,
 .search-view .filematch {
 	display: flex;
@@ -277,6 +295,14 @@
 
 .search-view .replace.findInFileMatch {
 	text-decoration: line-through;
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	border: 1px solid var(--vscode-diffEditor-removedTextBackground);
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-light .search-view .replace.findInFileMatch,
+.monaco-workbench.hc-dark .search-view .replace.findInFileMatch {
+	border: 1px dashed var(--vscode-diffEditor-removedTextBackground);
 }
 
 .search-view .findInFileMatch,
@@ -284,6 +310,22 @@
 	white-space: pre;
 }
 
+.search-view .findInFileMatch {
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+	border: 1px solid var(--vscode-editor-findMatchHighlightBorder);
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-light .search-view .findInFileMatch,
+.monaco-workbench.hc-dark .search-view .findInFileMatch {
+	border: 1px dashed var(--vscode-editor-findMatchHighlightBorder);
+}
+
+.search-view .replaceMatch {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+/* High Contrast Theming */
 .monaco-workbench.hc-black .search-view .replaceMatch,
 .monaco-workbench.hc-black .search-view .findInFileMatch,
 .monaco-workbench.hc-light .search-view .replaceMatch,
@@ -292,8 +334,17 @@
 	box-sizing: border-box;
 }
 
-/* High Contrast Theming */
+.search-view .replaceMatch:not(:empty) {
+	border: 1px solid var(--vscode-diffEditor-insertedLineBackground);
+}
 
+/* High Contrast Theming */
+.monaco-workbench.hc-light .search-view .replaceMatch:not(:empty),
+.monaco-workbench.hc-dark .search-view .replaceMatch:not(:empty) {
+	border: 1px dashed var(--vscode-diffEditor-insertedLineBackground);
+}
+
+/* High Contrast Theming */
 .monaco-workbench.hc-black .search-view .foldermatch,
 .monaco-workbench.hc-black .search-view .filematch,
 .monaco-workbench.hc-black .search-view .linematch,
@@ -316,4 +367,8 @@
 	position: relative;
 	top: 3px;
 	padding-right: 3px;
+}
+
+.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
+	outline-color: var(--vscode-list-activeSelectionForeground)
 }

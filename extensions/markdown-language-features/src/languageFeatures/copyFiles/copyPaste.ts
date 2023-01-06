@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
-import { Utils } from 'vscode-uri';
-import { Schemes } from '../util/schemes';
+import { Schemes } from '../../util/schemes';
+import { getNewFileName } from './copyFiles';
 import { createUriListSnippet, tryGetUriListSnippet } from './dropIntoEditor';
 
 const supportedImageMimes = new Set([
@@ -59,7 +58,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			}
 		}
 
-		const uri = await this._getNewFileName(document, file);
+		const uri = await getNewFileName(document, file);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -76,23 +75,6 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		const pasteEdit = new vscode.DocumentPasteEdit(snippet);
 		pasteEdit.additionalEdit = workspaceEdit;
 		return pasteEdit;
-	}
-
-	private async _getNewFileName(document: vscode.TextDocument, file: vscode.DataTransferFile): Promise<vscode.Uri> {
-		const root = Utils.dirname(document.uri);
-
-		const ext = path.extname(file.name);
-		const baseName = path.basename(file.name, ext);
-		for (let i = 0; ; ++i) {
-			const name = i === 0 ? baseName : `${baseName}-${i}`;
-			const uri = vscode.Uri.joinPath(root, `${name}${ext}`);
-			try {
-				await vscode.workspace.fs.stat(uri);
-			} catch {
-				// Does not exist
-				return uri;
-			}
-		}
 	}
 }
 
