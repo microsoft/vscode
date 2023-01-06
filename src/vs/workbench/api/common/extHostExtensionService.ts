@@ -26,7 +26,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -1037,14 +1037,6 @@ function filterExtensions(globalRegistry: ExtensionDescriptionRegistry, desiredE
 	return globalRegistry.getAllExtensionDescriptions().filter(
 		extension => desiredExtensions.has(ExtensionIdentifier.toKey(extension.identifier))
 	);
-}
-
-function getRemoteAuthorityPrefix(remoteAuthority: string): string {
-	const plusIndex = remoteAuthority.indexOf('+');
-	if (plusIndex === -1) {
-		return remoteAuthority;
-	}
-	return remoteAuthority.substring(0, plusIndex);
 }
 
 export class ExtensionPaths {

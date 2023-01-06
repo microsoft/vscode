@@ -197,7 +197,7 @@ fn write_systemd_service_file(
       ExecStart={} \"{}\"\n\
       \n\
       [Install]\n\
-      WantedBy=multi-user.target\n\
+      WantedBy=default.target\n\
     ",
 		PRODUCT_NAME_LONG,
 		exe.into_os_string().to_string_lossy(),

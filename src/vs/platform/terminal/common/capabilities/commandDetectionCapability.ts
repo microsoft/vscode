@@ -703,7 +703,7 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	const executedMarker = command.executedMarker;
 	const endMarker = command.endMarker;
 	if (!executedMarker || !endMarker) {
-		throw new Error('No marker for command');
+		return undefined;
 	}
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;

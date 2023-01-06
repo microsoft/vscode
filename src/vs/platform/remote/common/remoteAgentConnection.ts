@@ -9,6 +9,8 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as performance from 'vs/base/common/performance';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client, ConnectionHealth, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
@@ -190,18 +192,27 @@ function readOneControlMessage<T>(protocol: PersistentProtocol, timeoutCancellat
 	return result.promise;
 }
 
-function createSocket(logService: ILogService, socketFactory: ISocketFactory, host: string, port: number, path: string, query: string, debugLabel: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
+function createSocket(logService: ILogService, socketFactory: ISocketFactory, host: string, port: number, path: string, query: string, debugConnectionType: string, debugLabel: string, timeoutCancellationToken: CancellationToken): Promise<ISocket> {
 	const result = new PromiseWithTimeout<ISocket>(timeoutCancellationToken);
+	const sw = StopWatch.create(false);
+	logService.info(`Creating a socket (${debugLabel})...`);
+	performance.mark(`code/willCreateSocket/${debugConnectionType}`);
 	socketFactory.connect(host, port, path, query, debugLabel, (err: any, socket: ISocket | undefined) => {
 		if (result.didTimeout) {
+			performance.mark(`code/didCreateSocketError/${debugConnectionType}`);
+			logService.info(`Creating a socket (${debugLabel}) finished after ${sw.elapsed()} ms, but this is too late and has timed out already.`);
 			if (err) {
 				logService.error(err);
 			}
 			socket?.dispose();
 		} else {
 			if (err || !socket) {
+				performance.mark(`code/didCreateSocketError/${debugConnectionType}`);
+				logService.info(`Creating a socket (${debugLabel}) returned an error after ${sw.elapsed()} ms.`);
 				result.reject(err);
 			} else {
+				performance.mark(`code/didCreateSocketOK/${debugConnectionType}`);
+				logService.info(`Creating a socket (${debugLabel}) was successful after ${sw.elapsed()} ms.`);
 				result.resolve(socket);
 			}
 		}
@@ -233,7 +244,7 @@ async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptio
 
 	let socket: ISocket;
 	try {
-		socket = await createSocket(options.logService, options.socketFactory, options.host, options.port, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
+		socket = await createSocket(options.logService, options.socketFactory, options.host, options.port, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
 	} catch (error) {
 		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
 		options.logService.error(error);

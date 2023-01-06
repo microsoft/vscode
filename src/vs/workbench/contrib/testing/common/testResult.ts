@@ -107,17 +107,6 @@ export const makeEmptyCounts = () => {
 	return o as TestStateCount;
 };
 
-export const sumCounts = (counts: Iterable<TestStateCount>) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
-		}
-	}
-
-	return total;
-};
-
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	for (const state of statesInOrder) {
 		if (counts[state] > 0) {
