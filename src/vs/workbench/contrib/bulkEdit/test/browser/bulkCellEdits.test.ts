@@ -50,6 +50,6 @@ suite('BulkCellEdits', function () {
 
 	test('throws for invalid cell URI', async () => {
 		const badCellUri = CellUri.generate(notebookUri, 5).with({ fragment: '' });
-		assert.rejects(async () => await runTest(badCellUri, notebookUri));
+		await assert.rejects(async () => await runTest(badCellUri, notebookUri));
 	});
 });
