@@ -77,7 +77,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		const commonProperties: Record<string, string | boolean | number | undefined> = {};
 		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
 		// Or will first party extensions just mix this in
-		commonProperties['common.extname'] = extension.name;
+		commonProperties['common.extname'] = `${extension.publisher}.${extension.name}`;
 		commonProperties['common.extversion'] = extension.version;
 		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
 		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
