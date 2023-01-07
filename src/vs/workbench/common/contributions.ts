@@ -27,8 +27,14 @@ type IWorkbenchContributionSignature<Service extends BrandedService[]> = new (..
 export interface IWorkbenchContributionsRegistry {
 
 	/**
-	 * Registers a workbench contribution to the platform that will be loaded when the workbench starts and disposed when
-	 * the workbench shuts down.
+	 * Registers a workbench contribution to the platform that will
+	 * be loaded when the workbench starts and disposed when the
+	 * workbench shuts down.
+	 *
+	 * The parameter `phase` controls when the contribution is instantiated.
+	 * Phases `Starting` and `Ready` are synchronous, all other phases are
+	 * delayed until the workbench is idle. Contributions are guaranteed to
+	 * be created in the order of their phases, even when delayed to idle.
 	 *
 	 * @param phase the lifecycle phase when to instantiate the contribution.
 	 */
@@ -65,7 +71,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				this.contributions.set(phase, contributions);
 			}
 
-			contributions.push(contribution as IConstructorSignature<IWorkbenchContribution>);
+			contributions.push(contribution);
 		}
 	}
 
@@ -129,7 +135,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 						await this.pendingRestoredContributions.p;
 					}
 
-					this.doInstantiateWhenIdle(contributions, phase === LifecyclePhase.Restored ? 500 : 3000, instantiationService, logService, environmentService, phase);
+					this.doInstantiateWhenIdle(contributions, instantiationService, logService, environmentService, phase);
 
 					break;
 				}
@@ -137,10 +143,11 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		}
 	}
 
-	private doInstantiateWhenIdle(contributions: IConstructorSignature<IWorkbenchContribution>[], forcedTimeout: number, instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, phase: LifecyclePhase): void {
-		let i = 0;
-
+	private doInstantiateWhenIdle(contributions: IConstructorSignature<IWorkbenchContribution>[], instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, phase: LifecyclePhase): void {
 		mark(`code/willCreateWorkbenchContributions/${phase}`);
+
+		let i = 0;
+		const forcedTimeout = phase === LifecyclePhase.Eventually ? 3000 : 500;
 
 		const instantiateSome = (idle: IdleDeadline) => {
 			while (i < contributions.length) {
@@ -171,7 +178,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		try {
 			instantiationService.createInstance(contribution);
 		} catch (error) {
-			logService.error(`Unable to instantiate workbench contribution ${contribution.name}.`, error);
+			logService.error(`Unable to create workbench contribution ${contribution.name}.`, error);
 		}
 
 		if (typeof now === 'number' && !environmentService.isBuilt /* only log out of sources where we have good ctor names */) {
