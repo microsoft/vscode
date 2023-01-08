@@ -850,7 +850,7 @@
 					]
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(rgba?|hsla?|hwb|lab|lch)(\\()",
+					"begin": "(?i)(?<![\\w-])(rgba?|hsla?|hsl|rgb|hwb|lab|lch|oklab|oklch|color)(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.misc.css"
@@ -891,7 +891,7 @@
 					"name": "meta.function.gradient.css",
 					"patterns": [
 						{
-							"match": "(?i)(?<![\\w-])(from|to|at)(?![\\w-])",
+							"match": "(?i)(?<![\\w-])(from|to|at|in|hue)(?![\\w-])",
 							"name": "keyword.operator.gradient.css"
 						},
 						{
