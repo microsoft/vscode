@@ -12,7 +12,7 @@ import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/ex
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 // terminal extension point
-export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
+const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
 
 export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;

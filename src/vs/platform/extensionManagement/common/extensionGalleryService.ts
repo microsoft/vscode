@@ -563,6 +563,7 @@ interface IRawExtensionsControlManifest {
 			displayName: string;
 		};
 		settings?: string[];
+		additionalInfo?: string;
 	}>;
 }
 

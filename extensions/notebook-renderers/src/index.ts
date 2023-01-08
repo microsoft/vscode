@@ -236,6 +236,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
+	.output-plaintext,
+	.output-stream {
+		white-space: pre-wrap;
+	}
 	output-plaintext,
 	.traceback {
 		word-wrap: break-word;

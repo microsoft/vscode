@@ -30,8 +30,6 @@ export interface IMainThreadTestController {
 	runTests(request: RunTestForControllerRequest[], token: CancellationToken): Promise<RunTestForControllerResult[]>;
 }
 
-export type TestDiffListener = (diff: TestsDiff) => void;
-
 export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
 	onBusyProvidersChange: Event<number>;
 
@@ -79,15 +77,6 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	 */
 	getReviverDiff(): TestsDiff;
 }
-
-/**
- * Iterates through the item and its parents to the root.
- */
-export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
-	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
-		yield collection.getNodeById(id.toString())!;
-	}
-};
 
 export const testCollectionIsEmpty = (collection: IMainThreadTestCollection) =>
 	!Iterable.some(collection.rootItems, r => r.children.size > 0);
@@ -147,26 +136,9 @@ export const expandAndGetTestById = async (collection: IMainThreadTestCollection
 };
 
 /**
- * Waits for all test in the hierarchy to be fulfilled before returning.
- * If cancellation is requested, it will return early.
- */
-export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
-	if (ct.isCancellationRequested) {
-		return;
-	}
-
-	let l: IDisposable;
-
-	await Promise.race([
-		Promise.all([...collection.rootItems].map(r => collection.expand(r.item.extId, Infinity))),
-		new Promise(r => { l = ct.onCancellationRequested(r); }),
-	]).finally(() => l?.dispose());
-};
-
-/**
  * Waits for the test to no longer be in the "busy" state.
  */
-export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
+const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
 	if (!test.item.busy) {
 		return;
 	}
