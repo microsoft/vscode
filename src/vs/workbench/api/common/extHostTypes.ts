@@ -3763,6 +3763,18 @@ export class TestRunRequest implements vscode.TestRunRequest {
 }
 
 @es5ClassCompat
+export class TestRunRequest2 extends TestRunRequest implements vscode.TestRunRequest2 {
+	constructor(
+		include: vscode.TestItem[] | undefined = undefined,
+		exclude: vscode.TestItem[] | undefined = undefined,
+		profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
+	) {
+		super(include, exclude, profile);
+	}
+}
+
+@es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
