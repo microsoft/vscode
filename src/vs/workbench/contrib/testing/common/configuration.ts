@@ -10,7 +10,7 @@ import { IConfigurationNode } from 'vs/platform/configuration/common/configurati
 export const enum TestingConfigKeys {
 	AutoRunDelay = 'testing.autoRun.delay',
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
-	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
+	AutoOpenPeekViewDuringContinuousRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
 	OpenTesting = 'testing.openTesting',
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
@@ -63,8 +63,8 @@ export const testingConfiguation: IConfigurationNode = {
 				localize('testing.automaticallyOpenPeekView.never', "Never automatically open."),
 			],
 		},
-		[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: {
-			description: localize('testing.automaticallyOpenPeekViewDuringAutoRun', "Controls whether to automatically open the Peek view during auto-run mode."),
+		[TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun]: {
+			description: localize('testing.automaticallyOpenPeekViewDuringContinuousRun', "Controls whether to automatically open the Peek view during continuous run mode."),
 			type: 'boolean',
 			default: false,
 		},
@@ -122,7 +122,7 @@ export const testingConfiguation: IConfigurationNode = {
 export interface ITestingConfiguration {
 	[TestingConfigKeys.AutoRunDelay]: number;
 	[TestingConfigKeys.AutoOpenPeekView]: AutoOpenPeekViewWhen;
-	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
+	[TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun]: boolean;
 	[TestingConfigKeys.FollowRunningTest]: boolean;
 	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
 	[TestingConfigKeys.GutterEnabled]: boolean;

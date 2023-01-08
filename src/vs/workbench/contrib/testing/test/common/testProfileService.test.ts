@@ -31,6 +31,7 @@ suite('Workbench - TestProfileService', () => {
 			profileId: idCounter++,
 			hasConfigurationHandler: false,
 			tag: null,
+			supportsContinuousRun: false,
 			...profile,
 		};
 
