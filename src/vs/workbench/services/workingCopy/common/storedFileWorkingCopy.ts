@@ -1137,6 +1137,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			this.lastResolvedFileStat = newFileStat;
 		}
 
+		// readonlyHelper also needs to read lastResolvedFileStat
+		this._readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
 		// Signal if the readonly state changed
 		this.isReadonly();
 	}
