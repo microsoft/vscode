@@ -110,10 +110,10 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 				id: OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.Integrated', "Open in Integrated Terminal")
 			},
-			when: ContextKeyExpr.and(
-				ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)),
+			when: ContextKeyExpr.or(ContextKeyExpr.and(
+				ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 				ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'integrated'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')),
-			)
+			), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
 		};
 
 
@@ -125,7 +125,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
 			},
 			when: ContextKeyExpr.and(
-				ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.notEqualsTo(Schemas.vscodeRemote)),
+				ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 				ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'external'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')),
 			)
 		};
@@ -143,7 +143,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		this._refreshOpenInTerminalMenuItemTitle();
 	}
 
-	private isWindowsTerminal(): boolean {
+	private isWindows(): boolean {
 		const config = this._configurationService.getValue<IExternalTerminalConfiguration>().terminal;
 		if (isWindows && config.external?.windowsExec) {
 			const file = basename(config.external.windowsExec);
@@ -155,8 +155,8 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _refreshOpenInTerminalMenuItemTitle(): void {
-		if (this.isWindowsTerminal()) {
-			this._openInTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in External Terminal");
+		if (this.isWindows()) {
+			this._openInTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in Windows Terminal");
 		}
 	}
 }
