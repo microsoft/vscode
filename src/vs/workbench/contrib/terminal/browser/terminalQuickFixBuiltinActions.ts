@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { IInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const GitCommandLineRegex = /git/;
@@ -190,6 +190,38 @@ export function gitCreatePr(): IInternalOptions {
 				uri: URI.parse(link),
 				source: QuickFixSource.Builtin
 			};
+		}
+	};
+}
+
+export function pwshGeneralCommandErrorFeedback(): IInternalOptions {
+	return {
+		id: 'Pwsh General Command Error Feedback',
+		type: 'internal',
+		commandLineMatcher: /.+/,
+		outputMatcher: {
+			lineMatcher: /^Suggestion \[General\]:/,
+			anchor: 'bottom',
+			offset: 0,
+			length: 10
+		},
+		commandExitResult: 'error',
+		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
+			const suggestionLine = matchResult.outputMatch?.regexMatch.input?.split('\n')?.[1];
+			const suggestions = suggestionLine?.match(/The most similar commands are: (?<values>.+)./)?.groups?.values?.split(', ');
+			if (!suggestions) {
+				return;
+			}
+			const result: ITerminalQuickFixCommandAction[] = [];
+			for (const suggestion of suggestions) {
+				result.push({
+					id: 'Pwsh General Command Error',
+					type: TerminalQuickFixType.Command,
+					terminalCommand: suggestion,
+					source: QuickFixSource.Builtin
+				});
+			}
+			return result;
 		}
 	};
 }
