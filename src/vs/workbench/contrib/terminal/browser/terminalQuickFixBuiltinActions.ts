@@ -194,9 +194,9 @@ export function gitCreatePr(): IInternalOptions {
 	};
 }
 
-export function pwshGeneralCommandErrorFeedback(): IInternalOptions {
+export function pwshGeneralError(): IInternalOptions {
 	return {
-		id: 'Pwsh General Command Error Feedback',
+		id: 'Pwsh General Error',
 		type: 'internal',
 		commandLineMatcher: /.+/,
 		outputMatcher: {
@@ -220,6 +220,61 @@ export function pwshGeneralCommandErrorFeedback(): IInternalOptions {
 					terminalCommand: suggestion,
 					source: QuickFixSource.Builtin
 				});
+			}
+			return result;
+		}
+	};
+}
+
+export function pwshUnixCommandNotFoundError(): IInternalOptions {
+	return {
+		id: 'Unix Command Not Found',
+		type: 'internal',
+		commandLineMatcher: /.+/,
+		outputMatcher: {
+			lineMatcher: /^Suggestion \[cmd-not-found\]:/,
+			anchor: 'bottom',
+			offset: 0,
+			length: 10
+		},
+		commandExitResult: 'error',
+		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
+			const lines = matchResult.outputMatch?.regexMatch.input?.split('\n');
+			if (!lines) {
+				return;
+			}
+			const result: ITerminalQuickFixCommandAction[] = [];
+
+			// Always remove the first element as it's the "Suggestion [cmd-not-found]"" line
+			let inSuggestions = false;
+			for (let i = 1; i < lines.length; i++) {
+				const line = lines[i].trim();
+				if (line.length === 0) {
+					break;
+				}
+				const installCommand = line.match(/You also have .+ installed, you can run '(?<command>.+)' instead./)?.groups?.command;
+				if (installCommand) {
+					result.push({
+						id: 'Pwsh Unix Command Not Found Error',
+						type: TerminalQuickFixType.Command,
+						terminalCommand: installCommand,
+						source: QuickFixSource.Builtin
+					});
+					inSuggestions = false;
+					continue;
+				}
+				if (line.match(/Command '.+' not found, but can be installed with:/)) {
+					inSuggestions = true;
+					continue;
+				}
+				if (inSuggestions) {
+					result.push({
+						id: 'Pwsh Unix Command Not Found Error',
+						type: TerminalQuickFixType.Command,
+						terminalCommand: line.trim(),
+						source: QuickFixSource.Builtin
+					});
+				}
 			}
 			return result;
 		}

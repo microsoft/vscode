@@ -59,7 +59,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralCommandErrorFeedback as pwshGeneralCommandError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
@@ -739,11 +739,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
 		this._registerQuickFixProvider(this._quickFixAddon, gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr());
-
-		if ((this.os || OS) === OperatingSystem.Linux) {
-			// this.registerQuickFixProvider(pwshUnixCommandNotFound);
-		} else {
-			this._registerQuickFixProvider(this._quickFixAddon, pwshGeneralCommandError());
+		this._registerQuickFixProvider(this._quickFixAddon, pwshUnixCommandNotFoundError());
+		// Avoid the general provide on Linux as the unix command not found error provider is
+		// generally preferable.
+		if ((this.os || OS) !== OperatingSystem.Linux) {
+			this._registerQuickFixProvider(this._quickFixAddon, pwshGeneralError());
 		}
 		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		this.updateAccessibilitySupport();
