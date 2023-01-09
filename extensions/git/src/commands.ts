@@ -2126,7 +2126,7 @@ export class CommandCenter {
 			});
 
 			// Check for local ref conflict
-			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
+			const refs = await repository.getRefs({ pattern: `heads/${randomName}` });
 			if (refs.length === 0) {
 				return randomName;
 			}
@@ -2224,7 +2224,7 @@ export class CommandCenter {
 			run = force => repository.deleteBranch(name, force);
 		} else {
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({ pattern: 'refs/heads/*' });
+				const refs = await repository.getRefs({ pattern: 'heads/*' });
 				const currentHead = repository.HEAD && repository.HEAD.name;
 
 				return refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
@@ -2386,7 +2386,7 @@ export class CommandCenter {
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
 		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			const remoteTags = await repository.getRefs({ pattern: 'tags/*' });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
 		};
 
