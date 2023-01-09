@@ -285,7 +285,8 @@ registerAction2(class extends Action2 {
 				f1: false,
 				keybinding: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3,
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
 				},
 				menu: {
 					id: MenuId.EditorTitle,
@@ -316,7 +317,8 @@ registerAction2(class extends Action2 {
 				f1: false,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.F3,
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
 				},
 				menu: {
 					id: MenuId.EditorTitle,
