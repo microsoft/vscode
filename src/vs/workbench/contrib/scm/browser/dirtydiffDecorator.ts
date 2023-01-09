@@ -486,7 +486,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
-		playChangeAudioCue(change, audioCueService);
+		playAudioCueForChange(change, audioCueService);
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
@@ -530,7 +530,7 @@ export class GotoNextChangeAction extends EditorAction {
 
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index];
-		playChangeAudioCue(change, audioCueService);
+		playAudioCueForChange(change, audioCueService);
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
@@ -538,7 +538,7 @@ export class GotoNextChangeAction extends EditorAction {
 	}
 }
 
-function playChangeAudioCue(change: IChange, audioCueService: IAudioCueService) {
+function playAudioCueForChange(change: IChange, audioCueService: IAudioCueService) {
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
