@@ -42,7 +42,6 @@ type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, 
 function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
 	const currentDirectory = '/';
 	const fs = apiClient.vscode.workspace.fileSystem
-	// TODO: Remove all this logging when I'm confident it's working
 	let watchId = 0
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
@@ -221,7 +220,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	}
 
 	/** For module resolution only; symlinks aren't supported yet. */
-	// TODO: Support symlinks, they are at least in the interface
 	function realpath(path: string): string {
 		// skip paths without .. or ./ or /.
 		if (!path.match(/\.\.|\/\.|\.\//)) {
@@ -256,7 +254,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			for (const [entry, type] of entries) {
 				// This is necessary because on some file system node fails to exclude
 				// "." and "..". See https://github.com/nodejs/node/issues/4002
-				// TODO: Might not be needed here, fastest to check the source or ask Joh
 				if (entry === "." || entry === "..") {
 					continue;
 				}
@@ -307,10 +304,8 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 }
 
 function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, args: string[], logger: ts.server.Logger, fsWatcher: MessagePort) {
-	logger.info("in createWebSystem")
 	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, fsWatcher)
 	setSys(sys)
-	logger.info("finished creating web system")
 	return sys
 }
 
@@ -384,7 +379,6 @@ class WorkerSession extends ts.server.Session<{}> {
 			}
 			this.onMessage(message.data)
 		};
-		this.logger.info('done constructing WorkerSession')
 	}
 	public override send(msg: ts.server.protocol.Message) {
 		if (msg.type === "event" && !this.canUseEvents) {
@@ -499,27 +493,22 @@ function findArgument(args: readonly string[], name: string): string | undefined
 		? args[index + 1]
 		: undefined;
 }
-function updateWatch(event: "create" | "change" | "delete", uri: URI, extensionUri: URI, logger: ts.server.Logger) {
-	// TODO: creating watches seem to use the correct paths, BUT file watches never fire. This is also true with a single **/* watch
-	logger.info(`checking for watch on ${uri.toString()}: event=${event}`)
+function updateWatch(event: "create" | "change" | "delete", uri: URI, extensionUri: URI) {
 	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
 		: event === 'change' ? ts.FileWatcherEventKind.Changed
 			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
 				: ts.FileWatcherEventKind.Changed;
 	const path = fromResource(extensionUri, uri)
 	if (watchFiles.has(path)) {
-		logger.info("file watcher found for " + path)
-		watchFiles.get(path)!.callback(path, kind) // TODO: Might need to have first arg be watchFiles.get(path).path
+		watchFiles.get(path)!.callback(path, kind)
 		return
 	}
 	let found = false
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
-		logger.info(`directory watcher on ${watch} found for ${path}`)
 		watchDirectories.get(watch)!.callback(path)
 		found = true
 	}
 	if (!found) {
-		logger.info(`no watcher found for ${path}`)
 		console.error(`no watcher found for ${path}`)
 	}
 }
@@ -540,7 +529,7 @@ const listener = async (e: any) => {
 			};
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			const extensionUri = URI.from(e.data.extensionUri);
-			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri, logger);
+			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
 			const connection = new ClientConnection<Requests>(sync);
 			initial = connection.serviceReady().then(() => initializeSession(e.data.args, extensionUri, "vscode-web", tsserver, connection, logger, watcher));
 		}

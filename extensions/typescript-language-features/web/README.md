@@ -53,16 +53,18 @@ Language server host for typescript using vscode's sync-api in the browser
 
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
 - [x] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
-- [ ] think about implementing all the other ServerHost methods
+- [x] think about implementing all the other ServerHost methods
   - [x] copy importPlugin from previous version of webServer.ts
-  - [ ] also copy details from
+  - [x] also copy details from
     - previous implementation (although it's syntax-only so only covers part)
     - node implementation in typescript proper
+- [ ] make realpath support symlinks similarly to node's realpath.
 - [ ] organise webServer.ts into multiple files
   - OR at least re-arrange it so the diff with the previous version is smaller
-- [ ] clear out TODOs
+  - split it into multiple files after the initial PR
+- [x] clear out TODOs
 - [ ] add semicolons everywhere; vscode's lint doesn't seem to complain, but the code clearly uses them
-- [ ] Further questions about host methods based on existing implementations
+- [x] Further questions about host methods based on existing implementations
   - `require` -- is this needed? In TS, it's only used in project system
   - `trace` -- is this needed? In TS, it's only used in project system
   - `useCaseSensitiveFileNames` -- old version says 'false' is the
