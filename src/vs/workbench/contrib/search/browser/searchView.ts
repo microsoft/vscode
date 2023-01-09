@@ -1909,7 +1909,7 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
-		const patternExcludes = this.inputPatternExcludes?..getValue().trim() ?? '';
+		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
 		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
 		const onlyOpenEditors = this.inputPatternIncludes?.onlySearchInOpenEditors() ?? false;
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes?.useExcludesAndIgnoreFiles() ?? true;
