@@ -67,27 +67,13 @@ __vsc_escape_value() {
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			# The printf '0x%02X' "'$byte'" converts the character to a hex integer.
-			# See printf's specification:
-			# > If the leading character is a single-quote or double-quote, the value shall be the numeric value in the
-			# > underlying codeset of the character following the single-quote or double-quote.
-			# However, the result is a sign-extended int, so a high bit like 0xD7 becomes 0xFFF…FD7
-			# We mask that word with 0xFF to get lowest 8 bits, and then encode that byte as "\xD7" per our escaping scheme.
-			builtin printf -v token '\\x%02X' "$(( $(builtin printf '0x%X' "'$byte'") & 0xFF ))"
-			#             |________| ^^^ ^^^                        ^^^^^^  ^^^^^^^  |______|
-			#                   |     |  |                            |        |         |
-			# store in `token` -+     |  |   the hex value -----------+        |         |
-			# the '\x…'-prefixed -----+  |   of the byte as an integer --------+         |
-			# 0-padded, two hex digits --+   masked to one byte (due to sign extension) -+
+			token="$byte"
 		fi
 
 		out+="$token"
