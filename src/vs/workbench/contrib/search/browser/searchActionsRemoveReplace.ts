@@ -96,9 +96,12 @@ registerAction2(class RemoveAction extends Action2 {
 		let viewer = context?.viewer;
 		if (!viewer) {
 			viewer = searchView.getControl();
+			if (!viewer) {
+				return;
+			}
 		}
 		if (!element) {
-			element = viewer.getFocus()[0] ?? undefined;
+			element = viewer?.getFocus()[0] ?? undefined;
 		}
 
 		const elementsToRemove = getElementsToOperateOn(viewer, element, configurationService.getValue<ISearchConfigurationProperties>('search'));
