@@ -16,6 +16,20 @@ let session: WorkerSession | undefined;
 // BEGIN misc internals
 const indent: (str: string) => string = (ts as any).server.indent;
 const setSys: (s: ts.System) => void = (ts as any).setSys;
+const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
+const byteOrderMarkIndicator = "\uFEFF";
+const matchFiles: (
+	path: string,
+	extensions: readonly string[] | undefined,
+	excludes: readonly string[] | undefined,
+	includes: readonly string[] | undefined,
+	useCaseSensitiveFileNames: boolean,
+	currentDirectory: string,
+	depth: number | undefined,
+	getFileSystemEntries: (path: string) => { files: readonly string[], directories: readonly string[] },
+	realpath: (path: string) => string
+) => string[] = (ts as any).matchFiles;
+const generateDjb2Hash = (ts as any).generateDjb2Hash;
 // End misc internals
 // BEGIN webServer/webServer.ts
 function fromResource(extensionUri: URI, uri: URI) {
@@ -26,6 +40,253 @@ function fromResource(extensionUri: URI, uri: URI) {
 }
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
+	const currentDirectory = '/';
+	const fs = apiClient.vscode.workspace.fileSystem
+	// TODO: Remove all this logging when I'm confident it's working
+	let watchId = 0
+	return {
+		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
+			watchFiles.set(path, { path, callback, pollingInterval, options })
+			watchId++
+			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId })
+			return {
+				close() {
+					watchFiles.delete(path)
+					fsWatcher.postMessage({ type: "dispose", id: watchId })
+				}
+			}
+		},
+		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
+			watchDirectories.set(path, { path, callback, recursive, options })
+			watchId++
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId })
+			return {
+				close() {
+					watchDirectories.delete(path)
+					fsWatcher.postMessage({ type: "dispose", id: watchId })
+				}
+			}
+		},
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
+			return setTimeout(callback, ms, ...args)
+		},
+		clearTimeout(timeoutId: any): void {
+			clearTimeout(timeoutId)
+		},
+		setImmediate(callback: (...args: any[]) => void, ...args: any[]): any {
+			return this.setTimeout(callback, 0, ...args)
+		},
+		clearImmediate(timeoutId: any): void {
+			this.clearTimeout(timeoutId)
+		},
+		importPlugin: async (root, moduleName) => {
+			const packageRoot = combinePaths(root, moduleName);
+
+			let packageJson: any | undefined;
+			try {
+				const packageJsonResponse = await fetch(combinePaths(packageRoot, 'package.json'));
+				packageJson = await packageJsonResponse.json();
+			}
+			catch (e) {
+				return { module: undefined, error: new Error('Could not load plugin. Could not load "package.json".') };
+			}
+
+			const browser = packageJson.browser;
+			if (!browser) {
+				return { module: undefined, error: new Error('Could not load plugin. No "browser" field found in package.json.') };
+			}
+
+			const scriptPath = combinePaths(packageRoot, browser);
+			try {
+				const { default: module } = await import(/* webpackIgnore: true */scriptPath);
+				return { module, error: undefined };
+			}
+			catch (e) {
+				return { module: undefined, error: e };
+			}
+		},
+		args,
+		newLine: '\n',
+		useCaseSensitiveFileNames: true,
+		write: apiClient.vscode.terminal.write,
+		writeOutputIsTTY() {
+			return true;
+		},
+		readFile(path) {
+			try {
+				// @vscode/sync-api-common/connection says that Uint8Array is only a view on the bytes, so slice is needed
+				return new TextDecoder().decode(new Uint8Array(fs.readFile(toResource(path))).slice())
+			}
+			catch (e) {
+				logger.info(`Error fs.readFile`)
+				logger.info(JSON.stringify(e))
+				return undefined
+			}
+		},
+		getFileSize(path) {
+			try {
+				return fs.stat(toResource(path)).size
+			}
+			catch (e) {
+				logger.info(`Error fs.getFileSize`)
+				logger.info(JSON.stringify(e))
+				return 0
+			}
+		},
+		writeFile(path, data, writeByteOrderMark) {
+			if (writeByteOrderMark) {
+				data = byteOrderMarkIndicator + data;
+			}
+			try {
+				fs.writeFile(toResource(path), new TextEncoder().encode(data))
+			}
+			catch (e) {
+				logger.info(`Error fs.writeFile`)
+				logger.info(JSON.stringify(e))
+			}
+		},
+		resolvePath(path: string): string {
+			return path
+		},
+		fileExists(path: string): boolean {
+			try {
+				return fs.stat(toResource(path)).type === FileType.File
+			}
+			catch (e) {
+				logger.info(`Error fs.fileExists for ${path}`)
+				logger.info(JSON.stringify(e))
+				return false
+			}
+		},
+		directoryExists(path: string): boolean {
+			try {
+				return fs.stat(toResource(path)).type === FileType.Directory
+			}
+			catch (e) {
+				logger.info(`Error fs.directoryExists for ${path}`)
+				logger.info(JSON.stringify(e))
+				return false
+			}
+		},
+		createDirectory(path: string): void {
+			try {
+				fs.createDirectory(toResource(path))
+			}
+			catch (e) {
+				logger.info(`Error fs.createDirectory`)
+				logger.info(JSON.stringify(e))
+			}
+		},
+		getExecutingFilePath(): string {
+			return currentDirectory
+		},
+		getCurrentDirectory(): string {
+			return currentDirectory
+		},
+		getDirectories(path: string): string[] {
+			return getAccessibleFileSystemEntries(path).directories.slice();
+		},
+		readDirectory(path: string, extensions?: readonly string[], excludes?: readonly string[], includes?: readonly string[], depth?: number): string[] {
+			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
+		},
+		getModifiedTime(path: string): Date | undefined {
+			try {
+				return new Date(fs.stat(toResource(path)).mtime)
+			}
+			catch (e) {
+				logger.info(`Error fs.getModifiedTime`)
+				logger.info(JSON.stringify(e))
+				return undefined
+			}
+		},
+		deleteFile(path: string): void {
+			try {
+				fs.delete(toResource(path))
+			}
+			catch (e) {
+				logger.info(`Error fs.deleteFile`)
+				logger.info(JSON.stringify(e))
+			}
+		},
+		createHash: generateDjb2Hash,
+		/** This must be cryptographically secure.
+			The browser implementation, crypto.subtle.digest, is async so not possible to call from tsserver. */
+		createSHA256Hash: undefined,
+		exit(): void {
+			removeEventListener("message", listener)
+		},
+		realpath,
+		base64decode: input => Buffer.from(input, "base64").toString("utf8"),
+		base64encode: input => Buffer.from(input).toString("base64"),
+	}
+
+	/** For module resolution only; symlinks aren't supported yet. */
+	// TODO: Support symlinks, they are at least in the interface
+	function realpath(path: string): string {
+		// skip paths without .. or ./ or /.
+		if (!path.match(/\.\.|\/\.|\.\//)) {
+			return path
+		}
+		const uri = toResource(path)
+		const out = [uri.scheme]
+		if (uri.authority)
+			out.push(uri.authority)
+		for (const part of uri.path.split('/')) {
+			switch (part) {
+				case '':
+				case '.':
+					break;
+				case '..':
+					//delete if there is something there to delete
+					out.pop()
+					break;
+				default:
+					out.push(part)
+			}
+		}
+		return '/' + out.join('/')
+	}
+
+	function getAccessibleFileSystemEntries(path: string): { files: readonly string[], directories: readonly string[] } {
+		try {
+			const uri = toResource(path || ".")
+			const entries = fs.readDirectory(uri);
+			const files: string[] = [];
+			const directories: string[] = [];
+			for (const [entry, type] of entries) {
+				// This is necessary because on some file system node fails to exclude
+				// "." and "..". See https://github.com/nodejs/node/issues/4002
+				// TODO: Might not be needed here, fastest to check the source or ask Joh
+				if (entry === "." || entry === "..") {
+					continue;
+				}
+
+				let stat = type;
+				if (type === FileType.SymbolicLink) {
+					try {
+						stat = fs.stat(toResource(combinePaths(path, entry))).type;
+					}
+					catch (e) {
+						continue;
+					}
+				}
+
+				if (stat === FileType.File) {
+					files.push(entry);
+				}
+				else if (stat === FileType.Directory) {
+					directories.push(entry);
+				}
+			}
+			files.sort();
+			directories.sort();
+			return { files, directories };
+		}
+		catch (e) {
+			return { files: [], directories: [] };
+		}
+	}
+
 	/**
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
@@ -42,247 +303,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			throw new Error("complex regex failed to match " + filepath)
 		}
 		return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
-	}
-	const fs = apiClient.vscode.workspace.fileSystem
-	// TODO: Remove all this logging when I'm confident it's working
-	logger.info(`starting serverhost`)
-	let watchId = 0
-	return {
-		/**
-		 * @param pollingInterval ignored in native filewatchers; only used in polling watchers
-		 */
-		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
-			logger.info(`calling watchFile on ${path} (${watchFiles.has(path) ? 'OLD' : 'new'})`)
-			watchFiles.set(path, { path, callback, pollingInterval, options })
-			watchId++
-			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId })
-			return {
-				close() {
-					watchFiles.delete(path)
-					fsWatcher.postMessage({ type: "dispose", id: watchId })
-				}
-			}
-		},
-		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
-			logger.info(`calling watchDirectory on ${path} (${watchDirectories.has(path) ? 'OLD' : 'new'})`)
-			watchDirectories.set(path, { path, callback, recursive, options })
-			watchId++
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId })
-			return {
-				close() {
-					watchDirectories.delete(path)
-					fsWatcher.postMessage({ type: "dispose", id: watchId })
-				}
-			}
-		},
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): any {
-			const timeoutId = setTimeout(callback, ms, ...args)
-			logger.info(`calling setTimeout, got ${timeoutId}`)
-			return timeoutId
-		},
-		clearTimeout(timeoutId: any): void {
-			logger.info(`calling clearTimeout on ${timeoutId}`)
-			clearTimeout(timeoutId)
-		},
-		/** MDN gives a few ways to emulate setImmediate: https://developer.mozilla.org/en-US/docs/Web/API/Window/setImmediate#notes */
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): any {
-			const timeoutId = this.setTimeout(callback, 0, ...args)
-			logger.info(`calling setImmediate, got ${timeoutId}`)
-			return timeoutId
-		},
-		clearImmediate(timeoutId: any): void {
-			logger.info(`calling clearImmediate on ${timeoutId}`)
-			// clearImmediate(timeoutId)
-			this.clearTimeout(timeoutId)
-		},
-		trace: logger.info,
-		// require?(initialPath: string, moduleName: string): ts.server.ModuleImportResult {},
-		// TODO: This definitely needs to be implemented
-		// Jake says that vscode has an implementation called serverCreateWebSystem
-		importPlugin(root, moduleName) {
-			return Promise.resolve({
-				module: undefined,
-				error: {
-					stack: root,
-					message: moduleName,
-				},
-			})
-		},
-		args,
-		newLine: '\n',
-		useCaseSensitiveFileNames: true,
-		write: apiClient.vscode.terminal.write,
-		writeOutputIsTTY(): boolean { return true },
-		// getWidthOfTerminal?(): number {},
-		readFile(path) {
-			try {
-				logger.info('calling readFile on ' + path)
-				const bytes = fs.readFile(toResource(path))
-				return new TextDecoder().decode(new Uint8Array(bytes).slice())
-				// (common/connection.ts says that Uint8Array is only a view on the bytes which could change, which is why the slice exists)
-			}
-			catch (e) {
-				logger.info(`Error fs.readFile`)
-				logger.info(JSON.stringify(e))
-				return undefined
-			}
-		},
-		getFileSize(path) {
-			try {
-				logger.info('calling getFileSize on ' + path)
-				return fs.stat(toResource(path)).size
-			}
-			catch (e) {
-				logger.info(`Error fs.getFileSize`)
-				logger.info(JSON.stringify(e))
-				return 0
-			}
-		},
-		writeFile(path, data) {
-			try {
-				logger.info('calling writeFile on ' + path)
-				fs.writeFile(toResource(path), new TextEncoder().encode(data))
-			}
-			catch (e) {
-				logger.info(`Error fs.writeFile`)
-				logger.info(JSON.stringify(e))
-			}
-		},
-		/** If TS' webServer/webServer.ts is good enough to copy here, this is just identity */
-		resolvePath(path: string): string {
-			logger.info('calling resolvePath on ' + path)
-			return path
-		},
-		fileExists(path: string): boolean {
-			try {
-				logger.info(`calling fileExists on ${path} (as ${toResource(path)})`)
-				return fs.stat(toResource(path)).type === FileType.File
-			}
-			catch (e) {
-				logger.info(`Error fs.fileExists for ${path}`)
-				logger.info(JSON.stringify(e))
-				return false
-			}
-		},
-		directoryExists(path: string): boolean {
-			try {
-				logger.info(`calling directoryExists on ${path} (as ${toResource(path)})`)
-				return fs.stat(toResource(path)).type === FileType.Directory
-			}
-			catch (e) {
-				logger.info(`Error fs.directoryExists for ${path}`)
-				logger.info(JSON.stringify(e))
-				return false
-			}
-		},
-		createDirectory(path: string): void {
-			try {
-				logger.info(`calling createDirectory on ${path} (as ${toResource(path)})`)
-				fs.createDirectory(toResource(path))
-			}
-			catch (e) {
-				logger.info(`Error fs.createDirectory`)
-				logger.info(JSON.stringify(e))
-			}
-		},
-		getExecutingFilePath(): string {
-			return '/'
-		},
-		getCurrentDirectory(): string {
-			return '/'
-		},
-		getDirectories(path: string): string[] {
-			try {
-				logger.info('calling getDirectories on ' + path)
-				const entries = fs.readDirectory(toResource(path))
-				return entries.filter(([_, type]) => type === FileType.Directory).map(([f, _]) => f)
-			}
-			catch (e) {
-				logger.info(`Error fs.getDirectory`)
-				logger.info(JSON.stringify(e))
-				return []
-			}
-		},
-		/**
-		 * TODO: A lot of this code is made-up and should be copied from a known-good implementation
-		 * For example, I have NO idea how to easily support `depth`
-		 * Note: webServer.ts comments say this is used for configured project and typing installer.
-		 */
-		readDirectory(path: string, extensions?: readonly string[], exclude?: readonly string[]): string[] {
-			try {
-				logger.info('calling readDirectory on ' + path)
-				const entries = fs.readDirectory(toResource(path))
-				return entries
-					.filter(([f, type]) => type === FileType.File && (!extensions || extensions.some(ext => f.endsWith(ext))) && (!exclude || !exclude.includes(f)))
-					.map(([e, _]) => e)
-			}
-			catch (e) {
-				logger.info(`Error fs.readDirectory`)
-				logger.info(JSON.stringify(e))
-				return []
-			}
-		},
-		getModifiedTime(path: string): Date | undefined {
-			try {
-				logger.info('calling getModifiedTime on ' + path)
-				return new Date(fs.stat(toResource(path)).mtime)
-			}
-			catch (e) {
-				logger.info(`Error fs.getModifiedTime`)
-				logger.info(JSON.stringify(e))
-				return undefined
-			}
-		},
-		deleteFile(path: string): void {
-			const uri = toResource(path)
-			try {
-				logger.info(`calling deleteFile on ${uri}`)
-				fs.delete(uri)
-			}
-			catch (e) {
-				logger.info(`Error fs.deleteFile`)
-				logger.info(JSON.stringify(e))
-			}
-		},
-		/**
-		 * A good implementation is node.js' `crypto.createHash`. (https://nodejs.org/api/crypto.html#crypto_crypto_createhash_algorithm)
-		 */
-		// createHash?(data: string): string {},
-		/** This must be cryptographically secure. Only implement this method using `crypto.createHash("sha256")`. */
-		// createSHA256Hash?(data: string): string { },
-		// getMemoryUsage?(): number {},
-		exit(): void {
-			removeEventListener("message", listener)
-		},
-		/** For module resolution only; symlinks aren't supported yet. */
-		realpath(path: string): string {
-			// skip paths without .. or ./ or /.
-			if (!path.match(/\.\.|\/\.|\.\//)) {
-				return path
-			}
-			const uri = toResource(path)
-			const out = [uri.scheme]
-			if (uri.authority)
-				out.push(uri.authority)
-			for (const part of uri.path.split('/')) {
-				switch (part) {
-					case '':
-					case '.':
-						break;
-					case '..':
-						//delete if there is something there to delete
-						out.pop()
-						break;
-					default:
-						out.push(part)
-				}
-			}
-			logger.info(`realpath: resolved ${path} to ${'/' + out.join('/')}`)
-			return '/' + out.join('/')
-		},
-		// clearScreen?(): void { },
-		// base64decode?(input: string): string {},
-		// base64encode?(input: string): string {},
 	}
 }
 

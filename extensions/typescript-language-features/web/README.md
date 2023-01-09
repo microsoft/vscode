@@ -53,12 +53,37 @@ Language server host for typescript using vscode's sync-api in the browser
 
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
 - [x] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
-- [ ] clear out TODOs
 - [ ] think about implementing all the other ServerHost methods
-  - also copy details from previous implementation (although it's syntax-only so only covers part)
-  - also copy details from node implementation in typescript proper
+  - [x] copy importPlugin from previous version of webServer.ts
+  - [ ] also copy details from
+    - previous implementation (although it's syntax-only so only covers part)
+    - node implementation in typescript proper
 - [ ] organise webServer.ts into multiple files
+  - OR at least re-arrange it so the diff with the previous version is smaller
+- [ ] clear out TODOs
 - [ ] add semicolons everywhere; vscode's lint doesn't seem to complain, but the code clearly uses them
+- [ ] Further questions about host methods based on existing implementations
+  - `require` -- is this needed? In TS, it's only used in project system
+  - `trace` -- is this needed? In TS, it's only used in project system
+  - `useCaseSensitiveFileNames` -- old version says 'false' is the
+    safest option, but the virtual fs is case sensitive. Is the old
+    version still better?
+  - `writeOutputIsTTY` -- I'm using apiClient.vscode.terminal.write -- is it a tty?
+  - `getWidthOfTerminal` -- I don't know where to find this on apiClient.vscode.terminal either
+  - `clearScreen` -- node version writes \x1BC to the terminal. Would
+    this work for vscode?
+  - `readFile/writeFile` -- TS handles utf8, utf16le and manually
+    converts big-endian to utf16 little-endian. How does the in-memory
+    filesystem handle this? There's no place to specify encoding. (And
+    `writeFile` currently ignores the flag to write a BOM.)
+  - `resolvePath` -- node version uses path.resolve. Is it OK to use
+    that? Or should I re-implement it? Just use identity like the old
+    web code?
+  - `getDirectories`/`readDirectory`
+    - the node code manually skips '.' and '..' in the array returned by
+      readDirectory. Is this needed?
+  - `createSHA256Hash` -- the browser version is async, so I skipped it
+  - `realpath` -- still skips symlinks, I need to figure out what node does
 
 ### Bugs
 
