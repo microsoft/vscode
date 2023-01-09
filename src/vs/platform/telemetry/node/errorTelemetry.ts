@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isCancellationError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isCancellationError, isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import BaseErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
@@ -44,11 +44,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 
 		// Print a console message when an exception isn't handled.
 		process.on('uncaughtException', (err: Error | NodeJS.ErrnoException) => {
-			// See https://github.com/microsoft/vscode-remote-release/issues/6481
-			// In some circumstances, console.error will throw an asynchronous error. This asynchronous error
-			// will end up here, and then it will be logged again, thus creating an endless asynchronous loop.
-			// Here we try to break the loop by ignoring EPIPE errors that include our own unexpected error handler in the stack.
-			if (err && 'code' in err && err.code === 'EPIPE' && err.syscall === 'write') {
+			if (isSigPipeError(err)) {
 				return;
 			}
 
