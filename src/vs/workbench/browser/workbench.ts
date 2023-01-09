@@ -426,15 +426,6 @@ export class Workbench extends Layout {
 				timeout(2000)
 			]).finally(() => {
 
-				// Set lifecycle phase to `Restored`
-				lifecycleService.phase = LifecyclePhase.Restored;
-
-				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
-				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
-				}, 2500));
-				eventuallyPhaseScheduler.schedule();
-
 				// Update perf marks only when the layout is fully
 				// restored. We want the time it takes to restore
 				// editors to be included in these numbers
@@ -449,6 +440,15 @@ export class Workbench extends Layout {
 				} else {
 					this.whenRestored.finally(() => markDidStartWorkbench());
 				}
+
+				// Set lifecycle phase to `Restored`
+				lifecycleService.phase = LifecyclePhase.Restored;
+
+				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+				}, 2500));
+				eventuallyPhaseScheduler.schedule();
 			})
 		);
 	}
