@@ -13,7 +13,9 @@ VSCODE_SHELL_INTEGRATION=1
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
-		. ~/.bashrc
+		if [ -f ~/.bashrc ]; then
+			. ~/.bashrc
+		fi
 	else
 		# Imitate -l because --init-file doesn't support it:
 		# run the first of these files that exists
