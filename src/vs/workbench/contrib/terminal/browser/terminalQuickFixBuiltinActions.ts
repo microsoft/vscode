@@ -17,6 +17,8 @@ export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>
 // The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
+export const PwshGeneralErrorOutputRegex = /Suggestion \[General\]:/;
+export const PwshUnixCommandNotFoundErrorOutputRegex = /Suggestion \[cmd-not-found\]:/;
 
 export const enum QuickFixSource {
 	Builtin = 'builtin'
@@ -200,22 +202,39 @@ export function pwshGeneralError(): IInternalOptions {
 		type: 'internal',
 		commandLineMatcher: /.+/,
 		outputMatcher: {
-			lineMatcher: /^Suggestion \[General\]:/,
+			lineMatcher: PwshGeneralErrorOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
 			length: 10
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			const suggestionLine = matchResult.outputMatch?.regexMatch.input?.split('\n')?.[1];
-			const suggestions = suggestionLine?.match(/The most similar commands are: (?<values>.+)./)?.groups?.values?.split(', ');
+			const lines = matchResult.outputMatch?.regexMatch.input?.split('\n');
+			if (!lines) {
+				return;
+			}
+
+			// Find the start
+			let i = 0;
+			let inFeedbackProvider = false;
+			for (; i < lines.length; i++) {
+				if (lines[i].match(PwshGeneralErrorOutputRegex)) {
+					inFeedbackProvider = true;
+					break;
+				}
+			}
+			if (!inFeedbackProvider) {
+				return;
+			}
+
+			const suggestions = lines[i + 1].match(/The most similar commands are: (?<values>.+)./)?.groups?.values?.split(', ');
 			if (!suggestions) {
 				return;
 			}
 			const result: ITerminalQuickFixCommandAction[] = [];
 			for (const suggestion of suggestions) {
 				result.push({
-					id: 'Pwsh General Command Error',
+					id: 'Pwsh General Error',
 					type: TerminalQuickFixType.Command,
 					terminalCommand: suggestion,
 					source: QuickFixSource.Builtin
@@ -232,7 +251,7 @@ export function pwshUnixCommandNotFoundError(): IInternalOptions {
 		type: 'internal',
 		commandLineMatcher: /.+/,
 		outputMatcher: {
-			lineMatcher: /^Suggestion \[cmd-not-found\]:/,
+			lineMatcher: PwshUnixCommandNotFoundErrorOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
 			length: 10
@@ -243,11 +262,24 @@ export function pwshUnixCommandNotFoundError(): IInternalOptions {
 			if (!lines) {
 				return;
 			}
-			const result: ITerminalQuickFixCommandAction[] = [];
+
+			// Find the start
+			let i = 0;
+			let inFeedbackProvider = false;
+			for (; i < lines.length; i++) {
+				if (lines[i].match(PwshUnixCommandNotFoundErrorOutputRegex)) {
+					inFeedbackProvider = true;
+					break;
+				}
+			}
+			if (!inFeedbackProvider) {
+				return;
+			}
 
 			// Always remove the first element as it's the "Suggestion [cmd-not-found]"" line
+			const result: ITerminalQuickFixCommandAction[] = [];
 			let inSuggestions = false;
-			for (let i = 1; i < lines.length; i++) {
+			for (; i < lines.length; i++) {
 				const line = lines[i].trim();
 				if (line.length === 0) {
 					break;
