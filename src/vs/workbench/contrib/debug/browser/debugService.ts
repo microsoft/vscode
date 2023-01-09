@@ -1167,40 +1167,51 @@ export class DebugService implements IDebugService {
 	}
 
 	async runTo(uri: uri, lineNumber: number, column?: number): Promise<void> {
-		const focusedSession = this.getViewModel().focusedSession;
-		if (this.state !== State.Stopped || !focusedSession) {
-			return;
-		}
-		const bpExists = !!(this.getModel().getBreakpoints({ column, lineNumber, uri }).length);
-
 		let breakpointToRemove: IBreakpoint | undefined;
 		let threadToContinue = this.getViewModel().focusedThread;
-		if (!bpExists) {
-			const addResult = await this.addAndValidateBreakpoints(uri, lineNumber, column);
-			if (addResult.thread) {
-				threadToContinue = addResult.thread;
+		const addTempBreakPoint = async () => {
+			const bpExists = !!(this.getModel().getBreakpoints({ column, lineNumber, uri }).length);
+
+			if (!bpExists) {
+				const addResult = await this.addAndValidateBreakpoints(uri, lineNumber, column);
+				if (addResult.thread) {
+					threadToContinue = addResult.thread;
+				}
+
+				if (addResult.breakpoint) {
+					breakpointToRemove = addResult.breakpoint;
+				}
 			}
-
-			if (addResult.breakpoint) {
-				breakpointToRemove = addResult.breakpoint;
-			}
+			return { threadToContinue, breakpointToRemove };
 		}
-
-		if (!threadToContinue) {
-			return;
-		}
-
-		const oneTimeListener = threadToContinue.session.onDidChangeState(() => {
-			const state = focusedSession.state;
+		const removeTempBreakPoint = (state: State, oneTimeListener: IDisposable) => {
 			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
 					this.removeBreakpoints(breakpointToRemove.getId());
 				}
 				oneTimeListener.dispose();
 			}
-		});
+		}
 
-		await threadToContinue.continue();
+		await addTempBreakPoint();
+		if (this.state === State.Inactive) {
+			// If no session exists start the degbugger;
+			const { launch, name, getConfig } = this.getConfigurationManager().selectedConfiguration;
+			const config = await getConfig();
+			const configOrName = config ? Object.assign(deepClone(config), {}) : name;
+			const oneTimeListner = this.onDidChangeState((state) => {
+				removeTempBreakPoint(state, oneTimeListner)
+			})
+			await this.startDebugging(launch, configOrName, undefined, true);
+			return;
+		}
+		if (this.state === State.Stopped) {
+			const focusedSession = this.getViewModel().focusedSession;
+			if (!focusedSession || !threadToContinue) { return; }
+			const oneTimeListner = threadToContinue.session.onDidChangeState(() => removeTempBreakPoint(focusedSession.state, oneTimeListner))
+			await threadToContinue.continue();
+			return;
+		}
 	}
 
 	private async addAndValidateBreakpoints(uri: URI, lineNumber: number, column?: number) {
