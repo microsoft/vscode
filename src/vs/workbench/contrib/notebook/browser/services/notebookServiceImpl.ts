@@ -338,7 +338,7 @@ export class NotebookOutputRendererInfoStore {
 
 	/** Update and remember the preferred renderer for the given mimetype in this workspace */
 	setPreferred(notebookProviderInfo: NotebookProviderInfo, mimeType: string, rendererId: string) {
-		const mementoObj = this.preferredMimetype.getValue();
+		const mementoObj = this.preferredMimetype.value;
 		const forNotebook = mementoObj[notebookProviderInfo.id];
 		if (forNotebook) {
 			forNotebook[mimeType] = rendererId;
@@ -358,7 +358,7 @@ export class NotebookOutputRendererInfoStore {
 			BuiltIn = 4 << 8,
 		}
 
-		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
+		const preferred = notebookProviderInfo && this.preferredMimetype.value[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
 		const notebookId = notebookProviderInfo?.id;
 		const renderers: { ordered: IOrderedMimeType; score: number }[] = Array.from(this.contributedRenderers.values())
