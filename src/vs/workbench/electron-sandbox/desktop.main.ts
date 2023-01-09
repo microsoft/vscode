@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
 import product from 'vs/platform/product/common/product';
 import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -63,8 +62,6 @@ export class DesktopMain extends Disposable {
 		private readonly configuration: INativeWindowConfiguration
 	) {
 		super();
-
-		mark('code/didOpenRenderer');
 
 		this.init();
 	}

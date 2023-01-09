@@ -96,8 +96,6 @@ export class BrowserMain extends Disposable {
 	) {
 		super();
 
-		mark('code/didOpenRenderer');
-
 		this.init();
 	}
 

@@ -41,7 +41,8 @@ export interface NativeParsedArgs {
 	'prof-startup'?: boolean;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
-	'prof-timer-markers'?: string[];
+	'prof-duration-markers'?: string[];
+	'prof-duration-markers-file'?: string;
 	'prof-v8-extensions'?: boolean;
 	'no-cached-data'?: boolean;
 	verbose?: boolean;
