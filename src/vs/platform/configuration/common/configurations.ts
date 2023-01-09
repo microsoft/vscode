@@ -9,9 +9,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { isEmptyObject } from 'vs/base/common/types';
-import { addToValueTree, IOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
-import { Extensions, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,27 +20,24 @@ export class DefaultConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _configurationModel: ConfigurationModel | undefined;
+	private _configurationModel = new ConfigurationModel();
 	get configurationModel(): ConfigurationModel {
-		if (!this._configurationModel) {
-			this._configurationModel = new DefaultConfigurationModel(this.getConfigurationDefaultOverrides());
-		}
 		return this._configurationModel;
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
-		this._configurationModel = undefined;
+		this.resetConfigurationModel();
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(({ properties, defaultsOverrides }) => this.onDidUpdateConfiguration(Array.from(properties), defaultsOverrides)));
 		return this.configurationModel;
 	}
 
 	reload(): ConfigurationModel {
-		this._configurationModel = undefined;
+		this.resetConfigurationModel();
 		return this.configurationModel;
 	}
 
 	protected onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
-		this._configurationModel = undefined;
+		this.updateConfigurationModel(properties, Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties());
 		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 	}
 
@@ -49,33 +45,27 @@ export class DefaultConfiguration extends Disposable {
 		return {};
 	}
 
-}
-
-export class DefaultConfigurationModel extends ConfigurationModel {
-
-	constructor(configurationDefaultsOverrides: IStringDictionary<any> = {}) {
+	private resetConfigurationModel(): void {
+		this._configurationModel = new ConfigurationModel();
 		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const keys = Object.keys(properties);
-		const contents: any = Object.create(null);
-		const overrides: IOverrides[] = [];
+		this.updateConfigurationModel(Object.keys(properties), properties);
+	}
 
-		for (const key in properties) {
+	private updateConfigurationModel(properties: string[], configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>): void {
+		const configurationDefaultsOverrides = this.getConfigurationDefaultOverrides();
+		for (const key of properties) {
 			const defaultOverrideValue = configurationDefaultsOverrides[key];
-			const value = defaultOverrideValue !== undefined ? defaultOverrideValue : properties[key].default;
-			addToValueTree(contents, key, value, message => console.error(`Conflict in default settings: ${message}`));
-		}
-		for (const key of Object.keys(contents)) {
-			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-				overrides.push({
-					identifiers: overrideIdentifiersFromKey(key),
-					keys: Object.keys(contents[key]),
-					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`)),
-				});
+			const propertySchema = configurationProperties[key];
+			if (defaultOverrideValue !== undefined) {
+				this._configurationModel.addValue(key, defaultOverrideValue);
+			} else if (propertySchema) {
+				this._configurationModel.addValue(key, propertySchema.default);
+			} else {
+				this._configurationModel.removeValue(key);
 			}
 		}
-
-		super(contents, keys, overrides);
 	}
+
 }
 
 export interface IPolicyConfiguration {
