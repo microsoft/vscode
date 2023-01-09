@@ -7,7 +7,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, IAction2Options, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId } from 'vs/workbench/contrib/editSessions/common/editSessions';
@@ -779,7 +779,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					));
 
 					if (contribution.qualifiedName) {
-						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, command.category, when);
+						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, command.category, when, contribution.remoteGroup);
 					}
 				}
 			}
@@ -787,22 +787,31 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		});
 	}
 
-	private generateStandaloneOptionCommand(commandId: string, qualifiedName: string, category: string | ILocalizedString | undefined, when: ContextKeyExpression | undefined) {
+	private generateStandaloneOptionCommand(commandId: string, qualifiedName: string, category: string | ILocalizedString | undefined, when: ContextKeyExpression | undefined, remoteGroup: string | undefined) {
+		const command = {
+			id: `${continueWorkingOnCommand.id}.${commandId}`,
+			title: { original: qualifiedName, value: qualifiedName },
+			category: typeof category === 'string' ? { original: category, value: category } : category,
+			precondition: when,
+			f1: true
+		};
+
 		registerAction2(class StandaloneContinueOnOption extends Action2 {
 			constructor() {
-				super({
-					id: `${continueWorkingOnCommand.id}.${commandId}`,
-					title: { original: qualifiedName, value: qualifiedName },
-					category: typeof category === 'string' ? { original: category, value: category } : category,
-					precondition: when,
-					f1: true
-				});
+				super(command);
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
 				return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
 			}
 		});
+
+		if (remoteGroup !== undefined) {
+			MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
+				group: remoteGroup,
+				command: command
+			});
+		}
 	}
 
 	private registerContinueInLocalFolderAction(): void {
@@ -830,7 +839,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
-			this.generateStandaloneOptionCommand(openLocalFolderCommand.id, localize('continueWorkingOn.existingLocalFolder', 'Continue Working in Existing Local Folder'), undefined, openLocalFolderCommand.precondition);
+			this.generateStandaloneOptionCommand(openLocalFolderCommand.id, localize('continueWorkingOn.existingLocalFolder', 'Continue Working in Existing Local Folder'), undefined, openLocalFolderCommand.precondition, undefined);
 		}
 	}
 
@@ -944,6 +953,7 @@ interface ICommand {
 	when: string;
 	documentation?: string;
 	qualifiedName?: string;
+	remoteGroup?: string;
 }
 
 const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<ICommand[]>({
@@ -968,6 +978,10 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 				},
 				description: {
 					description: localize('continueEditSessionExtPoint.description', "The url, or a command that returns the url, to the option's documentation page."),
+					type: 'string'
+				},
+				remoteGroup: {
+					description: localize('continueEditSessionExtPoint.remoteGroup', 'Group into which this item belongs in the remote indicator.'),
 					type: 'string'
 				},
 				when: {
