@@ -189,8 +189,8 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 4.5,
 			tags: ['accessibility']
 		},
-		[TerminalSettingId.TabSize]: {
-			markdownDescription: localize('terminal.integrated.tabSize', "The number of cells in a tab stop."),
+		[TerminalSettingId.TabStopWidth]: {
+			markdownDescription: localize('terminal.integrated.tabStopWidth', "The number of cells in a tab stop."),
 			type: 'number',
 			minimum: 1,
 			default: 8
