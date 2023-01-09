@@ -2192,9 +2192,12 @@ export class CommandCenter {
 		let target = 'HEAD';
 
 		if (from) {
-			const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
+			const getRefPicks = async () => {
+				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
+			};
+
 			const placeHolder = l10n.t('Select a ref to create the branch from');
-			const choice = await window.showQuickPick(picks, { placeHolder });
+			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
 				return;
