@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -56,9 +55,9 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookSerializer, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -93,87 +92,61 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			cellContentMetadata: {}
 		};
 
-		const controller: INotebookContentProvider = {
-			get options() {
-				return contentOptions;
-			},
-			set options(newOptions) {
-				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
-				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
-				contentOptions.transientOutputs = newOptions.transientOutputs;
-			},
-			open: async (_uri: URI, _backupId: string | VSBuffer | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
-				if (_backupId instanceof VSBuffer) {
-					const backup = _backupId.toString();
-					try {
-						const document = JSON.parse(backup) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
-						return {
-							data: {
-								metadata: {},
-								cells: document.cells.map(cell => ({
-									source: cell.content,
-									language: cell.language,
-									cellKind: cell.kind,
-									mime: cell.mime,
-									outputs: cell.outputs
-										? cell.outputs.map(output => ({
-											outputId: output.outputId,
-											outputs: output.outputs.map(ot => ({
-												mime: ot.mime,
-												data: ot.data
-											}))
-										}))
-										: [],
-									metadata: cell.metadata
-								}))
-							},
-							transientOptions: contentOptions
-						};
-					} catch (_e) { }
-				}
-
-				return {
-					data: {
-						metadata: {},
-						cells: []
-					},
-					transientOptions: contentOptions
-				};
-			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
-				if (doc) {
-					const cells = doc.cells.map(cell => ({
-						kind: cell.cellKind,
+		const serializer: INotebookSerializer = {
+			options: contentOptions,
+			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
+				const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
+				return Promise.resolve({
+					cells: document.cells.map(cell => ({
+						source: cell.content,
 						language: cell.language,
-						metadata: cell.metadata,
-						mine: cell.mime,
-						outputs: cell.outputs.map(output => {
-							return {
+						cellKind: cell.kind,
+						mime: cell.mime,
+						outputs: cell.outputs
+							? cell.outputs.map(output => ({
 								outputId: output.outputId,
 								outputs: output.outputs.map(ot => ({
 									mime: ot.mime,
 									data: ot.data
 								}))
-							};
-						}),
-						content: cell.getValue()
-					}));
+							}))
+							: [],
+						metadata: cell.metadata
+					})),
+					metadata: {}
+				});
 
-					const buffer = VSBuffer.fromString(JSON.stringify({
-						cells: cells
-					}));
+			},
+			notebookToData(data: NotebookData): Promise<VSBuffer> {
+				const cells = data.cells.map(cell => ({
+					kind: cell.cellKind,
+					language: cell.language,
+					metadata: cell.metadata,
+					mine: cell.mime,
+					outputs: cell.outputs.map(output => {
+						return {
+							outputId: output.outputId,
+							outputs: output.outputs.map(ot => ({
+								mime: ot.mime,
+								data: ot.data
+							}))
+						};
+					}),
+					content: cell.source
+				}));
 
-					return buffer;
-				} else {
-					return '';
-				}
+				const buffer = VSBuffer.fromString(JSON.stringify({
+					cells: cells
+				}));
+
+				return Promise.resolve(buffer);
 			}
 		};
-		this._register(notebookService.registerNotebookController('interactive', {
+
+		this._register(notebookService.registerNotebookSerializer('interactive', {
 			id: new ExtensionIdentifier('interactive.builtin'),
 			location: undefined
-		}, controller));
+		}, serializer));
 
 		const info = notebookService.getContributedNotebookType('interactive');
 
