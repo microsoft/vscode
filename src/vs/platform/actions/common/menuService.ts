@@ -77,14 +77,14 @@ class PersistedMenuHideState {
 		this._disposables.dispose();
 	}
 
-	isHidden(menu: MenuId, commandId: string, defaultState: boolean): boolean {
+	isHidden(menu: MenuId, commandId: string, hiddenByDefault: boolean): boolean {
 		const state = this._data[menu.id]?.includes(commandId) ?? false;
-		return defaultState ? state : !state;
+		return hiddenByDefault ? !state : state;
 	}
 
-	updateHidden(menu: MenuId, commandId: string, hidden: boolean): void {
+	updateHidden(menu: MenuId, commandId: string, hidden: boolean, hiddenByDefault: boolean): void {
 		const entries = this._data[menu.id];
-		if (!hidden) {
+		if (hidden === hiddenByDefault) {
 			// remove and cleanup
 			if (entries) {
 				const idx = entries.indexOf(commandId);
@@ -226,7 +226,7 @@ class MenuInfo {
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const isMenuItem = isIMenuItem(item);
-					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
+					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates, isMenuItem ? item.isHiddenByDefault : undefined);
 					if (isMenuItem) {
 						// MenuItemAction
 						activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, this._contextKeyService, this._commandService));
@@ -397,23 +397,22 @@ class MenuImpl implements IMenu {
 	}
 }
 
-function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, states: PersistedMenuHideState): IMenuItemHide {
+function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, states: PersistedMenuHideState, hiddenByDefault?: boolean): IMenuItemHide {
 
 	const id = isISubmenuItem(command) ? command.submenu.id : command.id;
 	const title = typeof command.title === 'string' ? command.title : command.title.value;
-	const defaultState = isISubmenuItem(command) ? true : !command.isHiddenByDefault;
 
 	const hide = toAction({
 		id: `hide/${menu.id}/${id}`,
 		label: localize('hide.label', 'Hide \'{0}\'', title),
-		run() { states.updateHidden(menu, id, true); }
+		run() { states.updateHidden(menu, id, true, !!hiddenByDefault); }
 	});
 
 	const toggle = toAction({
 		id: `toggle/${menu.id}/${id}`,
 		label: title,
-		get checked() { return !states.isHidden(menu, id, defaultState); },
-		run() { states.updateHidden(menu, id, !this.checked); }
+		get checked() { return !states.isHidden(menu, id, !hiddenByDefault); },
+		run() { states.updateHidden(menu, id, !this.checked, !!hiddenByDefault); }
 	});
 
 	return {
