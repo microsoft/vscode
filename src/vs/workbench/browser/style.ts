@@ -9,12 +9,19 @@ import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
+import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 
 registerThemingParticipant((theme, collector) => {
 
 	// Background (helps for subpixel-antialiasing on Windows)
 	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+
+	// Selection (do NOT remove - https://github.com/microsoft/vscode/issues/169662)
+	const windowSelectionBackground = theme.getColor(selectionBackground);
+	if (windowSelectionBackground) {
+		collector.addRule(`.monaco-workbench ::selection { background-color: ${windowSelectionBackground}; }`);
+	}
 
 	// Update <meta name="theme-color" content=""> based on selected theme
 	if (isWeb) {

@@ -781,11 +781,11 @@ suite('TelemetryService', () => {
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
 
 		telemetryLevel = TelemetryConfiguration.ON;
-		emitter.fire({});
+		emitter.fire({ affectsConfiguration: () => true });
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.USAGE);
 
 		telemetryLevel = TelemetryConfiguration.ERROR;
-		emitter.fire({});
+		emitter.fire({ affectsConfiguration: () => true });
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
 
 		service.dispose();

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -15,7 +16,6 @@ import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/wor
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -31,7 +31,12 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 	}
 
 	async executeNotebookCells(notebook: INotebookTextModel, cells: Iterable<NotebookCellTextModel>, contextKeyService: IContextKeyService): Promise<void> {
-		const cellsArr = Array.from(cells);
+		const cellsArr = Array.from(cells)
+			.filter(c => c.cellKind === CellKind.Code);
+		if (!cellsArr.length) {
+			return;
+		}
+
 		this._logService.debug(`NotebookExecutionService#executeNotebookCells ${JSON.stringify(cellsArr.map(c => c.handle))}`);
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
 		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
@@ -43,7 +48,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		const cellExecutions: [NotebookCellTextModel, INotebookCellExecution][] = [];
 		for (const cell of cellsArr) {
 			const cellExe = this._notebookExecutionStateService.getCellExecution(cell.uri);
-			if (cell.cellKind !== CellKind.Code || !!cellExe) {
+			if (!!cellExe) {
 				continue;
 			}
 			cellExecutions.push([cell, this._notebookExecutionStateService.createCellExecution(notebook.uri, cell.handle)]);

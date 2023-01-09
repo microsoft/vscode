@@ -64,7 +64,7 @@ export interface IConfigurationChange {
 export interface IConfigurationChangeEvent {
 
 	readonly source: ConfigurationTarget;
-	readonly affectedKeys: string[];
+	readonly affectedKeys: ReadonlySet<string>;
 	readonly change: IConfigurationChange;
 
 	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;

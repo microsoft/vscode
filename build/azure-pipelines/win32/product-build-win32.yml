@@ -90,12 +90,21 @@ steps:
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 
-  - task: Cache@2
-    inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+      - task: Cache@2
+        inputs:
+          key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
+          path: .build/node_modules_cache
+          cacheHitVar: NODE_MODULES_RESTORED
+        displayName: Restore node_modules cache
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - task: Cache@2
+        inputs:
+          key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+          path: .build/node_modules_cache
+          cacheHitVar: NODE_MODULES_RESTORED
+        displayName: Restore node_modules cache
 
   - task: Cache@2
     inputs:

@@ -53,6 +53,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
@@ -101,6 +102,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -392,8 +394,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.hostService.hasFocus) {
 			return;
 		}
-		const resource = source === SyncResource.Settings ? this.userDataProfilesService.defaultProfile.settingsResource : this.userDataProfilesService.defaultProfile.keybindingsResource;
-		if (isEqual(resource, EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))) {
+		const resource = source === SyncResource.Settings ? this.userDataProfileService.currentProfile.settingsResource
+			: source === SyncResource.Keybindings ? this.userDataProfileService.currentProfile.keybindingsResource
+				: this.userDataProfileService.currentProfile.tasksResource;
+		const editorUri = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (isEqual(resource, editorUri)) {
 			// Do not show notification if the file in error is active
 			return;
 		}

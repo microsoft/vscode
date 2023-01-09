@@ -673,14 +673,26 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 	}
 
-	public addToHistory(): void {
-		if (this.value && this.value !== this.getCurrentValue()) {
+	public addToHistory(always?: boolean): void {
+		if (this.value && (always || this.value !== this.getCurrentValue())) {
 			this.history.add(this.value);
 		}
 	}
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
+	}
+
+	public isAtFirstInHistory(): boolean {
+		return this.history.isFirst();
+	}
+
+	public isAtLastInHistory(): boolean {
+		return this.history.isLast();
+	}
+
+	public isNowhereInHistory(): boolean {
+		return this.history.isNowhere();
 	}
 
 	public showNextValue(): void {

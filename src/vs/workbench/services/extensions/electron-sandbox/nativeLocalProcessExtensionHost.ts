@@ -16,10 +16,13 @@ import { IExtensionHostProcessOptions } from 'vs/platform/extensions/common/exte
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPCExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 import { createMessageOfType, MessageType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunication, SandboxLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
+import { ExtensionHostProcess, ExtHostMessagePortCommunication, IExtHostCommunication, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
-export class NativeLocalProcessExtensionHost extends SandboxLocalProcessExtensionHost {
+/**
+ * @deprecated
+ */
+export class LegacyNativeLocalProcessExtensionHost extends NativeLocalProcessExtensionHost {
 	protected override async _start(): Promise<IMessagePassingProtocol> {
 		const canUseUtilityProcess = await this._extensionHostStarter.canUseUtilityProcess();
 		if (canUseUtilityProcess && (this._configurationService.getValue<boolean | undefined>('extensions.experimental.useUtilityProcess') || process.sandboxed)) {
@@ -90,7 +93,7 @@ class ExtHostNamedPipeCommunication extends Disposable implements IExtHostCommun
 				}
 
 				const nodeSocket = new NodeSocket(socket, 'renderer-exthost');
-				const protocol = new PersistentProtocol(nodeSocket);
+				const protocol = new PersistentProtocol({ socket: nodeSocket });
 
 				this._register(toDisposable(() => {
 					// Send the extension host a request to terminate itself

@@ -962,13 +962,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 			[
 				localize('trustedTasks', "Tasks are allowed to run"),
 				localize('trustedDebugging', "Debugging is enabled"),
-				localize('trustedExtensions', "All extensions are enabled")
+				localize('trustedExtensions', "All enabled extensions are activated")
 			] :
 			[
 				localize('trustedTasks', "Tasks are allowed to run"),
 				localize('trustedDebugging', "Debugging is enabled"),
 				localize('trustedSettings', "All workspace settings are applied"),
-				localize('trustedExtensions', "All extensions are enabled")
+				localize('trustedExtensions', "All enabled extensions are activated")
 			];
 		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, ThemeIcon.asClassNameArray(checkListIcon));
 

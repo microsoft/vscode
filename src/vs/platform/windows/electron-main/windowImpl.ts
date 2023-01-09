@@ -761,11 +761,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 							title: this.productService.nameLong,
 							type: 'warning',
 							buttons: [
-								mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+								this._config?.workspace ?
+									mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")) :
+									mnemonicButtonLabel(localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window")),
 								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
 							],
 							message,
-							detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+							detail: this._config?.workspace ?
+								localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
+								localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
 							noLink: true,
 							defaultId: 0,
 							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
@@ -816,17 +820,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Inform user
-		await this.dialogMainService.showMessageBox({
+		const result = await this.dialogMainService.showMessageBox({
 			title: this.productService.nameLong,
 			type: 'error',
 			buttons: [
+				mnemonicButtonLabel(localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More")),
 				mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
 			],
-			message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
-			detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
+			message: localize('appGoneAdminMessage', "Running as administrator is not supported in your environment"),
+			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong),
 			noLink: true,
 			defaultId: 0
 		}, this._win);
+
+		if (result.response === 0) {
+			await this.nativeHostMainService.openExternal(undefined, 'https://go.microsoft.com/fwlink/?linkid=2220179');
+		}
 
 		// Ensure to await flush telemetry
 		await Promise.all(appenders.map(appender => appender.flush()));

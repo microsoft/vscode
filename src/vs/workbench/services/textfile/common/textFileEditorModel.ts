@@ -432,7 +432,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Resolve Content
 		try {
-			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
+			const content = await this.textFileService.readStream(this.resource, {
+				acceptTextOnly: !allowBinary,
+				etag, encoding: this.preferredEncoding,
+				limits: options?.limits
+			});
 
 			// Clear orphaned state when resolving was successful
 			this.setOrphaned(false);

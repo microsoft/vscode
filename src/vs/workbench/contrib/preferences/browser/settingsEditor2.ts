@@ -14,7 +14,7 @@ import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -267,7 +267,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
 			if (e.default.length && this.currentSettingsModel) {
-				this.updateElementsByKey([...e.default]);
+				this.updateElementsByKey(new Set(e.default));
 			}
 		}));
 
@@ -336,7 +336,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		const model = await this.input.resolve();
+		const model = await this.input.resolve(options);
 		if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
 			return;
 		}
@@ -1189,11 +1189,11 @@ export class SettingsEditor2 extends EditorPane {
 		scheduledRefreshTracker.onDidBlur(() => {
 			scheduledRefreshTracker.dispose();
 			this.scheduledRefreshes.delete(key);
-			this.onConfigUpdate([key]);
+			this.onConfigUpdate(new Set([key]));
 		});
 	}
 
-	private async onConfigUpdate(keys?: string[], forceRefresh = false, schemaChange = false): Promise<void> {
+	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -1259,8 +1259,8 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private updateElementsByKey(keys: string[]): void {
-		if (keys.length) {
+	private updateElementsByKey(keys: ReadonlySet<string>): void {
+		if (keys.size) {
 			if (this.searchResultModel) {
 				keys.forEach(key => this.searchResultModel!.updateElementsByName(key));
 			}
@@ -1633,21 +1633,21 @@ export class SettingsEditor2 extends EditorPane {
 				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
-					type SettingsSearchErrorEvent = {
-						'message': string;
-					};
-					type SettingsSearchErrorClassification = {
-						owner: 'rzhao271';
-						comment: 'Helps understand when settings search errors out';
-						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					};
+					// type SettingsSearchErrorEvent = {
+					// 	'message': string;
+					// };
+					// type SettingsSearchErrorClassification = {
+					// 	owner: 'rzhao271';
+					// 	comment: 'Helps understand when settings search errors out';
+					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
+					// };
 
-					const message = getErrorMessage(err).trim();
-					if (message && message !== 'Error') {
-						// "Error" = any generic network error
-						this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-						this.logService.info('Setting search error: ' + message);
-					}
+					// const message = getErrorMessage(err).trim();
+					// if (message && message !== 'Error') {
+					// 	// "Error" = any generic network error
+					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
+					// 	this.logService.info('Setting search error: ' + message);
+					// }
 					return null;
 				}
 			});
@@ -1744,7 +1744,7 @@ class SyncControls extends Disposable {
 		const last = this.userDataSyncService.lastSyncTime;
 		let label: string;
 		if (typeof last === 'number') {
-			const d = fromNow(last, true);
+			const d = fromNow(last, true, undefined, true);
 			label = localize('lastSyncedLabel', "Last synced: {0}", d);
 		} else {
 			label = '';

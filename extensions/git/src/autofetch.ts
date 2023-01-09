@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n, env } from 'vscode';
-import { Repository, OperationKind } from './repository';
+import { Repository } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
 import { GitErrorCodes } from './api/git';
-
-function isRemoteOperation(operation: OperationKind): boolean {
-	return operation === OperationKind.Pull || operation === OperationKind.Push || operation === OperationKind.Sync || operation === OperationKind.Fetch;
-}
 
 export class AutoFetcher {
 
@@ -30,7 +26,7 @@ export class AutoFetcher {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
 
-		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
+		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && operation.remote);
 		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
 		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
 	}

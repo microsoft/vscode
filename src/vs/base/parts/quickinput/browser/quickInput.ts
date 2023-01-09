@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -57,7 +57,7 @@ export interface IQuickInputStyles {
 	widget: IQuickInputWidgetStyles;
 	inputBox: IInputBoxStyles;
 	toggle: IToggleStyles;
-	countBadge: ICountBadgetyles;
+	countBadge: ICountBadgeStyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
 	keybindingLabel: IKeybindingLabelStyles;
@@ -944,12 +944,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this._quickNavigate.keybindings;
 			const wasTriggerKeyPressed = quickNavKeys.some(k => {
-				const [firstPart, chordPart] = k.getParts();
-				if (chordPart) {
+				const [firstChord, secondChord] = k.getChords();// TODO@chords
+				if (secondChord) {
 					return false;
 				}
 
-				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
+				if (firstChord.shiftKey && keyCode === KeyCode.Shift) {
 					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 						return false; // this is an optimistic check for the shift key being used to navigate back in quick input
 					}
@@ -957,15 +957,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					return true;
 				}
 
-				if (firstPart.altKey && keyCode === KeyCode.Alt) {
+				if (firstChord.altKey && keyCode === KeyCode.Alt) {
 					return true;
 				}
 
-				if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
+				if (firstChord.ctrlKey && keyCode === KeyCode.Ctrl) {
 					return true;
 				}
 
-				if (firstPart.metaKey && keyCode === KeyCode.Meta) {
+				if (firstChord.metaKey && keyCode === KeyCode.Meta) {
 					return true;
 				}
 
@@ -1305,11 +1305,11 @@ export class QuickInputController extends Disposable {
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
 		visibleCountContainer.setAttribute('aria-live', 'polite');
 		visibleCountContainer.setAttribute('aria-atomic', 'true');
-		const visibleCount = new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") });
+		const visibleCount = new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") }, this.styles.countBadge);
 
 		const countContainer = dom.append(filterContainer, $('.quick-input-count'));
 		countContainer.setAttribute('aria-live', 'polite');
-		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
+		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge);
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const ok = new Button(okContainer, this.styles.button);
@@ -1839,7 +1839,6 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
-			this.ui.count.style(this.styles.countBadge);
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];

@@ -16,6 +16,7 @@ import { isNumber } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isWeb } from 'vs/base/common/platform';
 
 //#region file service & providers
 
@@ -284,6 +285,21 @@ export interface IFileAtomicReadOptions {
 	readonly atomic: true;
 }
 
+export interface IFileReadLimits {
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_TOO_LARGE` will be thrown.
+	 */
+	size?: number;
+
+	/**
+	 * If the file exceeds the given size, an error of kind
+	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
+	 */
+	memory?: number;
+}
+
 export interface IFileReadStreamOptions {
 
 	/**
@@ -299,12 +315,10 @@ export interface IFileReadStreamOptions {
 	readonly length?: number;
 
 	/**
-	 * If provided, the size of the file will be checked against the limits.
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
 	 */
-	limits?: {
-		readonly size?: number;
-		readonly memory?: number;
-	};
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
@@ -428,6 +442,9 @@ export interface IWatchOptions {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	excludes: string[];
 
@@ -435,6 +452,9 @@ export interface IWatchOptions {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
+	 * Paths can be relative or absolute and when relative are
+	 * resolved against the watched folder. Glob patterns are
+	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }
@@ -776,7 +796,6 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
-		this.rawChanges = changes;
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
@@ -900,14 +919,6 @@ export class FileChangesEvent {
 	gotUpdated(): boolean {
 		return !!this.updated;
 	}
-
-	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	readonly rawChanges: readonly IFileChange[] = [];
 
 	/**
 	 * @deprecated use the `contains` or `affects` method to efficiently find
@@ -1167,6 +1178,17 @@ export class FileOperationError extends Error {
 	}
 }
 
+export class TooLargeFileOperationError extends FileOperationError {
+	constructor(
+		message: string,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		readonly size: number,
+		options?: IReadFileOptions
+	) {
+		super(message, fileOperationResult, options);
+	}
+}
+
 export class NotModifiedSinceFileOperationError extends FileOperationError {
 
 	constructor(
@@ -1313,9 +1335,9 @@ export class ByteSize {
 	}
 }
 
-// Native only: Arch limits
+// File limits
 
-export interface IArchLimits {
+export interface IFileLimits {
 	readonly maxFileSize: number;
 	readonly maxHeapSize: number;
 }
@@ -1325,11 +1347,33 @@ export const enum Arch {
 	OTHER
 }
 
-export function getPlatformLimits(arch: Arch): IArchLimits {
+export function getPlatformFileLimits(arch: Arch): IFileLimits {
 	return {
 		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
 		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
 	};
+}
+
+export function getLargeFileConfirmationLimit(remoteAuthority?: string): number {
+
+	// These numbers are picked somewhat randomly but with the intent to:
+	// - avoid performance issues (in web)
+	// - avoid network cost (in remote)
+	// - have a good default experinece in local desktop
+
+	if (isWeb) {
+		if (remoteAuthority) {
+			return 10 * ByteSize.MB;
+		}
+
+		return 50 * ByteSize.MB;
+	}
+
+	if (remoteAuthority) {
+		return 100 * ByteSize.MB;
+	}
+
+	return 1024 * ByteSize.MB;
 }
 
 //#endregion
