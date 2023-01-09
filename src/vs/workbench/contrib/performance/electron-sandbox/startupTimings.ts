@@ -55,10 +55,11 @@ export class StartupTimings implements IWorkbenchContribution {
 
 		const { sessionId } = await this._telemetryService.getTelemetryInfo();
 
-		Promise.all([
-			this._timerService.whenReady(),
-			timeout(15000), // wait: cached data creation, telemetry sending
-		]).then(async () => {
+		try {
+			await Promise.all([
+				this._timerService.whenReady(),
+				timeout(15000), // wait: cached data creation, telemetry sending
+			]);
 
 			const perfBaseline = await this._timerService.perfBaseline;
 
@@ -67,14 +68,34 @@ export class StartupTimings implements IWorkbenchContribution {
 			if (await this._fileService.exists(uri)) {
 				chunks.push((await this._fileService.readFile(uri)).value);
 			}
-			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`));
+
+			const durations: string[] = [`${this._timerService.startupMetrics.ellapsed}`];
+			if (this._environmentService.args['prof-timer-markers']) {
+				for (const durationMarker of this._environmentService.args['prof-timer-markers']) {
+					let duration: number = 0;
+					if (durationMarker.indexOf('-') !== -1) {
+						const markers = durationMarker.split('-');
+						console.log(markers);
+						if (markers.length === 2) {
+							duration = this._timerService.getDuration(markers[0], markers[1]);
+						}
+					} else {
+						duration = (this._timerService.startupMetrics.timers as any)[durationMarker];
+					}
+					if (duration) {
+						durations.push(`${durationMarker}: ${duration}`);
+					}
+				}
+			}
+
+			chunks.push(VSBuffer.fromString(`${durations.join('\t')}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`));
 			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
-		}).then(() => {
-			this._nativeHostService.exit(0);
-		}).catch(err => {
+
+		} catch (err) {
 			console.error(err);
+		} finally {
 			this._nativeHostService.exit(0);
-		});
+		}
 	}
 
 	private async _isStandardStartup(): Promise<string | undefined> {
