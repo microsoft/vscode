@@ -103,6 +103,15 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 	) {
 		super();
 
+		const shouldShowIntegratedOnLocal = ContextKeyExpr.and(
+			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+			ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'integrated'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
+
+
+		const shouldShowExternalKindOnLocal = ContextKeyExpr.and(
+			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+			ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'external'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
+
 		this._openInIntegratedTerminalMenuItem = {
 			group: 'navigation',
 			order: 30,
@@ -110,10 +119,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 				id: OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.Integrated', "Open in Integrated Terminal")
 			},
-			when: ContextKeyExpr.or(ContextKeyExpr.and(
-				ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-				ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'integrated'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')),
-			), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
+			when: ContextKeyExpr.or(shouldShowIntegratedOnLocal, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
 		};
 
 
@@ -124,10 +130,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 				id: OPEN_IN_TERMINAL_COMMAND_ID,
 				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
 			},
-			when: ContextKeyExpr.and(
-				ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-				ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', 'external'), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')),
-			)
+			when: shouldShowExternalKindOnLocal
 		};
 
 
