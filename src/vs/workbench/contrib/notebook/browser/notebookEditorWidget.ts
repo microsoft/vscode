@@ -865,7 +865,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					listInactiveFocusOutline: notebookEditorBackground,
 				},
 				accessibilityProvider: {
-					getAriaLabel: (element) => {
+					getAriaLabel: (element: CellViewModel) => {
 						if (!this.viewModel) {
 							return '';
 						}
