@@ -134,7 +134,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
@@ -220,7 +220,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
@@ -299,7 +299,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
