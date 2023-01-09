@@ -1453,6 +1453,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 
 			terminalToReuse.terminal.scrollToBottom();
+			launchConfigs.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
