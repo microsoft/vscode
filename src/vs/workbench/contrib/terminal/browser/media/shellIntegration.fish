@@ -41,22 +41,10 @@ end
 # Escape a value for use in the 'P' ("Property") or 'E' ("Command Line") sequences.
 # Backslashes are doubled and non-alphanumeric characters are hex encoded.
 function __vsc_escape_value
-	# Replace all non-alnum characters with %XX hex form.
-	string escape --style=url "$argv" \
-	# The characters [-./_~] are not encoded in the builtin url escaping, despite not being alphanumeric.
-	# See: https://github.com/fish-shell/fish-shell/blob/f82537bcdcb32f85a530395f00e7be1aa9afc592/src/common.cpp#L738
-	# For consistency, also encode those characters.
-	| string replace --all '-' '%2D' \
-	| string replace --all '.' '%2E' \
-	| string replace --all '/' '%2F' \
-	| string replace --all '_' '%5F' \
-	| string replace --all '~' '%7E' \
-	# Now everything is either alphanumeric [0-9A-Za-z] or %XX escapes.
-	# Change the hex escape representation from '%' to '\x'. (e.g. ' ' → '%20' → '\x20').
-	# Note that all '%' characters are escapes: literal '%' will already have been encoded.
-	| string replace --all '%' '\\x' \
-	# For readability, prefer to represent literal backslashes with doubling. ('\' → '%5C' → '\x5C' → '\\').
-	| string replace --all --ignore-case '%5C' '\\\\' \
+	# Escape backslashes and semi-colons
+	echo $argv \
+	| string replace --all '\\' '\\\\' \
+	| string replace --all ';' '\\x3b' \
 	;
 end
 

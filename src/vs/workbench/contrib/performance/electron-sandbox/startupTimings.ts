@@ -48,33 +48,57 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	private async _appendStartupTimes(standardStartupError: string | undefined) {
 		const appendTo = this._environmentService.args['prof-append-timers'];
-		if (!appendTo) {
+		const durationMarkers = this._environmentService.args['prof-duration-markers'];
+		const durationMarkersFile = this._environmentService.args['prof-duration-markers-file'];
+		if (!appendTo && !durationMarkers) {
 			// nothing to do
 			return;
 		}
 
-		const { sessionId } = await this._telemetryService.getTelemetryInfo();
-
-		Promise.all([
-			this._timerService.whenReady(),
-			timeout(15000), // wait: cached data creation, telemetry sending
-		]).then(async () => {
+		try {
+			await Promise.all([
+				this._timerService.whenReady(),
+				timeout(15000), // wait: cached data creation, telemetry sending
+			]);
 
 			const perfBaseline = await this._timerService.perfBaseline;
 
-			const uri = URI.file(appendTo);
-			const chunks: VSBuffer[] = [];
-			if (await this._fileService.exists(uri)) {
-				chunks.push((await this._fileService.readFile(uri)).value);
+			if (appendTo) {
+				const { sessionId } = await this._telemetryService.getTelemetryInfo();
+				const content = `${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`;
+				await this.appendContent(URI.file(appendTo), content);
 			}
-			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`));
-			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
-		}).then(() => {
-			this._nativeHostService.exit(0);
-		}).catch(err => {
+
+			if (durationMarkers?.length) {
+				const durations: string[] = [];
+				for (const durationMarker of durationMarkers) {
+					let duration: number = 0;
+					if (durationMarker === 'ellapsed') {
+						duration = this._timerService.startupMetrics.ellapsed;
+					} else if (durationMarker.indexOf('-') !== -1) {
+						const markers = durationMarker.split('-');
+						if (markers.length === 2) {
+							duration = this._timerService.getDuration(markers[0], markers[1]);
+						}
+					}
+					if (duration) {
+						durations.push(`${durationMarker}: ${duration}`);
+					}
+				}
+
+				const durationsContent = `${durations.join('\t')}\n`;
+				if (durationMarkersFile) {
+					await this.appendContent(URI.file(durationMarkersFile), durationsContent);
+				} else {
+					console.log(durationsContent);
+				}
+			}
+
+		} catch (err) {
 			console.error(err);
+		} finally {
 			this._nativeHostService.exit(0);
-		});
+		}
 	}
 
 	private async _isStandardStartup(): Promise<string | undefined> {
@@ -114,5 +138,14 @@ export class StartupTimings implements IWorkbenchContribution {
 			return 'Not on latest version, updates available';
 		}
 		return undefined;
+	}
+
+	private async appendContent(file: URI, content: string): Promise<void> {
+		const chunks: VSBuffer[] = [];
+		if (await this._fileService.exists(file)) {
+			chunks.push((await this._fileService.readFile(file)).value);
+		}
+		chunks.push(VSBuffer.fromString(content));
+		await this._fileService.writeFile(file, VSBuffer.concat(chunks));
 	}
 }

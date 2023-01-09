@@ -62,6 +62,7 @@ export const enum TerminalSettingId {
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
 	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
+	TabStopWidth = 'terminal.integrated.tabStopWidth',
 	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
 	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
 	BellDuration = 'terminal.integrated.bellDuration',
@@ -134,7 +135,7 @@ export const enum WindowsShellType {
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -756,12 +757,16 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	/**
-	 * Whether the terminal profile contains a potentially unsafe path. For example, the path
-	 *  `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
+	 * Whether the terminal profile contains a potentially unsafe {@link path}. For example, the path
+	 * `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
 	 * user in a multi-user environment. As such, we don't want to blindly present it as a profile
 	 * without a warning.
 	 */
 	isUnsafePath?: boolean;
+	/**
+	 * An additional unsafe path that must exist, for example a script that appears in {@link args}.
+	 */
+	requiresUnsafePath?: string;
 	isAutoDetected?: boolean;
 	/**
 	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
@@ -794,6 +799,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
+	requiresPath?: string | ITerminalUnsafePath;
 }
 
 type OneOrN<T> = T | T[];

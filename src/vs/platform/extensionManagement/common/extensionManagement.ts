@@ -295,6 +295,7 @@ export interface IDeprecationInfo {
 		readonly preRelease?: boolean;
 	};
 	readonly settings?: readonly string[];
+	readonly additionalInfo?: string;
 }
 
 export interface IExtensionsControlManifest {

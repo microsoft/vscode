@@ -243,7 +243,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return;
 		}
 
-		if (evt.result.request.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
+		if (evt.result.request.continuous && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun)) {
 			return;
 		}
 
@@ -1097,7 +1097,7 @@ interface ITreeElement {
 	ariaLabel?: string;
 }
 
-export class TestResultElement implements ITreeElement {
+class TestResultElement implements ITreeElement {
 	public readonly type = 'result';
 	public readonly context = this.value.id;
 	public readonly id = this.value.id;
@@ -1114,7 +1114,7 @@ export class TestResultElement implements ITreeElement {
 	constructor(public readonly value: ITestResult) { }
 }
 
-export class TestCaseElement implements ITreeElement {
+class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
 	public readonly context = this.test.item.extId;
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
