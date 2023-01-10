@@ -16,7 +16,9 @@ interface Asset {
 	platform: string;
 	type: string;
 	url: string;
+	storageAccountUrl: string;
 	mooncakeUrl?: string;
+	mooncakeStorageAccountUrl?: string;
 	hash: string;
 	sha256hash: string;
 	size: number;
@@ -183,7 +185,7 @@ async function main(): Promise<void> {
 	const storagePipelineOptions: StoragePipelineOptions = { retryOptions: { retryPolicyType: StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
 
 	const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
-	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
+	const blobServiceClient = new BlobServiceClient(process.env['AZURE_STORAGE_ACCOUNT']!, credential, storagePipelineOptions);
 	const containerClient = blobServiceClient.getContainerClient(quality);
 	const blobClient = containerClient.getBlockBlobClient(blobName);
 
@@ -209,7 +211,7 @@ async function main(): Promise<void> {
 
 	if (shouldUploadToMooncake) {
 		const mooncakeCredential = new ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_SECRET']!);
-		const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+		const mooncakeBlobServiceClient = new BlobServiceClient(process.env['MOONCAKE_STORAGE_ACCOUNT']!, mooncakeCredential, storagePipelineOptions);
 		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
@@ -235,16 +237,24 @@ async function main(): Promise<void> {
 
 	console.log(uploadPromises.length ? 'All blobs successfully uploaded.' : 'No blobs to upload.');
 
-	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
-	const blobPath = new URL(assetUrl).pathname;
-	const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
+	const blobPath = `${quality}/${blobName}`;
+
+	// Azure URLs
+	const assetUrl = `${process.env['AZURE_CDN_URL']}/${blobPath}`;
+	const storageAccountUrl = `${process.env['AZURE_STORAGE_ACCOUNT']}/${blobPath}`;
+
+	// Mooncake URLs
+	const mooncakeUrl = shouldUploadToMooncake ? `${process.env['MOONCAKE_CDN_URL']}/${blobPath}` : undefined;
+	const mooncakeStorageAccountUrl = shouldUploadToMooncake ? `${process.env['MOONCAKE_STORAGE_ACCOUNT']}/${blobPath}` : undefined;
 
 	const asset: Asset = {
 		platform,
 		type,
 		url: assetUrl,
+		storageAccountUrl,
 		hash: sha1hash,
 		mooncakeUrl,
+		mooncakeStorageAccountUrl,
 		sha256hash,
 		size
 	};

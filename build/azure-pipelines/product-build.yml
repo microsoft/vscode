@@ -135,8 +135,12 @@ variables:
     value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
     value: https://vscode.documents.azure.com:443/
+  - name: AZURE_STORAGE_ACCOUNT
+    value: https://vscode.blob.core.windows.net
   - name: MOONCAKE_CDN_URL
     value: https://vscode.cdn.azure.cn
+  - name: MOONCAKE_STORAGE_ACCOUNT
+    value: https://vscode.blob.core.chinacloudapi.cn
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
