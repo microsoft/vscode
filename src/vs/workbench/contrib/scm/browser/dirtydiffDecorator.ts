@@ -57,6 +57,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -467,6 +468,8 @@ export class GotoPreviousChangeAction extends EditorAction {
 	run(accessor: ServicesAccessor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 		const audioCueService = accessor.get(IAudioCueService);
+		const accessibilityService = accessor.get(IAccessibilityService);
+		const codeEditorService = accessor.get(ICodeEditorService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
@@ -487,10 +490,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		playAudioCueForChange(change, audioCueService);
-
-		const position = new Position(change.modifiedStartLineNumber, 1);
-		outerEditor.setPosition(position);
-		outerEditor.revealPositionInCenter(position);
+		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 registerEditorAction(GotoPreviousChangeAction);
@@ -510,6 +510,8 @@ export class GotoNextChangeAction extends EditorAction {
 	run(accessor: ServicesAccessor): void {
 		const audioCueService = accessor.get(IAudioCueService);
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+		const accessibilityService = accessor.get(IAccessibilityService);
+		const codeEditorService = accessor.get(ICodeEditorService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
@@ -531,10 +533,17 @@ export class GotoNextChangeAction extends EditorAction {
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		playAudioCueForChange(change, audioCueService);
+		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
+	}
+}
 
-		const position = new Position(change.modifiedStartLineNumber, 1);
-		outerEditor.setPosition(position);
-		outerEditor.revealPositionInCenter(position);
+function setPositionAndSelection(change: IChange, editor: ICodeEditor, accessibilityService: IAccessibilityService, codeEditorService: ICodeEditorService) {
+	const position = new Position(change.modifiedStartLineNumber, 1);
+	editor.setPosition(position);
+	editor.revealPositionInCenter(position);
+	if (accessibilityService.isScreenReaderOptimized()) {
+		editor.setSelection({ startLineNumber: change.modifiedStartLineNumber, startColumn: 0, endLineNumber: change.modifiedStartLineNumber, endColumn: Number.MAX_VALUE });
+		codeEditorService.getActiveCodeEditor()?.writeScreenReaderContent('diff-navigation');
 	}
 }
 
