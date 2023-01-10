@@ -233,10 +233,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (isWeb()) {
-			return new ClientCapabilities(
-				ClientCapability.Syntax,
-				ClientCapability.EnhancedSyntax,
-				ClientCapability.Semantic);
+			if (this._configuration.enableProjectWideIntellisenseOnWeb && globalThis['crossOriginIsolated']) {
+				return new ClientCapabilities(
+					ClientCapability.Syntax,
+					ClientCapability.EnhancedSyntax,
+					ClientCapability.Semantic);
+			} else {
+				return new ClientCapabilities(
+					ClientCapability.Syntax,
+					ClientCapability.EnhancedSyntax);
+			}
 		}
 
 		if (this.apiVersion.gte(API.v400)) {

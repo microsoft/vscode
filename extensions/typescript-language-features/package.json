@@ -1226,6 +1226,15 @@
           "default": true,
           "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
+        },
+        "typescript.experimental.tsserver.web.enableProjectWideIntellisense": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.tsserver.web.enableProjectWideIntellisense%",
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
