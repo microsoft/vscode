@@ -440,7 +440,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	name(): string {
-		return this._name.getValue();
+		return this._name.value;
 	}
 
 	addContext(results: ITextSearchResult[] | undefined) {
@@ -564,7 +564,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return this._name.getValue();
+		return this._name.value;
 	}
 
 	parent(): SearchResult | FolderMatch {
