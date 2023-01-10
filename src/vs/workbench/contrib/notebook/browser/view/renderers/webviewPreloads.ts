@@ -182,16 +182,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	document.body.addEventListener('click', handleInnerClick);
 
-	async function loadScriptSource(url: string, originalUri: string): Promise<string> {
-		const res = await fetch(url);
-		const text = await res.text();
-		if (!res.ok) {
-			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
-		}
-
-		return text;
-	}
-
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly settings: RenderOptions;
 	}
@@ -224,24 +214,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	}
 
-	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
-		const args = Object.entries(globals);
-		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
-	};
-
-	async function runKernelPreload(url: string, originalUri: string, forceLoadAsModule: boolean): Promise<void> {
-		if (forceLoadAsModule) {
-			return activateModuleKernelPreload(url);
-		}
-
-		const text = await loadScriptSource(url, originalUri);
-		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+	async function runKernelPreload(url: string): Promise<void> {
 		try {
-			if (isModule) {
-				return activateModuleKernelPreload(url);
-			} else {
-				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
-			}
+			return await activateModuleKernelPreload(url);
 		} catch (e) {
 			console.error(e);
 			throw e;
@@ -818,12 +793,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const kernelPreloadGlobals = {
-		acquireVsCodeApi,
-		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
-		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
-	};
-
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
 		createHTML: value => value,
 		createScript: value => value,
@@ -1209,8 +1178,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'preload': {
 				const resources = event.data.resources;
-				for (const { uri, originalUri } of resources) {
-					kernelPreloads.load(uri, originalUri, false);
+				for (const { uri } of resources) {
+					kernelPreloads.load(uri);
 				}
 				break;
 			}
@@ -1462,9 +1431,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * @param uri URI to load from
 		 * @param originalUri URI to show in an error message if the preload is invalid.
 		 */
-		public load(uri: string, originalUri: string, forceLoadAsModule: boolean) {
+		public load(uri: string) {
 			const promise = Promise.all([
-				runKernelPreload(uri, originalUri, forceLoadAsModule),
+				runKernelPreload(uri),
 				this.waitForAllCurrent(),
 			]);
 
@@ -2229,7 +2198,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	});
 
 	for (const preload of ctx.staticPreloadsData) {
-		kernelPreloads.load(preload.entrypoint, preload.entrypoint, true);
+		kernelPreloads.load(preload.entrypoint);
 	}
 
 	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
