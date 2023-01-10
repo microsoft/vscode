@@ -15,6 +15,10 @@ import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+// TODO: Fix import
+import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -104,7 +108,7 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'>,
+	options: ITerminalProcessOptions,
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
 	productService: IProductService
@@ -124,6 +128,47 @@ export function getShellIntegrationInjection(
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'
 	};
+
+	// TODO: Only do this on macOS
+	if (options.environmentVariableCollections) {
+		// Deserialize and merge
+		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
+
+		// TODO: Remove test data
+		const map: Map<string, IEnvironmentVariableMutator> = new Map();
+		map.set('PATH', { value: 'before:', type: EnvironmentVariableMutatorType.Prepend });
+		deserialized.set('some.ext', { map });
+		const map2: Map<string, IEnvironmentVariableMutator> = new Map();
+		map2.set('PATH', { value: 'before for ext2:', type: EnvironmentVariableMutatorType.Prepend });
+		deserialized.set('some.ext2', { map: map2 });
+		const map3: Map<string, IEnvironmentVariableMutator> = new Map();
+		map3.set('PATH', { value: ':after', type: EnvironmentVariableMutatorType.Append });
+		deserialized.set('some.ext3', { map: map3 });
+		logService.info('deserialized', deserialized);
+
+		const merged = new MergedEnvironmentVariableCollection(deserialized);
+
+		// Get all append and prepend PATH entries
+		const pathEntry = merged.map.get('PATH');
+		const appendToPath: string[] = [];
+		const prependToPath: string[] = [];
+		if (pathEntry) {
+			for (const mutator of pathEntry) {
+				switch (mutator.type) {
+					case EnvironmentVariableMutatorType.Append: appendToPath.push(mutator.value); break;
+					case EnvironmentVariableMutatorType.Prepend: prependToPath.push(mutator.value); break;
+				}
+			}
+		}
+
+		// Add to the environment mixin to be applied in the shell integration script
+		if (appendToPath.length > 0) {
+			envMixin['VSCODE_PATH_SUFFIX'] = appendToPath.join('');
+		}
+		if (prependToPath.length > 0) {
+			envMixin['VSCODE_PATH_PREFIX'] = appendToPath.join('');
+		}
+	}
 
 	// Windows
 	if (isWindows) {

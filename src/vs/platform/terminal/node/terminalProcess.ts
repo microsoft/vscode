@@ -202,7 +202,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		let injection: IShellIntegrationConfigInjection | undefined;
 		if (this._options.shellIntegration.enabled) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, { shellIntegration: this._options.shellIntegration, windowsEnableConpty: this._options.windowsEnableConpty }, this._ptyOptions.env, this._logService, this._productService);
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
 			if (injection) {
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {
