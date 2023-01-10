@@ -50,7 +50,7 @@ Language server host for typescript using vscode's sync-api in the browser
      a web of directory watches that then check whether the file is eventually created.
    - even later: well, it works even though it is similar to my code.
      I'm not sure what is different.
-
+- [ ] copy fileWatchingManager.ts to web/ ; there's no sharing code between extensions
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
 - [x] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
 - [x] think about implementing all the other ServerHost methods

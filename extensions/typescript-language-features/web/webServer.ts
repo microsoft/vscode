@@ -33,11 +33,34 @@ const generateDjb2Hash = (ts as any).generateDjb2Hash;
 // End misc internals
 // BEGIN webServer/webServer.ts
 function fromResource(extensionUri: URI, uri: URI) {
-	if (uri.scheme === extensionUri.scheme && uri.authority === extensionUri.authority && uri.path.startsWith(extensionUri.path + '/dist/browser/typescript/lib.') && uri.path.endsWith('.d.ts')) {
+	if (uri.scheme === extensionUri.scheme
+		&& uri.authority === extensionUri.authority
+		&& uri.path.startsWith(extensionUri.path + '/dist/browser/typescript/lib.')
+		&& uri.path.endsWith('.d.ts')) {
 		return uri.path
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`
 }
+function updateWatch(event: "create" | "change" | "delete", uri: URI, extensionUri: URI) {
+	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
+		: event === 'change' ? ts.FileWatcherEventKind.Changed
+			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
+				: ts.FileWatcherEventKind.Changed;
+	const path = fromResource(extensionUri, uri)
+	if (watchFiles.has(path)) {
+		watchFiles.get(path)!.callback(path, kind)
+		return
+	}
+	let found = false
+	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
+		watchDirectories.get(watch)!.callback(path)
+		found = true
+	}
+	if (!found) {
+		console.error(`no watcher found for ${path}`)
+	}
+}
+
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
 	const currentDirectory = '/';
@@ -303,12 +326,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	}
 }
 
-function createWebSystem(extensionUri: URI, connection: ClientConnection<Requests>, args: string[], logger: ts.server.Logger, fsWatcher: MessagePort) {
-	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, fsWatcher)
-	setSys(sys)
-	return sys
-}
-
 class WasmCancellationToken implements ts.server.ServerCancellationToken {
 	shouldCancel: (() => boolean) | undefined
 	currentRequestId: number | undefined = undefined
@@ -411,6 +428,22 @@ class WorkerSession extends ts.server.Session<{}> {
 }
 // END webServer/webServer.ts
 // BEGIN tsserver/webServer.ts
+function parseServerMode(args: string[]): ts.LanguageServiceMode | string | undefined {
+	const mode = findArgument(args, "--serverMode");
+	if (!mode) return undefined;
+
+	switch (mode.toLowerCase()) {
+		case "semantic":
+			return ts.LanguageServiceMode.Semantic;
+		case "partialsemantic":
+			return ts.LanguageServiceMode.PartialSemantic;
+		case "syntactic":
+			return ts.LanguageServiceMode.Syntactic;
+		default:
+			return mode;
+	}
+}
+
 function hrtime(previous?: number[]) {
 	const now = self.performance.now() * 1e-3;
 	let seconds = Math.floor(now);
@@ -427,29 +460,22 @@ function hrtime(previous?: number[]) {
 	return [seconds, nanoseconds];
 }
 
-function startSession(extensionUri: URI, connection: ClientConnection<Requests>, args: string[], logger: ts.server.Logger, fsWatcher: MessagePort, tsserver: MessagePort, options: StartSessionOptions) {
-	session = new WorkerSession(createWebSystem(extensionUri, connection, args, logger, fsWatcher), options, tsserver, logger, hrtime)
-	session.listen()
-}
 // END tsserver/webServer.ts
-// BEGIN tsserver/nodeServer.ts
-function parseServerMode(args: string[]): ts.LanguageServiceMode | string | undefined {
-	const mode = findArgument(args, "--serverMode");
-	if (!mode) return undefined;
-
-	switch (mode.toLowerCase()) {
-		case "semantic":
-			return ts.LanguageServiceMode.Semantic;
-		case "partialsemantic":
-			return ts.LanguageServiceMode.PartialSemantic;
-		case "syntactic":
-			return ts.LanguageServiceMode.Syntactic;
-		default:
-			return mode;
-	}
-}
-// END tsserver/nodeServer.ts
 // BEGIN tsserver/server.ts
+function hasArgument(args: readonly string[], name: string): boolean {
+	return args.indexOf(name) >= 0;
+}
+function findArgument(args: readonly string[], name: string): string | undefined {
+	const index = args.indexOf(name);
+	return 0 <= index && index < args.length - 1
+		? args[index + 1]
+		: undefined;
+}
+function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
+	const arg = findArgument(args, name)
+	return arg === undefined ? [] : arg.split(",").filter(name => name !== "");
+}
+
 function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort): void {
 	const modeOrUnknown = parseServerMode(args);
 	const serverMode = typeof modeOrUnknown === "number" ? modeOrUnknown : undefined;
@@ -460,57 +486,21 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 	logger.info(`Arguments: ${args.join(" ")}`);
 	logger.info(`Platform: ${platform} CaseSensitive: true`);
 	logger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} unknownServerMode: ${unknownServerMode}`);
-	startSession(
-		extensionUri,
-		connection,
-		args,
-		logger,
-		fsWatcher,
-		tsserver,
-		{
-			globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
-			pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
-			allowLocalPluginLoads: hasArgument(args, "--allowLocalPluginLoads"),
-			useSingleInferredProject: hasArgument(args, "--useSingleInferredProject"),
-			useInferredProjectPerProjectRoot: hasArgument(args, "--useInferredProjectPerProjectRoot"),
-			suppressDiagnosticEvents: hasArgument(args, "--suppressDiagnosticEvents"),
-			noGetErrOnBackgroundUpdate: hasArgument(args, "--noGetErrOnBackgroundUpdate"),
-			syntaxOnly,
-			serverMode
-		},
-	);
-}
-function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
-	const arg = findArgument(args, name)
-	return arg === undefined ? [] : arg.split(",").filter(name => name !== "");
-}
-function hasArgument(args: readonly string[], name: string): boolean {
-	return args.indexOf(name) >= 0;
-}
-function findArgument(args: readonly string[], name: string): string | undefined {
-	const index = args.indexOf(name);
-	return 0 <= index && index < args.length - 1
-		? args[index + 1]
-		: undefined;
-}
-function updateWatch(event: "create" | "change" | "delete", uri: URI, extensionUri: URI) {
-	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
-		: event === 'change' ? ts.FileWatcherEventKind.Changed
-			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
-				: ts.FileWatcherEventKind.Changed;
-	const path = fromResource(extensionUri, uri)
-	if (watchFiles.has(path)) {
-		watchFiles.get(path)!.callback(path, kind)
-		return
-	}
-	let found = false
-	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
-		watchDirectories.get(watch)!.callback(path)
-		found = true
-	}
-	if (!found) {
-		console.error(`no watcher found for ${path}`)
-	}
+	const options = {
+		globalPlugins: findArgumentStringArray(args, "--globalPlugins"),
+		pluginProbeLocations: findArgumentStringArray(args, "--pluginProbeLocations"),
+		allowLocalPluginLoads: hasArgument(args, "--allowLocalPluginLoads"),
+		useSingleInferredProject: hasArgument(args, "--useSingleInferredProject"),
+		useInferredProjectPerProjectRoot: hasArgument(args, "--useInferredProjectPerProjectRoot"),
+		suppressDiagnosticEvents: hasArgument(args, "--suppressDiagnosticEvents"),
+		noGetErrOnBackgroundUpdate: hasArgument(args, "--noGetErrOnBackgroundUpdate"),
+		syntaxOnly,
+		serverMode
+	};
+	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, fsWatcher)
+	setSys(sys)
+	session = new WorkerSession(sys, options, tsserver, logger, hrtime)
+	session.listen()
 }
 let initial: Promise<any> | undefined;
 const listener = async (e: any) => {
