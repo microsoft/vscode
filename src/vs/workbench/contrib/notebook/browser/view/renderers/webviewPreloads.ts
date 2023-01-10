@@ -241,7 +241,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	async function runKernelPreload(url: string): Promise<void> {
 		try {
-			console.error('load url', url);
 			return await activateModuleKernelPreload(url);
 		} catch (e) {
 			console.error(e);
