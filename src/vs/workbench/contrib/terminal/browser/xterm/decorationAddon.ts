@@ -10,6 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -49,6 +50,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -384,6 +386,19 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (actions.length > 0) {
 			actions.push(new Separator());
 		}
+		const labelRunRecent = localize('workbench.action.terminal.runRecentCommand', "Run Recent Command");
+		actions.push({
+			class: undefined, tooltip: labelRunRecent, id: 'workbench.action.terminal.runRecentCommand', label: labelRunRecent, enabled: true,
+			run: () => this._commandService.executeCommand('workbench.action.terminal.runRecentCommand')
+		});
+		const labelGoToRecent = localize('workbench.action.terminal.goToRecentDirectory', "Go To Recent Directory");
+		actions.push({
+			class: undefined, tooltip: labelRunRecent, id: 'workbench.action.terminal.goToRecentDirectory', label: labelGoToRecent, enabled: true,
+			run: () => this._commandService.executeCommand('workbench.action.terminal.goToRecentDirectory')
+		});
+
+		actions.push(new Separator());
+
 		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
 		actions.push({
 			class: undefined, tooltip: labelConfigure, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,
