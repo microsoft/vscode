@@ -14,21 +14,23 @@ async function main() {
 
 	const args = [...process.argv];
 
-	// get build arg from args
-	let buildArgIndex = args.indexOf('--build');
-	buildArgIndex = buildArgIndex === -1 ? args.indexOf('-b') : buildArgIndex;
-	if (buildArgIndex === -1) {
-		args.push('--build');
-		args.push(getLocalCLIPath());
-	} else {
-		const exePath = args[buildArgIndex + 1];
-		args.splice(buildArgIndex + 1, 1, getExePath(exePath));
-	}
+	if (args.indexOf('--help') === -1 && args.indexOf('-h') === -1) {
+		// get build arg from args
+		let buildArgIndex = args.indexOf('--build');
+		buildArgIndex = buildArgIndex === -1 ? args.indexOf('-b') : buildArgIndex;
+		if (buildArgIndex === -1) {
+			args.push('--build');
+			args.push(getLocalCLIPath());
+		} else {
+			const exePath = args[buildArgIndex + 1];
+			args.splice(buildArgIndex + 1, 1, getExePath(exePath));
+		}
 
-	args.push('--folder');
-	args.push(VSCODE_FOLDER);
-	args.push('--file');
-	args.push(path.join(VSCODE_FOLDER, 'package.json'));
+		args.push('--folder');
+		args.push(VSCODE_FOLDER);
+		args.push('--file');
+		args.push(path.join(VSCODE_FOLDER, 'package.json'));
+	}
 
 	await perf(args);
 }
