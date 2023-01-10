@@ -287,7 +287,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 				const currentOutput = this.outputs[splice.start + i];
 				const newOutput = splice.newOutputs[i];
 
-				this.changeOutputItems(currentOutput.outputId, false, newOutput.outputs);
+				this.replaceOutput(currentOutput.outputId, newOutput);
 			}
 
 			this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
@@ -298,19 +298,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 
-	changeOutputItems(outputId: string, append: boolean, items: IOutputItemDto[]): boolean {
-		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
-
-		if (outputIndex < 0) {
-			return false;
-		}
-
-		const output = this.outputs[outputIndex];
-		if (append) {
-			output.appendData(items);
-		} else {
-			output.replaceData(items);
-		}
+	private _optimizeOutputItems(output: ICellOutput) {
 		if (output.outputs.length > 1 && output.outputs.every(item => isTextStreamMime(item.mime))) {
 			// Look for the mimes in the items, and keep track of their order.
 			// Merge the streams into one output item, per mime type.
@@ -336,7 +324,37 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 				});
 			});
 		}
+	}
 
+	replaceOutput(outputId: string, newOutputItem: ICellOutput) {
+		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return false;
+		}
+
+		const output = this.outputs[outputIndex];
+		output.replaceData(newOutputItem);
+		this._optimizeOutputItems(output);
+		this._onDidChangeOutputItems.fire();
+		return true;
+	}
+
+	changeOutputItems(outputId: string, append: boolean, items: IOutputItemDto[]): boolean {
+		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return false;
+		}
+
+		const output = this.outputs[outputIndex];
+		if (append) {
+			output.appendData(items);
+		} else {
+			output.replaceData({ outputId: outputId, outputs: items, metadata: output.metadata });
+		}
+
+		this._optimizeOutputItems(output);
 		this._onDidChangeOutputItems.fire();
 		return true;
 	}
