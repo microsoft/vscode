@@ -507,7 +507,7 @@ export class GotoNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const audioCueService = accessor.get(IAudioCueService);
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 		const accessibilityService = accessor.get(IAccessibilityService);
@@ -532,8 +532,9 @@ export class GotoNextChangeAction extends EditorAction {
 
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index];
-		playAudioCueForChange(change, audioCueService);
-		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
+		await playAudioCueForChange(change, audioCueService);
+		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
+		await setTimeout(() => setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService), 500);
 	}
 }
 
@@ -547,15 +548,15 @@ function setPositionAndSelection(change: IChange, editor: ICodeEditor, accessibi
 	}
 }
 
-function playAudioCueForChange(change: IChange, audioCueService: IAudioCueService) {
+async function playAudioCueForChange(change: IChange, audioCueService: IAudioCueService) {
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
-			audioCueService.playAudioCue(AudioCue.diffLineInserted);
+			audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
 		case ChangeType.Delete:
-			audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+			audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
 		case ChangeType.Modify:
-			audioCueService.playAudioCue(AudioCue.diffLineModified);
+			audioCueService.playAudioCue(AudioCue.diffLineModified, true);
 	}
 }
 
