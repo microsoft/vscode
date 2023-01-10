@@ -44,6 +44,7 @@
 		// configure loader
 		const baseUrl = window.location.href;
 
+
 		// generate import map
 		const importMap = {
 			imports: {
@@ -51,9 +52,6 @@
 				assert: new URL('../assert-esm.js', baseUrl).href,
 				sinon: new URL('../../../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
 				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
-				xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href,
-				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
-				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
 			}
 		}
 
@@ -64,6 +62,15 @@
 
 		// append script after current script
 		document.currentScript.parentNode.insertBefore(importMapScript, document.currentScript.nextSibling);
+
+		globalThis._VSCODE_FILE_ROOT = baseUrl;
+		globalThis.require = {
+			paths: {
+				xterm: new URL('../../../node_modules/xterm', baseUrl).href,
+				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd', baseUrl).href,
+				jschardet: new URL('../../../node_modules/jschardet', baseUrl).href
+			}
+		}
 	</script>
 
 

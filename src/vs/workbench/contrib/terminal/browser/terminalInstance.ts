@@ -89,7 +89,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
-import { importAMDNodeModule } from 'vs/base/browser/amd';
+import { importAMDNodeModule } from 'vs/amdX';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';

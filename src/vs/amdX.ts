@@ -6,6 +6,7 @@
 import { isESM } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
+import { IProductConfiguration } from 'vs/base/common/product';
 
 class DefineCall {
 	constructor(
@@ -134,20 +135,35 @@ class AMDModuleImporter {
 
 const cache = new Map<string, Promise<any>>();
 
+let _paths: Record<string, string> = {};
+if (typeof globalThis.require === 'object') {
+	_paths = (<Record<string, any>>globalThis.require).paths ?? {};
+}
+
 /**
  * e.g. pass in `vscode-textmate/release/main.js`
  */
-export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt: boolean): Promise<T> {
+export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): Promise<T> {
 	if (isESM) {
+
+		if (isBuilt === undefined) {
+			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
+			isBuilt = !!product?.commit;
+		}
+
+		if (_paths[nodeModuleName]) {
+			nodeModuleName = _paths[nodeModuleName];
+		}
+
 		const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
 		if (cache.has(nodeModulePath)) {
 			return cache.get(nodeModulePath)!;
 		}
 		let scriptSrc: string;
-		if (/^\w[\w\d+.-]*:\/\//.test(nodeModuleName)) {
+		if (/^\w[\w\d+.-]*:\/\//.test(nodeModulePath)) {
 			// looks like a URL
 			// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
-			scriptSrc = nodeModuleName;
+			scriptSrc = nodeModulePath;
 		} else {
 			const useASAR = (isBuilt && !platform.isWeb);
 			const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);

@@ -36,7 +36,7 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { importAMDNodeModule } from 'vs/base/browser/amd';
+import { importAMDNodeModule } from 'vs/amdX';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const enum RenderConstants {

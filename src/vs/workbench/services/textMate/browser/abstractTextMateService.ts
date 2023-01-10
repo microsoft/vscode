@@ -32,7 +32,7 @@ import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLo
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { importAMDNodeModule } from 'vs/base/browser/amd';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: undefined;

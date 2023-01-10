@@ -563,6 +563,12 @@
 						]
 					},
 					{
+						"target": "src/vs/amdX.ts",
+						"restrictions": [
+							"vs/base/common/*"
+						]
+					},
+					{
 						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
 						"restrictions": []
 					},

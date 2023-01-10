@@ -10,7 +10,7 @@
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
-		"vs/base/browser/amd.ts",
+		"vs/amdX.ts",
 		"vs/base/browser/dom.ts",
 		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/browser/defaultWorkerFactory.ts",
