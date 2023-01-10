@@ -280,8 +280,22 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
-		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
-		this._onDidChangeOutputs.fire(splice);
+		if (splice.deleteCount > 0 && splice.newOutputs.length > 0) {
+			const commonLen = Math.min(splice.deleteCount, splice.newOutputs.length);
+			// update
+			for (let i = 0; i < commonLen; i++) {
+				const currentOutput = this.outputs[splice.start + i];
+				const newOutput = splice.newOutputs[i];
+
+				this.changeOutputItems(currentOutput.outputId, false, newOutput.outputs);
+			}
+
+			this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
+			this._onDidChangeOutputs.fire({ start: splice.start + commonLen, deleteCount: splice.deleteCount - commonLen, newOutputs: splice.newOutputs.slice(commonLen) });
+		} else {
+			this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+			this._onDidChangeOutputs.fire(splice);
+		}
 	}
 
 	changeOutputItems(outputId: string, append: boolean, items: IOutputItemDto[]): boolean {
