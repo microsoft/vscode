@@ -1183,7 +1183,7 @@ export class DebugService implements IDebugService {
 				}
 			}
 			return { threadToContinue, breakpointToRemove };
-		}
+		};
 		const removeTempBreakPoint = (state: State, oneTimeListener: IDisposable) => {
 			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
@@ -1191,7 +1191,7 @@ export class DebugService implements IDebugService {
 				}
 				oneTimeListener.dispose();
 			}
-		}
+		};
 
 		await addTempBreakPoint();
 		if (this.state === State.Inactive) {
@@ -1200,15 +1200,15 @@ export class DebugService implements IDebugService {
 			const config = await getConfig();
 			const configOrName = config ? Object.assign(deepClone(config), {}) : name;
 			const oneTimeListner = this.onDidChangeState((state) => {
-				removeTempBreakPoint(state, oneTimeListner)
-			})
+				removeTempBreakPoint(state, oneTimeListner);
+			});
 			await this.startDebugging(launch, configOrName, undefined, true);
 			return;
 		}
 		if (this.state === State.Stopped) {
 			const focusedSession = this.getViewModel().focusedSession;
 			if (!focusedSession || !threadToContinue) { return; }
-			const oneTimeListner = threadToContinue.session.onDidChangeState(() => removeTempBreakPoint(focusedSession.state, oneTimeListner))
+			const oneTimeListner = threadToContinue.session.onDidChangeState(() => removeTempBreakPoint(focusedSession.state, oneTimeListner));
 			await threadToContinue.continue();
 			return;
 		}
