@@ -465,7 +465,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 		const audioCueService = accessor.get(IAudioCueService);
 		const accessibilityService = accessor.get(IAccessibilityService);
@@ -489,8 +489,9 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
-		playAudioCueForChange(change, audioCueService);
-		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
+		await playAudioCueForChange(change, audioCueService);
+		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
+		await setTimeout(() => setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService), 500);
 	}
 }
 registerEditorAction(GotoPreviousChangeAction);
