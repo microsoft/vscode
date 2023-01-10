@@ -18,7 +18,7 @@ import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/
 import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -977,11 +977,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	) {
 		this.toDispose = [];
 
-		const updateDropEnablement = () => {
-			this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
+		const updateDropEnablement = (e: IConfigurationChangeEvent | undefined) => {
+			if (!e || e.affectsConfiguration('explorer.enableDragAndDrop')) {
+				this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
+			}
 		};
-		updateDropEnablement();
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => updateDropEnablement()));
+		updateDropEnablement(undefined);
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
 	}
 
 	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {

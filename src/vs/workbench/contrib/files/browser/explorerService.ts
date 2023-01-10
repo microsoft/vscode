@@ -108,7 +108,7 @@ export class ExplorerService implements IExplorerService {
 				this.onFileChangesScheduler.schedule();
 			}
 		}));
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(async e => {
 			let affected = false;
 			this.model.roots.forEach(r => {
@@ -434,12 +434,18 @@ export class ExplorerService implements IExplorerService {
 		return true;
 	}
 
-	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
+	private async onConfigurationUpdated(event: IConfigurationChangeEvent): Promise<void> {
+		if (!event.affectsConfiguration('explorer')) {
+			return;
+		}
+
 		let shouldRefresh = false;
 
-		if (event?.affectsConfiguration('explorer.fileNesting')) {
+		if (event.affectsConfiguration('explorer.fileNesting')) {
 			shouldRefresh = true;
 		}
+
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 
 		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
 		if (this.config.sortOrder !== configSortOrder) {
