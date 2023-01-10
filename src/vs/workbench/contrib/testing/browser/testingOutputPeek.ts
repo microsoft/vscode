@@ -957,7 +957,7 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 
 		this.textPreview.value = new ScrollableMarkdownMessage(
 			this.container,
-			this.markdown.getValue(),
+			this.markdown.value,
 			message.message as IMarkdownString,
 		);
 	}

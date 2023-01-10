@@ -435,7 +435,7 @@ const firstLineRange = (originalRange: IRange) => ({
 	startLineNumber: originalRange.startLineNumber,
 	endLineNumber: originalRange.startLineNumber,
 	startColumn: 0,
-	endColumn: 1,
+	endColumn: Number.MAX_SAFE_INTEGER,
 });
 
 const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[], visible: boolean): IModelDeltaDecoration => {

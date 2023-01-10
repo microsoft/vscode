@@ -52,6 +52,7 @@ suite('DefaultConfiguration', () => {
 	test('configuration default overrides are read from environment', async () => {
 		const environmentService = new BrowserWorkbenchEnvironmentService('', joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), { configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);
 		const testObject = new DefaultConfiguration(configurationCache, environmentService);
+		await testObject.initialize();
 		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'envOverrideValue');
 	});
 
@@ -63,29 +64,14 @@ suite('DefaultConfiguration', () => {
 		const actual = await testObject.initialize();
 
 		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
-	});
-
-	test('configuration default overrides are read from cache when model is read before initialize', async () => {
-		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
-		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
-		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
-
-		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'defaultValue');
-
-		const actual = await testObject.initialize();
-
-		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
 		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), 'overrideValue');
 	});
 
-	test('configuration default overrides are read from cache', async () => {
+	test('configuration default overrides are not read from cache when model is read before initialize', async () => {
 		window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 		await configurationCache.write(cacheKey, JSON.stringify({ 'test.configurationDefaultsOverride': 'overrideValue' }));
 		const testObject = new DefaultConfiguration(configurationCache, TestEnvironmentService);
-
-		const actual = await testObject.initialize();
-
-		assert.deepStrictEqual(actual.getValue('test.configurationDefaultsOverride'), 'overrideValue');
+		assert.deepStrictEqual(testObject.configurationModel.getValue('test.configurationDefaultsOverride'), undefined);
 	});
 
 	test('configuration default overrides read from cache override environment', async () => {
