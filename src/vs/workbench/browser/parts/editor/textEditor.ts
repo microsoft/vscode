@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -64,8 +64,12 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	) {
 		super(id, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
 			const resource = this.getActiveResource();
+			if (!this.shouldComputeConfiguration(e, resource)) {
+				return;
+			}
+
 			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
 
 			return this.handleConfigurationChangeEvent(value);
@@ -99,6 +103,10 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			this.updateEditorConfiguration();
 			this.hasPendingConfigurationChange = false;
 		}
+	}
+
+	protected shouldComputeConfiguration(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
+		return e.affectsConfiguration(resource, 'editor');
 	}
 
 	protected computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
