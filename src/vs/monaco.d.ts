@@ -5632,7 +5632,7 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
-		 * Write the selected text to
+		 * Write the screen reader content to be the current selection
 		 */
 		writeScreenReaderContent(reason: string): void;
 		/**
