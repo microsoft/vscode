@@ -82,7 +82,8 @@ export class StartupTimings implements IWorkbenchContribution {
 						}
 					}
 					if (duration) {
-						durations.push(`${durationMarker}: ${duration}`);
+						durations.push(durationMarker);
+						durations.push(`${duration}`);
 					}
 				}
 
