@@ -14,7 +14,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground, settingsHeaderHoverForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';

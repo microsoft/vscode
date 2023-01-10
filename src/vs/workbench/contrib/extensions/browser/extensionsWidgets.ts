@@ -114,7 +114,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			}
 		}
 		else {
-			installLabel = installCount.toLocaleString(platform.locale);
+			installLabel = installCount.toLocaleString(platform.language);
 		}
 
 		return installLabel;
@@ -412,7 +412,7 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredExtensions'))(() => this.render()));
 		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.render();
 	}

@@ -56,6 +56,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -465,6 +466,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 	run(accessor: ServicesAccessor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+		const audioCueService = accessor.get(IAudioCueService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
@@ -478,13 +480,13 @@ export class GotoPreviousChangeAction extends EditorAction {
 
 		const lineNumber = outerEditor.getPosition().lineNumber;
 		const model = controller.modelRegistry.getModel(outerEditor.getModel());
-
 		if (!model || model.changes.length === 0) {
 			return;
 		}
 
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
+		playAudioCueForChange(change, audioCueService);
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
@@ -506,6 +508,7 @@ export class GotoNextChangeAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		const audioCueService = accessor.get(IAudioCueService);
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
@@ -527,12 +530,26 @@ export class GotoNextChangeAction extends EditorAction {
 
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index];
+		playAudioCueForChange(change, audioCueService);
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
 		outerEditor.revealPositionInCenter(position);
 	}
 }
+
+function playAudioCueForChange(change: IChange, audioCueService: IAudioCueService) {
+	const changeType = getChangeType(change);
+	switch (changeType) {
+		case ChangeType.Add:
+			audioCueService.playAudioCue(AudioCue.diffLineInserted);
+		case ChangeType.Delete:
+			audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+		case ChangeType.Modify:
+			audioCueService.playAudioCue(AudioCue.diffLineModified);
+	}
+}
+
 registerEditorAction(GotoNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

@@ -19,7 +19,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { charCount } from 'vs/base/common/strings';
@@ -168,6 +168,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.currentprofileActionsDisposable.value = new DisposableStore();
 		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
 		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerShowCurrentProfileContentsAction());
 		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
@@ -256,6 +257,38 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 	}
 
+	private registerShowCurrentProfileContentsAction(): IDisposable {
+		const that = this;
+		const id = 'workbench.profiles.actions.showProfileContents';
+		return registerAction2(class ShowProfileContentsAction extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: {
+						value: localize('show profile contents', "Show Profile Contents ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Show Profile Contents (${that.userDataProfileService.currentProfile.name})...`
+					},
+					category: PROFILES_CATEGORY,
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '2_manage_current',
+							when: PROFILES_ENABLEMENT_CONTEXT,
+							order: 3
+						}, {
+							id: MenuId.CommandPalette
+						}
+					]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				return userDataProfileImportExportService.showProfileContents();
+			}
+		});
+	}
+
 	private registerExportCurrentProfileAction(): IDisposable {
 		const that = this;
 		const disposables = new DisposableStore();
@@ -269,7 +302,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					category: PROFILES_CATEGORY,
-					precondition: IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
+					precondition: IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,
@@ -314,7 +347,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					},
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
+					precondition: IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,

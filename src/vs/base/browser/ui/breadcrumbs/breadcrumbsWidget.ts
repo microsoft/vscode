@@ -235,15 +235,19 @@ export class BreadcrumbsWidget {
 	}
 
 	private _reveal(nth: number, minimal: boolean): void {
+		if (nth < 0 || nth >= this._nodes.length) {
+			return;
+		}
 		const node = this._nodes[nth];
-		if (node) {
-			const { width } = this._scrollable.getScrollDimensions();
-			const { scrollLeft } = this._scrollable.getScrollPosition();
-			if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
-				this._scrollable.setRevealOnScroll(false);
-				this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
-				this._scrollable.setRevealOnScroll(true);
-			}
+		if (!node) {
+			return;
+		}
+		const { width } = this._scrollable.getScrollDimensions();
+		const { scrollLeft } = this._scrollable.getScrollPosition();
+		if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
+			this._scrollable.setRevealOnScroll(false);
+			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+			this._scrollable.setRevealOnScroll(true);
 		}
 	}
 

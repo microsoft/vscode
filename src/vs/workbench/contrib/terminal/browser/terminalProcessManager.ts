@@ -591,8 +591,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process?.processBinary(data);
 	}
 
-	getInitialCwd(): Promise<string> {
-		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
+	get initialCwd(): string {
+		return this._initialCwd ?? '';
 	}
 
 	async getLatency(): Promise<number> {

@@ -169,6 +169,9 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		private _isTemplate: boolean
 	) {
 		this._isDisposed = false;
+		if (_isTemplate) {
+			this.comments = [];
+		}
 	}
 
 	batchUpdate(changes: CommentThreadChanges<T>) {

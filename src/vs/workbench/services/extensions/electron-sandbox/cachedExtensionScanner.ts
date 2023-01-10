@@ -16,7 +16,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class CachedExtensionScanner {
 
@@ -29,7 +28,6 @@ export class CachedExtensionScanner {
 		@IHostService private readonly _hostService: IHostService,
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
@@ -55,11 +53,6 @@ export class CachedExtensionScanner {
 	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {
 		try {
 			const language = platform.language;
-			const defaultProfileExtensionsInitKey = `${this._userDataProfileService.currentProfile.extensionsResource.toString()}.init`;
-			if (this._userDataProfileService.currentProfile.isDefault && !this._storageService.getBoolean(defaultProfileExtensionsInitKey, StorageScope.APPLICATION, false)) {
-				await this._extensionsScannerService.initializeDefaultProfileExtensions();
-				this._storageService.store(defaultProfileExtensionsInitKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			}
 			const [scannedSystemExtensions, scannedUserExtensions] = await Promise.all([
 				this._extensionsScannerService.scanSystemExtensions({ language, useCache: true, checkControlFile: true }),
 				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfileService.currentProfile.extensionsResource, useCache: true })]);

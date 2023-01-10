@@ -117,7 +117,7 @@ export class HoverService implements IHoverService {
 		}
 		const event = new StandardKeyboardEvent(e);
 		const keybinding = this._keybindingService.resolveKeyboardEvent(event);
-		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
+		if (keybinding.getSingleModifierDispatchChords().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
 			return;
 		}
 		if (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab') {

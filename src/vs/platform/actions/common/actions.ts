@@ -23,6 +23,7 @@ export interface IMenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isHiddenByDefault?: boolean;
 }
 
 export interface ISubmenuItem {
@@ -83,8 +84,8 @@ export class MenuId {
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
-	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
-	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
+	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
+	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -126,6 +127,7 @@ export class MenuId {
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
+	static readonly CommentEditorActions = new MenuId('CommentEditorActions');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentThreadAdditionalActions = new MenuId('CommentThreadAdditionalActions');

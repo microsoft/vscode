@@ -666,7 +666,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<T>): void {
-		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -680,6 +680,10 @@ export class MouseController<T> implements IDisposable {
 		}
 
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
+		if (e.browserEvent.defaultPrevented) {
 			return;
 		}
 
@@ -707,6 +711,7 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([focus], e.browserEvent);
 		}
 
+		e.browserEvent.preventDefault();
 		this._onPointer.fire(e);
 	}
 
@@ -719,8 +724,13 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		if (e.browserEvent.defaultPrevented) {
+			return;
+		}
+
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
+		e.browserEvent.preventDefault();
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
@@ -960,6 +970,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;

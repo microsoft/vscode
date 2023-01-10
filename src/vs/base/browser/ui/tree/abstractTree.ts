@@ -619,12 +619,23 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 		const labels = Array.isArray(label) ? label : [label];
 
 		for (const l of labels) {
-			const labelStr = l && l.toString();
+			const labelStr: string = l && l.toString();
 			if (typeof labelStr === 'undefined') {
 				return { data: FuzzyScore.Default, visibility };
 			}
 
-			const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+			let score: FuzzyScore | undefined;
+			if (this.tree.findMatchType === TreeFindMatchType.Contiguous) {
+				const index = labelStr.toLowerCase().indexOf(this._lowercasePattern);
+				if (index > -1) {
+					score = [Number.MAX_SAFE_INTEGER, 0];
+					for (let i = this._lowercasePattern.length; i > 0; i--) {
+						score.push(index + i - 1);
+					}
+				}
+			} else {
+				score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+			}
 			if (score) {
 				this._matchCount++;
 				return labels.length === 1 ?
@@ -634,7 +645,13 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 		}
 
 		if (this.tree.findMode === TreeFindMode.Filter) {
-			return TreeVisibility.Recurse;
+			if (typeof this.tree.options.defaultFindVisibility === 'number') {
+				return this.tree.options.defaultFindVisibility;
+			} else if (this.tree.options.defaultFindVisibility) {
+				return this.tree.options.defaultFindVisibility(element);
+			} else {
+				return TreeVisibility.Recurse;
+			}
 		} else {
 			return { data: FuzzyScore.Default, visibility };
 		}
@@ -650,7 +667,7 @@ class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDi
 	}
 }
 
-export interface ICaseSensitiveToggleOpts {
+export interface ITreeFindToggleOpts {
 	readonly isChecked: boolean;
 	readonly inputActiveOptionBorder: string | undefined;
 	readonly inputActiveOptionForeground: string | undefined;
@@ -658,10 +675,23 @@ export interface ICaseSensitiveToggleOpts {
 }
 
 export class ModeToggle extends Toggle {
-	constructor(opts: ICaseSensitiveToggleOpts) {
+	constructor(opts: ITreeFindToggleOpts) {
 		super({
 			icon: Codicon.listFilter,
 			title: localize('filter', "Filter"),
+			isChecked: opts.isChecked ?? false,
+			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
+			inputActiveOptionBackground: opts.inputActiveOptionBackground
+		});
+	}
+}
+
+export class FuzzyToggle extends Toggle {
+	constructor(opts: ITreeFindToggleOpts) {
+		super({
+			icon: Codicon.searchFuzzy,
+			title: localize('fuzzySearch', "Fuzzy Match"),
 			isChecked: opts.isChecked ?? false,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
@@ -680,6 +710,7 @@ export interface IFindWidgetStyles {
 }
 
 export interface IFindWidgetOptions {
+	readonly history?: string[];
 	readonly styles?: IFindWidgetStyles;
 }
 
@@ -697,6 +728,11 @@ export enum TreeFindMode {
 	Filter
 }
 
+export enum TreeFindMatchType {
+	Fuzzy,
+	Contiguous
+}
+
 class FindWidget<T, TFilterData> extends Disposable {
 
 	private readonly elements = h('.monaco-tree-type-filter', [
@@ -710,6 +746,10 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.findInput.inputBox.setPlaceHolder(mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search"));
 	}
 
+	set matchType(matchType: TreeFindMatchType) {
+		this.matchTypeToggle.checked = matchType === TreeFindMatchType.Fuzzy;
+	}
+
 	get value(): string {
 		return this.findInput.inputBox.value;
 	}
@@ -719,6 +759,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	}
 
 	private readonly modeToggle: ModeToggle;
+	private readonly matchTypeToggle: FuzzyToggle;
 	private readonly findInput: FindInput;
 	private readonly actionbar: ActionBar;
 	private width = 0;
@@ -729,12 +770,14 @@ class FindWidget<T, TFilterData> extends Disposable {
 	readonly onDidDisable = this._onDidDisable.event;
 	readonly onDidChangeValue: Event<string>;
 	readonly onDidChangeMode: Event<TreeFindMode>;
+	readonly onDidChangeMatchType: Event<TreeFindMatchType>;
 
 	constructor(
 		container: HTMLElement,
 		private tree: AbstractTree<T, TFilterData, any>,
 		contextViewProvider: IContextViewProvider,
 		mode: TreeFindMode,
+		matchType: TreeFindMatchType,
 		options?: IFindWidgetOptions
 	) {
 		super();
@@ -753,14 +796,17 @@ class FindWidget<T, TFilterData> extends Disposable {
 		}
 
 		this.modeToggle = this._register(new ModeToggle({ ...styles.toggleStyles, isChecked: mode === TreeFindMode.Filter }));
+		this.matchTypeToggle = this._register(new FuzzyToggle({ ...styles.toggleStyles, isChecked: matchType === TreeFindMatchType.Fuzzy }));
 		this.onDidChangeMode = Event.map(this.modeToggle.onChange, () => this.modeToggle.checked ? TreeFindMode.Filter : TreeFindMode.Highlight, this._store);
+		this.onDidChangeMatchType = Event.map(this.matchTypeToggle.onChange, () => this.matchTypeToggle.checked ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous, this._store);
 
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
-			additionalToggles: [this.modeToggle],
+			additionalToggles: [this.modeToggle, this.matchTypeToggle],
 			showCommonFindToggles: false,
 			inputBoxStyles: styles.inputBoxStyles,
-			toggleStyles: styles.toggleStyles
+			toggleStyles: styles.toggleStyles,
+			history: options?.history
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
@@ -772,12 +818,34 @@ class FindWidget<T, TFilterData> extends Disposable {
 			.event;
 
 		this._register(onKeyDown((e): any => {
-			switch (e.keyCode) {
-				case KeyCode.DownArrow:
-					e.preventDefault();
-					e.stopPropagation();
+			// Using equals() so we reserve modified keys for future use
+			if (e.equals(KeyCode.Enter)) {
+				// This is the only keyboard way to return to the tree from a history item that isn't the last one
+				e.preventDefault();
+				e.stopPropagation();
+				this.findInput.inputBox.addToHistory();
+				this.tree.domFocus();
+				return;
+			}
+			if (e.equals(KeyCode.DownArrow)) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (this.findInput.inputBox.isAtLastInHistory() || this.findInput.inputBox.isNowhereInHistory()) {
+					// Retain original pre-history DownArrow behavior
+					this.findInput.inputBox.addToHistory();
 					this.tree.domFocus();
-					return;
+				} else {
+					// Downward through history
+					this.findInput.inputBox.showNextValue();
+				}
+				return;
+			}
+			if (e.equals(KeyCode.UpArrow)) {
+				e.preventDefault();
+				e.stopPropagation();
+				// Upward through history
+				this.findInput.inputBox.showPreviousValue();
+				return;
 			}
 		}));
 
@@ -862,12 +930,19 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.onDidChangeValue = this.findInput.onDidChange;
 	}
 
+	getHistory(): string[] {
+		return this.findInput.inputBox.getHistory();
+	}
+
 	focus() {
 		this.findInput.focus();
 	}
 
 	select() {
 		this.findInput.select();
+
+		// Reposition to last in history
+		this.findInput.inputBox.addToHistory(true);
 	}
 
 	layout(width: number = this.width): void {
@@ -898,6 +973,8 @@ interface IFindControllerOptions extends IFindWidgetOptions { }
 
 class FindController<T, TFilterData> implements IDisposable {
 
+	private _history: string[] | undefined;
+
 	private _pattern = '';
 	get pattern(): string { return this._pattern; }
 	private previousPattern = '';
@@ -920,11 +997,32 @@ class FindController<T, TFilterData> implements IDisposable {
 		this._onDidChangeMode.fire(mode);
 	}
 
+	private _matchType: TreeFindMatchType;
+	get matchType(): TreeFindMatchType { return this._matchType; }
+	set matchType(matchType: TreeFindMatchType) {
+		if (matchType === this._matchType) {
+			return;
+		}
+
+		this._matchType = matchType;
+
+		if (this.widget) {
+			this.widget.matchType = this._matchType;
+		}
+
+		this.tree.refilter();
+		this.render();
+		this._onDidChangeMatchType.fire(matchType);
+	}
+
 	private widget: FindWidget<T, TFilterData> | undefined;
 	private width = 0;
 
 	private readonly _onDidChangeMode = new Emitter<TreeFindMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
+
+	private readonly _onDidChangeMatchType = new Emitter<TreeFindMatchType>();
+	readonly onDidChangeMatchType = this._onDidChangeMatchType.event;
 
 	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
@@ -944,7 +1042,18 @@ class FindController<T, TFilterData> implements IDisposable {
 		private readonly options: IFindControllerOptions = {}
 	) {
 		this._mode = tree.options.defaultFindMode ?? TreeFindMode.Highlight;
+		this._matchType = tree.options.defaultFindMatchType ?? TreeFindMatchType.Fuzzy;
 		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
+	}
+
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+		if (optionsUpdate.defaultFindMode !== undefined) {
+			this.mode = optionsUpdate.defaultFindMode;
+		}
+
+		if (optionsUpdate.defaultFindMatchType !== undefined) {
+			this.matchType = optionsUpdate.defaultFindMatchType;
+		}
 	}
 
 	open(): void {
@@ -954,12 +1063,12 @@ class FindController<T, TFilterData> implements IDisposable {
 			return;
 		}
 
-		this.mode = this.tree.options.defaultFindMode ?? TreeFindMode.Highlight;
-		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.options);
+		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.matchType, { ...this.options, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
 		this.widget.onDidChangeValue(this.onDidChangeValue, this, this.enabledDisposables);
 		this.widget.onDidChangeMode(mode => this.mode = mode, undefined, this.enabledDisposables);
+		this.widget.onDidChangeMatchType(matchType => this.matchType = matchType, undefined, this.enabledDisposables);
 		this.widget.onDidDisable(this.close, this, this.enabledDisposables);
 
 		this.widget.layout(this.width);
@@ -976,6 +1085,7 @@ class FindController<T, TFilterData> implements IDisposable {
 			return;
 		}
 
+		this._history = this.widget.getHistory();
 		this.widget = undefined;
 
 		this.enabledDisposables.dispose();
@@ -1053,6 +1163,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	}
 
 	dispose() {
+		this._history = undefined;
 		this._onDidChangePattern.dispose();
 		this.enabledDisposables.dispose();
 		this.disposables.dispose();
@@ -1090,9 +1201,11 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
 	readonly defaultFindMode?: TreeFindMode;
+	readonly defaultFindMatchType?: TreeFindMatchType;
 	readonly showNotFoundMessage?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
@@ -1107,6 +1220,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly additionalScrollHeight?: number;
 	readonly findWidgetEnabled?: boolean;
 	readonly findWidgetStyles?: IFindWidgetStyles;
+	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 }
 
 function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
@@ -1244,6 +1358,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return;
 		}
 
+		if (e.browserEvent.defaultPrevented) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
@@ -1292,6 +1410,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
 		if (onTwistie || !this.tree.expandOnDoubleClick) {
+			return;
+		}
+
+		if (e.browserEvent.defaultPrevented) {
 			return;
 		}
 
@@ -1437,6 +1559,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	set findMode(findMode: TreeFindMode) { if (this.findController) { this.findController.mode = findMode; } }
 	readonly onDidChangeFindMode: Event<TreeFindMode>;
 
+	get findMatchType(): TreeFindMatchType { return this.findController?.matchType ?? TreeFindMatchType.Fuzzy; }
+	set findMatchType(findFuzzy: TreeFindMatchType) { if (this.findController) { this.findController.matchType = findFuzzy; } }
+	readonly onDidChangeFindMatchType: Event<TreeFindMatchType>;
+
 	get onDidChangeFindPattern(): Event<string> { return this.findController ? this.findController.onDidChangePattern : Event.None; }
 
 	get expandOnDoubleClick(): boolean { return typeof this._options.expandOnDoubleClick === 'undefined' ? true : this._options.expandOnDoubleClick; }
@@ -1528,8 +1654,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
 			this.disposables.add(this.findController!);
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;
+			this.onDidChangeFindMatchType = this.findController.onDidChangeMatchType;
 		} else {
 			this.onDidChangeFindMode = Event.None;
+			this.onDidChangeFindMatchType = Event.None;
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
@@ -1544,6 +1672,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		this.view.updateOptions(this._options);
+		this.findController?.updateOptions(optionsUpdate);
+
 		this._onDidUpdateOptions.fire(this._options);
 
 		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);

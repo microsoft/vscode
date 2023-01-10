@@ -77,13 +77,27 @@ class PersistedMenuHideState {
 		this._disposables.dispose();
 	}
 
+	private _isHiddenByDefault(menu: MenuId, commandId: string) {
+		let hiddenByDefault = false;
+		for (const item of MenuRegistry.getMenuItems(menu)) {
+			if (isIMenuItem(item) && item.command.id === commandId) {
+				hiddenByDefault = Boolean(item.isHiddenByDefault);
+				break;
+			}
+		}
+		return hiddenByDefault;
+	}
+
 	isHidden(menu: MenuId, commandId: string): boolean {
-		return this._data[menu.id]?.includes(commandId) ?? false;
+		const hiddenByDefault = this._isHiddenByDefault(menu, commandId);
+		const state = this._data[menu.id]?.includes(commandId) ?? false;
+		return hiddenByDefault ? !state : state;
 	}
 
 	updateHidden(menu: MenuId, commandId: string, hidden: boolean): void {
+		const hiddenByDefault = this._isHiddenByDefault(menu, commandId);
 		const entries = this._data[menu.id];
-		if (!hidden) {
+		if (hidden === !hiddenByDefault) {
 			// remove and cleanup
 			if (entries) {
 				const idx = entries.indexOf(commandId);
@@ -411,10 +425,7 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 		id: `toggle/${menu.id}/${id}`,
 		label: title,
 		get checked() { return !states.isHidden(menu, id); },
-		run() {
-			const newValue = !states.isHidden(menu, id);
-			states.updateHidden(menu, id, newValue);
-		}
+		run() { states.updateHidden(menu, id, !this.checked); }
 	});
 
 	return {

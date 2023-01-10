@@ -17,7 +17,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -423,6 +423,13 @@ export interface ITimerService {
 	 * returned tuples but the marks of a tuple are guaranteed to be sorted by start times.
 	 */
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][];
+
+	/**
+	 * Return the duration between two marks.
+	 * @param from from mark name
+	 * @param to to mark name
+	 */
+	getDuration(from: string, to: string): number;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -557,6 +564,10 @@ export abstract class AbstractTimerService implements ITimerService {
 		return this._marks.getEntries();
 	}
 
+	getDuration(from: string, to: string): number {
+		return this._marks.getDuration(from, to);
+	}
+
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
 		// report IStartupMetrics as telemetry
 		/* __GDPR__
@@ -584,7 +595,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 
-		type Mark = { source: string; name: TrustedTelemetryValue<string>; startTime: number };
+		type Mark = { source: string; name: TelemetryTrustedValue<string>; startTime: number };
 		type MarkClassification = {
 			owner: 'jrieken';
 			comment: 'Information about a performance marker';
@@ -596,7 +607,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		for (const mark of marks) {
 			this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
 				source,
-				name: new TrustedTelemetryValue(mark.name),
+				name: new TelemetryTrustedValue(mark.name),
 				startTime: mark.startTime
 			});
 		}

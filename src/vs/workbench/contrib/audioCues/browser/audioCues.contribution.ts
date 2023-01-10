@@ -88,11 +88,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineInserted': {
-			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode"),
+			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode or to the next/previous change"),
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineDeleted': {
-			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode"),
+			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode or to the next/previous change"),
+			...audioCueFeatureBase,
+		},
+		'audioCues.diffLineModified': {
+			'description': localize('audioCues.diffLineModified', "Plays a sound when the focus moves to a modified line in diff review mode or to the next/previous change"),
 			...audioCueFeatureBase,
 		},
 		'audioCues.notebookCellCompleted': {

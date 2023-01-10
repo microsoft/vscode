@@ -322,7 +322,7 @@ export class DebugSession implements IDebugSession {
 				supportsInvalidatedEvent: true, // #106745
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
-				supportsMemoryEvent: true
+				supportsMemoryEvent: true, // #133643
 			});
 
 			this.initialized = true;

@@ -280,6 +280,16 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: unknown): void;
 }
 
+/**
+ * Vertical Lane in the overview ruler of the notebook editor.
+ */
+export enum NotebookOverviewRulerLane {
+	Left = 1,
+	Center = 2,
+	Right = 4,
+	Full = 7
+}
+
 export interface INotebookCellDecorationOptions {
 	className?: string;
 	gutterClassName?: string;
@@ -289,6 +299,7 @@ export interface INotebookCellDecorationOptions {
 		color: string;
 		modelRanges: Range[];
 		includeOutput: boolean;
+		position: NotebookOverviewRulerLane;
 	};
 }
 
@@ -428,6 +439,7 @@ export interface INotebookEditor {
 	//#region readonly properties
 	readonly visibleRanges: ICellRange[];
 	readonly textModel?: NotebookTextModel;
+	readonly isVisible: boolean;
 	readonly isReadOnly: boolean;
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;

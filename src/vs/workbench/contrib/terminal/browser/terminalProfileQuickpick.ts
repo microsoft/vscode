@@ -16,6 +16,7 @@ import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contri
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { basename } from 'vs/base/common/path';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 
 type DefaultProfileName = string;
@@ -25,7 +26,8 @@ export class TerminalProfileQuickpick {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) { }
 
 	async showAndGetResult(type: 'setDefault' | 'createInstance'): Promise<IQuickPickTerminalObject | DefaultProfileName | undefined> {
@@ -103,6 +105,10 @@ export class TerminalProfileQuickpick {
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
+				// Get the user's explicit permission to use a potentially unsafe path
+				if (!await this._isProfileSafe(context.item.profile)) {
+					return;
+				}
 				if ('command' in context.item.profile) {
 					return;
 				}
@@ -197,10 +203,46 @@ export class TerminalProfileQuickpick {
 		if (!result) {
 			return undefined;
 		}
+		if (!await this._isProfileSafe(result.profile)) {
+			return undefined;
+		}
 		if (keyMods) {
 			result.keyMods = keyMods;
 		}
 		return result;
+	}
+
+	private async _isProfileSafe(profile: ITerminalProfile | IExtensionTerminalProfile): Promise<boolean> {
+		const isUnsafePath = 'isUnsafePath' in profile && profile.isUnsafePath;
+		const requiresUnsafePath = 'requiresUnsafePath' in profile && profile.requiresUnsafePath;
+		if (!isUnsafePath && !requiresUnsafePath) {
+			return true;
+		}
+
+		// Get the user's explicit permission to use a potentially unsafe path
+		return await new Promise<boolean>(r => {
+			const unsafePaths = [];
+			if (isUnsafePath) {
+				unsafePaths.push(profile.path);
+			}
+			if (requiresUnsafePath) {
+				unsafePaths.push(requiresUnsafePath);
+			}
+			// Notify about unsafe path(s). At the time of writing, multiple unsafe paths isn't
+			// possible so the message is optimized for a single path.
+			const handle = this._notificationService.prompt(
+				Severity.Warning,
+				nls.localize('unsafePathWarning', 'This terminal profile uses a potentially unsafe path that can be modified by another user: {0}. Are you sure you want to use it?', `"${unsafePaths.join(',')}"`),
+				[{
+					label: nls.localize('yes', 'Yes'),
+					run: () => r(true)
+				}, {
+					label: nls.localize('cancel', 'Cancel'),
+					run: () => r(false)
+				}]
+			);
+			handle.onDidClose(() => r(false));
+		});
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {

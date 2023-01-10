@@ -440,7 +440,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	name(): string {
-		return this._name.getValue();
+		return this._name.value;
 	}
 
 	addContext(results: ITextSearchResult[] | undefined) {
@@ -564,7 +564,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	name(): string {
-		return this._name.getValue();
+		return this._name.value;
 	}
 
 	parent(): SearchResult | FolderMatch {
@@ -1108,10 +1108,17 @@ export class SearchResult extends Disposable {
 	}
 
 	batchRemove(elementsToRemove: RenderableMatch[]) {
+		// need to check that we aren't trying to remove elements twice
+		const removedElems: RenderableMatch[] = [];
+
 		try {
 			this._onChange.pause();
-			elementsToRemove.forEach((currentElement) =>
-				currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement)
+			elementsToRemove.forEach((currentElement) => {
+				if (!arrayContainsElementOrParent(currentElement, removedElems)) {
+					currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement);
+					removedElems.push(currentElement);
+				}
+			}
 			);
 		} finally {
 			this._onChange.resume();

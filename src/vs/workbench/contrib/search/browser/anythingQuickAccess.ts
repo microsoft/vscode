@@ -1005,8 +1005,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
-			get iconClasses() { return iconClassesValue.getValue(); },
-			get buttons() { return buttonsValue.getValue(); },
+			get iconClasses() { return iconClassesValue.value; },
+			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
 				switch (buttonIndex) {
 

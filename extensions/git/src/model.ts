@@ -538,15 +538,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 					commitInProgress = true;
 				}
 
-				// When one of the following operations is running, we want to
-				// disable most commands in order to avoid multiple commands
-				// running at the same time.
-				if (repository.operations.isRunning(OperationKind.Checkout) ||
-					repository.operations.isRunning(OperationKind.CheckoutTracking) ||
-					repository.operations.isRunning(OperationKind.Commit) ||
-					repository.operations.isRunning(OperationKind.Pull) ||
-					repository.operations.isRunning(OperationKind.Push) ||
-					repository.operations.isRunning(OperationKind.Sync)) {
+				if (repository.operations.shouldDisableCommands()) {
 					operationInProgress = true;
 				}
 			}
