@@ -108,8 +108,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				const packageJsonResponse = await fetch(combinePaths(packageRoot, 'package.json'));
 				packageJson = await packageJsonResponse.json();
-			}
-			catch (e) {
+			} catch (e) {
 				return { module: undefined, error: new Error(`Could not load plugin. Could not load 'package.json'.`) };
 			}
 
@@ -122,8 +121,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				const { default: module } = await import(/* webpackIgnore: true */scriptPath);
 				return { module, error: undefined };
-			}
-			catch (e) {
+			} catch (e) {
 				return { module: undefined, error: e };
 			}
 		},
@@ -138,8 +136,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				// @vscode/sync-api-common/connection says that Uint8Array is only a view on the bytes, so slice is needed
 				return new TextDecoder().decode(new Uint8Array(fs.readFile(toResource(path))).slice());
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.readFile`);
 				logger.info(JSON.stringify(e));
 				return undefined;
@@ -148,8 +145,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		getFileSize(path) {
 			try {
 				return fs.stat(toResource(path)).size;
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.getFileSize`);
 				logger.info(JSON.stringify(e));
 				return 0;
@@ -161,8 +157,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 			try {
 				fs.writeFile(toResource(path), new TextEncoder().encode(data));
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.writeFile`);
 				logger.info(JSON.stringify(e));
 			}
@@ -173,8 +168,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		fileExists(path: string): boolean {
 			try {
 				return fs.stat(toResource(path)).type === FileType.File;
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.fileExists for ${path}`);
 				logger.info(JSON.stringify(e));
 				return false;
@@ -183,8 +177,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		directoryExists(path: string): boolean {
 			try {
 				return fs.stat(toResource(path)).type === FileType.Directory;
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.directoryExists for ${path}`);
 				logger.info(JSON.stringify(e));
 				return false;
@@ -193,8 +186,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		createDirectory(path: string): void {
 			try {
 				fs.createDirectory(toResource(path));
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.createDirectory`);
 				logger.info(JSON.stringify(e));
 			}
@@ -214,8 +206,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		getModifiedTime(path: string): Date | undefined {
 			try {
 				return new Date(fs.stat(toResource(path)).mtime);
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.getModifiedTime`);
 				logger.info(JSON.stringify(e));
 				return undefined;
@@ -224,8 +215,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		deleteFile(path: string): void {
 			try {
 				fs.delete(toResource(path));
-			}
-			catch (e) {
+			} catch (e) {
 				logger.info(`Error fs.deleteFile`);
 				logger.info(JSON.stringify(e));
 			}
@@ -284,24 +274,21 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				if (type === FileType.SymbolicLink) {
 					try {
 						stat = fs.stat(toResource(combinePaths(path, entry))).type;
-					}
-					catch (e) {
+					} catch (e) {
 						continue;
 					}
 				}
 
 				if (stat === FileType.File) {
 					files.push(entry);
-				}
-				else if (stat === FileType.Directory) {
+				} else if (stat === FileType.Directory) {
 					directories.push(entry);
 				}
 			}
 			files.sort();
 			directories.sort();
 			return { files, directories };
-		}
-		catch (e) {
+		} catch (e) {
 			return { files: [], directories: [] };
 		}
 	}
@@ -334,8 +321,7 @@ class WasmCancellationToken implements ts.server.ServerCancellationToken {
 	resetRequest(requestId: number) {
 		if (requestId === this.currentRequestId) {
 			this.currentRequestId = undefined;
-		}
-		else {
+		} else {
 			throw new Error(`Mismatched request id, expected ${this.currentRequestId} but got ${requestId}`);
 		}
 	}
@@ -521,8 +507,7 @@ const listener = async (e: any) => {
 			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
 			const connection = new ClientConnection<Requests>(sync);
 			initial = connection.serviceReady().then(() => initializeSession(e.data.args, extensionUri, 'vscode-web', tsserver, connection, logger, watcher));
-		}
-		else {
+		} else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
 		}
 		return;
