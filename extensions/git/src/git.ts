@@ -2093,7 +2093,7 @@ export class Repository {
 				HEAD = await this.getBranch(HEAD.name);
 			} else if (HEAD.commit) {
 				// Tag || Commit
-				const tags = await this.getRefs({ pattern: 'tags/*' });
+				const tags = await this.getRefs({ pattern: 'refs/tags/*' });
 				const tag = tags.find(tag => tag.commit === HEAD!.commit);
 
 				if (tag) {
@@ -2183,7 +2183,7 @@ export class Repository {
 		args.push('--format', '%(refname) %(objectname) %(*objectname)');
 
 		if (query.pattern) {
-			args.push(query.pattern);
+			args.push(query.pattern.startsWith('refs/') ? query.pattern : `refs/${query.pattern}`);
 		}
 
 		if (query.contains) {

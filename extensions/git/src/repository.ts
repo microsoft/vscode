@@ -1376,16 +1376,14 @@ export class Repository implements Disposable {
 
 	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return await this.run(Operation.GetBranches, async () => {
-			const pattern = query.pattern ? `refs/${query.pattern}` : undefined;
-			const refs = await this.getRefs({ ...query, pattern }, cancellationToken);
+			const refs = await this.getRefs(query, cancellationToken);
 			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
 		});
 	}
 
 	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return await this.run(Operation.GetRefs, () => {
-			const pattern = query.pattern ? `refs/${query.pattern}` : undefined;
-			return this.repository.getRefs({ ...query, pattern }, cancellationToken);
+			return this.repository.getRefs(query, cancellationToken);
 		});
 	}
 
