@@ -7,7 +7,7 @@ import * as os from 'os';
 import { FileAccess } from 'vs/base/common/network';
 import { getCaseInsensitive } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
 import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
@@ -15,7 +15,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 // TODO: Fix import
 import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -129,8 +129,15 @@ export function getShellIntegrationInjection(
 		'VSCODE_INJECTION': '1'
 	};
 
-	// TODO: Only do this on macOS
-	if (options.environmentVariableCollections) {
+
+	// On macOS the profile calls path_helper which adds a bunch of standard bin directories to the
+	// beginning of the PATH. This causes significant problems for the environment variable
+	// collection API as the custom paths added to the end will now be somewhere in the middle of
+	// the PATH. To combat this, VSCODE_PATH_PREFIX is used to re-apply any prefix after the profile
+	// has run. This will cause duplication in the PATH but should fix the issue.
+	//
+	// See #99878 for more information.
+	if (isMacintosh && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
 
@@ -145,28 +152,26 @@ export function getShellIntegrationInjection(
 		map3.set('PATH', { value: ':after', type: EnvironmentVariableMutatorType.Append });
 		deserialized.set('some.ext3', { map: map3 });
 		logService.info('deserialized', deserialized);
+		env!['PATH'] = `BEFORE:${env!['PATH']}:AFTER`;
+
+		// TODO: Only need prefix?
 
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
 
-		// Get all append and prepend PATH entries
+		// Get all prepend PATH entries
 		const pathEntry = merged.map.get('PATH');
-		const appendToPath: string[] = [];
 		const prependToPath: string[] = [];
 		if (pathEntry) {
 			for (const mutator of pathEntry) {
-				switch (mutator.type) {
-					case EnvironmentVariableMutatorType.Append: appendToPath.push(mutator.value); break;
-					case EnvironmentVariableMutatorType.Prepend: prependToPath.push(mutator.value); break;
+				if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
+					prependToPath.push(mutator.value);
 				}
 			}
 		}
 
 		// Add to the environment mixin to be applied in the shell integration script
-		if (appendToPath.length > 0) {
-			envMixin['VSCODE_PATH_SUFFIX'] = appendToPath.join('');
-		}
 		if (prependToPath.length > 0) {
-			envMixin['VSCODE_PATH_PREFIX'] = appendToPath.join('');
+			envMixin['VSCODE_PATH_PREFIX'] = prependToPath.join('');
 		}
 	}
 
