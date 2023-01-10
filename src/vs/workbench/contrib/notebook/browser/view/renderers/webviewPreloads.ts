@@ -182,30 +182,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	document.body.addEventListener('click', handleInnerClick);
 
-	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
-		'type', 'src', 'nonce', 'noModule', 'async',
-	];
-
-	// derived from https://github.com/jquery/jquery/blob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/src/core/DOMEval.js
-	const domEval = (container: Element) => {
-		const arr = Array.from(container.getElementsByTagName('script'));
-		for (let n = 0; n < arr.length; n++) {
-			const node = arr[n];
-			const scriptTag = document.createElement('script');
-			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
-			scriptTag.text = trustedScript as string;
-			for (const key of preservedScriptAttributes) {
-				const val = node[key] || node.getAttribute && node.getAttribute(key);
-				if (val) {
-					scriptTag.setAttribute(key, val as any);
-				}
-			}
-
-			// TODO@connor4312: should script with src not be removed?
-			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
-		}
-	};
-
 	async function loadScriptSource(url: string, originalUri: string): Promise<string> {
 		const res = await fetch(url);
 		const text = await res.text();
@@ -2312,7 +2288,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
-				domEval(this.element);
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
