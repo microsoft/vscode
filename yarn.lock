@@ -3914,10 +3914,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@19.1.8:
-  version "19.1.8"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-19.1.8.tgz#3ce19c270ca86d05bbf0df5ceeaea2d23edc7083"
-  integrity sha512-UfPQdFjgKI0xCm1V5sV3iAVOs0kCwAE91xWzV5tI7ij14yOkxTdXp9BqTzFaSbQYLYxn6q1BUUe1nlzjJjzAnw==
+electron@19.1.9:
+  version "19.1.9"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-19.1.9.tgz#01995eea4014f7cdb2f616f5f3492d4ed6f5e4f0"
+  integrity sha512-XT5LkTzIHB+ZtD3dTmNnKjVBWrDWReCKt9G1uAFLz6uJMEVcIUiYO+fph5pLXETiBw/QZBx8egduMEfIccLx+g==
   dependencies:
     "@electron/get" "^1.14.1"
     "@types/node" "^16.11.26"
@@ -10868,10 +10868,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.0.0-dev.20221214:
-  version "5.0.0-dev.20221214"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20221214.tgz#848b3bf9406a764a2d2105bcee0ecb7089189263"
-  integrity sha512-sg2HlS57Zxo1AbNpq+lUY9yHR3qA8DmP2nS8KBkvGO86PXCYtWYxkPhbwV8KtAlU50GNmj20fEVJK7kxvZdXfw==
+typescript@^5.0.0-dev.20230109:
+  version "5.0.0-dev.20230109"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230109.tgz#318e60a058a81329bc3e332d279cd3b117101aa1"
+  integrity sha512-tS4gkJVPBUVHIc8+LtfSv3TuaJR/mpvJ9XpLTKSRlPJlhM3rCizt5jCBZLsmNdyuT5LnfsKpswMYtEGUHMdGQA==
 
 typical@^4.0.0:
   version "4.0.0"

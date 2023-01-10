@@ -232,7 +232,7 @@ export class TerminalProfileQuickpick {
 			// possible so the message is optimized for a single path.
 			const handle = this._notificationService.prompt(
 				Severity.Warning,
-				nls.localize('unsafePathWarning', 'This profile uses a potentially unsafe path that can be modified by another user: {0}. Are you use you want to use it?', `"${unsafePaths.join(',')}"`),
+				nls.localize('unsafePathWarning', 'This terminal profile uses a potentially unsafe path that can be modified by another user: {0}. Are you use you want to use it?', `"${unsafePaths.join(',')}"`),
 				[{
 					label: nls.localize('yes', 'Yes'),
 					run: () => r(true)

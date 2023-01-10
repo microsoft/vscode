@@ -209,6 +209,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
+			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
 			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
@@ -305,6 +306,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
+		this.raw.options.tabStopWidth = config.tabStopWidth;
 		this.raw.options.fastScrollSensitivity = config.fastScrollSensitivity;
 		this.raw.options.scrollSensitivity = config.mouseWheelScrollSensitivity;
 		this.raw.options.macOptionIsMeta = config.macOptionIsMeta;
