@@ -809,7 +809,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		if (remoteGroup !== undefined) {
 			MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
 				group: remoteGroup,
-				command: command
+				command: command,
+				when: command.precondition
 			});
 		}
 	}
