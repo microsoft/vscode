@@ -263,6 +263,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		let logger: IRPCProtocolLogger | null = null;
 		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
 			logger = new RPCLogger(kind);
+		} else if (TelemetryRPCLogger.isEnabled()) {
+			logger = new TelemetryRPCLogger(this._telemetryService);
 		}
 
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
@@ -688,6 +690,62 @@ class RPCLogger implements IRPCProtocolLogger {
 	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
 		this._totalOutgoing += msgLength;
 		this._log('Win \u2192 Ext', this._totalOutgoing, msgLength, req, initiator, str, data);
+	}
+}
+
+interface RPCTelemetryData {
+	type: string;
+	length: number;
+}
+
+type RPCTelemetryDataClassification = {
+	owner: 'jrieken';
+	comment: 'Insights about RPC message sizes';
+	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the RPC message' };
+	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The byte-length of the RPC message' };
+};
+
+class TelemetryRPCLogger implements IRPCProtocolLogger {
+
+	static isEnabled(): boolean {
+		// this will be a very high frequency event, so we only log a small percentage of them
+		return Math.trunc(Math.random() * 1000) < 5; // 5/1000
+	}
+
+	private readonly _pendingRequests = new Map<number, string>();
+
+	constructor(@ITelemetryService private readonly _telemetryService: ITelemetryService) { }
+
+	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string): void {
+
+		if (initiator === RequestInitiator.LocalSide && /^receiveReply(Err)?:/.test(str)) {
+			// log the size of reply messages
+			const requestStr = this._pendingRequests.get(req) ?? 'unknown_reply';
+			this._pendingRequests.delete(req);
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+				type: `${str} ${requestStr}`,
+				length: msgLength
+			});
+		}
+
+		if (initiator === RequestInitiator.OtherSide && /^receiveRequest /.test(str)) {
+			// incoming request
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+				type: `${str}`,
+				length: msgLength
+			});
+		}
+	}
+
+	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string): void {
+
+		if (initiator === RequestInitiator.LocalSide && str.startsWith('request: ')) {
+			this._pendingRequests.set(req, str);
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.outgoing', {
+				type: str,
+				length: msgLength
+			});
+		}
 	}
 }
 
