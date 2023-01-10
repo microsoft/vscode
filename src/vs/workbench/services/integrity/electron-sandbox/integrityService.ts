@@ -13,7 +13,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, AppResourcePath } from 'vs/base/common/network';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 
 interface IStorageData {
@@ -125,7 +125,7 @@ export class IntegrityService implements IIntegrityService {
 
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
 
-		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(filename, expectedChecksums[filename])));
+		const allResults = await Promise.all(Object.keys(expectedChecksums).map(filename => this._resolve(<AppResourcePath>filename, expectedChecksums[filename])));
 
 		let isPure = true;
 		for (let i = 0, len = allResults.length; i < len; i++) {
@@ -141,8 +141,8 @@ export class IntegrityService implements IIntegrityService {
 		};
 	}
 
-	private async _resolve(filename: string, expected: string): Promise<ChecksumPair> {
-		const fileUri = FileAccess.asFileUri(filename, require);
+	private async _resolve(filename: AppResourcePath, expected: string): Promise<ChecksumPair> {
+		const fileUri = FileAccess.asFileUri(filename);
 
 		try {
 			const checksum = await this.checksumService.checksum(fileUri);

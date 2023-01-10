@@ -40,7 +40,8 @@
                     "additionalProperties": false,
                     "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
                     "default": {
-                      "action": "openExternally"
+                      "action": "openExternally",
+                      "killOnServerStop": false
                     },
                     "properties": {
                       "action": {
@@ -63,6 +64,11 @@
                         "type": "string",
                         "markdownDescription": "%debug.server.ready.uriFormat.description%",
                         "default": "http://localhost:%s"
+                      },
+                      "killOnServerStop": {
+                        "type": "boolean",
+                        "markdownDescription": "%debug.server.ready.killOnServerStop.description%",
+                        "default": false
                       }
                     }
                   },
@@ -74,7 +80,8 @@
                       "action": "debugWithEdge",
                       "pattern": "listening on port ([0-9]+)",
                       "uriFormat": "http://localhost:%s",
-                      "webRoot": "${workspaceFolder}"
+                      "webRoot": "${workspaceFolder}",
+                      "killOnServerStop": false
                     },
                     "properties": {
                       "action": {
@@ -103,6 +110,11 @@
                         "type": "string",
                         "markdownDescription": "%debug.server.ready.webRoot.description%",
                         "default": "${workspaceFolder}"
+                      },
+                      "killOnServerStop": {
+                        "type": "boolean",
+                        "markdownDescription": "%debug.server.ready.killOnServerStop.description%",
+                        "default": false
                       }
                     }
                   },
@@ -112,7 +124,8 @@
                     "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
                     "default": {
                       "action": "startDebugging",
-                      "name": "<launch browser config name>"
+                      "name": "<launch browser config name>",
+                      "killOnServerStop": false
                     },
                     "required": [
                       "name"
@@ -138,6 +151,11 @@
                         "type": "string",
                         "markdownDescription": "%debug.server.ready.debugConfigName.description%",
                         "default": "Launch Browser"
+                      },
+                      "killOnServerStop": {
+                        "type": "boolean",
+                        "markdownDescription": "%debug.server.ready.killOnServerStop.description%",
+                        "default": false
                       }
                     }
                   }
@@ -148,9 +166,6 @@
         }
       }
     ]
-  },
-  "dependencies": {
-    "vscode-nls": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

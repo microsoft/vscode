@@ -15,7 +15,7 @@ import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalS
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;

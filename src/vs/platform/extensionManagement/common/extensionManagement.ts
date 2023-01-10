@@ -16,7 +16,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 export const WEB_EXTENSION_TAG = '__web_extension';
-export const DEFAULT_PROFILE_EXTENSIONS_MIGRATION_KEY = 'DEFAULT_PROFILE_EXTENSIONS_MIGRATION';
 
 export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 	switch (targetPlatform) {
@@ -296,6 +295,7 @@ export interface IDeprecationInfo {
 		readonly preRelease?: boolean;
 	};
 	readonly settings?: readonly string[];
+	readonly additionalInfo?: string;
 }
 
 export interface IExtensionsControlManifest {
@@ -439,8 +439,9 @@ export interface IExtensionManagementService {
 	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
+	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
-	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
+	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 
@@ -486,8 +487,6 @@ export type IExecutableBasedExtensionTip = {
 	readonly whenNotInstalled?: string[];
 };
 
-export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[] };
-
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('IExtensionTipsService');
 export interface IExtensionTipsService {
 	readonly _serviceBrand: undefined;
@@ -495,7 +494,6 @@ export interface IExtensionTipsService {
 	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]>;
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
-	getAllWorkspacesTips(): Promise<IWorkspaceTips[]>;
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

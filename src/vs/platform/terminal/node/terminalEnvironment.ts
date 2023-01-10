@@ -119,7 +119,7 @@ export function getShellIntegrationInjection(
 
 	const originalArgs = shellLaunchConfig.args;
 	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
-	const appRoot = path.dirname(FileAccess.asFileUri('', require).fsPath);
+	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	let newArgs: string[] | undefined;
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'
@@ -127,7 +127,7 @@ export function getShellIntegrationInjection(
 
 	// Windows
 	if (isWindows) {
-		if (shell === 'pwsh.exe') {
+		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
 			} else if (arePwshLoginArgs(originalArgs)) {
@@ -160,6 +160,14 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			return { newArgs, envMixin };
 		}
+		case 'fish': {
+			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
+			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
+			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
+			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
+			return { newArgs: undefined, envMixin };
+		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
@@ -188,7 +196,13 @@ export function getShellIntegrationInjection(
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
-			const zdotdir = path.join(os.tmpdir(), `${os.userInfo().username}-${productService.applicationName}-zsh`);
+			let username: string;
+			try {
+				username = os.userInfo().username;
+			} catch {
+				username = 'unknown';
+			}
+			const zdotdir = path.join(os.tmpdir(), `${username}-${productService.applicationName}-zsh`);
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
@@ -216,7 +230,7 @@ export function getShellIntegrationInjection(
 	return undefined;
 }
 
-export enum ShellIntegrationExecutable {
+enum ShellIntegrationExecutable {
 	WindowsPwsh = 'windows-pwsh',
 	WindowsPwshLogin = 'windows-pwsh-login',
 	Pwsh = 'pwsh',
@@ -226,7 +240,7 @@ export enum ShellIntegrationExecutable {
 	Bash = 'bash'
 }
 
-export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
+const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 // The try catch swallows execution policy errors in the case of the archive distributable
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);

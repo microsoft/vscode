@@ -105,6 +105,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
+	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		return this.install(location, { profileLocation });
+	}
+
 	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
 		return this.webExtensionsScannerService.scanMetadata(extension.location, this.userDataProfileService.currentProfile.extensionsResource);
 	}
@@ -129,6 +133,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return local;
 	}
 
+	protected getCurrentExtensionsManifestLocation(): URI {
+		return this.userDataProfileService.currentProfile.extensionsResource;
+	}
+
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask {
 		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
@@ -142,7 +150,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
 	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
-	reinstallFromGallery(): Promise<void> { throw new Error('unsupported'); }
+	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = e.previous.extensionsResource;
@@ -152,13 +160,12 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		}
 		if (e.preserveData) {
 			await this.webExtensionsScannerService.copyExtensions(previousProfileLocation, currentProfileLocation, e => !e.metadata?.isApplicationScoped);
+			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
 			const newExtensions = await this.webExtensionsScannerService.scanUserExtensions(currentProfileLocation);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			if (added.length || removed.length) {
-				this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
-			}
+			this._onDidChangeProfile.fire({ added: added.map(e => toLocalExtension(e)), removed: removed.map(e => toLocalExtension(e)) });
 		}
 	}
 }

@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction } from 'vs/base/common/actions';
@@ -22,10 +22,11 @@ import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { defaultButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -145,7 +146,6 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listElement = DOM.append(container, $('div'));
 		this.listElement.setAttribute('role', 'list');
 		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
-		this.listElement.setAttribute('tabindex', '0');
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
@@ -171,12 +171,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.renderList();
 	}
 
+	abstract isItemNew(item: TDataItem): boolean;
 	protected abstract getEmptyItem(): TDataItem;
 	protected abstract getContainerClasses(): string[];
 	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
 	protected abstract renderItem(item: TDataItem, idx: number): RowElementGroup;
 	protected abstract renderEdit(item: TDataItem, idx: number): HTMLElement;
-	protected abstract isItemNew(item: TDataItem): boolean;
 	protected abstract addTooltipsToRow(rowElement: RowElementGroup, item: TDataItem): void;
 	protected abstract getLocalizedStrings(): {
 		deleteActionTooltip: string;
@@ -200,6 +200,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
 		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
+
+		if (this.model.items.length) {
+			this.listElement.tabIndex = 0;
+		} else {
+			this.listElement.removeAttribute('tabIndex');
+		}
 
 		const header = this.renderHeader();
 		const ITEM_HEIGHT = 24;
@@ -295,10 +301,9 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	private renderAddButton(): HTMLElement {
 		const rowElement = $('.setting-list-new-row');
 
-		const startAddButton = this._register(new Button(rowElement));
+		const startAddButton = this._register(new Button(rowElement, defaultButtonStyles));
 		startAddButton.label = this.getLocalizedStrings().addButtonLabel;
 		startAddButton.element.classList.add('setting-list-addButton');
-		this._register(attachButtonStyler(startAddButton, this.themeService));
 
 		this._register(startAddButton.onDidClick(() => {
 			this.model.setEditKey('create');
@@ -614,15 +619,15 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		let siblingInput: InputBox | undefined;
 		if (!isUndefinedOrNull(item.sibling)) {
 			siblingInput = new InputBox(rowElement, this.contextViewService, {
-				placeholder: this.getLocalizedStrings().siblingInputPlaceholder
+				placeholder: this.getLocalizedStrings().siblingInputPlaceholder,
+				inputBoxStyles: getInputBoxStyle({
+					inputBackground: settingsTextInputBackground,
+					inputForeground: settingsTextInputForeground,
+					inputBorder: settingsTextInputBorder
+				})
 			});
 			siblingInput.element.classList.add('setting-list-siblingInput');
 			this.listDisposables.add(siblingInput);
-			this.listDisposables.add(attachInputBoxStyler(siblingInput, this.themeService, {
-				inputBackground: settingsTextInputBackground,
-				inputForeground: settingsTextInputForeground,
-				inputBorder: settingsTextInputBorder
-			}));
 			siblingInput.value = item.sibling;
 
 			this.listDisposables.add(
@@ -632,11 +637,10 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			valueInput.element.classList.add('no-sibling');
 		}
 
-		const okButton = this._register(new Button(rowElement));
+		const okButton = this._register(new Button(rowElement, defaultButtonStyles));
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
-		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => {
 			if (item.value.type === 'string') {
 				this.handleItemChange(item, updatedInputBoxItem(), idx);
@@ -645,11 +649,10 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			}
 		}));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
-		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
 
 		this.listDisposables.add(
@@ -664,7 +667,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return rowElement;
 	}
 
-	protected isItemNew(item: IListDataItem): boolean {
+	override isItemNew(item: IListDataItem): boolean {
 		return item.value.data === '';
 	}
 
@@ -690,15 +693,15 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 	private renderInputBox(value: ObjectValue, rowElement: HTMLElement): InputBox {
 		const valueInput = new InputBox(rowElement, this.contextViewService, {
-			placeholder: this.getLocalizedStrings().inputPlaceholder
+			placeholder: this.getLocalizedStrings().inputPlaceholder,
+			inputBoxStyles: getInputBoxStyle({
+				inputBackground: settingsTextInputBackground,
+				inputForeground: settingsTextInputForeground,
+				inputBorder: settingsTextInputBorder
+			})
 		});
 
 		valueInput.element.classList.add('setting-list-valueInput');
-		this.listDisposables.add(attachInputBoxStyler(valueInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
 		this.listDisposables.add(valueInput);
 		valueInput.value = value.data.toString();
 
@@ -824,7 +827,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		super.setValue(listData);
 	}
 
-	isItemNew(item: IObjectDataItem): boolean {
+	override isItemNew(item: IObjectDataItem): boolean {
 		return item.key.data === '' && item.value.data === '';
 	}
 
@@ -970,19 +973,17 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 
 		rowElement.append(keyElement, valueContainer);
 
-		const okButton = this._register(new Button(rowElement));
+		const okButton = this._register(new Button(rowElement, defaultButtonStyles));
 		okButton.enabled = changedItem.key.data !== '';
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
-		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
 
-		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true, ...defaultButtonStyles }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
-		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
 		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
 
 		this.listDisposables.add(
@@ -1030,15 +1031,15 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			placeholder: isKey
 				? localize('objectKeyInputPlaceholder', "Key")
 				: localize('objectValueInputPlaceholder', "Value"),
+			inputBoxStyles: getInputBoxStyle({
+				inputBackground: settingsTextInputBackground,
+				inputForeground: settingsTextInputForeground,
+				inputBorder: settingsTextInputBorder
+			})
 		});
 
 		inputBox.element.classList.add('setting-list-object-input');
 
-		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
 		this.listDisposables.add(inputBox);
 		inputBox.value = keyOrValue.data;
 
@@ -1178,7 +1179,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		super.setValue(listData);
 	}
 
-	isItemNew(item: IObjectDataItem): boolean {
+	override isItemNew(item: IObjectDataItem): boolean {
 		return !item.key.data && !item.value.data;
 	}
 
@@ -1260,7 +1261,8 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 			icon: Codicon.check,
 			actionClassName: 'setting-value-checkbox',
 			isChecked: value,
-			title: checkboxDescription
+			title: checkboxDescription,
+			...unthemedToggleStyles
 		});
 
 		this.listDisposables.add(checkbox);

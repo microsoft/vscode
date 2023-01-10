@@ -68,22 +68,25 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
 		const { location, cleanup } = await this.downloadVsix(vsix);
 		try {
-			return await super.install(location, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+			options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+			return await super.install(location, options);
 		} finally {
 			await cleanup();
 		}
 	}
 
 	override installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		return super.installFromGallery(extension, { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		installOptions = installOptions?.profileLocation ? installOptions : { ...installOptions, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		return super.installFromGallery(extension, installOptions);
 	}
 
 	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		return super.uninstall(extension, { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource });
+		options = options?.profileLocation ? options : { ...options, profileLocation: this.userDataProfileService.currentProfile.extensionsResource };
+		return super.uninstall(extension, options);
 	}
 
-	override getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return super.getInstalled(type, this.userDataProfileService.currentProfile.extensionsResource);
+	override getInstalled(type: ExtensionType | null = null, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<ILocalExtension[]> {
+		return super.getInstalled(type, profileLocation);
 	}
 
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
@@ -111,12 +114,11 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
 				.map(async e => ([e, await this.getMetadata(e)])));
 			await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, e.profile.extensionsResource!);
+			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const newExtensions = await this.getInstalled(ExtensionType.User);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			if (added.length || removed.length) {
-				this._onDidChangeProfile.fire({ added, removed });
-			}
+			this._onDidChangeProfile.fire({ added, removed });
 		}
 	}
 

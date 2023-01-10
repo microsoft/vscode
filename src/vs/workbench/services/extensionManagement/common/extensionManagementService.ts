@@ -31,6 +31,7 @@ import { isUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationError } from 'vs/base/common/errors';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -51,6 +52,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IProductService protected readonly productService: IProductService,
 		@IDownloadService protected readonly downloadService: IDownloadService,
@@ -148,7 +150,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
 			await this.checkForWorkspaceTrust(extension.manifest);
@@ -232,11 +234,23 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return undefined;
 	}
 
-	async installWebExtension(location: URI): Promise<ILocalExtension> {
+	async installFromLocation(location: URI): Promise<ILocalExtension> {
+		if (location.scheme === Schemas.file) {
+			if (this.extensionManagementServerService.localExtensionManagementServer) {
+				return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromLocation(location, this.userDataProfileService.currentProfile.extensionsResource);
+			}
+			throw new Error('Local extension management server is not found');
+		}
+		if (location.scheme === Schemas.vscodeRemote) {
+			if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+				return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromLocation(location, this.userDataProfileService.currentProfile.extensionsResource);
+			}
+			throw new Error('Remote extension management server is not found');
+		}
 		if (!this.extensionManagementServerService.webExtensionManagementServer) {
 			throw new Error('Web extension management server is not found');
 		}
-		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.install(location);
+		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.installFromLocation(location, this.userDataProfileService.currentProfile.extensionsResource);
 	}
 
 	protected installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {

@@ -7,6 +7,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { inputLatency } from 'vs/base/browser/performance';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -361,9 +362,15 @@ export class TextAreaInput extends Disposable {
 			const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 
-			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
-				// Ignore invalid input but keep it around for next time
-				return;
+			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1) {
+				// one character was typed
+				if (
+					strings.isHighSurrogate(typeInput.text.charCodeAt(0))
+					|| typeInput.text.charCodeAt(0) === 0x7f /* Delete */
+				) {
+					// Ignore invalid input but keep it around for next time
+					return;
+				}
 			}
 
 			this._textAreaState = newState;
@@ -488,6 +495,8 @@ export class TextAreaInput extends Disposable {
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return dom.addDisposableListener(document, 'selectionchange', (e) => {
+			inputLatency.onSelectionChange();
+
 			if (!this._hasFocus) {
 				return;
 			}
@@ -702,6 +711,11 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	) {
 		super();
 		this._ignoreSelectionChangeTime = 0;
+
+		this._register(this.onKeyDown(() => inputLatency.onKeyDown()));
+		this._register(this.onBeforeInput(() => inputLatency.onBeforeInput()));
+		this._register(this.onInput(() => inputLatency.onInput()));
+		this._register(this.onKeyUp(() => inputLatency.onKeyUp()));
 
 		this._register(dom.addDisposableListener(this._actual, TextAreaSyntethicEvents.Tap, () => this._onSyntheticTap.fire()));
 	}

@@ -61,7 +61,7 @@ import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
-import 'vs/workbench/services/userDataSync/browser/userDataSyncProfilesStorageService';
+import 'vs/workbench/services/userDataProfile/browser/userDataProfileStorageService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/platform/extensionResourceLoader/browser/extensionResourceLoaderService';
 

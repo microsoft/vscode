@@ -99,9 +99,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private readonly workspaceState: vscode.Memento;
 
-	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
+	private readonly _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void };
 	private _configuration: TypeScriptServiceConfiguration;
-	private pluginPathsProvider: TypeScriptPluginPathsProvider;
+	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
 	private readonly _versionManager: TypeScriptVersionManager;
 
 	private readonly logger = new Logger();
@@ -178,7 +178,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.diagnosticsManager = new DiagnosticsManager('typescript', onCaseInsenitiveFileSystem);
 		this.bufferSyncSupport.onDelete(resource => {
 			this.cancelInflightRequestsForResource(resource);
-			this.diagnosticsManager.delete(resource);
+			this.diagnosticsManager.deleteAllDiagnosticsInFile(resource);
 		}, null, this._disposables);
 
 		this.bufferSyncSupport.onWillChange(resource => {
@@ -643,7 +643,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 								detail: vscode.l10n.t(
 									"The workspace is using an old version of TypeScript ({0}).\n\nBefore reporting an issue, please update the workspace to use the latest stable TypeScript release to make sure the bug has not already been fixed.",
 									(previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError ? previousState.error.version.apiVersion?.displayName : undefined) + ''),
-								useCustom: true
 							});
 					} else {
 						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError

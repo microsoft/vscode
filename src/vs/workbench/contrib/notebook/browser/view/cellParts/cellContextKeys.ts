@@ -27,7 +27,7 @@ export class CellContextKeyPart extends CellContentPart {
 		this.cellContextKeyManager = this._register(this.instantiationService.createInstance(CellContextKeyManager, notebookEditor, undefined));
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this.cellContextKeyManager.updateForElement(element);
 	}
 }

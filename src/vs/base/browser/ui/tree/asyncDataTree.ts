@@ -269,7 +269,17 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
 		),
-		additionalScrollHeight: options.additionalScrollHeight
+		defaultFindVisibility: e => {
+			if (e.hasChildren && e.stale) {
+				return TreeVisibility.Visible;
+			} else if (typeof options.defaultFindVisibility === 'number') {
+				return options.defaultFindVisibility;
+			} else if (typeof options.defaultFindVisibility === 'undefined') {
+				return TreeVisibility.Recurse;
+			} else {
+				return (options.defaultFindVisibility as ((e: T) => TreeVisibility))(e.element as T);
+			}
+		}
 	};
 }
 

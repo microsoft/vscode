@@ -19,15 +19,23 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { charCount } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { joinPath } from 'vs/base/common/resources';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Codicon } from 'vs/base/common/codicons';
+import { IFileService } from 'vs/platform/files/common/files';
+import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { getErrorMessage } from 'vs/base/common/errors';
+
+const SelectProfileSubMenu = new MenuId('SelectProfile');
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -40,8 +48,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -67,6 +78,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		if (isWeb) {
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
 		}
+
+		this.reportWorkspaceProfileInfo();
 	}
 
 	private registerConfiguration(): void {
@@ -77,7 +90,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					[PROFILES_ENABLEMENT_CONFIG]: {
 						'type': 'boolean',
 						'default': false,
-						'description': localize('workbench.experimental.settingsProfiles.enabled', "Controls whether to enable the Settings Profiles preview feature."),
+						'description': localize('workbench.experimental.profiles.enabled', "Controls whether to enable the Profiles preview feature."),
 						scope: ConfigurationScope.APPLICATION,
 						ignoreSync: true
 					}
@@ -88,6 +101,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerActions(): void {
 		this.registerManageProfilesSubMenu();
+		this.registerSelectProfileSubMenu();
 
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
@@ -97,14 +111,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerManageProfilesSubMenu(): void {
-		const that = this;
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
-			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
-			submenu: ManageProfilesSubMenu,
-			group: '5_settings',
-			when: PROFILES_ENABLEMENT_CONTEXT,
-			order: 1
-		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			title: PROFILES_TTILE,
 			submenu: ManageProfilesSubMenu,
@@ -112,10 +118,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			when: PROFILES_ENABLEMENT_CONTEXT,
 			order: 1
 		});
-		MenuRegistry.appendMenuItem(MenuId.AccountsContext, <ISubmenuItem>{
-			get title() { return localize('manageProfiles', "{0} ({1})", PROFILES_TTILE.value, that.userDataProfileService.currentProfile.name); },
-			submenu: ManageProfilesSubMenu,
-			group: '1_settings',
+	}
+
+	private registerSelectProfileSubMenu(): IDisposable {
+		const that = this;
+		return MenuRegistry.appendMenuItem(ManageProfilesSubMenu, <ISubmenuItem>{
+			get title() { return localize('profile', "Profile ({0})", that.userDataProfileService.currentProfile.name); },
+			submenu: SelectProfileSubMenu,
+			group: '0_profiles',
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
@@ -138,7 +148,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
+							id: SelectProfileSubMenu,
 							group: '0_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 						}
@@ -158,7 +168,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.currentprofileActionsDisposable.value = new DisposableStore();
 		this.currentprofileActionsDisposable.value.add(this.registerUpdateCurrentProfileShortNameAction());
 		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerShowCurrentProfileContentsAction());
 		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
 
 	private registerUpdateCurrentProfileShortNameAction(): IDisposable {
@@ -170,8 +182,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.updateCurrentProfileShortName`,
 					title: {
-						value: localize('change short name profile', "Change Short Name ({0})...", themeIcon?.id ?? shortName),
-						original: `Change Short Name (${themeIcon?.id ?? shortName})...`
+						value: localize('change short name profile', "Change Profile Short Name ({0})...", themeIcon?.id ?? shortName),
+						original: `Change Profile Short Name (${themeIcon?.id ?? shortName})...`
 					},
 					menu: [
 						{
@@ -226,8 +238,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.renameCurrentProfile`,
 					title: {
-						value: localize('rename profile', "Rename ({0})...", that.userDataProfileService.currentProfile.name),
-						original: `Rename (${that.userDataProfileService.currentProfile.name})...`
+						value: localize('rename profile', "Rename Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Rename Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					menu: [
 						{
@@ -245,6 +257,38 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 	}
 
+	private registerShowCurrentProfileContentsAction(): IDisposable {
+		const that = this;
+		const id = 'workbench.profiles.actions.showProfileContents';
+		return registerAction2(class ShowProfileContentsAction extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: {
+						value: localize('show profile contents', "Show Profile Contents ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Show Profile Contents (${that.userDataProfileService.currentProfile.name})...`
+					},
+					category: PROFILES_CATEGORY,
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '2_manage_current',
+							when: PROFILES_ENABLEMENT_CONTEXT,
+							order: 3
+						}, {
+							id: MenuId.CommandPalette
+						}
+					]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				return userDataProfileImportExportService.showProfileContents();
+			}
+		});
+	}
+
 	private registerExportCurrentProfileAction(): IDisposable {
 		const that = this;
 		const disposables = new DisposableStore();
@@ -254,10 +298,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('export profile', "Export ({0})...", that.userDataProfileService.currentProfile.name),
-						original: `Export (${that.userDataProfileService.currentProfile.name})...`
+						value: localize('export profile', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					category: PROFILES_CATEGORY,
+					precondition: IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
 						{
 							id: ManageProfilesSubMenu,
@@ -272,37 +317,169 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 
 			async run(accessor: ServicesAccessor) {
-				const textFileService = accessor.get(ITextFileService);
-				const fileDialogService = accessor.get(IFileDialogService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
-				const notificationService = accessor.get(INotificationService);
-
-				const profileLocation = await fileDialogService.showSaveDialog({
-					title: localize('export profile dialog', "Save Profile"),
-					filters: PROFILE_FILTER,
-					defaultUri: joinPath(await fileDialogService.defaultFilePath(), `profile.${PROFILE_EXTENSION}`),
-				});
-
-				if (!profileLocation) {
-					return;
-				}
-
-				const profile = await userDataProfileImportExportService.exportProfile({ skipComments: true });
-				await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
-
-				notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY.value));
+				return userDataProfileImportExportService.exportProfile();
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {
 			command: {
 				id,
 				title: {
-					value: localize('export settings profile', "Export Settings Profile ({0})...", that.userDataProfileService.currentProfile.name),
-					original: `Export Settings Profile (${that.userDataProfileService.currentProfile.name})...`
-				}
+					value: localize('export profile in share', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+					original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
+				},
+				precondition: PROFILES_ENABLEMENT_CONTEXT,
 			},
 		}));
 		return disposables;
 	}
 
+	private registerImportProfileAction(): IDisposable {
+		const disposables = new DisposableStore();
+		const id = 'workbench.profiles.actions.importProfile';
+		disposables.add(registerAction2(class ImportProfileAction extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: {
+						value: localize('import profile', "Import Profile..."),
+						original: 'Import Profile...'
+					},
+					category: PROFILES_CATEGORY,
+					f1: true,
+					precondition: IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT.toNegated(),
+					menu: [
+						{
+							id: ManageProfilesSubMenu,
+							group: '4_import_export_profiles',
+							when: PROFILES_ENABLEMENT_CONTEXT,
+							order: 2
+						}
+					]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const fileDialogService = accessor.get(IFileDialogService);
+				const quickInputService = accessor.get(IQuickInputService);
+				const fileService = accessor.get(IFileService);
+				const requestService = accessor.get(IRequestService);
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				const dialogService = accessor.get(IDialogService);
+				const contextKeyService = accessor.get(IContextKeyService);
+				const notificationService = accessor.get(INotificationService);
+
+				const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
+
+				if (!isSettingProfilesEnabled) {
+					if (!(await dialogService.confirm({
+						title: localize('import profile title', "Import Settings from a Profile"),
+						message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
+					})).confirmed) {
+						return;
+					}
+				}
+
+				const disposables = new DisposableStore();
+				const quickPick = disposables.add(quickInputService.createQuickPick());
+				const updateQuickPickItems = (value?: string) => {
+					const selectFromFileItem: IQuickPickItem = { label: localize('import from file', "Import from profile file") };
+					quickPick.items = value ? [{ label: localize('import from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
+				};
+				quickPick.title = localize('import profile quick pick title', "Import Profile");
+				quickPick.placeholder = localize('import profile placeholder', "Provide profile URL or select profile file to import");
+				quickPick.ignoreFocusOut = true;
+				disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
+				updateQuickPickItems();
+				quickPick.matchOnLabel = false;
+				quickPick.matchOnDescription = false;
+				disposables.add(quickPick.onDidAccept(async () => {
+					try {
+						quickPick.hide();
+						if (isSettingProfilesEnabled) {
+							const profile = quickPick.selectedItems[0].description ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
+							if (profile) {
+								await userDataProfileImportExportService.importProfile(profile);
+							}
+						} else {
+							const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
+							if (profile) {
+								await userDataProfileImportExportService.setProfile(profile);
+							}
+						}
+					} catch (error) {
+						notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
+					}
+				}));
+				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+				quickPick.show();
+			}
+
+			private async getProfileUriFromFileSystem(fileDialogService: IFileDialogService): Promise<URI | null> {
+				const profileLocation = await fileDialogService.showOpenDialog({
+					canSelectFolders: false,
+					canSelectFiles: true,
+					canSelectMany: false,
+					filters: PROFILE_FILTER,
+					title: localize('import profile dialog', "Import Profile"),
+				});
+				if (!profileLocation) {
+					return null;
+				}
+				return profileLocation[0];
+			}
+
+			private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IUserDataProfileTemplate | null> {
+				const profileLocation = await this.getProfileUriFromFileSystem(fileDialogService);
+				if (!profileLocation) {
+					return null;
+				}
+				const content = (await fileService.readFile(profileLocation)).value.toString();
+				const parsed = JSON.parse(content);
+				return isUserDataProfileTemplate(parsed) ? parsed : null;
+			}
+
+			private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
+				const options = { type: 'GET', url };
+				const context = await requestService.request(options, CancellationToken.None);
+				if (context.res.statusCode === 200) {
+					const result = await asJson(context);
+					return isUserDataProfileTemplate(result) ? result : null;
+				} else {
+					const message = await asText(context);
+					throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
+				}
+			}
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {
+			command: {
+				id,
+				title: {
+					value: localize('import profile share', "Import Profile...",),
+					original: 'Import Profile...'
+				},
+				precondition: PROFILES_ENABLEMENT_CONTEXT,
+			},
+		}));
+		return disposables;
+	}
+
+	private async reportWorkspaceProfileInfo(): Promise<void> {
+		await this.lifecycleService.when(LifecyclePhase.Eventually);
+		const workspaceId = await this.workspaceTagsService.getTelemetryWorkspaceId(this.workspaceContextService.getWorkspace(), this.workspaceContextService.getWorkbenchState());
+		type WorkspaceProfileInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report profile information of the current workspace';
+			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A UUID given to a workspace to identify it.' };
+			defaultProfile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the profile of the workspace is default or not.' };
+		};
+		type WorkspaceProfileInfoEvent = {
+			workspaceId: string | undefined;
+			defaultProfile: boolean;
+		};
+		this.telemetryService.publicLog2<WorkspaceProfileInfoEvent, WorkspaceProfileInfoClassification>('workspaceProfileInfo', {
+			workspaceId,
+			defaultProfile: this.userDataProfileService.currentProfile.isDefault
+		});
+	}
 }

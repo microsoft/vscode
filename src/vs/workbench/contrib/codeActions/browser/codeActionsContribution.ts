@@ -39,7 +39,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 		}
 	],
 	default: {},
-	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
+	description: nls.localize('codeActionsOnSave', "Code Action kinds to be run on save."),
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 };
 

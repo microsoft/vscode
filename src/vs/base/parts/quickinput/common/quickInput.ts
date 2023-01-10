@@ -295,6 +295,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	items: ReadonlyArray<T | IQuickPickSeparator>;
 
+	scrollTop: number; // used in tests
+
 	canSelectMany: boolean;
 
 	matchOnDescription: boolean;

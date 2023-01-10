@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
@@ -20,7 +20,7 @@ import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
@@ -68,6 +68,7 @@ import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class NativeWindow extends Disposable {
 
@@ -120,7 +121,8 @@ export class NativeWindow extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IBannerService private readonly bannerService: IBannerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super();
 
@@ -131,7 +133,7 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e)));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
@@ -199,6 +201,14 @@ export class NativeWindow extends Disposable {
 				Severity.Error,
 				message,
 				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				},
+				{
+					label: localize('configure', "Configure"),
+					run: () => this.preferencesService.openUserSettings({ query: 'application.shellEnvironmentResolutionTimeout' })
+				},
+				{
 					label: localize('learnMore', "Learn More"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 				}]
@@ -319,10 +329,10 @@ export class NativeWindow extends Disposable {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
-			this.updateDocumentEdited(gotDirty);
+			this.updateDocumentEdited(gotDirty ? true : undefined);
 		}));
 
-		this.updateDocumentEdited();
+		this.updateDocumentEdited(undefined);
 
 		// Detect minimize / maximize
 		this._register(Event.any(
@@ -493,29 +503,24 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onWindowResize(e: UIEvent, retry: boolean): void {
+	private onWindowResize(e: UIEvent): void {
 		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
-				}
-				return;
-			}
-
 			this.layoutService.layout();
 		}
 	}
 
-	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
-		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
-			this.isDocumentedEdited = isDirty;
+	private updateDocumentEdited(documentEdited: true | undefined): void {
+		let setDocumentEdited: boolean;
+		if (typeof documentEdited === 'boolean') {
+			setDocumentEdited = documentEdited;
+		} else {
+			setDocumentEdited = this.workingCopyService.hasDirty;
+		}
 
-			this.nativeHostService.setDocumentEdited(isDirty);
+		if ((!this.isDocumentedEdited && setDocumentEdited) || (this.isDocumentedEdited && !setDocumentEdited)) {
+			this.isDocumentedEdited = setDocumentEdited;
+
+			this.nativeHostService.setDocumentEdited(setDocumentEdited);
 		}
 	}
 
@@ -640,7 +645,7 @@ export class NativeWindow extends Disposable {
 	private async handleWarnings(): Promise<void> {
 
 		// Check for cyclic dependencies
-		if (require.hasDependencyCycle()) {
+		if (typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
 			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
@@ -713,6 +718,15 @@ export class NativeWindow extends Disposable {
 				);
 			}
 		}
+
+		// Slow shell environment progress indicator
+		const shellEnv = process.shellEnv();
+		this.progressService.withProgress({
+			title: localize('resolveShellEnvironment', "Resolving shell environment..."),
+			location: ProgressLocation.Window,
+			delay: 1600,
+			buttons: [localize('learnMore', "Learn More")]
+		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
 	}
 
 	private setupDriver(): void {

@@ -54,6 +54,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IAddFoldersRequest {
@@ -177,7 +180,8 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return configuredUseWindowControlsOverlay;
 	}
 
-	return false; // disable by default
+	// Default to true.
+	return true;
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {

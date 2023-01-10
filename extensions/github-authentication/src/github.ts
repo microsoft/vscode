@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { v4 as uuid } from 'uuid';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Keychain } from './common/keychain';
 import { GitHubServer, IGitHubServer } from './githubServer';
 import { arrayEquals } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
+import { crypto } from './node/crypto';
 
 interface SessionData {
 	id: string;
@@ -50,8 +50,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		uriHandler: UriEventHandler,
 		ghesUri?: vscode.Uri
 	) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
+		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
+		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 
@@ -68,8 +68,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._logger,
 			this._telemetryReporter,
 			uriHandler,
-			// We only can use the Device Code flow when we have a full node environment because of CORS.
-			context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
+			context.extension.extensionKind,
 			ghesUri);
 
 		// Contains the current state of the sessions we have available.
@@ -286,7 +285,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
-			id: uuid(),
+			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
 			account: { label: userInfo.accountName, id: userInfo.id },
 			scopes

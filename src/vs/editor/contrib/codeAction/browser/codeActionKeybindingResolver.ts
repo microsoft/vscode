@@ -26,7 +26,7 @@ export class CodeActionKeybindingResolver {
 	];
 
 	constructor(
-		private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
 	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
@@ -54,7 +54,7 @@ export class CodeActionKeybindingResolver {
 
 		return (action) => {
 			if (action.kind) {
-				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.getValue());
+				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.value);
 				return binding?.resolvedKeybinding;
 			}
 			return undefined;

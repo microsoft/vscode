@@ -6,7 +6,6 @@
 import { Connection, Emitter, FileChangeType, NotebookDocuments, Position, Range, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as md from 'vscode-markdown-languageservice';
-import { ContainingDocumentContext, FileWatcherOptions, IFileSystemWatcher } from 'vscode-markdown-languageservice/out/workspace';
 import { URI } from 'vscode-uri';
 import { LsConfiguration } from './config';
 import * as protocol from './protocol';
@@ -99,7 +98,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 	private _watcherPool = 0;
 	private readonly _watchers = new Map<number, {
 		readonly resource: URI;
-		readonly options: FileWatcherOptions;
+		readonly options: md.FileWatcherOptions;
 		readonly onDidChange: Emitter<URI>;
 		readonly onDidCreate: Emitter<URI>;
 		readonly onDidDelete: Emitter<URI>;
@@ -364,7 +363,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		return this.connection.sendRequest(protocol.fs_readDirectory, { uri: resource.toString() });
 	}
 
-	getContainingDocument(resource: URI): ContainingDocumentContext | undefined {
+	getContainingDocument(resource: URI): md.ContainingDocumentContext | undefined {
 		if (resource.scheme === Schemes.notebookCell) {
 			const nb = this.notebooks.findNotebookDocumentForCell(resource.toString());
 			if (nb) {
@@ -377,7 +376,7 @@ export class VsCodeClientWorkspace implements md.IWorkspaceWithWatching {
 		return undefined;
 	}
 
-	watchFile(resource: URI, options: FileWatcherOptions): IFileSystemWatcher {
+	watchFile(resource: URI, options: md.FileWatcherOptions): md.IFileSystemWatcher {
 		const id = this._watcherPool++;
 		this.logger.log(md.LogLevel.Trace, 'VsCodeClientWorkspace: watchFile', `(${id}) ${resource}`);
 

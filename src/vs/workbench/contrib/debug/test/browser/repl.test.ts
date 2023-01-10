@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import severity from 'vs/base/common/severity';
 import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockRawSession, MockDebugAdapter, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { timeout } from 'vs/base/common/async';
@@ -15,6 +15,7 @@ import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { MockDebugAdapter, MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;

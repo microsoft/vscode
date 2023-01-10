@@ -46,7 +46,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;

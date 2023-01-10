@@ -825,6 +825,12 @@ export interface EventLike {
 	stopPropagation(): void;
 }
 
+export function isEventLike(obj: unknown): obj is EventLike {
+	const candidate = obj as EventLike | undefined;
+
+	return !!(candidate && typeof candidate.preventDefault === 'function' && typeof candidate.stopPropagation === 'function');
+}
+
 export const EventHelper = {
 	stop: <T extends EventLike>(e: T, cancelBubble?: boolean): T => {
 		e.preventDefault();
@@ -1199,11 +1205,26 @@ export function asCSSUrl(uri: URI | null | undefined): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.uriToBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
 export function asCSSPropertyValue(value: string) {
 	return `'${value.replace(/'/g, '%27')}'`;
+}
+
+export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt: string): string {
+	if (cssPropertyValue !== undefined) {
+		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
+		if (variableMatch) {
+			const varArguments = variableMatch[1].split(',', 2);
+			if (varArguments.length === 2) {
+				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
+			}
+			return `var(${varArguments[0]}, ${dflt})`;
+		}
+		return cssPropertyValue;
+	}
+	return dflt;
 }
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
@@ -1738,23 +1759,6 @@ type TagToRecord<TTag> = TagToElementAndId<TTag> extends { element: infer TEleme
 	: never;
 
 type Child = HTMLElement | string | Record<string, HTMLElement>;
-type Children = []
-	| [Child]
-	| [Child, Child]
-	| [Child, Child, Child]
-	| [Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child]
-	| [Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child, Child];
 
 const H_REGEX = /(?<tag>[\w\-]+)?(?:#(?<id>[\w\-]+))?(?<class>(?:\.(?:[\w\-]+))*)(?:@(?<name>(?:[\w\_])+))?/;
 
@@ -1777,16 +1781,16 @@ export function h<TTag extends string>
 	(tag: TTag):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
-export function h<TTag extends string, T extends Children>
-	(tag: TTag, children: T):
+export function h<TTag extends string, T extends Child[]>
+	(tag: TTag, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
 export function h<TTag extends string>
 	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
-export function h<TTag extends string, T extends Children>
-	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: T):
+export function h<TTag extends string, T extends Child[]>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
 
 export function h(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {

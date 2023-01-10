@@ -43,7 +43,7 @@ export interface IExtensionManagementServerService {
 	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
 
-export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
+export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server: IExtensionManagementServer };
@@ -65,7 +65,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
-	installWebExtension(location: URI): Promise<ILocalExtension>;
+	installFromLocation(location: URI): Promise<ILocalExtension>;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null;

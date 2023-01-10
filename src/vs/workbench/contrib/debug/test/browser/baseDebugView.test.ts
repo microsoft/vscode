@@ -15,8 +15,9 @@ import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
 import { isWindows } from 'vs/base/common/platform';
-import { MockSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {

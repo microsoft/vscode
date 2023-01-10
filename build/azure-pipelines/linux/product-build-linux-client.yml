@@ -27,7 +27,7 @@ steps:
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
           azureSubscription: "vscode-builds-subscription"
-          KeyVaultName: vscode
+          KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -133,13 +133,13 @@ steps:
       npm config set registry "$NPM_REGISTRY" --location=project
       npm config set always-auth=true --location=project
       yarn config set registry "$NPM_REGISTRY"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: .npmrc
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: |

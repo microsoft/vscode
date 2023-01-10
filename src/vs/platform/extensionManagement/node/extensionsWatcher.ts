@@ -9,8 +9,9 @@ import { ResourceSet } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { DidAddProfileExtensionsEvent, DidRemoveProfileExtensionsEvent, IExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionIdentifier, IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -31,6 +32,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	constructor(
 		private readonly extensionManagementService: INativeServerExtensionManagementService,
+		private readonly extensionsScannerService: IExtensionsScannerService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -42,7 +44,7 @@ export class ExtensionsWatcher extends Disposable {
 	}
 
 	private async initialize(): Promise<void> {
-		await this.extensionManagementService.migrateDefaultProfileExtensions();
+		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		await this.onDidChangeProfiles(this.userDataProfilesService.profiles, []);
 		this.registerListeners();
 		await this.uninstallExtensionsNotInProfiles();
@@ -63,11 +65,7 @@ export class ExtensionsWatcher extends Disposable {
 				this.extensionsProfileWatchDisposables.deleteAndDispose(profile.id);
 				return this.removeExtensionsFromProfile(profile.extensionsResource);
 			}));
-		} catch (error) {
-			this.logService.error(error);
-		}
 
-		try {
 			if (added.length) {
 				await Promise.all(added.map(profile => {
 					this.extensionsProfileWatchDisposables.set(profile.id, combinedDisposable(
@@ -80,18 +78,19 @@ export class ExtensionsWatcher extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
+			throw error;
 		}
 	}
 
 	private async onAddExtensions(e: ProfileExtensionsEvent): Promise<void> {
 		for (const extension of e.extensions) {
-			this.addExtensionWithKey(this.getKey(extension.identifier, extension.manifest.version), e.profileLocation);
+			this.addExtensionWithKey(this.getKey(extension.identifier, extension.version), e.profileLocation);
 		}
 	}
 
 	private async onDidAddExtensions(e: DidAddProfileExtensionsEvent): Promise<void> {
 		for (const extension of e.extensions) {
-			const key = this.getKey(extension.identifier, extension.manifest.version);
+			const key = this.getKey(extension.identifier, extension.version);
 			if (e.error) {
 				this.removeExtensionWithKey(key, e.profileLocation);
 			} else {
@@ -102,25 +101,23 @@ export class ExtensionsWatcher extends Disposable {
 
 	private async onRemoveExtensions(e: ProfileExtensionsEvent): Promise<void> {
 		for (const extension of e.extensions) {
-			this.removeExtensionWithKey(this.getKey(extension.identifier, extension.manifest.version), e.profileLocation);
+			this.removeExtensionWithKey(this.getKey(extension.identifier, extension.version), e.profileLocation);
 		}
 	}
 
 	private async onDidRemoveExtensions(e: DidRemoveProfileExtensionsEvent): Promise<void> {
-		const extensionsToUninstall: IExtension[] = [];
+		let hasToUninstallExtensions = false;
 		for (const extension of e.extensions) {
-			const key = this.getKey(extension.identifier, extension.manifest.version);
+			const key = this.getKey(extension.identifier, extension.version);
 			if (e.error) {
 				this.addExtensionWithKey(key, e.profileLocation);
 			} else {
 				this.removeExtensionWithKey(key, e.profileLocation);
-				if (!this.allExtensions.has(key)) {
-					extensionsToUninstall.push(extension);
-				}
+				hasToUninstallExtensions = hasToUninstallExtensions || !this.allExtensions.has(key);
 			}
 		}
-		if (extensionsToUninstall.length) {
-			await this.extensionManagementService.markAsUninstalled(...extensionsToUninstall);
+		if (hasToUninstallExtensions) {
+			await this.uninstallExtensionsNotInProfiles();
 		}
 	}
 
@@ -180,7 +177,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	private async uninstallExtensionsNotInProfiles(): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		if (toUninstall.length) {
 			await this.extensionManagementService.markAsUninstalled(...toUninstall);
 		}

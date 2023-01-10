@@ -68,7 +68,6 @@ export interface IWebviewService {
 }
 
 export interface WebviewInitInfo {
-	readonly id: string;
 	readonly providedViewType?: string;
 	readonly origin?: string;
 
@@ -171,24 +170,37 @@ export interface WebviewMessageReceivedEvent {
 export interface IWebview extends IDisposable {
 
 	/**
-	 * External identifier of this webview.
-	 */
-	readonly id: string;
-
-	/**
-	 * The origin this webview itself is loaded from. May not be unique
-	 */
-	readonly origin: string;
-
-	/**
 	 * The original view type of the webview.
 	 */
 	readonly providedViewType?: string;
 
+	/**
+	 * The origin this webview itself is loaded from. May not be unique.
+	 */
+	readonly origin: string;
+
+	/**
+	 * The html content of the webview.
+	 */
 	html: string;
+
+	/**
+	 * Control what content is allowed/blocked inside the webview.
+	 */
 	contentOptions: WebviewContentOptions;
+
+	/**
+	 * List of roots from which local resources can be loaded.
+	 *
+	 * Requests for local resources not in this list are blocked.
+	 */
 	localResourcesRoot: readonly URI[];
+
+	/**
+	 * The extension that created/owns this webview.
+	 */
 	extension: WebviewExtensionDescription | undefined;
+
 	initialScrollProgress: number;
 	state: string | undefined;
 
@@ -257,6 +269,8 @@ export interface IOverlayWebview extends IWebview {
 	 * The HTML element that holds the webview.
 	 */
 	readonly container: HTMLElement;
+
+	origin: string;
 
 	options: WebviewOptions;
 

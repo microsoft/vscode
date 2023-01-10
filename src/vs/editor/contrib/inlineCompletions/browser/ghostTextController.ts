@@ -49,10 +49,7 @@ export class GhostTextController extends Disposable {
 			this.updateModelController();
 		}));
 		this._register(this.editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.suggest)) {
-				this.updateModelController();
-			}
-			if (e.hasChanged(EditorOption.inlineSuggest)) {
+			if (e.hasChanged(EditorOption.suggest) || e.hasChanged(EditorOption.inlineSuggest)) {
 				this.updateModelController();
 			}
 		}));
@@ -90,6 +87,10 @@ export class GhostTextController extends Disposable {
 			this.updateModelController();
 		}
 		this.activeModel?.triggerInlineCompletion();
+	}
+
+	public commitPartially(): void {
+		this.activeModel?.commitInlineCompletionPartially();
 	}
 
 	public commit(): void {
@@ -248,5 +249,23 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
 		controller?.trigger();
+	}
+}
+
+export class AcceptNextWordOfInlineCompletion extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.acceptNextWord',
+			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
+			alias: 'Accept Next Word Of Inline Suggestion',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = GhostTextController.get(editor);
+		if (controller) {
+			controller.commitPartially();
+		}
 	}
 }

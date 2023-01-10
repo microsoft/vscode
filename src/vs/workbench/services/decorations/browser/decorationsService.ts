@@ -136,7 +136,7 @@ class DecorationRule {
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
-			color: ${getColor(color)};
+			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
 			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
@@ -224,7 +224,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 	}
 
 	affectsResource(uri: URI): boolean {
-		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
+		return this._data.hasElementOrSubtree(uri);
 	}
 }
 

@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import * as languages from 'vs/editor/common/languages';
@@ -45,8 +45,8 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
-				this.widget.getValue().show();
-				this.widget.getValue().render(newParameterHints);
+				this.widget.value.show();
+				this.widget.value.render(newParameterHints);
 			} else {
 				this.widget.rawValue?.hide();
 			}
@@ -96,7 +96,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ParameterHintsController.ID, ParameterHintsController);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;

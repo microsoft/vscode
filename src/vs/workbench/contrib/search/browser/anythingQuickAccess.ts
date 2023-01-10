@@ -756,9 +756,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private helpQuickAccess = this.instantiationService.createInstance(HelpQuickAccessProvider);
 
 	private getHelpPicks(query: IPreparedQuery, token: CancellationToken): IAnythingQuickPickItem[] {
-		// If there's a filter, we don't show the help
 		if (query.normalized) {
-			return [];
+			return []; // If there's a filter, we don't show the help
 		}
 
 		type IHelpAnythingQuickPickItem = IAnythingQuickPickItem & { prefix: string };
@@ -796,6 +795,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				});
 			}
 		};
+
+		// TODO@TylerLeonhardt ideally this hardcoded list and hardcoded dependency moves
+		// into a provider model where when I register a quick access provider I can enlist
+		// for showing up in command center
 
 		// Acts as the ordering too
 		AddProvider(AnythingQuickAccessProvider.PREFIX);
@@ -1002,8 +1005,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
-			get iconClasses() { return iconClassesValue.getValue(); },
-			get buttons() { return buttonsValue.getValue(); },
+			get iconClasses() { return iconClassesValue.value; },
+			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
 				switch (buttonIndex) {
 

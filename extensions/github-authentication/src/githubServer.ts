@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import fetch, { Response } from 'node-fetch';
-import { v4 as uuid } from 'uuid';
+import * as path from 'path';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
+import { ExperimentationTelemetry } from './common/experimentationService';
 import { AuthProviderType, UriEventHandler } from './github';
 import { Log } from './common/logger';
 import { isSupportedEnvironment } from './common/env';
-import { LoopbackAuthServer } from './authServer';
-import path = require('path');
+import { LoopbackAuthServer } from './node/authServer';
+import { crypto } from './node/crypto';
+import { fetching } from './node/fetch';
 
 const CLIENT_ID = '01ab8ac9400c4e429b23';
 const GITHUB_TOKEN_URL = 'https://vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
@@ -38,7 +38,7 @@ interface IGitHubDeviceCodeResponse {
 async function getScopes(token: string, serverUri: vscode.Uri, logger: Log): Promise<string[]> {
 	try {
 		logger.info('Getting token scopes...');
-		const result = await fetch(serverUri.toString(), {
+		const result = await fetching(serverUri.toString(), {
 			headers: {
 				Authorization: `token ${token}`,
 				'User-Agent': 'Visual-Studio-Code'
@@ -71,7 +71,7 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _logger: Log,
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
-		private readonly _supportDeviceCodeFlow: boolean,
+		private readonly _extensionKind: vscode.ExtensionKind,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
@@ -99,7 +99,7 @@ export class GitHubServer implements IGitHubServer {
 			return this._redirectEndpoint;
 		} else {
 			// GHES
-			const result = await fetch(this.getServerUri('/meta').toString(true));
+			const result = await fetching(this.getServerUri('/meta').toString(true));
 			if (result.ok) {
 				try {
 					const json: { installed_version: string } = await result.json();
@@ -151,7 +151,7 @@ export class GitHubServer implements IGitHubServer {
 			}
 		};
 
-		const nonce = uuid();
+		const nonce: string = crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), '');
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate?nonce=${encodeURIComponent(nonce)}`));
 
 		const supported = isSupportedEnvironment(callbackUri);
@@ -164,8 +164,13 @@ export class GitHubServer implements IGitHubServer {
 			}
 		}
 
-		// Starting a local server isn't supported in web
-		if (vscode.env.uiKind === vscode.UIKind.Desktop) {
+		// Starting a local server is only supported if:
+		// 1. We are in a UI extension because we need to open a port on the machine that has the browser
+		// 2. We are in a node runtime because we need to open a port on the machine
+		if (
+			this._extensionKind === vscode.ExtensionKind.UI &&
+			typeof navigator === 'undefined'
+		) {
 			try {
 				await promptToContinue();
 				return await this.doLoginWithLocalServer(scopes);
@@ -175,7 +180,8 @@ export class GitHubServer implements IGitHubServer {
 			}
 		}
 
-		if (this._supportDeviceCodeFlow) {
+		// We only can use the Device Code flow when we have a full node environment because of CORS.
+		if (typeof navigator === 'undefined') {
 			try {
 				await promptToContinue();
 				return await this.doLoginDeviceCodeFlow(scopes);
@@ -183,7 +189,11 @@ export class GitHubServer implements IGitHubServer {
 				this._logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
-		} else if (!supported) {
+		}
+
+		// In a supported environment, we can't use PAT auth because we use this auth for Settings Sync and it doesn't support PATs.
+		// With that said, GitHub Enterprise isn't used by Settings Sync so we can use PATs for that.
+		if (!supported || this._type === AuthProviderType.githubEnterprise) {
 			try {
 				await promptToContinue();
 				return await this.doLoginWithPat(scopes);
@@ -298,7 +308,7 @@ export class GitHubServer implements IGitHubServer {
 			path: '/login/device/code',
 			query: `client_id=${CLIENT_ID}&scope=${scopes}`
 		});
-		const result = await fetch(uri.toString(true), {
+		const result = await fetching(uri.toString(true), {
 			method: 'POST',
 			headers: {
 				Accept: 'application/json'
@@ -332,7 +342,23 @@ export class GitHubServer implements IGitHubServer {
 
 	private async doLoginWithPat(scopes: string): Promise<string> {
 		this._logger.info(`Trying to retrieve PAT... (${scopes})`);
-		const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+
+		const button = vscode.l10n.t('Continue to GitHub');
+		const modalResult = await vscode.window.showInformationMessage(
+			vscode.l10n.t('Continue to GitHub to create a Personal Access Token (PAT)'),
+			{
+				modal: true,
+				detail: vscode.l10n.t('To finish authenticating, navigate to GitHub to create a PAT then paste the PAT into the input box.')
+			}, button);
+
+		if (modalResult !== button) {
+			throw new Error('User Cancelled');
+		}
+
+		const description = `${vscode.env.appName} (${scopes})`;
+		const uriToOpen = await vscode.env.asExternalUri(this.baseUri.with({ path: '/settings/tokens/new', query: `description=${description}&scopes=${scopes.split(' ').join(',')}` }));
+		await vscode.env.openExternal(uriToOpen);
+		const token = await vscode.window.showInputBox({ placeHolder: `ghp_1a2b3c4...`, prompt: `GitHub Personal Access Token - ${scopes}`, ignoreFocusOut: true });
 		if (!token) { throw new Error('User Cancelled'); }
 
 		const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
@@ -382,7 +408,7 @@ export class GitHubServer implements IGitHubServer {
 				}
 				let accessTokenResult;
 				try {
-					accessTokenResult = await fetch(refreshTokenUri.toString(true), {
+					accessTokenResult = await fetching(refreshTokenUri.toString(true), {
 						method: 'POST',
 						headers: {
 							Accept: 'application/json'
@@ -452,7 +478,7 @@ export class GitHubServer implements IGitHubServer {
 			body.append('github_enterprise', this.baseUri.toString(true));
 			body.append('redirect_uri', await this.getRedirectEndpoint());
 		}
-		const result = await fetch(endpointUrl, {
+		const result = await fetching(endpointUrl, {
 			method: 'POST',
 			headers: {
 				Accept: 'application/json',
@@ -485,10 +511,10 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	public async getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
-		let result: Response;
+		let result;
 		try {
 			this._logger.info('Getting user info...');
-			result = await fetch(this.getServerUri('/user').toString(), {
+			result = await fetching(this.getServerUri('/user').toString(), {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'
@@ -544,7 +570,7 @@ export class GitHubServer implements IGitHubServer {
 
 	private async checkEduDetails(token: string): Promise<void> {
 		try {
-			const result = await fetch('https://education.github.com/api/user', {
+			const result = await fetching('https://education.github.com/api/user', {
 				headers: {
 					Authorization: `token ${token}`,
 					'faculty-check-preview': 'true',
@@ -577,7 +603,7 @@ export class GitHubServer implements IGitHubServer {
 	private async checkEnterpriseVersion(token: string): Promise<void> {
 		try {
 
-			const result = await fetch(this.getServerUri('/meta').toString(), {
+			const result = await fetching(this.getServerUri('/meta').toString(), {
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': 'Visual-Studio-Code'

@@ -63,8 +63,13 @@
 	width: 100%;
 }
 
+.monaco-editor .mtkw {
+	color: var(--vscode-editorWhitespace-foreground) !important;
+}
+
 .monaco-editor .mtkz {
 	display: inline-block;
+	color: var(--vscode-editorWhitespace-foreground) !important;
 }
 
 /* TODO@tokenization bootstrap fix */

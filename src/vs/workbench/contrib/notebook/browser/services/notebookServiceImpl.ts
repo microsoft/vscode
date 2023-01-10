@@ -338,7 +338,7 @@ export class NotebookOutputRendererInfoStore {
 
 	/** Update and remember the preferred renderer for the given mimetype in this workspace */
 	setPreferred(notebookProviderInfo: NotebookProviderInfo, mimeType: string, rendererId: string) {
-		const mementoObj = this.preferredMimetype.getValue();
+		const mementoObj = this.preferredMimetype.value;
 		const forNotebook = mementoObj[notebookProviderInfo.id];
 		if (forNotebook) {
 			forNotebook[mimeType] = rendererId;
@@ -358,7 +358,7 @@ export class NotebookOutputRendererInfoStore {
 			BuiltIn = 4 << 8,
 		}
 
-		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
+		const preferred = notebookProviderInfo && this.preferredMimetype.value[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
 		const notebookId = notebookProviderInfo?.id;
 		const renderers: { ordered: IOrderedMimeType; score: number }[] = Array.from(this.contributedRenderers.values())
@@ -534,7 +534,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		updateOrder();
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf(NotebookSetting.displayOrder) >= 0) {
+			if (e.affectsConfiguration(NotebookSetting.displayOrder)) {
 				updateOrder();
 			}
 		}));
@@ -606,20 +606,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		const info = this._notebookProviderInfoStore?.get(viewType);
-		const waitFor: Promise<any>[] = [Event.toPromise(Event.filter(this.onAddViewType, () => {
-			return this._notebookProviders.has(viewType);
-		}))];
-
-		if (info && info.extension) {
-			const extensionManifest = await this._extensionService.getExtension(info.extension.value);
-			if (extensionManifest?.activationEvents && extensionManifest.activationEvents.indexOf(`onNotebook:${viewType}`) >= 0) {
-				waitFor.push(this._extensionService._activateById(info.extension, { startup: false, activationEvent: `onNotebook:${viewType}}`, extensionId: info.extension }));
-			}
-		}
-
-		await Promise.race(waitFor);
+		await this._extensionService.activateByEvent(`onNotebookSerializer:${viewType}`);
 
 		return this._notebookProviders.has(viewType);
 	}

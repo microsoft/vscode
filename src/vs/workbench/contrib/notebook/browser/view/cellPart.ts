@@ -35,7 +35,7 @@ export abstract class CellContentPart extends Disposable {
 		this.didRenderCell(element);
 	}
 
-	protected didRenderCell(element: ICellViewModel): void { }
+	didRenderCell(element: ICellViewModel): void { }
 
 	/**
 	 * Dispose any disposables generated from `didRenderCell`
@@ -94,7 +94,7 @@ export abstract class CellOverlayPart extends Disposable {
 		this.didRenderCell(element);
 	}
 
-	protected didRenderCell(element: ICellViewModel): void { }
+	didRenderCell(element: ICellViewModel): void { }
 
 	/**
 	 * Dispose any disposables generated from `didRenderCell`
@@ -180,6 +180,10 @@ export class CellPartsCollection extends Disposable {
 
 	updateInternalLayoutNow(viewCell: ICellViewModel) {
 		for (const part of this.contentParts) {
+			part.updateInternalLayoutNow(viewCell);
+		}
+
+		for (const part of this.overlayParts) {
 			part.updateInternalLayoutNow(viewCell);
 		}
 	}

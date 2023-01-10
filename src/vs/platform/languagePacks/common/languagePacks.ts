@@ -12,6 +12,10 @@ import { localize } from 'vs/nls';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export function getLocale(extension: IGalleryExtension): string | undefined {
+	return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];
+}
+
 export const ILanguagePackService = createDecorator<ILanguagePackService>('languagePackService');
 
 export interface ILanguagePackItem extends IQuickPickItem {
@@ -24,7 +28,6 @@ export interface ILanguagePackService {
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 	getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
-	getLocale(extension: IGalleryExtension): string | undefined;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
@@ -56,7 +59,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		const languagePackExtensions = result.firstPage.filter(e => e.properties.localizedLanguages?.length && e.tags.some(t => t.startsWith('lp-')));
 		const allFromMarketplace: ILanguagePackItem[] = languagePackExtensions.map(lp => {
 			const languageName = lp.properties.localizedLanguages?.[0];
-			const locale = this.getLocale(lp)!;
+			const locale = getLocale(lp)!;
 			const baseQuickPick = this.createQuickPickItem(locale, languageName, lp);
 			return {
 				...baseQuickPick,
@@ -71,10 +74,6 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		});
 
 		return allFromMarketplace;
-	}
-
-	getLocale(extension: IGalleryExtension): string | undefined {
-		return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];
 	}
 
 	protected createQuickPickItem(locale: string, languageName?: string, languagePack?: IGalleryExtension): IQuickPickItem {

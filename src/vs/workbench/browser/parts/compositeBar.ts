@@ -30,6 +30,7 @@ export interface ICompositeBarItem {
 
 	name?: string;
 	pinned: boolean;
+	badgeEnabled: boolean;
 	order?: number;
 	visible: boolean;
 }
@@ -152,6 +153,7 @@ export interface ICompositeBarOptions {
 
 	readonly getActivityAction: (compositeId: string) => ActivityAction;
 	readonly getCompositePinnedAction: (compositeId: string) => IAction;
+	readonly getCompositeBadgeAction: (compositeId: string) => IAction;
 	readonly getOnCompositeClickAction: (compositeId: string) => IAction;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	readonly getContextMenuActionsForComposite: (compositeId: string) => IAction[];
@@ -222,6 +224,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
 					action as ActivityAction,
 					item.pinnedAction,
+					item.toggleBadgeAction,
 					compositeId => this.options.getContextMenuActionsForComposite(compositeId),
 					() => this.getContextMenuActions(),
 					this.options.dndHandler,
@@ -407,6 +410,27 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.updateCompositeSwitcher();
 
 			this.resetActiveComposite(compositeId);
+		}
+	}
+
+	areBadgesEnabled(compositeId: string): boolean {
+		const item = this.model?.findItem(compositeId);
+		// Old restored views can have undefined badge enablement
+		if (item && item.badgeEnabled === undefined) {
+			item.badgeEnabled = true;
+		}
+		return item?.badgeEnabled;
+	}
+
+	toggleBadgeEnablement(compositeId: string): void {
+		if (this.model.setBadgeEnablement(compositeId, !this.areBadgesEnabled(compositeId))) {
+			this.updateCompositeSwitcher();
+			const item = this.model.findItem(compositeId);
+			if (item) {
+				// TODO @lramos15 how do we tell the activity to re-render the badge? This triggers an onDidChange but isn't the right way to do it.
+				// I could add another specific function like `activity.updateBadgeEnablement` would then the activity store the sate?
+				item.activityAction.setBadge(item.activityAction.getBadge(), item.activityAction.getClass());
+			}
 		}
 	}
 
@@ -668,6 +692,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 interface ICompositeBarModelItem extends ICompositeBarItem {
 	readonly activityAction: ActivityAction;
 	readonly pinnedAction: IAction;
+	readonly toggleBadgeAction: IAction;
 	readonly activity: ICompositeActivity[];
 }
 
@@ -692,7 +717,7 @@ class CompositeBarModel {
 		const result: ICompositeBarModelItem[] = [];
 		let hasChanges: boolean = false;
 		if (!this.items || this.items.length === 0) {
-			this._items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
+			this._items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.badgeEnabled, i.visible));
 			hasChanges = true;
 		} else {
 			const existingItems = this.items;
@@ -711,7 +736,7 @@ class CompositeBarModel {
 						result.push(existingItem);
 					}
 				} else {
-					result.push(this.createCompositeBarItem(newItem.id, newItem.name, newItem.order, newItem.pinned, newItem.visible));
+					result.push(this.createCompositeBarItem(newItem.id, newItem.name, newItem.order, newItem.pinned, newItem.badgeEnabled, newItem.visible));
 					hasChanges = true;
 				}
 			}
@@ -729,16 +754,19 @@ class CompositeBarModel {
 		return this.items.filter(item => item.visible && item.pinned);
 	}
 
-	private createCompositeBarItem(id: string, name: string | undefined, order: number | undefined, pinned: boolean, visible: boolean): ICompositeBarModelItem {
+	private createCompositeBarItem(id: string, name: string | undefined, order: number | undefined, pinned: boolean, badgeEnabled: boolean, visible: boolean): ICompositeBarModelItem {
 		const options = this.options;
 		return {
-			id, name, pinned, order, visible,
+			id, name, pinned, order, visible, badgeEnabled,
 			activity: [],
 			get activityAction() {
 				return options.getActivityAction(id);
 			},
 			get pinnedAction() {
 				return options.getCompositePinnedAction(id);
+			},
+			get toggleBadgeAction() {
+				return options.getCompositeBadgeAction(id);
 			}
 		};
 	}
@@ -759,7 +787,7 @@ class CompositeBarModel {
 
 			return changed;
 		} else {
-			const item = this.createCompositeBarItem(id, name, order, true, true);
+			const item = this.createCompositeBarItem(id, name, order, true, true, true);
 			if (!isUndefinedOrNull(requestedIndex)) {
 				let index = 0;
 				let rIndex = requestedIndex;
@@ -831,6 +859,19 @@ class CompositeBarModel {
 			if (item.id === id) {
 				if (item.pinned !== pinned) {
 					item.pinned = pinned;
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
+	}
+
+	setBadgeEnablement(id: string, isEnabled: boolean): boolean {
+		for (const item of this.items) {
+			if (item.id === id) {
+				if (item.badgeEnabled !== isEnabled) {
+					item.badgeEnabled = isEnabled;
 					return true;
 				}
 				return false;

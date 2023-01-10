@@ -80,12 +80,8 @@ export class UserDataSyncDataViews extends Disposable {
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
 		treeView.showRefreshAction = true;
 		treeView.canSelectMany = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = dataProvider;
-			}
-		});
+		treeView.dataProvider = dataProvider;
+
 		this._register(Event.any(this.userDataSyncMachinesService.onDidChange, this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
@@ -147,13 +143,9 @@ export class UserDataSyncDataViews extends Disposable {
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = remote ? this.instantiationService.createInstance(RemoteUserDataSyncActivityViewDataProvider)
-					: this.instantiationService.createInstance(LocalUserDataSyncActivityViewDataProvider);
-			}
-		});
+		treeView.dataProvider = remote ? this.instantiationService.createInstance(RemoteUserDataSyncActivityViewDataProvider)
+			: this.instantiationService.createInstance(LocalUserDataSyncActivityViewDataProvider);
+
 		this._register(Event.any(this.userDataSyncEnablementService.onDidChangeResourceEnablement,
 			this.userDataSyncEnablementService.onDidChangeEnablement,
 			this.userDataSyncService.onDidResetLocal,
@@ -255,12 +247,8 @@ export class UserDataSyncDataViews extends Disposable {
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncTroubleshootViewDataProvider);
 		treeView.showRefreshAction = true;
-		const disposable = treeView.onDidChangeVisibility(visible => {
-			if (visible && !treeView.dataProvider) {
-				disposable.dispose();
-				treeView.dataProvider = dataProvider;
-			}
-		});
+		treeView.dataProvider = dataProvider;
+
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,

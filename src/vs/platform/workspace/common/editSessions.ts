@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -20,8 +20,8 @@ export interface IEditSessionIdentityService {
 	readonly _serviceBrand: undefined;
 
 	registerEditSessionIdentityProvider(provider: IEditSessionIdentityProvider): IDisposable;
-	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationTokenSource: CancellationTokenSource): Promise<string | undefined>;
-	provideEditSessionIdentityMatch(workspaceFolder: IWorkspaceFolder, identity1: string, identity2: string, cancellationTokenSource: CancellationTokenSource): Promise<EditSessionIdentityMatch | undefined>;
+	getEditSessionIdentifier(workspaceFolder: IWorkspaceFolder, cancellationToken: CancellationToken): Promise<string | undefined>;
+	provideEditSessionIdentityMatch(workspaceFolder: IWorkspaceFolder, identity1: string, identity2: string, cancellationToken: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 }
 
 export enum EditSessionIdentityMatch {

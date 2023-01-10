@@ -7,7 +7,6 @@ import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -45,7 +44,7 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/views/viewFilter';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -304,9 +303,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
 
-		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
-			this.updateTitle(this.title);
-		}));
+		const viewContainerModel = this.viewDescriptorService.getViewContainerByViewId(this.id);
+		if (viewContainerModel) {
+			this._register(this.viewDescriptorService.getViewContainerModel(viewContainerModel).onDidChangeContainerInfo(({ title }) => this.updateTitle(this.title)));
+		} else {
+			console.error(`View container model not found for view ${this.id}`);
+		}
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
@@ -453,7 +455,7 @@ export abstract class ViewPane extends Pane implements IView {
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element, getProgressBarStyles()));
+			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
 		}
 
@@ -588,14 +590,13 @@ export abstract class ViewPane extends Pane implements IView {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, disposables);
 					disposables.add(button);
-					disposables.add(attachButtonStyler(button, this.themeService));
 
 					if (precondition) {
 						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
@@ -691,8 +692,10 @@ export abstract class FilterViewPane extends ViewPane {
 			this.updateActions();
 			if (!shouldShowFilterInHeader) {
 				append(this.filterContainer!, this.filterWidget.element);
-				height = height - 44;
 			}
+		}
+		if (!shouldShowFilterInHeader) {
+			height = height - 44;
 		}
 		this.filterWidget.layout(width);
 		this.layoutBodyContent(height, width);

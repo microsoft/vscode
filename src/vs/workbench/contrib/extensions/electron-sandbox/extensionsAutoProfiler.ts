@@ -221,19 +221,6 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		}
 		this._blame.add(ExtensionIdentifier.toKey(extension.identifier));
 
-		type UnresponsivePromptData = {
-			id: string;
-		};
-		type UnresponsivePromptDataClassification = {
-			owner: 'digitarald';
-			comment: 'Users got a warning about an extension hanging the extension process';
-			expiration: '1.73';
-			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extension id that froze the extension process' };
-		};
-		this._telemetryService.publicLog2<UnresponsivePromptData, UnresponsivePromptDataClassification>('exthostunresponsiveprompt', {
-			id: ExtensionIdentifier.toKey(extension.identifier),
-		});
-
 		// user-facing message when very bad...
 		this._notificationService.prompt(
 			Severity.Warning,

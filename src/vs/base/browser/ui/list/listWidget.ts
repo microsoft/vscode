@@ -8,8 +8,7 @@ import { createStyleSheet, Dimension, EventHelper } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
+import { alert, AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { binarySearch, firstOrDefault, range } from 'vs/base/common/arrays';
@@ -669,7 +668,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<T>): void {
-		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -683,6 +682,10 @@ export class MouseController<T> implements IDisposable {
 		}
 
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
+		if (e.browserEvent.defaultPrevented) {
 			return;
 		}
 
@@ -710,6 +713,7 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([focus], e.browserEvent);
 		}
 
+		e.browserEvent.preventDefault();
 		this._onPointer.fire(e);
 	}
 
@@ -722,8 +726,13 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		if (e.browserEvent.defaultPrevented) {
+			return;
+		}
+
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
+		e.browserEvent.preventDefault();
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
@@ -783,7 +792,7 @@ export interface IStyleController {
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | null;
 	getWidgetAriaLabel(): string;
-	getWidgetRole?(): string;
+	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
@@ -906,10 +915,18 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.tableColumnsBorder) {
 			content.push(`
-				.monaco-table:hover > .monaco-split-view2,
-				.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-table > .monaco-split-view2,
+				.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before,
+				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2,
+				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
-			}`);
+				}
+
+				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
+				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+					border-color: transparent;
+				}
+			`);
 		}
 
 		if (styles.tableOddRowsBackgroundColor) {
@@ -955,6 +972,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
@@ -963,7 +981,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly initialSize?: Dimension;
 }
 
-export interface IListStyles extends IFindInputStyles {
+export interface IListStyles {
 	listBackground?: Color;
 	listFocusBackground?: Color;
 	listFocusForeground?: Color;
@@ -985,10 +1003,6 @@ export interface IListStyles extends IFindInputStyles {
 	listInactiveFocusOutline?: Color;
 	listSelectionOutline?: Color;
 	listHoverOutline?: Color;
-	listFilterWidgetBackground?: Color;
-	listFilterWidgetOutline?: Color;
-	listFilterWidgetNoMatchesOutline?: Color;
-	listFilterWidgetShadow?: Color;
 	treeIndentGuidesStroke?: Color;
 	tableColumnsBorder?: Color;
 	tableOddRowsBackgroundColor?: Color;
@@ -1431,7 +1445,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		return this._options;
 	}
 
-	splice(start: number, deleteCount: number, elements: T[] = []): void {
+	splice(start: number, deleteCount: number, elements: readonly T[] = []): void {
 		if (start < 0 || start > this.view.length) {
 			throw new ListError(this.user, `Invalid start index: ${start}`);
 		}

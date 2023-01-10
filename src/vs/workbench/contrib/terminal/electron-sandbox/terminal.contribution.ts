@@ -21,5 +21,8 @@ registerSingleton(ITerminalProfileResolverService, ElectronTerminalProfileResolv
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalTerminalBackendContribution, LifecyclePhase.Restored);
+
+// This contribution needs to be active during the Startup phase to be available when a remote resolver tries to open a local
+// terminal while connecting to the remote.
+workbenchRegistry.registerWorkbenchContribution(LocalTerminalBackendContribution, LifecyclePhase.Starting);
 workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, LifecyclePhase.Restored);
