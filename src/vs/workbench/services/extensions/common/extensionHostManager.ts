@@ -741,7 +741,7 @@ class TelemetryRPCLogger implements IRPCProtocolLogger {
 
 		if (initiator === RequestInitiator.LocalSide && str.startsWith('request: ')) {
 			this._pendingRequests.set(req, str);
-			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.outgoing', {
 				type: str,
 				length: msgLength
 			});
