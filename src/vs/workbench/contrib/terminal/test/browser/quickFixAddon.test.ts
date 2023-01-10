@@ -333,7 +333,7 @@ suite('QuickFixAddon', () => {
 			});
 		});
 	});
-	suite.only('pwsh feedback providers', () => {
+	suite('pwsh feedback providers', () => {
 		suite('General', () => {
 			const expectedMap = new Map();
 			const command = `not important`;
