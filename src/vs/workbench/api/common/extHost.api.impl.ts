@@ -384,7 +384,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: tests
 		const tests: typeof vscode.tests = {
 			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => Thenable<void> | void) {
-				return extHostTesting.createTestController(provider, label, refreshHandler);
+				return extHostTesting.createTestController(extension, provider, label, refreshHandler);
 			},
 			createTestObserver() {
 				checkProposedApiEnabled(extension, 'testObserver');
@@ -1370,6 +1370,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
+			TestRunRequest2: extHostTypes.TestRunRequest2,
 			TestMessage: extHostTypes.TestMessage,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,

@@ -26,6 +26,7 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target
 globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
+// @ts-ignore
 // VSCODE_GLOBALS: file root of all resources
 globalThis._VSCODE_FILE_ROOT = __dirname;
 
@@ -96,18 +97,23 @@ if (isESM) {
 
 	// Running in Electron
 	if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-		loader.define('fs', ['original-fs'], function (originalFS) {
+		loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
 			return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 		});
 	}
 
 	// Pseudo NLS support
 	if (nlsConfig && nlsConfig.pseudo) {
-		loader(['vs/nls'], function (nlsPlugin) {
-			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+		loader(['vs/nls'], function (/** @type {import('vs/nls')} */nlsPlugin) {
+			nlsPlugin.setPseudoTranslation(!!nlsConfig.pseudo);
 		});
 	}
 
+	/**
+	 * @param {string} entrypoint
+	 * @param {(value: any) => void} onLoad
+	 * @param {(err: Error) => void} onError
+	 */
 	exports.load = function (entrypoint, onLoad, onError) {
 		if (!entrypoint) {
 			return;

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.75.0",
-  "distro": "0de5dd945e4f54a58022fb14521f0e394f0cee9d",
+  "distro": "bda3a40b2e2ccc17bfc526e63a54a3accdc7b87b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -57,7 +57,8 @@
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=8095 ./node_modules/gulp/bin/gulp.js core-ci",
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
-    "webview-generate-csp-hash": "npx github:apaatsio/csp-hash-from-html csp-hash ./src/vs/workbench/contrib/webview/browser/pre/index.html"
+    "webview-generate-csp-hash": "npx github:apaatsio/csp-hash-from-html csp-hash ./src/vs/workbench/contrib/webview/browser/pre/index.html",
+    "perf": "node scripts/code-perf.js"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.2",
@@ -131,6 +132,7 @@
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.8",
     "@vscode/test-web": "^0.0.32",
+    "@vscode/vscode-perf": "^0.0.1",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
@@ -141,7 +143,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "19.1.8",
+    "electron": "19.1.9",
     "esbuild": "0.15.5",
     "eslint": "8.7.0",
     "eslint-plugin-header": "3.1.1",
@@ -208,7 +210,7 @@
     "ts-loader": "^9.2.7",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.0.0-dev.20221214",
+    "typescript": "^5.0.0-dev.20230109",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

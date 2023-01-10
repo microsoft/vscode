@@ -86,7 +86,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 import 'vs/editor/common/services/languageFeaturesService';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
+import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -550,7 +550,9 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	private readonly _configuration: Configuration;
 
 	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const defaultConfiguration = new DefaultConfiguration();
+		this._configuration = new Configuration(defaultConfiguration.reload(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		defaultConfiguration.dispose();
 	}
 
 	getValue<T>(): T;

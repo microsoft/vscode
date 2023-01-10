@@ -834,8 +834,8 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-export function parseGitRemotes(raw: string): Remote[] {
-	const remotes: Remote[] = [];
+export function parseGitRemotes(raw: string): MutableRemote[] {
+	const remotes: MutableRemote[] = [];
 
 	for (const remoteSection of GitConfigParser.parse(raw).filter(s => s.name === 'remote')) {
 		if (remoteSection.subSectionName) {
@@ -843,8 +843,7 @@ export function parseGitRemotes(raw: string): Remote[] {
 				name: remoteSection.subSectionName,
 				fetchUrl: remoteSection.properties['url'],
 				pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
-				// https://github.com/microsoft/vscode/issues/45271
-				isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+				isReadOnly: false
 			});
 		}
 	}
@@ -2262,23 +2261,41 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
+		const remotes: MutableRemote[] = [];
+
 		try {
 			// Attempt to parse the config file
-			const remotes = await this.getRemotesFS();
-			if (remotes.length === 0) {
-				throw new Error('No remotes found in the git config file.');
-			}
+			remotes.push(...await this.getRemotesFS());
 
-			return remotes;
+			if (remotes.length === 0) {
+				this.logger.info('No remotes found in the git config file.');
+			}
 		}
 		catch (err) {
-			this.logger.warn(err.message);
+			this.logger.warn(`getRemotes() - ${err.message}`);
+
+			// Fallback to using git to get the remotes
+			remotes.push(...await this.getRemotesGit());
 		}
 
-		// Fallback to using git to determine remotes
+		for (const remote of remotes) {
+			// https://github.com/microsoft/vscode/issues/45271
+			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
+		}
+
+		return remotes;
+	}
+
+	private async getRemotesFS(): Promise<MutableRemote[]> {
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
+		return parseGitRemotes(raw);
+	}
+
+	private async getRemotesGit(): Promise<MutableRemote[]> {
+		const remotes: MutableRemote[] = [];
+
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
-		const remotes: MutableRemote[] = [];
 
 		for (const line of lines) {
 			const parts = line.split(/\s/);
@@ -2299,17 +2316,9 @@ export class Repository {
 				remote.fetchUrl = url;
 				remote.pushUrl = url;
 			}
-
-			// https://github.com/microsoft/vscode/issues/45271
-			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
 		}
 
 		return remotes;
-	}
-
-	private async getRemotesFS(): Promise<Remote[]> {
-		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
-		return parseGitRemotes(raw);
 	}
 
 	async getBranch(name: string): Promise<Branch> {

@@ -243,7 +243,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 					remoteAuthority: undefined,
 					userHome: 'C:\\Home',
 					backend: {
-						async getWslPath(original, direction) {
+						async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix') {
 							if (direction === 'unix-to-win') {
 								return wslUnixToWindowsPathMap.get(original) ?? original;
 							}

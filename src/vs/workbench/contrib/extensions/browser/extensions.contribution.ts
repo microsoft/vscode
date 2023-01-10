@@ -75,7 +75,6 @@ import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/exte
 import { isWeb } from 'vs/base/common/platform';
 import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import product from 'vs/platform/product/common/product';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 // Singletons
@@ -222,11 +221,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			'extensions.experimental.useUtilityProcess': {
+			'extensions.experimental.useUtilityProcess': { // TODO@bpasero remove me once sandbox is enabled by default
 				type: 'boolean',
-				tags: ['experimental'],
 				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
-				default: product.quality === 'stable' ? false : true // disabled by default in stable for now
+				default: true
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
