@@ -57,7 +57,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
+import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1103,14 +1103,14 @@ export async function getOriginalResource(quickDiffService: IQuickDiffService, u
 
 export class DirtyDiffModel extends Disposable {
 
-	private _originalResource: URI | null = null;
+	private _quickDiffs: QuickDiff[] | null = null;
 	private _originalModel: IResolvedTextEditorModel | null = null;
 	private _model: ITextFileEditorModel;
 	get original(): ITextModel | null { return this._originalModel?.textEditorModel || null; }
 	get modified(): ITextModel | null { return this._model.textEditorModel || null; }
 
 	private diffDelayer = new ThrottledDelayer<IChange[] | null>(200);
-	private _originalURIPromise?: Promise<URI | null>;
+	private _quickDiffsPromise?: Promise<QuickDiff[]>;
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 	private _disposed = false;
@@ -1146,9 +1146,9 @@ export class DirtyDiffModel extends Disposable {
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
-			this._originalResource = null;
+			this._quickDiffs = null;
 			this._originalModel = null;
-			this._originalURIPromise = undefined;
+			this._quickDiffsPromise = undefined;
 			this.setChanges([]);
 			this.triggerDiff();
 		}));
@@ -1202,85 +1202,99 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<IChange[] | null> {
-		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
-			return this.getOriginalURIPromise().then(originalURI => {
-				if (this._disposed || this._model.isDisposed() || !originalURI) {
-					return Promise.resolve([]); // disposed
-				}
-
-				if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this._model.resource)) {
-					return Promise.resolve([]); // Files too large
-				}
-
-				const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
-				const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
-					? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
-					: ignoreTrimWhitespaceSetting !== 'false';
-
-				return this.editorWorkerService.computeDirtyDiff(originalURI, this._model.resource, ignoreTrimWhitespace);
-			});
-		});
-	}
-
-	private getOriginalURIPromise(): Promise<URI | null> {
-		if (this._originalURIPromise) {
-			return this._originalURIPromise;
+		function isIChange(thing: IChange | null): thing is IChange {
+			return !!thing;
 		}
 
-		this._originalURIPromise = this.getOriginalResource().then(originalUri => {
-			if (this._disposed) { // disposed
-				return null;
+		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
+			const originalURIs = await this.getQuickDiffsPromise();
+			if (this._disposed || this._model.isDisposed() || (originalURIs.length === 0)) {
+				return Promise.resolve([]); // disposed
 			}
 
-			if (!originalUri) {
-				this._originalResource = null;
-				this._originalModel = null;
-				return null;
+			if (originalURIs.some(quickDiff => !this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource))) {
+				return Promise.resolve([]); // Files too large
 			}
 
-			if (this._originalResource?.toString() === originalUri.toString()) {
-				return originalUri;
-			}
+			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
+			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
+				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
+				: ignoreTrimWhitespaceSetting !== 'false';
 
-			return this.textModelResolverService.createModelReference(originalUri).then(ref => {
-				if (this._disposed) { // disposed
-					ref.dispose();
-					return null;
+			const allDiffs: IChange[] = [];
+			for (const quickDiff of originalURIs) {
+				const dirtyDiff = await this.editorWorkerService.computeDirtyDiff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
+				const filtered = dirtyDiff?.filter(isIChange);
+				if (filtered) {
+					allDiffs.push(...filtered);
 				}
-
-				this._originalResource = originalUri;
-				this._originalModel = ref.object;
-
-				if (isTextFileEditorModel(this._originalModel)) {
-					const encoding = this._model.getEncoding();
-
-					if (encoding) {
-						this._originalModel.setEncoding(encoding, EncodingMode.Decode);
-					}
-				}
-
-				this.originalModelDisposables.clear();
-				this.originalModelDisposables.add(ref);
-				this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-				return originalUri;
-			}).catch(error => {
-				return null; // possibly invalid reference
-			});
-		});
-
-		return this._originalURIPromise.finally(() => {
-			this._originalURIPromise = undefined;
+			}
+			return allDiffs.sort(compareChanges);
 		});
 	}
 
-	private async getOriginalResource(): Promise<URI | null> {
+	private getQuickDiffsPromise(): Promise<QuickDiff[]> {
+		if (this._quickDiffsPromise) {
+			return this._quickDiffsPromise;
+		}
+
+		this._quickDiffsPromise = this.getOriginalResource().then(async (quickDiffs) => {
+			if (this._disposed) { // disposed
+				return [];
+			}
+
+			if (quickDiffs.length === 0) {
+				this._quickDiffs = null;
+				this._originalModel = null;
+				return [];
+			}
+
+			if (this._quickDiffs?.toString() === quickDiffs.toString()) {
+				return quickDiffs;
+			}
+
+			this.originalModelDisposables.clear();
+			return (await Promise.all(quickDiffs.map(async (quickDiff) => {
+				try {
+					const ref = await this.textModelResolverService.createModelReference(quickDiff.originalResource);
+					if (this._disposed) { // disposed
+						ref.dispose();
+						return [];
+					}
+
+					this._quickDiffs = quickDiffs;
+					this._originalModel = ref.object;
+
+					if (isTextFileEditorModel(this._originalModel)) {
+						const encoding = this._model.getEncoding();
+
+						if (encoding) {
+							this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+						}
+					}
+
+					this.originalModelDisposables.add(ref);
+					this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+
+					return quickDiff;
+				} catch (error) {
+					return []; // possibly invalid reference
+				}
+			}))).flat();
+		});
+
+		return this._quickDiffsPromise.finally(() => {
+			this._quickDiffsPromise = undefined;
+		});
+	}
+
+	private async getOriginalResource(): Promise<QuickDiff[]> {
 		if (this._disposed) {
-			return Promise.resolve(null);
+			return Promise.resolve([]);
 		}
 
 		const uri = this._model.resource;
-		return getOriginalResource(this.quickDiffService, uri);
+		return this.quickDiffService.getQuickDiffs(uri);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {
@@ -1323,7 +1337,7 @@ export class DirtyDiffModel extends Disposable {
 		super.dispose();
 
 		this._disposed = true;
-		this._originalResource = null;
+		this._quickDiffs = null;
 		this._originalModel = null;
 		this.diffDelayer.cancel();
 		this.repositoryDisposables.forEach(d => dispose(d));
