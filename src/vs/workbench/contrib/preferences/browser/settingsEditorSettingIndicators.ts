@@ -39,9 +39,15 @@ interface SettingIndicator {
 }
 
 /**
- * Contains a copy of the sync-ignored settings to keep the sync ignored indicator and the
- * getIndicatorsLabelAriaLabel() function in sync.
+ * Contains a set of the sync-ignored settings
+ * to keep the sync ignored indicator and the getIndicatorsLabelAriaLabel() function in sync.
  * SettingsTreeIndicatorsLabel#updateSyncIgnored provides the source of truth.
+ */
+let cachedSyncIgnoredSettingsSet: Set<string> = new Set<string>();
+
+/**
+ * Contains a copy of the sync-ignored settings to determine when to update
+ * cachedSyncIgnoredSettingsSet.
  */
 let cachedSyncIgnoredSettings: string[] = [];
 
@@ -220,7 +226,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.syncIgnoredIndicator.element.style.display = this.userDataSyncEnablementService.isEnabled()
 			&& ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
 		this.render();
-		cachedSyncIgnoredSettings = ignoredSettings;
+		if (cachedSyncIgnoredSettings !== ignoredSettings) {
+			cachedSyncIgnoredSettings = ignoredSettings;
+			cachedSyncIgnoredSettingsSet = new Set<string>(cachedSyncIgnoredSettings);
+		}
 	}
 
 	private getInlineScopeDisplayText(completeScope: string): string {
@@ -462,7 +471,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add sync ignored text
-	if (cachedSyncIgnoredSettings.includes(element.setting.key)) {
+	if (cachedSyncIgnoredSettingsSet.has(element.setting.key)) {
 		ariaLabelSections.push(localize('syncIgnoredAriaLabel', "Setting ignored during sync"));
 	}
 
