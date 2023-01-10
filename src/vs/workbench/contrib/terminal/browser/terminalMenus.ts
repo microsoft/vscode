@@ -517,7 +517,46 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(TerminalContextKeys.webExtensionContributedProfile, TerminalContextKeys.processSupported)
 					)
 				}
-			}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.Clear,
+						title: localize('workbench.action.terminal.clearLong', "Clear Terminal"),
+						icon: Codicon.clearAll
+					},
+					group: 'navigation',
+					order: 4,
+					isHiddenByDefault: true
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.RunRecentCommand,
+						title: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command"),
+						icon: Codicon.history
+					},
+					group: 'navigation',
+					order: 5,
+					isHiddenByDefault: true
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.GoToRecentDirectory,
+						title: localize('workbench.action.terminal.goToRecentDirectory', "Go To Recent Directory"),
+						icon: Codicon.folder
+					},
+					group: 'navigation',
+					order: 6,
+					isHiddenByDefault: true
+				}
+			},
 		]
 	);
 
