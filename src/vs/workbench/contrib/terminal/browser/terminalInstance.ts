@@ -1024,6 +1024,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
+			if (this._accessibilityService.isScreenReaderOptimized() && event.shiftKey) {
+				console.log('in here');
+				console.log(this.xterm?.raw.getBufferElements(0));
+			}
+
 			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
 			// system
 			if (isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
