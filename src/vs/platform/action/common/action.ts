@@ -77,8 +77,6 @@ export interface ICommandAction {
 	 * or define toggle-info including an icon and a title that goes well with a checkmark.
 	 */
 	toggled?: ContextKeyExpression | ICommandActionToggleInfo;
-
-	isHiddenByDefault?: boolean;
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
