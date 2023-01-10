@@ -12,7 +12,7 @@ import { TypeScriptVersion } from './versionProvider';
 import { ServiceConnection } from '@vscode/sync-api-common/browser';
 import { Requests, ApiService } from '@vscode/sync-api-service';
 import { TypeScriptVersionManager } from './versionManager';
-import { FileWatcherManager } from '../../../markdown-language-features/src/client/fileWatchingManager';
+import { FileWatcherManager } from './fileWatchingManager';
 type BrowserWatchEvent = {
 	type: 'watchDirectory' | 'watchFile';
 	recursive?: boolean;

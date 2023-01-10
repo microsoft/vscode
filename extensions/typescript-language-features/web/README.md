@@ -59,7 +59,7 @@ Language server host for typescript using vscode's sync-api in the browser
     - previous implementation (although it's syntax-only so only covers part)
     - node implementation in typescript proper
 - [ ] make realpath support symlinks similarly to node's realpath.
-- [ ] organise webServer.ts into multiple files
+- [x] organise webServer.ts into multiple files
   - OR at least re-arrange it so the diff with the previous version is smaller
   - split it into multiple files after the initial PR
 - [x] clear out TODOs

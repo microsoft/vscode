@@ -126,7 +126,7 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 			client.sendRequest(proto.fs_watcher_onChange, { id, uri: params.uri, kind });
 		};
 
-		watchers.create(id, uri, params.watchParentDirs, /*isRecursive*/ false, {
+		watchers.create(id, uri, params.watchParentDirs, {
 			create: params.options.ignoreCreate ? undefined : () => sendWatcherChange('create'),
 			change: params.options.ignoreChange ? undefined : () => sendWatcherChange('change'),
 			delete: params.options.ignoreDelete ? undefined : () => sendWatcherChange('delete'),

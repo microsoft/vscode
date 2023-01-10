@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
-import { disposeAll, IDisposable } from '../util/dispose';
-import { ResourceMap } from '../util/resourceMap';
-import { Schemes } from '../util/schemes';
+import { disposeAll, IDisposable } from '../utils/dispose';
+import { ResourceMap } from '../utils/resourceMap';
+import { Schemes } from '../utils/schemes';
 
 type DirWatcherEntry = {
 	readonly uri: vscode.Uri;
@@ -25,10 +25,10 @@ export class FileWatcherManager {
 	private readonly _dirWatchers = new ResourceMap<{
 		readonly watcher: vscode.FileSystemWatcher;
 		refCount: number;
-	}>();
+	}>(uri => uri.toString(), { onCaseInsensitiveFileSystem: false });
 
-	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, listeners: { create?: () => void; change?: () => void; delete?: () => void }): void {
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'), !listeners.create, !listeners.change, !listeners.delete);
+	create(id: number, uri: vscode.Uri, watchParentDirs: boolean, isRecursive: boolean, listeners: { create?: (uri: vscode.Uri) => void; change?: (uri: vscode.Uri) => void; delete?: (uri: vscode.Uri) => void }): void {
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, isRecursive ? '**' : '*'), !listeners.create, !listeners.change, !listeners.delete);
 		const parentDirWatchers: DirWatcherEntry[] = [];
 		this._fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
 
@@ -56,7 +56,7 @@ export class FileWatcherManager {
 						try {
 							const stat = await vscode.workspace.fs.stat(uri);
 							if (stat.type === vscode.FileType.File) {
-								listeners.create!();
+								listeners.create!(uri);
 							}
 						} catch {
 							// Noop
