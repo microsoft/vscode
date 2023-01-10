@@ -97,7 +97,7 @@ class PersistedMenuHideState {
 	updateHidden(menu: MenuId, commandId: string, hidden: boolean): void {
 		const hiddenByDefault = this._isHiddenByDefault(menu, commandId);
 		const entries = this._data[menu.id];
-		if (hidden === hiddenByDefault) {
+		if (hidden === !hiddenByDefault) {
 			// remove and cleanup
 			if (entries) {
 				const idx = entries.indexOf(commandId);
