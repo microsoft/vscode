@@ -320,7 +320,7 @@ export const enum CellRevealSyncType {
 	CenterIfOutsideViewport = 4
 }
 
-export enum CellRevealLineType {
+export enum CellRevealRangeType {
 	Default = 1,
 	Center = 2,
 	CenterIfOutsideViewport = 3,
