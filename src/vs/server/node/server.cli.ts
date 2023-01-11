@@ -229,7 +229,14 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				}
 			});
 
-			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
+			let execArgv: string[] | undefined;
+			// ESM-uncomment-begin
+			// if (process.env['VSCODE_DEV']) {
+			// 	execArgv = ['--experimental-loader', join(__dirname, '../../../server-loader.mjs')];
+			// }
+			// ESM-uncomment-end
+
+			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit', execArgv });
 			cp.on('error', err => console.log(err));
 			return;
 		}
