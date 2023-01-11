@@ -213,8 +213,14 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
-
-		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		let execPromise: Promise<string>;
+		if (process.env.WSL_DISTRO_NAME) {
+			execPromise = Promise.resolve(settings.windowsExec || 'cmd.exe');
+		} else if (settings.linuxExec) {
+			execPromise = Promise.resolve(settings.linuxExec);
+		} else {
+			execPromise = LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
+		}
 
 		return new Promise<number | undefined>((resolve, reject) => {
 
