@@ -385,6 +385,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.RenderAccessibilityElement,
+				title: { value: localize('workbench.action.terminal.renderAccessibilityElement', 'Render Accessibility Element'), original: 'Render Accessibility Element' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.Tab,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: TerminalContextKeys.focus
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			accessor.get(ITerminalService).activeInstance?.renderAccessibilityElement();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.GoToRecentDirectory,
 				title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."), original: 'Go to Recent Directory...' },
 				f1: true,

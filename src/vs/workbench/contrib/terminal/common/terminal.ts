@@ -499,6 +499,7 @@ export const enum TerminalCommandId {
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
+	RenderAccessibilityElement = 'workbench.action.terminal.renderAccessibilityElement',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',

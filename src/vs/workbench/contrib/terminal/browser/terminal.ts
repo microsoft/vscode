@@ -67,8 +67,6 @@ export interface ITerminalInstanceService {
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 }
 
-export interface IBufferElements { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }
-
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
 	panelContainer: HTMLElement | undefined;
 }
@@ -708,6 +706,11 @@ export interface ITerminalInstance {
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
+	 * Renders the terminal buffer as an accessible element
+	 */
+	renderAccessibilityElement(): void;
+
+	/**
 	 * Check if anything is selected in terminal.
 	 */
 	hasSelection(): boolean;
@@ -1018,8 +1021,6 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
-
-	getBufferElements(startLine: number, endLine?: number): IBufferElements;
 }
 
 export interface IInternalXtermTerminal {

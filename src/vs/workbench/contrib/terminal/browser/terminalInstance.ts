@@ -57,7 +57,7 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IBufferElements, IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -1025,10 +1025,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
-			if (this._accessibilityService.isScreenReaderOptimized() && event.shiftKey) {
-				this.renderAccessibilityElement(this.xterm!.getBufferElements(0));
-			}
-
 			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
 			// system
 			if (isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
@@ -1099,7 +1095,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	renderAccessibilityElement(elements: IBufferElements): void {
+	renderAccessibilityElement(): void {
+		const elements = this.xterm!.getBufferElements(0);
 		if (!this.xterm?.raw.element) {
 			return;
 		}
