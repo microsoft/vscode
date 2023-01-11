@@ -1382,9 +1382,14 @@ export class Repository implements Disposable {
 	}
 
 	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
-		return await this.run(Operation.GetRefs, () => {
-			return this.repository.getRefs(query, cancellationToken);
-		});
+		const config = workspace.getConfiguration('git');
+		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
+		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
+			defaultSort = 'alphabetically';
+		}
+
+		query = { ...query, sort: query?.sort ?? defaultSort };
+		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
 	}
 
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
@@ -1997,16 +2002,10 @@ export class Repository implements Disposable {
 			this._sourceControl.commitTemplate = commitTemplate;
 
 			// Execute cancellable long-running operations
-			const config = workspace.getConfiguration('git');
-			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-			if (sort !== 'alphabetically' && sort !== 'committerdate') {
-				sort = 'alphabetically';
-			}
-
 			const [resourceGroups, refs] =
 				await Promise.all([
 					this.getStatus(cancellationToken),
-					this.repository.getRefs({ sort }, cancellationToken)]);
+					this.getRefs({}, cancellationToken)]);
 
 			this._refs = refs!;
 			this._updateResourceGroupsState(resourceGroups);
