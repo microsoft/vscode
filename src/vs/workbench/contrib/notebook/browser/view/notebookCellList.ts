@@ -889,27 +889,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	//#region Reveal Cell asynchronously
 	async revealCellAsync(cell: ICellViewModel, revealType: CellRevealType) {
-		const index = this._getViewIndexUpperBound(cell);
+		const viewIndex = this._getViewIndexUpperBound(cell);
 
-		if (index < 0) {
+		if (viewIndex < 0) {
 			return;
 		}
 
-		switch (revealType) {
-			case CellRevealType.NearTopIfOutsideViewport:
-				return this._revealIfOutsideViewportAsync(index, CellRevealPosition.NearTop);
-			case CellRevealType.CenterIfOutsideViewport:
-				return this._revealIfOutsideViewportAsync(index, CellRevealPosition.Center);
-		}
-	}
-
-	private async _revealIfOutsideViewportAsync(viewIndex: number, revealPosition: CellRevealPosition): Promise<void> {
+		const revealPosition = revealType === CellRevealType.NearTopIfOutsideViewport ? CellRevealPosition.NearTop : CellRevealPosition.Center;
 		this._revealInternal(viewIndex, true, revealPosition);
-		const element = this.view.element(viewIndex);
 
 		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (element.getEditState() === CellEditState.Editing && !element.editorAttached) {
-			return getEditorAttachedPromise(element);
+		if (cell.getEditState() === CellEditState.Editing && !cell.editorAttached) {
+			return getEditorAttachedPromise(cell);
 		}
 
 		return;
@@ -1434,7 +1425,7 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 }
 
-function getEditorAttachedPromise(element: CellViewModel) {
+function getEditorAttachedPromise(element: ICellViewModel) {
 	return new Promise<void>((resolve, reject) => {
 		Event.once(element.onDidChangeEditorAttachState)(() => element.editorAttached ? resolve() : reject());
 	});
