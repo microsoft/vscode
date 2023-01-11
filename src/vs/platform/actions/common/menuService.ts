@@ -48,6 +48,8 @@ class PersistedMenuHideState {
 	private _ignoreChangeEvent: boolean = false;
 	private _data: Record<string, string[] | undefined>;
 
+	private _hiddenByDefaultCache = new Map<string, boolean>();
+
 	constructor(@IStorageService private readonly _storageService: IStorageService) {
 		try {
 			const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');
@@ -78,14 +80,11 @@ class PersistedMenuHideState {
 	}
 
 	private _isHiddenByDefault(menu: MenuId, commandId: string) {
-		let hiddenByDefault = false;
-		for (const item of MenuRegistry.getMenuItems(menu)) {
-			if (isIMenuItem(item) && item.command.id === commandId) {
-				hiddenByDefault = Boolean(item.isHiddenByDefault);
-				break;
-			}
-		}
-		return hiddenByDefault;
+		return this._hiddenByDefaultCache.get(`${menu.id}/${commandId}`) ?? false;
+	}
+
+	setDefaultState(menu: MenuId, commandId: string, hidden: boolean): void {
+		this._hiddenByDefaultCache.set(`${menu.id}/${commandId}`, hidden);
 	}
 
 	isHidden(menu: MenuId, commandId: string): boolean {
@@ -239,6 +238,10 @@ class MenuInfo {
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const isMenuItem = isIMenuItem(item);
+					if (isMenuItem) {
+						this._hiddenStates.setDefaultState(this._id, item.command.id, !!item.isHiddenByDefault);
+					}
+
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
