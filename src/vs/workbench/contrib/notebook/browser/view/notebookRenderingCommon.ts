@@ -14,17 +14,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealLineType, CellRevealSyncType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export const enum CellRevealSyncType {
-	Default = 1,
-	Top = 2,
-	Center = 3,
-	CenterIfOutsideViewport = 4
-}
 
 export interface INotebookCellList {
 	isDisposed: boolean;
@@ -69,11 +63,8 @@ export interface INotebookCellList {
 	isScrolledToBottom(): boolean;
 	scrollToBottom(): void;
 	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
-	revealElementInCenterIfOutsideViewportAsync(element: ICellViewModel): Promise<void>;
-	revealNearTopIfOutsideViewportAync(element: ICellViewModel): Promise<void>;
-	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
-	revealElementLineInCenterAsync(element: ICellViewModel, line: number): Promise<void>;
-	revealElementLineInCenterIfOutsideViewportAsync(element: ICellViewModel, line: number): Promise<void>;
+	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): void;
+	revealCellLineAsync(cell: ICellViewModel, line: number, revealType: CellRevealLineType): Promise<void>;
 	revealElementRangeInViewAsync(element: ICellViewModel, range: Range): Promise<void>;
 	revealElementRangeInCenterAsync(element: ICellViewModel, range: Range): Promise<void>;
 	revealElementRangeInCenterIfOutsideViewportAsync(element: ICellViewModel, range: Range): Promise<void>;

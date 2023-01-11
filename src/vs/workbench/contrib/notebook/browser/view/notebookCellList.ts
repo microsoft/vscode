@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealLineType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -26,7 +26,7 @@ import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common
 import { clamp } from 'vs/base/common/numbers';
 import { ISplice } from 'vs/base/common/sequence';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { BaseCellRenderTemplate, CellRevealSyncType, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -836,43 +836,35 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	async revealElementInCenterIfOutsideViewportAsync(cell: ICellViewModel): Promise<void> {
+	async revealCellAsync(cell: ICellViewModel, revealType: CellRevealType) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index >= 0) {
-			return this._revealIfOutsideViewportAsync(index, CellRevealPosition.Center);
+		if (index < 0) {
+			return;
+		}
+
+		switch (revealType) {
+			case CellRevealType.NearTopIfOutsideViewport:
+				return this._revealIfOutsideViewportAsync(index, CellRevealPosition.NearTop);
+			case CellRevealType.CenterIfOutsideViewport:
+				return this._revealIfOutsideViewportAsync(index, CellRevealPosition.Center);
 		}
 	}
 
-	async revealNearTopIfOutsideViewportAync(cell: ICellViewModel): Promise<void> {
+	async revealCellLineAsync(cell: ICellViewModel, line: number, revealType: CellRevealLineType) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index >= 0) {
-			return this._revealIfOutsideViewportAsync(index, CellRevealPosition.NearTop);
+		if (index < 0) {
+			return;
 		}
-	}
 
-	async revealElementLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealLineInViewAsync(index, line);
-		}
-	}
-
-	async revealElementLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealLineInCenterAsync(index, line);
-		}
-	}
-
-	async revealElementLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealLineInCenterIfOutsideViewportAsync(index, line);
+		switch (revealType) {
+			case CellRevealLineType.Default:
+				return this._revealLineInViewAsync(index, line);
+			case CellRevealLineType.Center:
+				return this._revealLineInCenterAsync(index, line);
+			case CellRevealLineType.CenterIfOutsideViewport:
+				return this._revealLineInCenterIfOutsideViewportAsync(index, line);
 		}
 	}
 
@@ -1477,7 +1469,7 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 
 	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
-		return this.list.revealElementInCenterIfOutsideViewportAsync(cell);
+		return this.list.revealCellAsync(cell, CellRevealType.CenterIfOutsideViewport);
 	}
 
 	revealInCenter(cell: ICellViewModel) {
@@ -1485,19 +1477,19 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 
 	async revealNearTopIfOutsideViewportAync(cell: ICellViewModel) {
-		return this.list.revealNearTopIfOutsideViewportAync(cell);
+		return this.list.revealCellAsync(cell, CellRevealType.NearTopIfOutsideViewport);
 	}
 
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInViewAsync(cell, line);
+		return this.list.revealCellLineAsync(cell, line, CellRevealLineType.Default);
 	}
 
 	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInCenterAsync(cell, line);
+		return this.list.revealCellLineAsync(cell, line, CellRevealLineType.Center);
 	}
 
 	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
+		return this.list.revealCellLineAsync(cell, line, CellRevealLineType.CenterIfOutsideViewport);
 	}
 
 	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
