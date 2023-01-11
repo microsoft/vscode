@@ -60,7 +60,6 @@ export interface INotebookCellList {
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealCellsInView(range: ICellRange): void;
-	isScrolledToBottom(): boolean;
 	scrollToBottom(): void;
 	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
 	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
@@ -74,7 +73,7 @@ export interface INotebookCellList {
 	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
 	focusContainer(): void;
-	setCellSelection(element: ICellViewModel, range: Range): void;
+	setCellEditorSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;
 	getScrollHeight(): number;
