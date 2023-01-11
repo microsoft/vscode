@@ -61,6 +61,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
+		[TerminalSettingId.AccessibilityElementContentEditable]: {
+			description: localize('terminal.integrated.accessibilityElementContentEditable', 'Controls whether the terminal accessibility element is content editable'),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.TabsHideCondition]: {
 			description: localize('terminal.integrated.tabs.hideCondition', 'Controls whether the terminal tabs view will hide under certain conditions.'),
 			type: 'string',

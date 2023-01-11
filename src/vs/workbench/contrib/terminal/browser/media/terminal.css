@@ -560,3 +560,8 @@
 	left: 5px !important;
 	top: 20px !important;
 }
+
+.xterm .xterm-accessibility:focus div {
+	font-family: inherit;
+	font-size: inherit;
+}

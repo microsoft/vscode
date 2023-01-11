@@ -57,7 +57,7 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IBufferElements, IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -1099,33 +1099,40 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	// Key binding
-	// button to expand ? try on windows w role: document
-	private renderAccessibilityElement(elements: { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }): void {
-		if (!this._accessibilityElement) {
-			this._accessibilityElement = document.createElement('section');
-			this._accessibilityElement.contentEditable = 'true';
+	renderAccessibilityElement(elements: IBufferElements): void {
+		if (!this.xterm?.raw.element) {
+			return;
+		}
+
+		if (this._accessibilityElement) {
+			this._accessibilityElement.replaceChildren(...elements.bufferElements);
+		} else {
+			const contentEditable = this._configurationService.getValue(TerminalSettingId.AccessibilityElementContentEditable);
+			this._accessibilityElement = document.createElement(contentEditable ? 'section' : 'div');
+			this._accessibilityElement.contentEditable = contentEditable ? 'true' : 'false';
+			this._accessibilityElement.tabIndex = 0;
 			this._accessibilityElement.role = 'document';
 			this._accessibilityElement.spellcheck = false;
 			this._accessibilityElement.classList.add('xterm-accessibility');
-			this.xterm?.raw.element?.insertAdjacentElement('afterbegin', this._accessibilityElement);
+			this.xterm.raw.element.insertAdjacentElement('afterbegin', this._accessibilityElement);
 			for (const element of elements.bufferElements) {
 				this._accessibilityElement.appendChild(element);
 			}
-		} else {
-			this._accessibilityElement.replaceChildren(...elements.bufferElements);
 		}
-
-		const s = document.getSelection();
-		if (s && elements.cursorElement) {
-			s.removeAllRanges();
-			const r = document.createRange();
-			r.selectNode(elements.bufferElements[elements.bufferElements.length - 1]);
-			r.setStart(elements.cursorElement, 0);
-			r.setEnd(elements.cursorElement, 0);
-			s.addRange(r);
-		}
+		const fontFamily = this._configurationService.getValue(TerminalSettingId.FontFamily);
+		const fontSize = this._configurationService.getValue(TerminalSettingId.FontSize);
+		this._accessibilityElement.style.fontFamily = fontFamily ? fontFamily.toString() : '';
+		this._accessibilityElement.style.fontSize = fontSize ? fontSize + 'px' : '';
 		this._accessibilityElement.scrollTop = this._accessibilityElement.scrollHeight;
+		const selection = document.getSelection();
+		if (selection && elements.cursorElement) {
+			selection.removeAllRanges();
+			const range = document.createRange();
+			range.selectNode(elements.bufferElements[elements.bufferElements.length - 1]);
+			range.setStart(elements.cursorElement, 0);
+			range.setEnd(elements.cursorElement, 0);
+			selection.addRange(range);
+		}
 		this._accessibilityElement.focus();
 	}
 

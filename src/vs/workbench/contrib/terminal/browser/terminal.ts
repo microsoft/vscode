@@ -67,6 +67,8 @@ export interface ITerminalInstanceService {
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 }
 
+export interface IBufferElements { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }
+
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
 	panelContainer: HTMLElement | undefined;
 }
@@ -1017,7 +1019,7 @@ export interface IXtermTerminal {
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
 
-	getBufferElements(startLine: number, endLine?: number): { bufferElements: HTMLElement[]; cursorElement?: HTMLElement };
+	getBufferElements(startLine: number, endLine?: number): IBufferElements;
 }
 
 export interface IInternalXtermTerminal {
