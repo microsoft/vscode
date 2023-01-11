@@ -192,8 +192,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		if (this.model.original) {
-			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original.uri.scheme]]);
+		if (this.model.original && (this.model.original.length > 0)) {
+			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
 		}
 
 		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
@@ -226,7 +226,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		// non-side-by-side diff still hasn't created the view zones
 		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
 
-		this.diffEditor.setModel(this.model as IDiffEditorModel);
+		const diffEditorModel = this.model.diffEditorModel(labeledChange.uri.toString());
+		this.diffEditor.setModel(diffEditorModel);
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 
@@ -241,7 +242,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const changeTypeColor = getChangeTypeColor(this.themeService.getColorTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
-		this._actionbarWidget!.context = [this.model.modified!.uri, this.model.changes, index];
+		this._actionbarWidget!.context = [diffEditorModel.modified.uri, this.model.changes, index];
 		this.show(position, height);
 		this.editor.focus();
 	}
@@ -1084,15 +1085,14 @@ export async function getOriginalResource(quickDiffService: IQuickDiffService, u
 	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }
 
-type LabeledChange = { change: IChange; labels: string[] };
+type LabeledChange = { change: IChange; labels: string[]; uri: URI };
 
 export class DirtyDiffModel extends Disposable {
 
 	private _quickDiffs: QuickDiff[] | null = null;
-	private _originalModel: IResolvedTextEditorModel | null = null;
+	private _originalModels: Map<string, IResolvedTextEditorModel> = new Map(); // key is uri.toString()
 	private _model: ITextFileEditorModel;
-	get original(): ITextModel | null { return this._originalModel?.textEditorModel || null; }
-	get modified(): ITextModel | null { return this._model.textEditorModel || null; }
+	get original(): ITextModel[] { return Array.from(this._originalModels.values()).map(original => original.textEditorModel); }
 
 	private diffDelayer = new ThrottledDelayer<LabeledChange[] | null>(200);
 	private _quickDiffsPromise?: Promise<QuickDiff[]>;
@@ -1132,13 +1132,20 @@ export class DirtyDiffModel extends Disposable {
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
 			this._quickDiffs = null;
-			this._originalModel = null;
+			this._originalModels.clear();
 			this._quickDiffsPromise = undefined;
 			this.setChanges([]);
 			this.triggerDiff();
 		}));
 
 		this.triggerDiff();
+	}
+
+	public diffEditorModel(originalUri: string): IDiffEditorModel {
+		return {
+			modified: this._model.textEditorModel!,
+			original: this._originalModels.get(originalUri)?.textEditorModel!
+		};
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -1164,11 +1171,12 @@ export class DirtyDiffModel extends Disposable {
 		return this.diffDelayer
 			.trigger(() => this.diff())
 			.then((changes: LabeledChange[] | null) => {
-				if (this._disposed || this._model.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
+				const originalModels = Array.from(this._originalModels.values());
+				if (this._disposed || this._model.isDisposed() || originalModels.some(originalModel => originalModel.isDisposed())) {
 					return; // disposed
 				}
 
-				if (this._originalModel.textEditorModel.getValueLength() === 0) {
+				if (originalModels.every(originalModel => originalModel.textEditorModel.getValueLength() === 0)) {
 					changes = [];
 				}
 
@@ -1202,13 +1210,13 @@ export class DirtyDiffModel extends Disposable {
 				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 				: ignoreTrimWhitespaceSetting !== 'false';
 
-			const allDiffs: { change: IChange; labels: string[] }[] = [];
+			const allDiffs: { change: IChange; labels: string[]; uri: URI }[] = [];
 			for (const quickDiff of originalURIs) {
 				const dirtyDiff = await this.editorWorkerService.computeDirtyDiff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
 				if (dirtyDiff) {
 					for (const diff of dirtyDiff) {
 						if (diff) {
-							allDiffs.push({ change: diff, labels: [quickDiff.label] });
+							allDiffs.push({ change: diff, labels: [quickDiff.label], uri: quickDiff.originalResource });
 						}
 					}
 				}
@@ -1243,7 +1251,7 @@ export class DirtyDiffModel extends Disposable {
 
 			if (quickDiffs.length === 0) {
 				this._quickDiffs = null;
-				this._originalModel = null;
+				this._originalModels.clear();
 				return [];
 			}
 
@@ -1252,6 +1260,8 @@ export class DirtyDiffModel extends Disposable {
 			}
 
 			this.originalModelDisposables.clear();
+			this._originalModels.clear();
+			this._quickDiffs = quickDiffs;
 			return (await Promise.all(quickDiffs.map(async (quickDiff) => {
 				try {
 					const ref = await this.textModelResolverService.createModelReference(quickDiff.originalResource);
@@ -1260,14 +1270,13 @@ export class DirtyDiffModel extends Disposable {
 						return [];
 					}
 
-					this._quickDiffs = quickDiffs;
-					this._originalModel = ref.object;
+					this._originalModels.set(quickDiff.originalResource.toString(), ref.object);
 
-					if (isTextFileEditorModel(this._originalModel)) {
+					if (isTextFileEditorModel(ref.object)) {
 						const encoding = this._model.getEncoding();
 
 						if (encoding) {
-							this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+							ref.object.setEncoding(encoding, EncodingMode.Decode);
 						}
 					}
 
@@ -1336,7 +1345,7 @@ export class DirtyDiffModel extends Disposable {
 
 		this._disposed = true;
 		this._quickDiffs = null;
-		this._originalModel = null;
+		this._originalModels.clear();
 		this.diffDelayer.cancel();
 		this.repositoryDisposables.forEach(d => dispose(d));
 		this.repositoryDisposables.clear();
