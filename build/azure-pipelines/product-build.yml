@@ -564,10 +564,10 @@ stages:
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
       - stage: macOS
-        dependsOn:
-          - Compile
-          - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-            - CompileCLI
+        # dependsOn:
+        #   - Compile
+        #   - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
+        #     - CompileCLI
         pool:
           vmImage: macOS-11
         variables:
