@@ -2189,12 +2189,6 @@ export class CommandCenter {
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(repository, defaultName);
-
-		if (!branchName) {
-			return;
-		}
-
 		let target = 'HEAD';
 
 		if (from) {
@@ -2202,7 +2196,7 @@ export class CommandCenter {
 				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
 			};
 
-			const placeHolder = l10n.t('Select a ref to create the "{0}" branch from', branchName);
+			const placeHolder = l10n.t('Select a ref to create the branch from');
 			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
@@ -2212,6 +2206,12 @@ export class CommandCenter {
 			if (choice.refName) {
 				target = choice.refName;
 			}
+		}
+
+		const branchName = await this.promptForBranchName(repository, defaultName);
+
+		if (!branchName) {
+			return;
 		}
 
 		await repository.branch(branchName, true, target);

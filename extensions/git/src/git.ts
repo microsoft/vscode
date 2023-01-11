@@ -15,7 +15,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -2164,32 +2164,32 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
-		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+	async getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
 
 		const args = ['for-each-ref'];
 
-		if (opts?.count) {
-			args.push(`--count=${opts.count}`);
+		if (query.count) {
+			args.push(`--count=${query.count}`);
 		}
 
-		if (opts && opts.sort && opts.sort !== 'alphabetically') {
-			args.push('--sort', `-${opts.sort}`);
+		if (query.sort && query.sort !== 'alphabetically') {
+			args.push('--sort', `-${query.sort}`);
 		}
 
 		args.push('--format', '%(refname) %(objectname) %(*objectname)');
 
-		if (opts?.pattern) {
-			args.push(opts.pattern);
+		if (query.pattern) {
+			args.push(query.pattern.startsWith('refs/') ? query.pattern : `refs/${query.pattern}`);
 		}
 
-		if (opts?.contains) {
-			args.push('--contains', opts.contains);
+		if (query.contains) {
+			args.push('--contains', query.contains);
 		}
 
-		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
+		const result = await this.exec(args, { cancellationToken });
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
@@ -2402,11 +2402,6 @@ export class Repository {
 		}
 
 		return Promise.reject<Branch>(new Error('No such branch'));
-	}
-
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		const refs = await this.getRefs({ contains: query.contains, pattern: query.pattern ? `refs/${query.pattern}` : undefined, count: query.count });
-		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
 	}
 
 	// TODO: Support core.commentChar

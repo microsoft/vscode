@@ -930,6 +930,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setAriaOptions(options: IEditorAriaOptions): void;
 
 	/**
+	 * Write the screen reader content to be the current selection
+	 */
+	writeScreenReaderContent(reason: string): void;
+
+	/**
 	 * @internal
 	 */
 	getTelemetryData(): { [key: string]: any } | undefined;

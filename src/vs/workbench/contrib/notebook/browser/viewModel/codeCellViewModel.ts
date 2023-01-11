@@ -21,12 +21,18 @@ import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
 
 	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
 	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
+
+	protected readonly _onDidStartExecution = this._register(new Emitter<void>());
+	readonly onDidStartExecution = this._onDidStartExecution.event;
+	protected readonly _onDidStopExecution = this._register(new Emitter<void>());
+	readonly onDidStopExecution = this._onDidStopExecution.event;
 
 	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
@@ -116,6 +122,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewContext: ViewContext,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
@@ -142,6 +149,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
 			dispose(removedOutputs);
+		}));
+
+		this._register(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
+			if (e.affectsCell(model.uri)) {
+				if (e.changed) {
+					this._onDidStartExecution.fire();
+				} else {
+					this._onDidStopExecution.fire();
+				}
+			}
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);

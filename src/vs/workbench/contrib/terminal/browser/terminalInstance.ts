@@ -59,7 +59,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
@@ -621,9 +621,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void {
+	private _registerQuickFixProvider(quickFixAddon: ITerminalQuickFixAddon, ...options: ITerminalQuickFixOptions[]): void {
 		for (const actionOption of options) {
-			this.quickFix?.registerCommandFinishedListener(actionOption);
+			quickFixAddon.registerCommandFinishedListener(actionOption);
 		}
 	}
 
@@ -738,7 +738,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm = xterm;
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
-		this.registerQuickFixProvider(gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr());
+		this._registerQuickFixProvider(this._quickFixAddon, gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr(), pwshUnixCommandNotFoundError(), pwshGeneralError());
 		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		this.updateAccessibilitySupport();
 		this.xterm.onDidRequestRunCommand(e => {

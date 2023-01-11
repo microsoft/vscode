@@ -981,7 +981,7 @@ export class SettingsEditor2 extends EditorPane {
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean, scope: ConfigurationScope | undefined): void {
 		const parsedQuery = parseQuery(this.searchWidget.getValue());
 		const languageFilter = parsedQuery.languageFilter;
-		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
+		if (manualReset || (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key)) {
 			this.updateChangedSetting(key, value, manualReset, languageFilter, scope);
 		}
 
