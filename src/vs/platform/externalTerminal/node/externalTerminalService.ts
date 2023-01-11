@@ -80,9 +80,6 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
 
-			const cmdArgs = [
-				'/c', 'start', title, '/wait', exec, '/c', command
-			];
 
 			// merge environment variables into a copy of the process.env
 			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
@@ -96,7 +93,21 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				windowsVerbatimArguments: true
 			};
 
-			const cmd = cp.spawn(WindowsExternalTerminalService.CMD, cmdArgs, options);
+			let spawnExec: string;
+			let cmdArgs: string[];
+
+			if (path.basename(exec) === 'wt') {
+				// Handle Windows Terminal specially; -d to set the cwd and run a cmd.exe instance
+				// inside it
+				spawnExec = exec;
+				cmdArgs = ['-d', '.', WindowsExternalTerminalService.CMD, '/c', command];
+			} else {
+				spawnExec = WindowsExternalTerminalService.CMD;
+				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
+			}
+
+			const cmd = cp.spawn(spawnExec, cmdArgs, options);
+
 			cmd.on('error', err => {
 				reject(improveError(err));
 			});
