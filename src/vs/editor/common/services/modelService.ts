@@ -292,7 +292,7 @@ export class ModelService extends Disposable implements IModelService {
 			const language = modelData.model.getLanguageId();
 			const uri = modelData.model.uri;
 
-			if (e && !e.affectsConfiguration('editor', { overrideIdentifier: language, resource: uri })) {
+			if (e && !e.affectsConfiguration('editor', { overrideIdentifier: language, resource: uri }) && !e.affectsConfiguration('files.eol', { overrideIdentifier: language, resource: uri })) {
 				continue; // perf: skip if this model is not affected by configuration change
 			}
 
