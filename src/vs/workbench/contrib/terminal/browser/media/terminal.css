@@ -545,8 +545,6 @@
 
 .xterm .xterm-accessibility {
 	position: absolute;
-	left: 0;
-	top: 0;
 	bottom: 0;
 	right: 0;
 	padding: .5em;
@@ -559,4 +557,6 @@
 .xterm .xterm-accessibility:focus {
 	opacity: 1;
 	z-index: 20;
+	left: 5px !important;
+	top: 20px !important;
 }

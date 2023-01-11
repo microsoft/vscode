@@ -1099,10 +1099,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	// Key binding
+	// button to expand ? try on windows w role: document
 	private renderAccessibilityElement(elements: { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }): void {
 		if (!this._accessibilityElement) {
 			this._accessibilityElement = document.createElement('section');
 			this._accessibilityElement.contentEditable = 'true';
+			this._accessibilityElement.role = 'document';
 			this._accessibilityElement.spellcheck = false;
 			this._accessibilityElement.classList.add('xterm-accessibility');
 			this.xterm?.raw.element?.insertAdjacentElement('afterbegin', this._accessibilityElement);
