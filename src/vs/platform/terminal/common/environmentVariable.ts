@@ -53,7 +53,7 @@ export interface IMergedEnvironmentVariableCollection {
 	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void>;
 
 	/**
-	 * Generates a diff of this connection against another. Returns undefined if the collections are
+	 * Generates a diff of this collection against another. Returns undefined if the collections are
 	 * the same.
 	 */
 	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
