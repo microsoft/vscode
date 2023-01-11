@@ -10,7 +10,6 @@ fi
 
 VSCODE_SHELL_INTEGRATION=1
 
-echo "before $PATH"
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
