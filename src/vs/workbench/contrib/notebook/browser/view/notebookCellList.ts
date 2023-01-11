@@ -222,7 +222,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			if (focus && focus.cellKind === CellKind.Markup && !focus.isInputCollapsed && !this._viewModel?.options.isReadOnly) {
 				// scroll the cell into view if out of viewport
-				this.revealElementInView(focus);
+				const focusedCellIndex = this._getViewIndexUpperBound(focus);
+
+				if (focusedCellIndex >= 0) {
+					this._revealInViewWithMinimalScrolling(focusedCellIndex);
+				}
 				focus.updateEditState(CellEditState.Editing, 'dbclick');
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -874,14 +878,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				break;
 			default:
 				break;
-		}
-	}
-
-	private revealElementInView(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			this._revealInViewWithMinimalScrolling(index);
 		}
 	}
 
