@@ -285,7 +285,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration((e) => {
-			if (!e.affectedKeys.has('tasks.tasks') || (!this._taskSystem && !this._workspaceTasksPromise)) {
+			if (!e.affectsConfiguration('tasks') || (!this._taskSystem && !this._workspaceTasksPromise)) {
 				return;
 			}
 
