@@ -674,7 +674,8 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
-		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isMonacoEditor(e.browserEvent.target as HTMLElement) ||
+			isWithinLabel(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
