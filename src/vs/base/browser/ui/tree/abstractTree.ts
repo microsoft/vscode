@@ -13,7 +13,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { IListOptions, IListStyles, isButton, isInputElement, isMonacoEditor, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles, isButton, isInputElement, isMonacoEditor, isWithinLabel, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
@@ -1354,7 +1354,8 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	protected override onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		if (isButton(e.browserEvent.target as HTMLElement) ||
 			isInputElement(e.browserEvent.target as HTMLElement) ||
-			isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			isMonacoEditor(e.browserEvent.target as HTMLElement) ||
+			isWithinLabel(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 

@@ -258,6 +258,22 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 	return isMonacoEditor(e.parentElement);
 }
 
+export function isWithinLabel(e: HTMLElement): boolean {
+	if (e.tagName === 'LABEL') {
+		return true;
+	}
+
+	if (e.classList.contains('monaco-list-row')) {
+		return false;
+	}
+
+	if (!e.parentElement) {
+		return false;
+	}
+
+	return isWithinLabel(e.parentElement);
+}
+
 export function isButton(e: HTMLElement): boolean {
 	if ((e.tagName === 'A' && e.classList.contains('monaco-button')) ||
 		(e.tagName === 'DIV' && e.classList.contains('monaco-button-dropdown'))) {
@@ -668,7 +684,9 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<T>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) ||
+			isMonacoEditor(e.browserEvent.target as HTMLElement) ||
+			isWithinLabel(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -681,7 +699,10 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement)
+			|| isMonacoEditor(e.browserEvent.target as HTMLElement)
+			|| isWithinLabel(e.browserEvent.target as HTMLElement)
+		) {
 			return;
 		}
 
@@ -718,7 +739,9 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<T>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) ||
+			isMonacoEditor(e.browserEvent.target as HTMLElement) ||
+			isWithinLabel(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
