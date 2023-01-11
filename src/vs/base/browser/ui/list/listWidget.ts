@@ -685,10 +685,6 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (e.browserEvent.defaultPrevented) {
-			return;
-		}
-
 		const focus = e.index;
 
 		if (typeof focus === 'undefined') {
@@ -713,7 +709,6 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([focus], e.browserEvent);
 		}
 
-		e.browserEvent.preventDefault();
 		this._onPointer.fire(e);
 	}
 
@@ -726,13 +721,8 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (e.browserEvent.defaultPrevented) {
-			return;
-		}
-
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
-		e.browserEvent.preventDefault();
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
