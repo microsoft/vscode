@@ -639,13 +639,6 @@ export const ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND = registerColor('activityBarI
 	hcLight: ACTIVITY_BAR_FOREGROUND
 }, localize('activityBarItem.profilesHoverForeground', "Foreground color for the profile entry on the activity bar when hovering."));
 
-export const ACTIVITY_BAR_PROFILE_BACKGROUND = registerColor('activityBarItem.profilesBackground', {
-	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
-	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
-	hcDark: null,
-	hcLight: null
-}, localize('activityBarItem.profilesBackground', "Background color for the profile entry on the activity bar."));
-
 // < --- Remote --- >
 
 export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {

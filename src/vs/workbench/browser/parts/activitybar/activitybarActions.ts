@@ -19,7 +19,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_PROFILE_BACKGROUND, ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -508,11 +508,6 @@ registerThemingParticipant((theme, collector) => {
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label:not(.codicon):not(.profile-activity-item),
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label:not(.codicon):not(.profile-activity-item),
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon):not(.profile-activity-item) {
-				background-color: ${activityBarForegroundColor} !important;
-			}
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
@@ -521,23 +516,12 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	const activityBarProfileBgColor = theme.getColor(ACTIVITY_BAR_PROFILE_BACKGROUND);
-	if (activityBarProfileBgColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item {
-				background-color: ${activityBarProfileBgColor} !important;
-			}
-		`);
-	}
-
 	const activityBarProfileHoverFgColor = theme.getColor(ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND);
 	if (activityBarProfileHoverFgColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.profile-activity-item {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active.profile-activity-item .action-label,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.profile-activity-item:focus .action-label,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.profile-activity-item:hover .action-label {
 				color: ${activityBarProfileHoverFgColor} !important;
 			}
 		`);
