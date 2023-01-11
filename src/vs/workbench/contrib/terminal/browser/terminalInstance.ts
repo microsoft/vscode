@@ -214,6 +214,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
+	private _accessibilityElement: HTMLElement | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1025,8 +1026,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			if (this._accessibilityService.isScreenReaderOptimized() && event.shiftKey) {
-				console.log('in here');
-				console.log(this.xterm?.raw.getBufferElements(0));
+				this._toggleAccessibilityElement(this.xterm!.getBufferElements(0));
 			}
 
 			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
@@ -1097,6 +1097,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
+	}
+
+	private _toggleAccessibilityElement(elements: { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }): void {
+		if (!this._accessibilityElement) {
+			this._accessibilityElement = document.createElement('section');
+			this._accessibilityElement.contentEditable = 'true';
+			this._accessibilityElement.spellcheck = false;
+			this._accessibilityElement.classList.add('xterm-accessibility');
+			this.xterm?.raw.element?.insertAdjacentElement('afterbegin', this._accessibilityElement);
+			for (const element of elements.bufferElements) {
+				this._accessibilityElement.appendChild(element);
+			}
+		} else {
+			this._accessibilityElement.replaceChildren(...elements.bufferElements);
+		}
+
+		const s = document.getSelection();
+		if (s && elements.cursorElement) {
+			s.removeAllRanges();
+			const r = document.createRange();
+			r.selectNode(elements.bufferElements[elements.bufferElements.length - 1]);
+			r.setStart(elements.cursorElement, 0);
+			r.setEnd(elements.cursorElement, 0);
+			s.addRange(r);
+		}
+		this._accessibilityElement.scrollTop = this._accessibilityElement.scrollHeight;
+		this._accessibilityElement.focus();
 	}
 
 	private _setShellIntegrationContextKey(): void {

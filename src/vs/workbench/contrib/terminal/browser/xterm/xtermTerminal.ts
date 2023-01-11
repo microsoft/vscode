@@ -454,6 +454,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
 	}
 
+	getBufferElements(startLine: number, endLine?: number): { bufferElements: HTMLElement[]; cursorElement?: HTMLElement } {
+		return this.raw.getBufferElements(startLine, endLine);
+	}
+
 	scrollDownLine(): void {
 		this.raw.scrollLines(1);
 	}
