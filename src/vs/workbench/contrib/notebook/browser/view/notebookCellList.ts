@@ -1445,10 +1445,6 @@ export class ListViewInfoAccessor extends Disposable {
 		this.list.scrollToBottom();
 	}
 
-	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		return this.list.revealCellOffsetInCenterAsync(cell, offset);
-	}
-
 	getViewIndex(cell: ICellViewModel): number {
 		return this.list.getViewIndex(cell) ?? -1;
 	}

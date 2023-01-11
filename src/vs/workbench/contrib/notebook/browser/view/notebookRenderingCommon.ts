@@ -63,7 +63,7 @@ export interface INotebookCellList {
 	isScrolledToBottom(): boolean;
 	scrollToBottom(): void;
 	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
-	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): void;
+	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
 	revealCellLineAsync(cell: ICellViewModel, line: number, revealType: CellRevealRangeType): Promise<void>;
 	revealCellRangeAsync(cell: ICellViewModel, range: Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;

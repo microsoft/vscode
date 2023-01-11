@@ -1161,9 +1161,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					cell.focusMode = CellFocusMode.Editor;
 					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
 				} else if (options?.cellRevealType === CellRevealType.NearTopIfOutsideViewport) {
-					await this.revealNearTopIfOutsideViewportAync(cell);
+					await this._list.revealCellAsync(cell, CellRevealType.NearTopIfOutsideViewport);
 				} else {
-					await this.revealInCenterIfOutsideViewportAsync(cell);
+					await this._list.revealCellAsync(cell, CellRevealType.CenterIfOutsideViewport);
 				}
 
 				const editor = this._renderedEditors.get(cell)!;
@@ -1973,14 +1973,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.revealCell(cell, CellRevealSyncType.CenterIfOutsideViewport);
 	}
 
-	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel): Promise<void> {
-		return this._list.revealCellAsync(cell, CellRevealType.CenterIfOutsideViewport);
-	}
-
-	async revealNearTopIfOutsideViewportAync(cell: ICellViewModel): Promise<void> {
-		return this._list.revealCellAsync(cell, CellRevealType.NearTopIfOutsideViewport);
-	}
-
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
 		return this._list.revealCellLineAsync(cell, line, CellRevealRangeType.Default);
 	}
@@ -2006,7 +1998,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		return this._listViewInfoAccessor.revealCellOffsetInCenterAsync(cell, offset);
+		return this._list.revealCellOffsetInCenterAsync(cell, offset);
 	}
 
 	getViewIndexByModelIndex(index: number): number {
