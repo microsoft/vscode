@@ -200,9 +200,9 @@ export class IntervalNode {
 	}
 
 	public detach(): void {
-		this.parent = null!;
-		this.left = null!;
-		this.right = null!;
+		this.parent = SENTINEL;
+		this.left = SENTINEL;
+		this.right = SENTINEL;
 	}
 }
 

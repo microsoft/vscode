@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import { InlineFoldRange, LineInjectedText } from 'vs/editor/common/textModelEvents';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
@@ -125,13 +125,17 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		const linesContent = this.model.getLinesContent();
 		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
+		const inlineFoldsDecorations = this.model.getInlineFoldsDecorations(this._editorId);
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
 		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
+		const inlineFoldsQueue = new arrays.ArrayQueue(InlineFoldRange.fromDecorations(inlineFoldsDecorations));
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
+			const inlineFolds = inlineFoldsQueue.takeWhile(f => f.lineNumber === i + 1);
+
+			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, inlineFolds, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -918,8 +922,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			} else {
 				// hit invisible line => flush request
 				if (reqStart !== null) {
-					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation, onlyMinimapDecorations));
+					//Assuming only one inline folding range for now.
+					const prevLine = this.modelLineProjections[modelLineIndex - 1];
+					const [lastVisibleRange] = prevLine.getModelVisibleRanges(this.model, modelLineIndex);
+					//endColumn + 1 to include the folding range decoration, then filter out the extra decorations that were added as a result.
+					const decorationsPlusExtras = this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, lastVisibleRange.endColumn + 1), ownerId, filterOutValidation, onlyMinimapDecorations);
+					const decorationsPlusOnlyFoldingRange = decorationsPlusExtras.filter(d => lastVisibleRange.endLineNumber !== d.range.startLineNumber || d.range.startColumn !== lastVisibleRange.endColumn + 1 || d.options.hideContent);
+					result = result.concat(decorationsPlusOnlyFoldingRange);
 					reqStart = null;
 				}
 			}
@@ -1130,7 +1139,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, inlineFolds: InlineFoldRange[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

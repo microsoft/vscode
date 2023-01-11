@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
 
@@ -155,16 +155,16 @@ export class LineInjectedText {
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
-			if (decoration.options.before && decoration.options.before.content.length > 0) {
+			if (decoration.options.before) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.startLineNumber,
 					decoration.range.startColumn,
 					decoration.options.before,
-					0,
+					decoration.options.hideContent ? 2 : 0, //collapsedText should always render last
 				));
 			}
-			if (decoration.options.after && decoration.options.after.content.length > 0) {
+			if (decoration.options.after) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.endLineNumber,
@@ -200,6 +200,73 @@ export class LineInjectedText {
 }
 
 /**
+ * Represents a hidden range inside a line.
+ * !!Currently only supports hiding to the end of the line.!!
+ * @internal
+ */
+export class InlineFoldRange {
+	public readonly ownerId: number;
+	public readonly lineNumber: number;
+	public readonly startColumn: number;
+	/**
+	 * If set to null, it will mark the end of the line.
+	 */
+	public readonly endColumn: number | null;
+
+	constructor(ownerId: number, lineNumber: number, startColumn: number, endColumn: number | null = null) {
+		this.ownerId = ownerId;
+		this.lineNumber = lineNumber;
+		this.startColumn = startColumn;
+		this.endColumn = endColumn;
+	}
+
+	public static fromDecorations(decorations: IModelDecoration[]): InlineFoldRange[] {
+		return decorations
+			.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range))
+			.map((decoration) => new InlineFoldRange(
+				decoration.ownerId,
+				decoration.range.startLineNumber,
+				decoration.range.startColumn,
+			));
+	}
+
+	/**
+	 * !!Currently only supports hiding to the end of the line.!!
+	 */
+	public static applyInlineFoldsWithInjectedText(lineTextAfterInjections: string, inlineFolds: InlineFoldRange[] | null, injectedTexts: LineInjectedText[] | null): string {
+		const foldingOffset = InlineFoldRange.getFoldingOffset(inlineFolds, injectedTexts);
+		if (!foldingOffset) {
+			return lineTextAfterInjections;
+		}
+		return lineTextAfterInjections.substring(0, foldingOffset);
+	}
+
+	/**
+	 * !!Currently only supports hiding to the end of the line.!!
+	 */
+	public static getFoldingOffset(inlineFolds: InlineFoldRange[] | null, injectedTexts: LineInjectedText[] | null): number | null {
+		if (!inlineFolds || inlineFolds.length === 0) {
+			return null;
+		}
+
+		const originalFoldingColumn = inlineFolds[0].startColumn;
+		const originalFoldingIndex = originalFoldingColumn - 1;
+		if (!injectedTexts || injectedTexts.length === 0) {
+			return originalFoldingIndex;
+		}
+
+		let sumUnfoldedInjectedTextLengths = 0;
+		for (const injectedText of injectedTexts) {
+			if (injectedText.column > originalFoldingColumn) {
+				break;
+			}
+			sumUnfoldedInjectedTextLengths += injectedText.options.content.length;
+		}
+		return originalFoldingIndex + sumUnfoldedInjectedTextLengths;
+	}
+}
+
+/**
  * An event describing that a line has changed in a model.
  * @internal
  */
@@ -217,11 +284,18 @@ export class ModelRawLineChanged {
 	 * The injected text on the line.
 	 */
 	public readonly injectedText: LineInjectedText[] | null;
+	/**
+	 * The hidden ranges in the line.
+	 * !!Currently only supports hiding to the end of the line.!!
+	 */
+	public readonly inlineFolds: InlineFoldRange[] | null;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null, inlineFolds: InlineFoldRange[] | null) {
 		this.lineNumber = lineNumber;
 		this.detail = detail;
 		this.injectedText = injectedText;
+		this.inlineFolds = inlineFolds;
 	}
 }
 
@@ -268,9 +342,15 @@ export class ModelRawLinesInserted {
 	 * The injected texts for every inserted line.
 	 */
 	public readonly injectedTexts: (LineInjectedText[] | null)[];
+	/**
+	 * The hidden ranges in the line.
+	 * !!Currently only supports hiding to the end of the line.!!
+	 */
+	public readonly inlineFolds: (InlineFoldRange[] | null)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[], inlineFolds: (InlineFoldRange[] | null)[]) {
 		this.injectedTexts = injectedTexts;
+		this.inlineFolds = inlineFolds;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;

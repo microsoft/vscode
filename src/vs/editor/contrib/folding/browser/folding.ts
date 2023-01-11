@@ -105,7 +105,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private cursorChangedScheduler: RunOnceScheduler | null;
 
 	private readonly localToDispose = this._register(new DisposableStore());
-	private mouseDownInfo: { lineNumber: number; iconClicked: boolean } | null;
+	private mouseDownInfo: { lineNumber: number; columnNumber: number; iconClicked: boolean } | null;
 
 	private _onDidChangeFoldingLimit = new Emitter<FoldingLimitInfo>();
 	public readonly onDidChangeFoldingLimit: Event<FoldingLimitInfo> = this._onDidChangeFoldingLimit.event;
@@ -385,8 +385,16 @@ export class FoldingController extends Disposable implements IEditorContribution
 					const toToggle: FoldingRegion[] = [];
 					for (const selection of selections) {
 						const lineNumber = selection.selectionStartLineNumber;
-						if (this.hiddenRangeModel && this.hiddenRangeModel.isHidden(lineNumber)) {
-							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
+						const columnNumber = selection.selectionStartColumn;
+						if (this.hiddenRangeModel && this.hiddenRangeModel.isHidden(lineNumber, columnNumber)) {
+							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => {
+								if (!r.isCollapsed) {
+									return false;
+								}
+								const withinColumnRange = r.startColumn ? lineNumber === r.startLineNumber && columnNumber > r.startColumn : false;
+								const withinLineRange = lineNumber > r.startLineNumber;
+								return withinColumnRange || withinLineRange;
+							}));
 						}
 					}
 					if (toToggle.length) {
@@ -438,10 +446,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 			case MouseTargetType.CONTENT_TEXT: {
 				if (this.hiddenRangeModel.hasRanges()) {
-					const model = this.editor.getModel();
-					if (model && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
-						break;
-					}
+					break;
 				}
 				return;
 			}
@@ -449,7 +454,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				return;
 		}
 
-		this.mouseDownInfo = { lineNumber: range.startLineNumber, iconClicked };
+		this.mouseDownInfo = { lineNumber: range.startLineNumber, columnNumber: range.startColumn, iconClicked };
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
@@ -458,10 +463,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 			return;
 		}
 		const lineNumber = this.mouseDownInfo.lineNumber;
+		const columnNumber = this.mouseDownInfo.columnNumber;
 		const iconClicked = this.mouseDownInfo.iconClicked;
 
 		const range = e.target.range;
-		if (!range || range.startLineNumber !== lineNumber) {
+		if (!range || range.startLineNumber !== lineNumber || range.startColumn !== columnNumber) {
 			return;
 		}
 
@@ -469,15 +475,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 			if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
 				return;
 			}
-		} else {
-			const model = this.editor.getModel();
-			if (!model || range.startColumn !== model.getLineMaxColumn(lineNumber)) {
-				return;
-			}
 		}
 
 		const region = foldingModel.getRegionAtLine(lineNumber);
-		if (region && region.startLineNumber === lineNumber) {
+		const model = this.editor.getModel();
+		const regionStartColumn = region?.startColumn ?? model?.getLineMaxColumn(lineNumber);
+		if (region && region.startLineNumber === lineNumber && (regionStartColumn === columnNumber || iconClicked)) {
 			const isCollapsed = region.isCollapsed;
 			if (iconClicked || isCollapsed) {
 				const surrounding = e.event.altKey;
@@ -1109,7 +1112,9 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 					collapseRanges.push(<FoldRange>{
 						startLineNumber: selection.startLineNumber,
 						endLineNumber: endLineNumber,
+						startColumn: selection.startColumn,
 						type: undefined,
+						collapsedText: undefined,
 						isCollapsed: true,
 						source: FoldSource.userDefined
 					});
@@ -1125,7 +1130,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 				collapseRanges.sort((a, b) => {
 					return a.startLineNumber - b.startLineNumber;
 				});
-				const newRanges = FoldingRegions.sanitizeAndMerge(foldingModel.regions, collapseRanges, editor.getModel()?.getLineCount());
+				const newRanges = FoldingRegions.sanitizeAndMerge(foldingModel.regions, collapseRanges, editor.getModel());
 				foldingModel.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 			}
 		}

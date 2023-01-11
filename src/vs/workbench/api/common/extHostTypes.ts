@@ -3011,10 +3011,16 @@ export class FoldingRange {
 
 	kind?: FoldingRangeKind;
 
-	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+	collapsedText?: string;
+
+	startColumn?: number;
+
+	constructor(start: number, end: number, kind?: FoldingRangeKind, collapsedText?: string, startColumn?: number) {
 		this.start = start;
 		this.end = end;
 		this.kind = kind;
+		this.collapsedText = collapsedText;
+		this.startColumn = startColumn;
 	}
 }
 

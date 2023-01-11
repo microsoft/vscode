@@ -285,7 +285,11 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
+								let inlineFolds = change.inlineFolds[lineIdx];
+								if (inlineFolds) {
+									inlineFolds = inlineFolds.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+								}
+								lineBreaksComputer.addRequest(line, injectedText, inlineFolds, null);
 							}
 							break;
 						}
@@ -294,7 +298,11 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
+							let inlineFolds: textModelEvents.InlineFoldRange[] | null = null;
+							if (change.inlineFolds) {
+								inlineFolds = change.inlineFolds.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+							}
+							lineBreaksComputer.addRequest(change.detail, injectedText, inlineFolds, null);
 							break;
 						}
 					}

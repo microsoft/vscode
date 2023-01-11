@@ -1357,9 +1357,14 @@ export interface FoldingRangeProvider {
 export interface FoldingRange {
 
 	/**
-	 * The one-based start line of the range to fold. The folded area starts after the line's last character.
+	 * The one-based start line of the range to fold.
 	 */
 	start: number;
+
+	/**
+	 * The one-based start column of the range to fold. If not defined, folded area starts at the end of start line.
+	 */
+	startColumn?: number;
 
 	/**
 	 * The one-based end line of the range to fold. The folded area ends with the line's last character.
@@ -1373,6 +1378,12 @@ export interface FoldingRange {
 	 * {@link FoldingRangeKind} for an enumeration of standardized kinds.
 	 */
 	kind?: FoldingRangeKind;
+
+	/**
+	 * The text to be shown instead of the folded area.
+	 * Will be shown at the end of the start line.
+	 */
+	collapsedText?: string;
 }
 export class FoldingRangeKind {
 	/**

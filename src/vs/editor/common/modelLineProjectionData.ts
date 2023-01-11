@@ -8,7 +8,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Position } from 'vs/editor/common/core/position';
 import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import { InlineFoldRange, LineInjectedText } from 'vs/editor/common/textModelEvents';
 
 /**
  * *input*:
@@ -28,15 +28,25 @@ import { LineInjectedText } from 'vs/editor/common/textModelEvents';
  * xxxxxx[ii]xxxx
  * ```
  *
+ * -> folding at offset `$` in `xxxxxx[iiiiiii|iii]xxxxxxxxxxx|xx$xxxx[ii]xxxx|`:
+ * ```
+ * xxxxxx[iiiiiii
+ * iii]xxxxxxxxxxx
+ * xx
+ * ```
+ *
  * -> applying wrappedTextIndentLength, *output*:
  * ```
  * xxxxxx[iiiiiii
  *    iii]xxxxxxxxxxx
- *    xxxxxx[ii]xxxx
+ *    xx
  * ```
  */
 export class ModelLineProjectionData {
 	constructor(
+		/**
+		 * Offsets after foldingOffset are still intact.
+		 */
 		public injectionOffsets: number[] | null,
 		/**
 		 * `injectionOptions.length` must equal `injectionOffsets.length`
@@ -51,6 +61,10 @@ export class ModelLineProjectionData {
 		 * Refers to offsets after applying injections
 		 */
 		public breakOffsetsVisibleColumn: number[],
+		/**
+		 * Refers to folding offset after applying injections to the source.
+		 */
+		public foldingOffset: number | null,
 		public wrappedTextIndentLength: number
 	) {
 	}
@@ -80,6 +94,18 @@ export class ModelLineProjectionData {
 
 	public getMaxOutputOffset(outputLineIndex: number): number {
 		return this.getLineLength(outputLineIndex);
+	}
+
+	public getInputFoldingOffset(): number | null {
+		if (this.foldingOffset === null) {
+			return null;
+		}
+		return this.offsetInInputWithInjectionsToInputOffset(this.foldingOffset);
+	}
+
+	private offsetInInputWithInjectionsToInputOffset(offsetInInputWithInjections: number, affinity: PositionAffinity = PositionAffinity.None): number {
+		const outputPosition = this.offsetInInputWithInjectionsToOutputPosition(offsetInInputWithInjections, affinity);
+		return this.translateToInputOffset(outputPosition.outputLineIndex, outputPosition.outputOffset);
 	}
 
 	public translateToInputOffset(outputLineIndex: number, outputOffset: number): number {
@@ -336,6 +362,6 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, inlineFolds: InlineFoldRange[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

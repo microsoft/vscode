@@ -5,7 +5,7 @@
 
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
@@ -29,6 +29,10 @@ export interface IModelLineProjection {
 	getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
+	/**
+	 * Currently assumes only one inline folding range.
+	*/
+	getModelVisibleRanges(model: ISimpleModel, modelLineNumber: number): Range[];
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity?: PositionAffinity): Position;
 	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
 	normalizePosition(outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position;
@@ -63,6 +67,7 @@ export function createModelLineProjection(lineBreakData: ModelLineProjectionData
  * This projection is used to
  * * wrap model lines
  * * inject text
+ * * hide inline content
  */
 class ModelLineProjection implements IModelLineProjection {
 	private readonly _projectionData: ModelLineProjectionData;
@@ -96,8 +101,8 @@ class ModelLineProjection implements IModelLineProjection {
 	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
 		this._assertVisible();
 
-		const startOffsetInInputWithInjections = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffsetInInputWithInjections = this._projectionData.breakOffsets[outputLineIndex];
+		const startOffsetInInputInjectedFolded = outputLineIndex > 0 ? this._projectionData.breakOffsets[outputLineIndex - 1] : 0;
+		const endOffsetInInputInjectedFolded = this._projectionData.breakOffsets[outputLineIndex];
 
 		let r: string;
 		if (this._projectionData.injectionOffsets !== null) {
@@ -114,13 +119,13 @@ class ModelLineProjection implements IModelLineProjection {
 				model.getLineContent(modelLineNumber),
 				injectedTexts
 			);
-			r = lineWithInjections.substring(startOffsetInInputWithInjections, endOffsetInInputWithInjections);
+			r = lineWithInjections.substring(startOffsetInInputInjectedFolded, endOffsetInInputInjectedFolded);
 		} else {
 			r = model.getValueInRange({
 				startLineNumber: modelLineNumber,
-				startColumn: startOffsetInInputWithInjections + 1,
+				startColumn: startOffsetInInputInjectedFolded + 1,
 				endLineNumber: modelLineNumber,
-				endColumn: endOffsetInInputWithInjections + 1
+				endColumn: endOffsetInInputInjectedFolded + 1
 			});
 		}
 
@@ -267,6 +272,19 @@ class ModelLineProjection implements IModelLineProjection {
 		return this._projectionData.translateToInputOffset(outputLineIndex, outputColumn - 1) + 1;
 	}
 
+
+	public getModelVisibleRanges(model: ISimpleModel, modelLineNumber: number): Range[] {
+		if (!this._isVisible) {
+			return [];
+		}
+		if (this._projectionData.foldingOffset === null) {
+			return [new Range(modelLineNumber, model.getLineMinColumn(modelLineNumber), modelLineNumber, model.getLineMaxColumn(modelLineNumber))];
+		}
+
+		const lastVisibleModelColumn = this._projectionData.getInputFoldingOffset();
+		return [new Range(modelLineNumber, model.getLineMinColumn(modelLineNumber), modelLineNumber, lastVisibleModelColumn!)];
+	}
+
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
 		this._assertVisible();
 		const r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
@@ -366,6 +384,10 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		return outputColumn;
 	}
 
+	public getModelVisibleRanges(model: ISimpleModel, modelLineNumber: number): Range[] {
+		return [new Range(modelLineNumber, model.getLineMinColumn(modelLineNumber), modelLineNumber, model.getLineMaxColumn(modelLineNumber))];
+	}
+
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
 		return new Position(deltaLineNumber, inputColumn);
 	}
@@ -436,6 +458,10 @@ class HiddenModelLineProjection implements IModelLineProjection {
 
 	public getModelColumnOfViewPosition(_outputLineIndex: number, _outputColumn: number): number {
 		throw new Error('Not supported');
+	}
+
+	public getModelVisibleRanges(model: ISimpleModel, modelLineNumber: number): Range[] {
+		return [];
 	}
 
 	public getViewPositionOfModelPosition(_deltaLineNumber: number, _inputColumn: number): Position {

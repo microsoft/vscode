@@ -2474,7 +2474,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null, null);
+			this._lineBreaksComputer.addRequest(this._originalModel.getLineContent(lineNumber), null, null, null);
 		}
 
 		this._pendingLineChange.push(lineChange);
