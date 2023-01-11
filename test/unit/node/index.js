@@ -20,6 +20,7 @@ const optimist = require('optimist')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
 	.describe('coverage', 'Generate a coverage report').boolean('coverage')
+	.describe('esm', 'Assume ESM output').boolean('esm')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
 
@@ -34,7 +35,7 @@ const excludeGlobs = [
 ];
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; esm: boolean; }}
  */
 const argv = optimist.argv;
 
@@ -45,7 +46,6 @@ if (argv.help) {
 
 const REPO_ROOT = path.join(__dirname, '../../../');
 const out = argv.build ? 'out-build' : 'out';
-const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
 
 const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
@@ -101,24 +101,48 @@ function main() {
 		return uri.replace(/#/g, '%23');
 	}
 
-	const loaderConfig = {
-		nodeRequire: require,
-		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
-		catchError: true
-	};
+	const baseUrl = fileUriFromPath(src, { isWindows: process.platform === 'win32' });
+	let loader;
 
-	if (argv.coverage) {
-		coverage.initialize(loaderConfig);
+	if (argv.esm) {
 
-		process.on('exit', function (code) {
-			if (code !== 0) {
-				return;
-			}
-			coverage.createReport(argv.run || argv.runGlob);
-		});
+		excludeGlobs.push('**/css.build.test.js');
+
+		/**
+		 * @param {string[]} modules
+		 * @param {(module:any) => void} onLoad
+		 * @param {(err: Error) => void} onError
+		 */
+		loader = function (modules, onLoad, onError) {
+			const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
+				console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
+				throw err;
+			}));
+			Promise.all(loads).then(onLoad, onError);
+		};
+	} else {
+		loader = require(`../../../${out}/vs/loader`);
+
+		const loaderConfig = {
+			nodeRequire: require,
+			baseUrl: baseUrl,
+			catchError: true
+		};
+
+		if (argv.coverage) {
+			coverage.initialize(loaderConfig);
+
+			process.on('exit', function (code) {
+				if (code !== 0) {
+					return;
+				}
+				coverage.createReport(argv.run || argv.runGlob);
+			});
+		}
+
+		loader.config(loaderConfig);
 	}
 
-	loader.config(loaderConfig);
 
 	let didErr = false;
 	const write = process.stderr.write;
