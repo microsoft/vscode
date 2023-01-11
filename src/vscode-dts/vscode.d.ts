@@ -15223,6 +15223,14 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The state of a comment thread.
+	 */
+	export enum CommentThreadState {
+		Unresolved = 0,
+		Resolved = 1
+	}
+
+	/**
 	 * A collection of {@link Comment comments} representing a conversation at a particular range in a document.
 	 */
 	export interface CommentThread {
@@ -15278,6 +15286,11 @@ declare module 'vscode' {
 		 * The optional human-readable label describing the {@link CommentThread Comment Thread}
 		 */
 		label?: string;
+
+		/**
+		 * The optional state of a comment thread, which may affect how the comment is displayed.
+		 */
+		state?: CommentThreadState;
 
 		/**
 		 * Dispose this comment thread.
