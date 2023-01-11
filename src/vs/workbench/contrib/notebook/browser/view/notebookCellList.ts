@@ -885,7 +885,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	async revealElementOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
+	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index >= 0) {
@@ -1498,7 +1498,7 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 
 	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		return this.list.revealElementOffsetInCenterAsync(cell, offset);
+		return this.list.revealCellOffsetInCenterAsync(cell, offset);
 	}
 
 	getViewIndex(cell: ICellViewModel): number {

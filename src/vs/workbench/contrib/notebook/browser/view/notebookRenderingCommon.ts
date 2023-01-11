@@ -66,7 +66,7 @@ export interface INotebookCellList {
 	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): void;
 	revealCellLineAsync(cell: ICellViewModel, line: number, revealType: CellRevealRangeType): Promise<void>;
 	revealCellRangeAsync(cell: ICellViewModel, range: Range, revealType: CellRevealRangeType): Promise<void>;
-	revealElementOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
+	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
