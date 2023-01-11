@@ -827,27 +827,25 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Check for initial URLs to handle from protocol link invocations
-		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-
 		const protocolLinksFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : []; // Windows/Linux: protocol handler invokes CLI with --open-url
 		if (protocolLinksFromCommandLine.length) {
-			logService.trace('app#openFirstWindow protocol links from command line:', protocolLinksFromCommandLine);
+			logService.trace('app#openFirstWindow() protocol links from command line:', protocolLinksFromCommandLine);
 		}
 
 		const protocolLinksFromEvent = ((<any>global).getOpenUrls() || []) as string[]; // macOS: open-url events
 		if (protocolLinksFromEvent.length) {
-			logService.trace('app#openFirstWindow protocol links from event:', protocolLinksFromEvent);
+			logService.trace(`app#openFirstWindow() protocol links from macOS 'open-url' event:`, protocolLinksFromEvent);
 		}
 
+		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = [
 			...protocolLinksFromCommandLine,
 			...protocolLinksFromEvent
-
 		].map(url => {
 			try {
 				return { uri: URI.parse(url), url };
 			} catch {
-				logService.trace('app#openFirstWindow protocol link failed to parse:', url);
+				logService.trace('app#openFirstWindow() protocol link failed to parse:', url);
 
 				return undefined;
 			}
@@ -858,7 +856,7 @@ export class CodeApplication extends Disposable {
 
 			// If URI should be blocked, filter it out
 			if (this.shouldBlockURI(obj.uri)) {
-				logService.trace('app#openFirstWindow protocol link was blocked:', obj.uri.toString(true));
+				logService.trace('app#openFirstWindow() protocol link was blocked:', obj.uri.toString(true));
 
 				return false;
 			}
@@ -868,14 +866,14 @@ export class CodeApplication extends Disposable {
 			// previous workspace too.
 			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
 			if (windowOpenable) {
-				logService.trace('app#openFirstWindow protocol link will be handled as window to open:', obj.uri.toString(true));
+				logService.trace('app#openFirstWindow() protocol link will be handled as window to open:', obj.uri.toString(true), windowOpenable);
 
 				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
 
 				return false;
 			}
 
-			logService.trace('app#openFirstWindow protocol link will be passed to active window for handling:', obj.uri.toString(true));
+			logService.trace('app#openFirstWindow() protocol link will be passed to active window for handling:', obj.uri.toString(true));
 
 			return true;
 		});
@@ -888,8 +886,9 @@ export class CodeApplication extends Disposable {
 		const productService = this.productService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				logService.trace('app#handleURL:', uri.toString(true), options);
+				logService.trace('app#handleURL():', uri.toString(true), options);
 
+				// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
 					uri = uri.with({
 						authority: 'file',
@@ -900,7 +899,7 @@ export class CodeApplication extends Disposable {
 
 				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
-					logService.trace('app#handleURL protocol link was blocked:', uri.toString(true));
+					logService.trace('app#handleURL() protocol link was blocked:', uri.toString(true));
 
 					return true;
 				}
@@ -910,26 +909,37 @@ export class CodeApplication extends Disposable {
 				// We should handle the URI in a new window if the URL contains `windowId=_blank`
 				const params = new URLSearchParams(uri.query);
 				if (params.get('windowId') === '_blank') {
+					logService.trace(`app#handleURL() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
 					params.delete('windowId');
 					uri = uri.with({ query: params.toString() });
+
 					shouldOpenInNewWindow = true;
 				}
 
 				// or if no window is open (macOS only)
-				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+				else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+					logService.trace(`app#handleURL() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
+					shouldOpenInNewWindow = true;
+				}
 
 				// Pass along whether the application is being opened via a Continue On flow
 				const continueOn = params.get('continueOn');
 				if (continueOn !== null) {
-					environmentService.continueOn = continueOn ?? undefined;
+					logService.trace(`app#handleURL() found 'continueOn' as parameter:`, uri.toString(true));
+
 					params.delete('continueOn');
 					uri = uri.with({ query: params.toString() });
+
+					environmentService.continueOn = continueOn ?? undefined;
 				}
 
-				// Check for URIs to open in window
+				// Check if the protocol link is a window openable to open...
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
-				logService.trace('app#handleURL windowOpenableFromProtocolLink:', windowOpenableFromProtocolLink);
 				if (windowOpenableFromProtocolLink) {
+					logService.trace('app#handleURL() opening protocol link as window:', windowOpenableFromProtocolLink, uri.toString(true));
+
 					const [window] = await windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
@@ -944,7 +954,10 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
+				// ...or if we should open in a new window and then handle it within that window
 				if (shouldOpenInNewWindow) {
+					logService.trace('app#handleURL() opening empty window and passing in protocol link:', uri.toString(true));
+
 					const [window] = await windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
