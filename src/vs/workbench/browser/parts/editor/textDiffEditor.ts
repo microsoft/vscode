@@ -233,8 +233,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 	}
 
-	protected override shouldComputeConfiguration(e: ITextResourceConfigurationChangeEvent, resource: URI): boolean {
-		if (super.shouldComputeConfiguration(e, resource)) {
+	protected override shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI): boolean {
+		if (super.shouldHandleConfigurationChangeEvent(e, resource)) {
 			return true;
 		}
 
