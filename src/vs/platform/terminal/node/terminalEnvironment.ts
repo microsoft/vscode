@@ -15,7 +15,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
 
@@ -249,18 +249,6 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 	if (isMacintosh && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
-
-		// TODO: Remove test data
-		const map: Map<string, IEnvironmentVariableMutator> = new Map();
-		map.set('PATH', { value: 'before:', type: EnvironmentVariableMutatorType.Prepend });
-		deserialized.set('some.ext', { map });
-		const map2: Map<string, IEnvironmentVariableMutator> = new Map();
-		map2.set('PATH', { value: 'before for ext2:', type: EnvironmentVariableMutatorType.Prepend });
-		deserialized.set('some.ext2', { map: map2 });
-		const map3: Map<string, IEnvironmentVariableMutator> = new Map();
-		map3.set('PATH', { value: ':after', type: EnvironmentVariableMutatorType.Append });
-		deserialized.set('some.ext3', { map: map3 });
-
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
 
 		// Get all prepend PATH entries
