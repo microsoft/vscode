@@ -38,7 +38,7 @@ async function main() {
         'pre-embed-provisioning-profile': false,
         keychain: path.join(tempDir, 'buildagent.keychain'),
         version: util.getElectronVersion(),
-        identity: '99FM488X57',
+        identity: 'U8XXGZG5HC',
         'gatekeeper-assess': false
     };
     const appOpts = {
