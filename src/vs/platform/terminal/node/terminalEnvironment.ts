@@ -7,7 +7,7 @@ import * as os from 'os';
 import { FileAccess } from 'vs/base/common/network';
 import { getCaseInsensitive } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
 import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
@@ -15,6 +15,9 @@ import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
+import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -104,7 +107,7 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'>,
+	options: ITerminalProcessOptions,
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
 	productService: IProductService
@@ -151,6 +154,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
+				addEnvMixinPathPrefix(options, envMixin);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -166,6 +170,7 @@ export function getShellIntegrationInjection(
 			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
 			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/xdg_data');
 			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
+			addEnvMixinPathPrefix(options, envMixin);
 			return { newArgs: undefined, envMixin };
 		}
 		case 'pwsh': {
@@ -186,6 +191,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
 			} else if (areZshBashLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
+				addEnvMixinPathPrefix(options, envMixin);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
@@ -228,6 +234,39 @@ export function getShellIntegrationInjection(
 	}
 	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 	return undefined;
+}
+
+/**
+ * On macOS the profile calls path_helper which adds a bunch of standard bin directories to the
+ * beginning of the PATH. This causes significant problems for the environment variable
+ * collection API as the custom paths added to the end will now be somewhere in the middle of
+ * the PATH. To combat this, VSCODE_PATH_PREFIX is used to re-apply any prefix after the profile
+ * has run. This will cause duplication in the PATH but should fix the issue.
+ *
+ * See #99878 for more information.
+ */
+function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment): void {
+	if (isMacintosh && options.environmentVariableCollections) {
+		// Deserialize and merge
+		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
+		const merged = new MergedEnvironmentVariableCollection(deserialized);
+
+		// Get all prepend PATH entries
+		const pathEntry = merged.map.get('PATH');
+		const prependToPath: string[] = [];
+		if (pathEntry) {
+			for (const mutator of pathEntry) {
+				if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
+					prependToPath.push(mutator.value);
+				}
+			}
+		}
+
+		// Add to the environment mixin to be applied in the shell integration script
+		if (prependToPath.length > 0) {
+			envMixin['VSCODE_PATH_PREFIX'] = prependToPath.join('');
+		}
+	}
 }
 
 enum ShellIntegrationExecutable {

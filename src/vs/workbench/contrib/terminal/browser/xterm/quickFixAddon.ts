@@ -290,6 +290,10 @@ export async function getQuickFixesForCommand(
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
 	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
 ): Promise<ITerminalAction[] | undefined> {
+	// Prevent duplicates by tracking added entries
+	const commandQuickFixSet: Set<string> = new Set();
+	const openQuickFixSet: Set<string> = new Set();
+
 	const fixes: ITerminalAction[] = [];
 	const newCommand = terminalCommand.command;
 	for (const options of quickFixOptions.values()) {
@@ -329,6 +333,10 @@ export async function getQuickFixesForCommand(
 						switch (quickFix.type) {
 							case TerminalQuickFixType.Command: {
 								const fix = quickFix as ITerminalQuickFixCommandAction;
+								if (commandQuickFixSet.has(fix.terminalCommand)) {
+									continue;
+								}
+								commandQuickFixSet.add(fix.terminalCommand);
 								const label = localize('quickFix.command', 'Run: {0}', fix.terminalCommand);
 								action = {
 									type: TerminalQuickFixType.Command,
@@ -353,6 +361,10 @@ export async function getQuickFixesForCommand(
 								if (!fix.uri) {
 									return;
 								}
+								if (openQuickFixSet.has(fix.uri.toString())) {
+									continue;
+								}
+								openQuickFixSet.add(fix.uri.toString());
 								const isUrl = (fix.uri.scheme === Schemas.http || fix.uri.scheme === Schemas.https);
 								const uriLabel = isUrl ? encodeURI(fix.uri.toString(true)) : labelService.getUriLabel(fix.uri);
 								const label = localize('quickFix.opener', 'Open: {0}', uriLabel);

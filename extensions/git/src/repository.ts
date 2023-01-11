@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as picomatch from 'picomatch';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
+import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
@@ -1374,12 +1374,22 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
 
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
+	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return await this.run(Operation.GetBranches, async () => {
+			const refs = await this.getRefs(query, cancellationToken);
+			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+		});
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
-		return await this.run(Operation.GetRefs, () => this.repository.getRefs(opts));
+	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		const config = workspace.getConfiguration('git');
+		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
+		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
+			defaultSort = 'alphabetically';
+		}
+
+		query = { ...query, sort: query?.sort ?? defaultSort };
+		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
 	}
 
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
@@ -1992,16 +2002,10 @@ export class Repository implements Disposable {
 			this._sourceControl.commitTemplate = commitTemplate;
 
 			// Execute cancellable long-running operations
-			const config = workspace.getConfiguration('git');
-			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-			if (sort !== 'alphabetically' && sort !== 'committerdate') {
-				sort = 'alphabetically';
-			}
-
 			const [resourceGroups, refs] =
 				await Promise.all([
 					this.getStatus(cancellationToken),
-					this.repository.getRefs({ sort, cancellationToken })]);
+					this.getRefs({}, cancellationToken)]);
 
 			this._refs = refs!;
 			this._updateResourceGroupsState(resourceGroups);

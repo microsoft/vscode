@@ -184,7 +184,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService), new HeaderRenderer()], {
+
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
+			new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService),
+			new HeaderRenderer(),
+		], {
 			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -228,8 +232,8 @@ export class ActionList<T extends IActionItem> extends Disposable {
 	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this._allMenuItems.filter(item => item.kind === 'header').length;
-		const height = this._allMenuItems.length * this._actionLineHeight;
-		const heightWithHeaders = height + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
+		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
+		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
@@ -246,9 +250,12 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const width = Math.max(...itemWidths, minWidth);
-		this._list.layout(heightWithHeaders, width);
 
-		this.domNode.style.height = `${heightWithHeaders}px`;
+		const maxVhPrecentage = 0.7;
+		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
+		this._list.layout(height, width);
+
+		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
 		return width;
