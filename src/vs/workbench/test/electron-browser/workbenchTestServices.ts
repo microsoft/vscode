@@ -75,6 +75,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
 	logLevel: LogLevel.Error,
+	logLevels: [],
 	mainPid: 0,
 	appRoot: '',
 	userEnv: {},

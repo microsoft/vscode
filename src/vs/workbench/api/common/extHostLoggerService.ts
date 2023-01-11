@@ -20,7 +20,7 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(initData.logLevel, Event.None);
+		super(initData.logLevel, Event.None, initData.logLevels.map(([resource, logLevel]) => ([URI.revive(resource), logLevel])));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
 	}
 
@@ -28,7 +28,7 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		if (resource) {
 			this.setLevel(URI.revive(resource), level);
 		} else if (!isUndefined(level)) {
-			this.setLevel(level);
+			this.setGlobalLogLevel(level);
 		}
 	}
 

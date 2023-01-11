@@ -32,7 +32,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { FileType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -201,6 +201,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly machineId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -1370,6 +1371,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.logService.getLevel(),
+			logLevels: [...this.loggerService.logLevels],
 			logsPath: this.environmentMainService.logsPath,
 
 			product,

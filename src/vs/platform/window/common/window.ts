@@ -299,6 +299,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
+	logLevels: [UriComponents, LogLevel][];
 
 	fullscreen?: boolean;
 	maximized?: boolean;

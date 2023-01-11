@@ -117,6 +117,17 @@ export interface ILoggerService {
 	 */
 	getLogger(resource: URI): ILogger | undefined;
 
+
+	/**
+	 * all resources log levels
+	 */
+	readonly logLevels: Iterable<[URI, LogLevel]>;
+
+	/**
+	 * An event which fires when the log level of the resource changes.
+	 */
+	readonly onDidChangeLogLevel: Event<[URI, LogLevel]>;
+
 	/**
 	 * Set log level for a logger.
 	 */
@@ -485,74 +496,81 @@ export class LogService extends Disposable implements ILogService {
 	}
 }
 
-interface ILoggerItem {
-	readonly logger: ILogger;
-	logLevel: LogLevel | undefined;
-}
-
 export abstract class AbstractLoggerService extends Disposable implements ILoggerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly loggerItems = new ResourceMap<ILoggerItem>();
+	private readonly _loggers = new ResourceMap<ILogger>();
+
+	private readonly _logLevels = new ResourceMap<LogLevel>();
+	get logLevels() { return this._logLevels.entries(); }
+	private _onDidChangeLogLevel = this._register(new Emitter<[URI, LogLevel]>);
+	readonly onDidChangeLogLevel = this._onDidChangeLogLevel.event;
 
 	constructor(
 		private logLevel: LogLevel,
 		onDidChangeLogLevel: Event<LogLevel>,
+		logLevels?: Iterable<[URI, LogLevel]>,
 	) {
 		super();
-		this._register(onDidChangeLogLevel(logLevel => this.setLevel(logLevel)));
+		this._register(onDidChangeLogLevel(logLevel => this.setGlobalLogLevel(logLevel)));
+		if (logLevels) {
+			for (const [resource, logLevel] of logLevels) {
+				this._logLevels.set(resource, logLevel);
+			}
+		}
 	}
 
 	getLoggers(): ILogger[] {
-		return [...this.loggerItems.values()].map(({ logger }) => logger);
+		return [...this._loggers.values()];
 	}
 
 	getLogger(resource: URI): ILogger | undefined {
-		return this.loggerItems.get(resource)?.logger;
+		return this._loggers.get(resource);
 	}
 
 	createLogger(resource: URI, options?: ILoggerOptions, logLevel?: LogLevel): ILogger {
-		let logger = this.loggerItems.get(resource)?.logger;
+		let logger = this._loggers.get(resource);
 		if (!logger) {
 			logLevel = options?.always ? LogLevel.Trace : logLevel;
-			logger = this.doCreateLogger(resource, logLevel ?? this.logLevel, options);
-			this.loggerItems.set(resource, { logger, logLevel });
+			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, options);
+			this._loggers.set(resource, logger);
+			if (logLevel !== undefined) {
+				this._logLevels.set(resource, logLevel);
+			}
 		}
 		return logger;
 	}
 
-	setLevel(logLevel: LogLevel): void;
-	setLevel(resource: URI, logLevel: LogLevel): void;
-	setLevel(arg1: any, arg2?: any): void {
-		const resource = URI.isUri(arg1) ? arg1 : undefined;
-		const logLevel = resource ? arg2 : arg1;
-
-		if (resource) {
-			const logger = this.loggerItems.get(resource);
-			if (logger && logger.logLevel !== logLevel) {
-				logger.logLevel = logLevel;
-				logger.logger.setLevel(logLevel);
+	setLevel(resource: URI, logLevel: LogLevel): void {
+		if (logLevel !== this._logLevels.get(resource)) {
+			if (logLevel === this.logLevel) {
+				this._logLevels.delete(resource);
+			} else {
+				this._logLevels.set(resource, logLevel);
 			}
-		} else {
-			this.logLevel = logLevel;
-			this.loggerItems.forEach(({ logLevel, logger }) => {
-				if (logLevel === undefined) {
-					logger.setLevel(this.logLevel);
-				}
-			});
+			this._loggers.get(resource)?.setLevel(logLevel);
+			this._onDidChangeLogLevel.fire([resource, logLevel]);
 		}
+	}
 
+	protected setGlobalLogLevel(logLevel: LogLevel): void {
+		this.logLevel = logLevel;
+		for (const [resource, logger] of this._loggers.entries()) {
+			if (this._logLevels.get(resource) === undefined) {
+				logger.setLevel(this.logLevel);
+			}
+		}
 	}
 
 	getLogLevel(resource: URI): LogLevel | undefined {
-		const logger = this.loggerItems.get(resource);
-		return logger?.logLevel;
+		return this._logLevels.get(resource);
 	}
 
 	override dispose(): void {
-		this.loggerItems.forEach(({ logger }) => logger.dispose());
-		this.loggerItems.clear();
+		this._loggers.forEach(logger => logger.dispose());
+		this._loggers.clear();
+		this._logLevels.clear();
 		super.dispose();
 	}
 

@@ -31,6 +31,7 @@ export interface IExtensionHostInitData {
 	nlsBaseUrl?: URI;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
+	logLevels: [UriComponents, LogLevel][];
 	logsLocation: URI;
 	logFile: URI;
 	autoStart: boolean;

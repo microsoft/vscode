@@ -14,7 +14,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
@@ -42,6 +42,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
@@ -245,6 +246,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel(),
+			logLevels: [...this.loggerService.logLevels],
 			product,
 			policiesData: this.policyService.serialize()
 		});

@@ -34,6 +34,7 @@ import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc'
 import { timeout } from 'vs/base/common/async';
 import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
 import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -93,18 +94,31 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 	}
 }
 
-class RemoteLogOutputChannels implements IWorkbenchContribution {
+class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILoggerService loggerService: ILoggerService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
-			}
-		});
+		super();
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			remoteAgentService.getEnvironment().then(remoteEnv => {
+				if (remoteEnv) {
+					const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+					const remoteExtensionHostLogFile = joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`);
+					const remotePtyLogFile = joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`);
+					outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: remoteExtensionHostLogFile, log: true });
+					outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: remotePtyLogFile, log: true });
+					this._register(loggerService.onDidChangeLogLevel(([resource, logLevel]) => {
+						if (uriIdentityService.extUri.isEqual(resource, remoteExtensionHostLogFile) || uriIdentityService.extUri.isEqual(resource, remotePtyLogFile)) {
+							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel, resource));
+						}
+					}));
+				}
+			});
+		}
 	}
 }
 

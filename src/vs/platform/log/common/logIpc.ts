@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, log, LogLevel, LogService } from 'vs/platform/log/common/log';
 
@@ -62,6 +62,9 @@ export class LoggerChannel implements IServerChannel {
 	constructor(private readonly loggerService: ILoggerService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChangeLogLevel': return this.loggerService.onDidChangeLogLevel;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
@@ -70,6 +73,7 @@ export class LoggerChannel implements IServerChannel {
 			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1]); return;
 			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
+			case 'setLogLevel': return this.loggerService.setLevel(URI.revive(arg[0]), arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -110,8 +114,9 @@ export class LoggerChannel implements IServerChannel {
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
-	constructor(logLevel: LogLevel, onDidChangeLogLevel: Event<LogLevel>, private readonly channel: IChannel) {
-		super(logLevel, onDidChangeLogLevel);
+	constructor(logLevel: LogLevel, onDidChangeLogLevel: Event<LogLevel>, logLevels: [UriComponents, LogLevel][], private readonly channel: IChannel) {
+		super(logLevel, onDidChangeLogLevel, logLevels.map(([resource, logLevel]) => [URI.revive(resource), logLevel]));
+		this._register(channel.listen<[UriComponents, LogLevel]>('onDidChangeLogLevel')(([resource, logLevel]) => super.setLevel(URI.revive(resource), logLevel)));
 	}
 
 	createConsoleMainLogger(): ILogger {
@@ -120,6 +125,11 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 				this.channel.call('consoleLog', [level, args]);
 			}
 		});
+	}
+
+	override setLevel(resource: URI, logLevel: LogLevel): void {
+		super.setLevel(resource, logLevel);
+		this.channel.call('setLogLevel', [resource, logLevel]);
 	}
 
 	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {

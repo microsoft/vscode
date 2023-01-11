@@ -216,7 +216,7 @@ class SharedProcessMain extends Disposable {
 
 		// Logger
 		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter));
-		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, this.configuration.logLevels, mainProcessService.getChannel('logger'));
 		services.set(ILoggerService, loggerService);
 
 		// Log

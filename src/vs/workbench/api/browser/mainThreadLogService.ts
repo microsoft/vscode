@@ -11,9 +11,7 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogLevelService } from 'vs/workbench/contrib/logs/common/logLevelService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { localExtHostLog, remoteExtHostLog, webWorkerExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadLogger)
 export class MainThreadLoggerService implements MainThreadLoggerShape {
@@ -24,18 +22,11 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 		extHostContext: IExtHostContext,
 		@ILogService logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
-		@ILogLevelService extensionLoggerService: ILogLevelService,
 		@IOutputService outputService: IOutputService,
 	) {
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogLevelServiceShape);
 		this.disposables.add(logService.onDidChangeLogLevel(level => proxy.$setLevel(level)));
-		this.disposables.add(extensionLoggerService.onDidChangeLogLevel(({ id, logLevel }) => {
-			const channel = outputService.getChannelDescriptor(id);
-			const resource = channel?.log ? channel.file : undefined;
-			if (resource && (channel?.extensionId || id === localExtHostLog || id === remoteExtHostLog || id === webWorkerExtHostLog)) {
-				proxy.$setLevel(logLevel, resource);
-			}
-		}));
+		this.disposables.add(loggerService.onDidChangeLogLevel(([resource, logLevel]) => proxy.$setLevel(logLevel, resource)));
 	}
 
 	$log(file: UriComponents, messages: [LogLevel, string][]): void {
