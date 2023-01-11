@@ -19,6 +19,13 @@ import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
+export const enum CellRevealSyncType {
+	Default = 1,
+	Top = 2,
+	Center = 3,
+	CenterIfOutsideViewport = 4
+}
+
 export interface INotebookCellList {
 	isDisposed: boolean;
 	viewModel: NotebookViewModel | null;
@@ -61,10 +68,7 @@ export interface INotebookCellList {
 	revealElementsInView(range: ICellRange): void;
 	isScrolledToBottom(): boolean;
 	scrollToBottom(): void;
-	revealElementInView(element: ICellViewModel): void;
-	revealElementInViewAtTop(element: ICellViewModel): void;
-	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
-	revealElementInCenter(element: ICellViewModel): void;
+	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
 	revealElementInCenterIfOutsideViewportAsync(element: ICellViewModel): Promise<void>;
 	revealNearTopIfOutsideViewportAync(element: ICellViewModel): Promise<void>;
 	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
