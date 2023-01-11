@@ -535,9 +535,9 @@ export function setupTerminalMenus(): void {
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalCommandId.RunRecentCommand,
-						title: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command"),
-						icon: Codicon.history
+						id: TerminalCommandId.RunActiveFile,
+						title: localize('workbench.action.terminal.runActiveFile', "Run Active File"),
+						icon: Codicon.run
 					},
 					group: 'navigation',
 					order: 5,
@@ -548,9 +548,9 @@ export function setupTerminalMenus(): void {
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalCommandId.GoToRecentDirectory,
-						title: localize('workbench.action.terminal.goToRecentDirectory', "Go To Recent Directory"),
-						icon: Codicon.folder
+						id: TerminalCommandId.RunSelectedText,
+						title: localize('workbench.action.terminal.runSelectedText', "Run Selected Text"),
+						icon: Codicon.selection
 					},
 					group: 'navigation',
 					order: 6,
