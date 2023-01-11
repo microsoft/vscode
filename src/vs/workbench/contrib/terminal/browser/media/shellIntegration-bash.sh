@@ -41,8 +41,6 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
-echo "after $PATH"
-
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
