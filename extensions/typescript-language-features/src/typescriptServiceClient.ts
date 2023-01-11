@@ -233,7 +233,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (isWeb()) {
-			if (this._configuration.enableProjectWideIntellisenseOnWeb && globalThis['crossOriginIsolated']) {
+			if (this.isProjectWideIntellisenseOnWebEnabled()) {
 				return new ClientCapabilities(
 					ClientCapability.Syntax,
 					ClientCapability.EnhancedSyntax,
@@ -259,6 +259,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+
+	private isProjectWideIntellisenseOnWebEnabled(): boolean {
+		return isWeb() && this._configuration.enableProjectWideIntellisenseOnWeb && globalThis['crossOriginIsolated'];
+	}
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
 		if (this.serverState.type !== ServerState.Type.Running) {
@@ -685,7 +689,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return (isWeb() ? '' : this.inMemoryResourcePrefix)
+					return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)
 						+ '/' + resource.scheme
 						+ '/' + (resource.authority || this.emptyAuthority)
 						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
