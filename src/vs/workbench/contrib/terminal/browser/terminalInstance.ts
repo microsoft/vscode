@@ -1026,7 +1026,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			if (this._accessibilityService.isScreenReaderOptimized() && event.shiftKey) {
-				this._toggleAccessibilityElement(this.xterm!.getBufferElements(0));
+				this.renderAccessibilityElement(this.xterm!.getBufferElements(0));
 			}
 
 			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
@@ -1099,7 +1099,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _toggleAccessibilityElement(elements: { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }): void {
+	private renderAccessibilityElement(elements: { bufferElements: HTMLElement[]; cursorElement?: HTMLElement }): void {
 		if (!this._accessibilityElement) {
 			this._accessibilityElement = document.createElement('section');
 			this._accessibilityElement.contentEditable = 'true';
