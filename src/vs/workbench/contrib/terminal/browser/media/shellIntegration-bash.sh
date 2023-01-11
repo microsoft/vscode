@@ -34,13 +34,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		fi
 		builtin unset VSCODE_SHELL_LOGIN
 
-		# On macOS the profile calls path_helper which adds a bunch of standard bin directories to
-		# the beginning of the PATH. This causes significant problems for the environment variable
-		# collection API as the custom paths added to the end will now be somewhere in the middle of
-		# the PATH. To combat this, VSCODE_PATH_PREFIX is used to re-apply any prefix after the
-		# profile has run. This will cause duplication in the PATH but should fix the issue.
-		#
-		# See #99878 for more information.
+		# Apply any explicit path prefix (see #99878)
 		if [ -n "$VSCODE_PATH_PREFIX" ]; then
 			export PATH=$VSCODE_PATH_PREFIX$PATH
 			builtin unset VSCODE_PATH_PREFIX
