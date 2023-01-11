@@ -11,6 +11,6 @@ if [[ $options[norcs] = off && -o "login" &&  -f $USER_ZDOTDIR/.zprofile ]]; the
 	# Apply any explicit path prefix (see #99878)
 	if (( ${+VSCODE_PATH_PREFIX} )); then
 		export PATH=$VSCODE_PATH_PREFIX$PATH
-		builtin unset VSCODE_PATH_PREFIX
 	fi
+	builtin unset VSCODE_PATH_PREFIX
 fi
