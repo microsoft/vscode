@@ -735,7 +735,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	/**
 	 * The range will be revealed with as little scrolling as possible.
 	 */
-	revealElementsInView(range: ICellRange) {
+	revealCellsInView(range: ICellRange) {
 		const startIndex = this._getViewIndexUpperBound2(range.start);
 
 		if (startIndex < 0) {
@@ -1443,58 +1443,6 @@ export class ListViewInfoAccessor extends Disposable {
 
 	scrollToBottom() {
 		this.list.scrollToBottom();
-	}
-
-	revealCellRangeInView(range: ICellRange) {
-		return this.list.revealElementsInView(range);
-	}
-
-	revealInView(cell: ICellViewModel) {
-		this.list.revealCell(cell, CellRevealSyncType.Default);
-	}
-
-	revealInViewAtTop(cell: ICellViewModel) {
-		this.list.revealCell(cell, CellRevealSyncType.Top);
-	}
-
-	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this.list.revealCell(cell, CellRevealSyncType.CenterIfOutsideViewport);
-	}
-
-	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
-		return this.list.revealCellAsync(cell, CellRevealType.CenterIfOutsideViewport);
-	}
-
-	revealInCenter(cell: ICellViewModel) {
-		this.list.revealCell(cell, CellRevealSyncType.Center);
-	}
-
-	async revealNearTopIfOutsideViewportAync(cell: ICellViewModel) {
-		return this.list.revealCellAsync(cell, CellRevealType.NearTopIfOutsideViewport);
-	}
-
-	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealCellLineAsync(cell, line, CellRevealRangeType.Default);
-	}
-
-	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealCellLineAsync(cell, line, CellRevealRangeType.Center);
-	}
-
-	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealCellLineAsync(cell, line, CellRevealRangeType.CenterIfOutsideViewport);
-	}
-
-	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealCellRangeAsync(cell, range, CellRevealRangeType.Default);
-	}
-
-	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealCellRangeAsync(cell, range, CellRevealRangeType.Center);
-	}
-
-	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealCellRangeAsync(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
 	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
