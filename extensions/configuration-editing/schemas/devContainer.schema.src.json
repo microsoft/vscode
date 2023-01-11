@@ -29,6 +29,13 @@
 					"description": "Features to add to the dev container.",
 					"additionalProperties": true
 				},
+				"overrideFeatureInstallOrder": {
+					"type": "array",
+					"description": "Array consisting of the Feature id (without the semantic version) of Features in the order the user wants them to be installed.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"forwardPorts": {
 					"type": "array",
 					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
