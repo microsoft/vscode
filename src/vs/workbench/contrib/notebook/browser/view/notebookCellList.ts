@@ -851,23 +851,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	async revealCellLineAsync(cell: ICellViewModel, line: number, revealType: CellRevealRangeType) {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index < 0) {
-			return;
-		}
-
-		switch (revealType) {
-			case CellRevealRangeType.Default:
-				return this._revealLineInViewAsync(index, line);
-			case CellRevealRangeType.Center:
-				return this._revealLineInCenterAsync(index, line);
-			case CellRevealRangeType.CenterIfOutsideViewport:
-				return this._revealLineInCenterIfOutsideViewportAsync(index, line);
-		}
-	}
-
 	async revealCellRangeAsync(cell: ICellViewModel, range: Range, revealType: CellRevealRangeType): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -877,11 +860,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		switch (revealType) {
 			case CellRevealRangeType.Default:
-				return this._revealRangeInView(index, range);
+				return this._revealRangeInternalAsync(index, range, CellEditorRevealType.Range);
 			case CellRevealRangeType.Center:
-				return this._revealRangeInCenterAsync(index, range);
+				return this._revealRangeInCenterInternalAsync(index, range, CellEditorRevealType.Range);
 			case CellRevealRangeType.CenterIfOutsideViewport:
-				return this._revealRangeInCenterIfOutsideViewportAsync(index, range);
+				return this._revealRangeInCenterIfOutsideViewportInternalAsync(index, range, CellEditorRevealType.Range);
 		}
 	}
 
@@ -1102,14 +1085,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private async _revealLineInViewAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInternalAsync(viewIndex, new Range(line, 1, line, 1), CellEditorRevealType.Line);
-	}
-
-	private async _revealRangeInView(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInternalAsync(viewIndex, range, CellEditorRevealType.Range);
-	}
-
 	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Range, revealType: CellEditorRevealType): Promise<void> {
 		const reveal = (viewIndex: number, range: Range, revealType: CellEditorRevealType) => {
 			const element = this.view.element(viewIndex);
@@ -1132,14 +1107,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		} else {
 			reveal(viewIndex, range, revealType);
 		}
-	}
-
-	private async _revealLineInCenterAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInCenterInternalAsync(viewIndex, new Range(line, 1, line, 1), CellEditorRevealType.Line);
-	}
-
-	private _revealRangeInCenterAsync(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInCenterInternalAsync(viewIndex, range, CellEditorRevealType.Range);
 	}
 
 	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Range, revealType: CellEditorRevealType): Promise<void> {
@@ -1195,14 +1162,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		return;
-	}
-
-	private async _revealLineInCenterIfOutsideViewportAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, new Range(line, 1, line, 1), CellEditorRevealType.Line);
-	}
-
-	private async _revealRangeInCenterIfOutsideViewportAsync(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, range, CellEditorRevealType.Range);
 	}
 
 	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
