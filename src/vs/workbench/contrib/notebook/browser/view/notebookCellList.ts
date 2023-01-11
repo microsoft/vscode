@@ -1433,18 +1433,6 @@ export class ListViewInfoAccessor extends Disposable {
 		super();
 	}
 
-	setScrollTop(scrollTop: number) {
-		this.list.scrollTop = scrollTop;
-	}
-
-	isScrolledToBottom() {
-		return this.list.isScrolledToBottom();
-	}
-
-	scrollToBottom() {
-		this.list.scrollToBottom();
-	}
-
 	getViewIndex(cell: ICellViewModel): number {
 		return this.list.getViewIndex(cell) ?? -1;
 	}
@@ -1497,20 +1485,8 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.viewModel?.getCellsInRange(range) ?? [];
 	}
 
-	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
-		this.list.setCellSelection(cell, range);
-	}
-
-	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this.list.setHiddenAreas(_ranges, true);
-	}
-
 	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[] {
 		return this.list?.getVisibleRangesPlusViewportAboveAndBelow() ?? [];
-	}
-
-	triggerScroll(event: IMouseWheelEvent) {
-		this.list.triggerScrollFromMouseWheelEvent(event);
 	}
 }
 
