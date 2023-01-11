@@ -78,6 +78,8 @@ function migrateOne(filePath, fileContents) {
 		} else {
 			writeDestFile(filePath, fileContents.toString());
 		}
+	} else if (fileExtension === '.mjs') {
+		writeDestFile(filePath, fileContents.toString());
 	} else if (fileExtension === '.css') {
 		writeDestFile(filePath, fileContents.toString());
 	} else if (filePath.endsWith('tsconfig.base.json')) {
