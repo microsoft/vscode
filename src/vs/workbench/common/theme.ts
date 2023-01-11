@@ -394,6 +394,13 @@ export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.bor
 	hcLight: contrastBorder
 }, localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
+export const PANEL_SECTION_HEADER_BORDER_BOTTOM = registerColor('panelSectionHeader.borderBottom', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('panelSectionHeaderBorderBottom', "Panel section header bottom border color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
 export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
@@ -727,6 +734,13 @@ export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeade
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
+
+export const SIDE_BAR_SECTION_HEADER_BORDER_BOTTOM = registerColor('sideBarSectionHeader.borderBottom', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('sideBarSectionHeaderBorderBottom', "Side bar section header bottom border color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
 
 // < --- Title Bar --- >
