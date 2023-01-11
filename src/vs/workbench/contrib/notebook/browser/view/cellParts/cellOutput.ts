@@ -29,6 +29,7 @@ import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/vi
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -431,6 +432,11 @@ class OutputEntryViewHandler {
 	}
 }
 
+const enum CellOutputUpdateContext {
+	Execution = 1,
+	Other = 2
+}
+
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 
@@ -444,12 +450,23 @@ export class CellOutputContainer extends CellContentPart {
 		private readonly templateData: CodeCellRenderTemplate,
 		private options: { limit: number },
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
+		this._register(viewCell.onDidStartExecution(() => {
+			viewCell.updateOutputMinHeight(viewCell.layoutInfo.outputTotalHeight);
+		}));
+
+		this._register(viewCell.onDidStopExecution(() => {
+			this._validateFinalOutputHeight(false);
+		}));
+
 		this._register(viewCell.onDidChangeOutputs(splice => {
-			this._updateOutputs(splice);
+			const executionState = this._notebookExecutionStateService.getCellExecution(viewCell.uri);
+			const context = executionState ? CellOutputUpdateContext.Execution : CellOutputUpdateContext.Other;
+			this._updateOutputs(splice, context);
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
@@ -543,7 +560,7 @@ export class CellOutputContainer extends CellContentPart {
 		}
 	}
 
-	private _updateOutputs(splice: NotebookCellOutputsSplice) {
+	private _updateOutputs(splice: NotebookCellOutputsSplice, context: CellOutputUpdateContext = CellOutputUpdateContext.Other) {
 		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
 
 		// for cell output update, we make sure the cell does not shrink before the new outputs are rendered.
@@ -556,10 +573,10 @@ export class CellOutputContainer extends CellContentPart {
 		}
 
 		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
-		this._renderNow(splice);
+		this._renderNow(splice, context);
 	}
 
-	private _renderNow(splice: NotebookCellOutputsSplice) {
+	private _renderNow(splice: NotebookCellOutputsSplice, context: CellOutputUpdateContext) {
 		if (splice.start >= this.options.limit) {
 			// splice items out of limit
 			return;
@@ -664,7 +681,8 @@ export class CellOutputContainer extends CellContentPart {
 		this._relayoutCell();
 		// if it's clearing all outputs, or outputs are all rendered synchronously
 		// shrink immediately as the final output height will be zero.
-		this._validateFinalOutputHeight(false || this.viewCell.outputsViewModels.length === 0);
+		// if it's rerun, then the output clearing might be temporary, so we don't shrink immediately
+		this._validateFinalOutputHeight(false || (context === CellOutputUpdateContext.Other && this.viewCell.outputsViewModels.length === 0));
 	}
 
 	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {
