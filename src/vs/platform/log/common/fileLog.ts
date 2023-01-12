@@ -20,7 +20,6 @@ export class FileLogger extends AbstractMessageLogger implements ILogger {
 	private backupIndex: number = 1;
 
 	constructor(
-		name: string,
 		private readonly resource: URI,
 		level: LogLevel,
 		private readonly donotUseFormatters: boolean,
@@ -107,7 +106,7 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = new FileLogger(options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
+		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = new FileLogger(resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
 		return logger;
 	}
 }

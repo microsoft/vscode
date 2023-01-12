@@ -1087,7 +1087,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.loggers = this.loggerMainService.getLoggerResources(this.id);
+		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1661,7 +1661,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		super.dispose();
 
 		// Deregister the loggers for this window
-		this.loggerMainService.deregisterLoggerResources(this.id);
+		this.loggerMainService.deregisterLoggers(this.id);
 
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}

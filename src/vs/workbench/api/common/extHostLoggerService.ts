@@ -49,7 +49,7 @@ class Logger extends AbstractMessageLogger {
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
 	) {
-		super(loggerOptions?.always);
+		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
 		this.proxy.$createLogger(file, loggerOptions)
 			.then(() => {

@@ -114,6 +114,7 @@ import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'v
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
 import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/contrib/extensions';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
+import { localize } from 'vs/nls';
 
 class SharedProcessMain extends Disposable {
 
@@ -222,7 +223,7 @@ class SharedProcessMain extends Disposable {
 		// Log
 		const multiplexLogger = this._register(new MultiplexLogService([
 			this._register(new ConsoleLogger(this.configuration.logLevel)),
-			this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { name: 'sharedprocess' }))
+			this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { id: 'sharedLog', name: localize('sharedLog', "Shared") }))
 		]));
 
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
@@ -304,7 +305,7 @@ class SharedProcessMain extends Disposable {
 		const appenders: ITelemetryAppender[] = [];
 		const internalTelemetry = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
-			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
+			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
 			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
@@ -329,7 +330,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, logService, loggerService, environmentService, productService);
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
