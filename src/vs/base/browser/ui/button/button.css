@@ -79,20 +79,20 @@
 }
 
 .monaco-description-button {
+	display: flex;
 	flex-direction: column;
-}
-
-.monaco-description-button .monaco-button-label {
-	font-weight: 500;
+	align-items: center;
+	margin: 4px 5px; /* allows button focus outline to be visible */
 }
 
 .monaco-description-button .monaco-button-description {
 	font-style: italic;
+	font-size: 11px;
+	padding: 0px 20px;
 }
 
 .monaco-description-button .monaco-button-label,
-.monaco-description-button .monaco-button-description
-{
+.monaco-description-button .monaco-button-description {
 	display: flex;
 	justify-content: center;
 	align-items: center;

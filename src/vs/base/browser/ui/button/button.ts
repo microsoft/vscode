@@ -305,37 +305,55 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	}
 }
 
-export class ButtonWithDescription extends Button implements IButtonWithDescription {
-
-	private _labelElement: HTMLElement;
+export class ButtonWithDescription implements IButtonWithDescription {
+	private _button: Button;
+	private _element: HTMLElement;
 	private _descriptionElement: HTMLElement;
 
-	constructor(container: HTMLElement, options: IButtonOptions) {
-		super(container, options);
-
+	constructor(container: HTMLElement, private readonly options: IButtonOptions) {
+		this._element = document.createElement('div');
 		this._element.classList.add('monaco-description-button');
-
-		this._labelElement = document.createElement('div');
-		this._labelElement.classList.add('monaco-button-label');
-		this._element.appendChild(this._labelElement);
+		this._button = new Button(this._element, options);
 
 		this._descriptionElement = document.createElement('div');
 		this._descriptionElement.classList.add('monaco-button-description');
 		this._element.appendChild(this._descriptionElement);
+
+		container.appendChild(this._element);
 	}
 
-	override set label(value: string) {
-		this._element.classList.add('monaco-text-button');
-		if (this.options.supportIcons) {
-			reset(this._labelElement, ...renderLabelWithIcons(value));
-		} else {
-			this._labelElement.textContent = value;
-		}
-		if (typeof this.options.title === 'string') {
-			this._element.title = this.options.title;
-		} else if (this.options.title) {
-			this._element.title = value;
-		}
+	get onDidClick(): BaseEvent<Event | undefined> {
+		return this._button.onDidClick;
+	}
+
+	get element(): HTMLElement {
+		return this._element;
+	}
+
+	set label(value: string) {
+		this._button.label = value;
+	}
+
+	set icon(icon: CSSIcon) {
+		this._button.icon = icon;
+	}
+
+	get enabled(): boolean {
+		return this._button.enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		this._button.enabled = enabled;
+	}
+
+	focus(): void {
+		this._button.focus();
+	}
+	hasFocus(): boolean {
+		return this._button.hasFocus();
+	}
+	dispose(): void {
+		this._button.dispose();
 	}
 
 	set description(value: string) {
