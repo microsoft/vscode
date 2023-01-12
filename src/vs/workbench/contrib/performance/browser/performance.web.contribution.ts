@@ -53,19 +53,22 @@ class ResourcePerformanceMarks {
 
 class StartupTimings {
 	constructor(
-		@ITimerService timerService: ITimerService,
-		@ILogService logService: ILogService,
-		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
+		@ITimerService private readonly timerService: ITimerService,
+		@ILogService private readonly logService: ILogService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
 	) {
-		if (!environmentService.profDurationMarkers) {
+		this.logPerfMarks();
+	}
+
+	private async logPerfMarks(): Promise<void> {
+		if (!this.environmentService.profDurationMarkers) {
 			return;
 		}
 
-		const [from, to] = environmentService.profDurationMarkers;
+		await this.timerService.whenReady();
 
-		timerService.whenReady().then(() => {
-			logService.info(`[perf] from '${from}' to '${to}': ${timerService.getDuration(from, to)}ms`);
-		});
+		const [from, to] = this.environmentService.profDurationMarkers;
+		this.logService.info(`[perf] from '${from}' to '${to}': ${this.timerService.getDuration(from, to)}ms`);
 	}
 }
 
