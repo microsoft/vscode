@@ -44,6 +44,7 @@ export class TypeScriptServerSpawner {
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 		private readonly _factory: TsServerProcessFactory,
+		private readonly _extensionUri: vscode.Uri,
 	) { }
 
 	public spawn(
@@ -152,7 +153,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, this._extensionUri);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
