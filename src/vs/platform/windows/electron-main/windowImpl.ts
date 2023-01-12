@@ -1660,6 +1660,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	override dispose(): void {
 		super.dispose();
 
+		// Deregister the loggers for this window
+		this.loggerMainService.deregisterLoggerResources(this.id);
+
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }

@@ -16,7 +16,6 @@ import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/window/
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 export interface IWindowState {
 	readonly windowId?: number;
@@ -67,7 +66,6 @@ export class WindowsStateHandler extends Disposable {
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
-		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -228,8 +226,6 @@ export class WindowsStateHandler extends Disposable {
 		if (this.lifecycleMainService.quitRequested) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}
-
-		this.loggerMainService.deregisterLoggerResources(window.id);
 
 		// On Window close, update our stored UI state of this window
 		const state: IWindowState = this.toWindowState(window);
