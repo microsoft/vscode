@@ -72,9 +72,13 @@ export class TestTelemetryLoggerService implements ILoggerService {
 	}
 
 	onDidChangeLogLevel = Event.None;
-	setLevel(): void { }
+	onDidChangeLoggerResources = Event.None;
+	setLogLevel(): void { }
 	getLogLevel() { return undefined; }
 	getDefaultLogLevel() { return this.logLevel; }
+	registerLoggerResource() { }
+	deregisterLoggerResource(): void { }
+	getLoggerResources() { return []; }
 }
 
 suite('TelemetryLogAdapter', () => {

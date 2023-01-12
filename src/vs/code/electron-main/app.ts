@@ -59,7 +59,7 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -110,6 +110,8 @@ import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfil
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -804,7 +806,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
