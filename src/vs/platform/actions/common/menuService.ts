@@ -48,6 +48,8 @@ class PersistedMenuHideState {
 	private _ignoreChangeEvent: boolean = false;
 	private _data: Record<string, string[] | undefined>;
 
+	private _hiddenByDefaultCache = new Map<string, boolean>();
+
 	constructor(@IStorageService private readonly _storageService: IStorageService) {
 		try {
 			const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');
@@ -77,14 +79,24 @@ class PersistedMenuHideState {
 		this._disposables.dispose();
 	}
 
-	isHidden(menu: MenuId, commandId: string, defaultState: boolean): boolean {
+	private _isHiddenByDefault(menu: MenuId, commandId: string) {
+		return this._hiddenByDefaultCache.get(`${menu.id}/${commandId}`) ?? false;
+	}
+
+	setDefaultState(menu: MenuId, commandId: string, hidden: boolean): void {
+		this._hiddenByDefaultCache.set(`${menu.id}/${commandId}`, hidden);
+	}
+
+	isHidden(menu: MenuId, commandId: string): boolean {
+		const hiddenByDefault = this._isHiddenByDefault(menu, commandId);
 		const state = this._data[menu.id]?.includes(commandId) ?? false;
-		return defaultState ? state : !state;
+		return hiddenByDefault ? !state : state;
 	}
 
 	updateHidden(menu: MenuId, commandId: string, hidden: boolean): void {
+		const hiddenByDefault = this._isHiddenByDefault(menu, commandId);
 		const entries = this._data[menu.id];
-		if (!hidden) {
+		if (hidden === !hiddenByDefault) {
 			// remove and cleanup
 			if (entries) {
 				const idx = entries.indexOf(commandId);
@@ -226,6 +238,10 @@ class MenuInfo {
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const isMenuItem = isIMenuItem(item);
+					if (isMenuItem) {
+						this._hiddenStates.setDefaultState(this._id, item.command.id, !!item.isHiddenByDefault);
+					}
+
 					const menuHide = createMenuHide(this._id, isMenuItem ? item.command : item, this._hiddenStates);
 					if (isMenuItem) {
 						// MenuItemAction
@@ -401,7 +417,6 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 
 	const id = isISubmenuItem(command) ? command.submenu.id : command.id;
 	const title = typeof command.title === 'string' ? command.title : command.title.value;
-	const defaultState = isISubmenuItem(command) ? true : !command.isHiddenByDefault;
 
 	const hide = toAction({
 		id: `hide/${menu.id}/${id}`,
@@ -412,7 +427,7 @@ function createMenuHide(menu: MenuId, command: ICommandAction | ISubmenuItem, st
 	const toggle = toAction({
 		id: `toggle/${menu.id}/${id}`,
 		label: title,
-		get checked() { return !states.isHidden(menu, id, defaultState); },
+		get checked() { return !states.isHidden(menu, id); },
 		run() { states.updateHidden(menu, id, !this.checked); }
 	});
 

@@ -299,7 +299,7 @@ export function getIconRegistry(): IIconRegistry {
 
 function initialize() {
 	for (const icon of Codicon.getAll()) {
-		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
+		iconRegistry.registerIcon(icon.id, { fontCharacter: icon.fontCharacter }, icon.description);
 	}
 }
 initialize();

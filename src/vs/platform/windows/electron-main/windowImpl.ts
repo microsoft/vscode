@@ -51,6 +51,7 @@ import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, su
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -184,6 +185,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
@@ -1086,6 +1088,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
+		configuration.loggers = this.loggerMainService.getLoggerResources(this.id);
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1657,6 +1660,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	override dispose(): void {
 		super.dispose();
+
+		// Deregister the loggers for this window
+		this.loggerMainService.deregisterLoggerResources(this.id);
 
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}

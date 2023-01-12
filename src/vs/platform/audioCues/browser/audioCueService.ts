@@ -69,7 +69,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-
+		console.log('playing', sound);
 		const url = FileAccess.asBrowserUri(
 			`vs/platform/audioCues/browser/media/${sound.fileName}`
 		).toString();
@@ -77,6 +77,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		audio.volume = this.getVolumeInPercent() / 100;
 		audio.addEventListener('ended', () => {
 			this.playingSounds.delete(sound);
+			console.log('ending', sound);
 		});
 		try {
 			try {
@@ -203,6 +204,7 @@ export class Sound {
 	public static readonly terminalBell = Sound.register({ fileName: 'terminalBell.mp3' });
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
+	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -308,6 +310,12 @@ export class AudioCue {
 		name: localize('audioCues.diffLineDeleted', 'Diff Line Deleted'),
 		sound: Sound.diffLineDeleted,
 		settingsKey: 'audioCues.diffLineDeleted'
+	});
+
+	public static readonly diffLineModified = AudioCue.register({
+		name: localize('audioCues.diffLineModified', 'Diff Line Modified'),
+		sound: Sound.diffLineModified,
+		settingsKey: 'audioCues.diffLineModified'
 	});
 
 	private constructor(

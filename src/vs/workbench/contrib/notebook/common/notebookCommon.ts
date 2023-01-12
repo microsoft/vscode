@@ -205,7 +205,7 @@ export interface ICellOutput {
 	metadata?: Record<string, any>;
 	outputId: string;
 	onDidChangeData: Event<void>;
-	replaceData(items: IOutputItemDto[]): void;
+	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 }
 

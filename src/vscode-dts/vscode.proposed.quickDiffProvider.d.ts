@@ -5,20 +5,9 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/127473
+	// https://github.com/microsoft/vscode/issues/169012
 
-	/**
-	 * The state of a comment thread.
-	 */
-	export enum CommentThreadState {
-		Unresolved = 0,
-		Resolved = 1
-	}
-
-	export interface CommentThread {
-		/**
-		 * The optional state of a comment thread, which may affect how the comment is displayed.
-		 */
-		state?: CommentThreadState;
+	export namespace window {
+		export function registerQuickDiffProvider(quickDiffProvider: QuickDiffProvider, label: string, rootUri?: Uri): Thenable<Disposable>;
 	}
 }

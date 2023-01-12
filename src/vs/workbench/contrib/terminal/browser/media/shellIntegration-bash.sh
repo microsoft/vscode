@@ -31,6 +31,12 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 			. ~/.profile
 		fi
 		builtin unset VSCODE_SHELL_LOGIN
+
+		# Apply any explicit path prefix (see #99878)
+		if [ -n "$VSCODE_PATH_PREFIX" ]; then
+			export PATH=$VSCODE_PATH_PREFIX$PATH
+			builtin unset VSCODE_PATH_PREFIX
+		fi
 	fi
 	builtin unset VSCODE_INJECTION
 fi

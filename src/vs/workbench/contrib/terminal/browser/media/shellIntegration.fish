@@ -22,6 +22,12 @@ or exit
 
 set --global VSCODE_SHELL_INTEGRATION 1
 
+# Apply any explicit path prefix (see #99878)
+if status --is-login; and set -q VSCODE_PATH_PREFIX
+	fish_add_path -p $VSCODE_PATH_PREFIX
+end
+set -e VSCODE_PATH_PREFIX
+
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" $argv)

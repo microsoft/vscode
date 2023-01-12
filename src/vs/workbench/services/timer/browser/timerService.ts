@@ -18,6 +18,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { isWeb } from 'vs/base/common/platform';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -478,6 +479,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
+	private readonly rndValueShouldSendTelemetry = Math.random() < .3;
 
 	private _startupMetrics?: IStartupMetrics;
 
@@ -581,13 +583,15 @@ export abstract class AbstractTimerService implements ITimerService {
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
 	}
 
-	private readonly _shouldReportPerfMarks = Math.random() < .3;
+	protected _shouldReportPerfMarks(): boolean {
+		return this.rndValueShouldSendTelemetry;
+	}
 
 	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {
 
-		if (!this._shouldReportPerfMarks) {
+		if (!this._shouldReportPerfMarks()) {
 			// the `startup.timer.mark` event is send very often. In order to save resources
-			// we let only a third of our instances send this event
+			// we let some of our instances/sessions send this event
 			return;
 		}
 
@@ -616,7 +620,12 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 		const initialStartup = this._isInitialStartup();
-		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		let startMark: string;
+		if (isWeb) {
+			startMark = 'code/timeOrigin';
+		} else {
+			startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		}
 
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);

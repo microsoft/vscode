@@ -2070,11 +2070,12 @@ export class CommandCenter {
 					await this.cleanAll(repository);
 					await item.run(opts);
 				} else if (choice === stash || choice === migrate) {
-					await this.stash(repository);
-					await item.run(opts);
+					if (await this._stash(repository)) {
+						await item.run(opts);
 
-					if (choice === migrate) {
-						await this.stashPopLatest(repository);
+						if (choice === migrate) {
+							await this.stashPopLatest(repository);
+						}
 					}
 				}
 			}
@@ -2189,12 +2190,6 @@ export class CommandCenter {
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(repository, defaultName);
-
-		if (!branchName) {
-			return;
-		}
-
 		let target = 'HEAD';
 
 		if (from) {
@@ -2202,7 +2197,7 @@ export class CommandCenter {
 				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
 			};
 
-			const placeHolder = l10n.t('Select a ref to create the "{0}" branch from', branchName);
+			const placeHolder = l10n.t('Select a ref to create the branch from');
 			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
@@ -2212,6 +2207,12 @@ export class CommandCenter {
 			if (choice.refName) {
 				target = choice.refName;
 			}
+		}
+
+		const branchName = await this.promptForBranchName(repository, defaultName);
+
+		if (!branchName) {
+			return;
 		}
 
 		await repository.branch(branchName, true, target);
@@ -2982,7 +2983,7 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -2990,12 +2991,12 @@ export class CommandCenter {
 		if (staged) {
 			if (noStagedChanges) {
 				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
-				return;
+				return false;
 			}
 		} else {
 			if (noUnstagedChanges && noStagedChanges) {
 				window.showInformationMessage(l10n.t('There are no changes to stash.'));
-				return;
+				return false;
 			}
 		}
 
@@ -3022,7 +3023,7 @@ export class CommandCenter {
 				if (pick === saveAndStash) {
 					await Promise.all(documents.map(d => d.save()));
 				} else if (pick !== stash) {
-					return; // do not stash on cancel
+					return false; // do not stash on cancel
 				}
 			}
 		}
@@ -3040,15 +3041,16 @@ export class CommandCenter {
 		});
 
 		if (typeof message === 'undefined') {
-			return;
+			return false;
 		}
 
 		try {
 			await repository.createStash(message, includeUntracked, staged);
+			return true;
 		} catch (err) {
 			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
 				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
-				return;
+				return false;
 			}
 
 			throw err;
@@ -3056,18 +3058,18 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	stash(repository: Repository): Promise<void> {
-		return this._stash(repository);
+	async stash(repository: Repository): Promise<void> {
+		await this._stash(repository);
 	}
 
 	@command('git.stashStaged', { repository: true })
-	stashStaged(repository: Repository): Promise<void> {
-		return this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<void> {
+		await this._stash(repository, false, true);
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	stashIncludeUntracked(repository: Repository): Promise<void> {
-		return this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<void> {
+		await this._stash(repository, true);
 	}
 
 	@command('git.stashPop', { repository: true })

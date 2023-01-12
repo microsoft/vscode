@@ -11,7 +11,7 @@ import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCod
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
@@ -67,6 +67,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
 		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly _productService: IProductService,
@@ -256,7 +257,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		}
 
 		// Register log channel for web worker exthost log
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: webWorkerExtHostLog, label: localize('name', "Worker Extension Host"), file: this._extensionHostLogFile, log: true });
+		const webWorkerExtHostLoggerResource = { id: webWorkerExtHostLog, name: localize('name', "Worker Extension Host"), resource: this._extensionHostLogFile };
+		this._loggerService.registerLoggerResource(webWorkerExtHostLoggerResource);
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: webWorkerExtHostLoggerResource.id, label: webWorkerExtHostLoggerResource.name, file: webWorkerExtHostLoggerResource.resource, log: true });
 
 		return protocol;
 	}
@@ -320,6 +323,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
+			loggers: [...this._loggerService.getLoggerResources()],
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
 			autoStart: initData.autoStart,
