@@ -1358,9 +1358,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return;
 		}
 
-		if (e.browserEvent.isHandledByList) {
-			return;
-		}
+		e.browserEvent.stopPropagation();
 
 		const node = e.element;
 
@@ -1413,9 +1411,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return;
 		}
 
-		if (e.browserEvent.isHandledByList) {
-			return;
-		}
+		e.browserEvent.stopPropagation();
 
 		super.onDoubleClick(e);
 	}

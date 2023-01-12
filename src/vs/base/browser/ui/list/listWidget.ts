@@ -624,7 +624,7 @@ export class MouseController<T> implements IDisposable {
 			this.disposables.add(Gesture.addTarget(list.getHTMLElement()));
 		}
 
-		Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(list.onMouseClick, list.onMouseMiddleClick, list.onTap)(this.onViewPointer, this, this.disposables);
+		Event.any(list.onMouseClick, list.onMouseMiddleClick, list.onTap)(this.onViewPointer, this, this.disposables);
 	}
 
 	updateOptions(optionsUpdate: IListOptionsUpdate): void {
@@ -677,15 +677,12 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	protected onViewPointer(e: IListMouseEvent<T>): void {
+		e.browserEvent.stopPropagation();
 		if (!this.mouseSupport) {
 			return;
 		}
 
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
-			return;
-		}
-
-		if (e.browserEvent.isHandledByList) {
 			return;
 		}
 
@@ -713,11 +710,11 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([focus], e.browserEvent);
 		}
 
-		e.browserEvent.isHandledByList = true;
 		this._onPointer.fire(e);
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<T>): void {
+		e.browserEvent.stopPropagation();
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -726,13 +723,8 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (e.browserEvent.isHandledByList) {
-			return;
-		}
-
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
-		e.browserEvent.isHandledByList = true;
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
