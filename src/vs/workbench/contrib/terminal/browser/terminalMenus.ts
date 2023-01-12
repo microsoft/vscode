@@ -528,6 +528,7 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 4,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
 			},
@@ -541,6 +542,7 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 5,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
 			},
@@ -554,6 +556,7 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 6,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
 				}
 			},
