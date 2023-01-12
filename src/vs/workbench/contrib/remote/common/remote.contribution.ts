@@ -99,6 +99,7 @@ class RemoteLogOutputChannels extends Disposable implements IWorkbenchContributi
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILoggerService loggerService: ILoggerService,
+		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -109,11 +110,15 @@ class RemoteLogOutputChannels extends Disposable implements IWorkbenchContributi
 					const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 					const remoteExtensionHostLogFile = joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`);
 					const remotePtyLogFile = joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`);
-					outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: remoteExtensionHostLogFile, log: true });
-					outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: remotePtyLogFile, log: true });
-					this._register(loggerService.onDidChangeLogLevel(([resource, logLevel]) => {
+					const remoteServerLoggerResource = { id: remoteServerLog, name: localize('remoteExtensionLog', "Remote Server"), resource: remoteExtensionHostLogFile };
+					loggerService.registerLoggerResource(remoteServerLoggerResource);
+					outputChannelRegistry.registerChannel({ id: remoteServerLoggerResource.id, label: remoteServerLoggerResource.name, file: remoteServerLoggerResource.resource, log: true });
+					const remotePtyHostLoggerResource = { id: remotePtyHostLog, name: localize('remotePtyHostLog', "Remote Pty Host"), resource: remotePtyLogFile };
+					loggerService.registerLoggerResource(remotePtyHostLoggerResource);
+					outputChannelRegistry.registerChannel({ id: remotePtyHostLoggerResource.id, label: remotePtyHostLoggerResource.name, file: remotePtyHostLoggerResource.resource, log: true });
+					this._register(loggerService.onDidChangeLogLevel(({ resource, logLevel }) => {
 						if (uriIdentityService.extUri.isEqual(resource, remoteExtensionHostLogFile) || uriIdentityService.extUri.isEqual(resource, remotePtyLogFile)) {
-							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel, resource));
+							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel ?? logService.getLevel(), resource));
 						}
 					}));
 				}

@@ -216,7 +216,7 @@ class SharedProcessMain extends Disposable {
 
 		// Logger
 		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter));
-		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, this.configuration.logLevels, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, this.configuration.loggers, mainProcessService.getChannel('logger'));
 		services.set(ILoggerService, loggerService);
 
 		// Log
@@ -275,7 +275,8 @@ class SharedProcessMain extends Disposable {
 		]);
 
 		// URI Identity
-		services.set(IUriIdentityService, new UriIdentityService(fileService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
 		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, productService, logService));
@@ -374,7 +375,9 @@ class SharedProcessMain extends Disposable {
 		},
 			configurationService,
 			environmentService,
-			logService
+			logService,
+			loggerService,
+			uriIdentityService
 		);
 		ptyHostService.initialize();
 

@@ -418,7 +418,9 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					disposable.dispose();
 
 					// Register log channel for exthost log
-					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: localExtHostLog, label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+					const localExtHostLoggerResource = { id: localExtHostLog, name: nls.localize('extension host Log', "Extension Host"), resource: this._extensionHostLogFile };
+					this._loggerService.registerLoggerResource(localExtHostLoggerResource);
+					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: localExtHostLoggerResource.id, label: localExtHostLoggerResource.name, file: localExtHostLoggerResource.resource, log: true });
 
 					// release this promise
 					resolve();
@@ -473,7 +475,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			logLevels: [...this._loggerService.logLevels],
+			loggers: [...this._loggerService.getLoggerResources()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			logFile: this._extensionHostLogFile,
 			autoStart: initData.autoStart,

@@ -252,7 +252,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		}
 
 		// Register log channel for web worker exthost log
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: webWorkerExtHostLog, label: localize('name', "Worker Extension Host"), file: this._extensionHostLogFile, log: true });
+		const webWorkerExtHostLoggerResource = { id: webWorkerExtHostLog, name: localize('name', "Worker Extension Host"), resource: this._extensionHostLogFile };
+		this._loggerService.registerLoggerResource(webWorkerExtHostLoggerResource);
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: webWorkerExtHostLoggerResource.id, label: webWorkerExtHostLoggerResource.name, file: webWorkerExtHostLoggerResource.resource, log: true });
 
 		return protocol;
 	}
@@ -316,7 +318,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			logLevels: [...this._loggerService.logLevels],
+			loggers: [...this._loggerService.getLoggerResources()],
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
 			autoStart: initData.autoStart,

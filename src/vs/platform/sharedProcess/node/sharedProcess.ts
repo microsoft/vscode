@@ -6,10 +6,10 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { UriComponents, UriDto } from 'vs/base/common/uri';
+import { UriDto } from 'vs/base/common/uri';
 
 export interface ISharedProcess {
 
@@ -27,7 +27,7 @@ export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 
 	readonly logLevel: LogLevel;
 
-	readonly logLevels: [UriComponents, LogLevel][];
+	readonly loggers: UriDto<ILoggerResource>[];
 
 	readonly profiles: readonly UriDto<IUserDataProfile>[];
 

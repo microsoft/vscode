@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isWindows } from 'vs/base/common/platform';
+import { Mutable } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -104,7 +105,20 @@ export interface ILoggerOptions {
 	always?: boolean;
 }
 
+export interface ILoggerResource {
+	readonly resource: URI;
+	readonly name?: string;
+	readonly id?: string;
+	readonly logLevel?: LogLevel;
+}
+
+export type DidChangeLoggerResourceEvent = {
+	readonly added: Iterable<ILoggerResource>;
+	readonly removed: Iterable<ILoggerResource>;
+};
+
 export interface ILoggerService {
+
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -117,26 +131,40 @@ export interface ILoggerService {
 	 */
 	getLogger(resource: URI): ILogger | undefined;
 
-
-	/**
-	 * all resources log levels
-	 */
-	readonly logLevels: Iterable<[URI, LogLevel]>;
-
-	/**
-	 * An event which fires when the log level of the resource changes.
-	 */
-	readonly onDidChangeLogLevel: Event<[URI, LogLevel]>;
-
 	/**
 	 * Set log level for a logger.
 	 */
-	setLevel(resource: URI, level: LogLevel | undefined): void;
+	setLogLevel(resource: URI, level: LogLevel): void;
 
 	/**
 	 * Get log level for a logger.
 	 */
 	getLogLevel(resource: URI): LogLevel | undefined;
+
+	/**
+	 * An event which fires when the log level of a logger has changed
+	 */
+	readonly onDidChangeLogLevel: Event<ILoggerResource>;
+
+	/**
+	 * An event which fires when the logger resources are changed
+	 */
+	readonly onDidChangeLoggerResources: Event<DidChangeLoggerResourceEvent>;
+
+	/**
+	 * Register the logger resoruce
+	 */
+	registerLoggerResource(resource: ILoggerResource): void;
+
+	/**
+	 * Deregister the logger resoruce
+	 */
+	deregisterLoggerResource(resource: URI): void;
+
+	/**
+	 * Get all registered logger resources
+	 */
+	getLoggerResources(): Iterable<ILoggerResource>;
 }
 
 export abstract class AbstractLogger extends Disposable implements ILogger {
@@ -502,27 +530,26 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 
 	private readonly _loggers = new ResourceMap<ILogger>();
 
-	private readonly _logLevels = new ResourceMap<LogLevel>();
-	get logLevels() { return this._logLevels.entries(); }
-	private _onDidChangeLogLevel = this._register(new Emitter<[URI, LogLevel]>);
+	private readonly _loggerResources = new ResourceMap<Mutable<ILoggerResource>>();
+
+	private _onDidChangeLoggerResources = this._register(new Emitter<{ added: ILoggerResource[]; removed: ILoggerResource[] }>);
+	readonly onDidChangeLoggerResources = this._onDidChangeLoggerResources.event;
+
+	private _onDidChangeLogLevel = this._register(new Emitter<ILoggerResource>);
 	readonly onDidChangeLogLevel = this._onDidChangeLogLevel.event;
 
 	constructor(
-		private logLevel: LogLevel,
+		protected logLevel: LogLevel,
 		onDidChangeLogLevel: Event<LogLevel>,
-		logLevels?: Iterable<[URI, LogLevel]>,
+		loggerResources?: Iterable<ILoggerResource>,
 	) {
 		super();
 		this._register(onDidChangeLogLevel(logLevel => this.setGlobalLogLevel(logLevel)));
-		if (logLevels) {
-			for (const [resource, logLevel] of logLevels) {
-				this._logLevels.set(resource, logLevel);
+		if (loggerResources) {
+			for (const loggerResource of loggerResources) {
+				this._loggerResources.set(loggerResource.resource, loggerResource);
 			}
 		}
-	}
-
-	getLoggers(): ILogger[] {
-		return [...this._loggers.values()];
 	}
 
 	getLogger(resource: URI): ILogger | undefined {
@@ -535,42 +562,58 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 			logLevel = options?.always ? LogLevel.Trace : logLevel;
 			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, options);
 			this._loggers.set(resource, logger);
-			if (logLevel !== undefined) {
-				this._logLevels.set(resource, logLevel);
-			}
+			this.registerLoggerResource({ resource, logLevel, name: options?.name });
 		}
 		return logger;
 	}
 
-	setLevel(resource: URI, logLevel: LogLevel): void {
-		if (logLevel !== this._logLevels.get(resource)) {
-			if (logLevel === this.logLevel) {
-				this._logLevels.delete(resource);
-			} else {
-				this._logLevels.set(resource, logLevel);
-			}
+	setLogLevel(resource: URI, logLevel: LogLevel): void {
+		const loggerResource = this._loggerResources.get(resource);
+		if (loggerResource && logLevel !== loggerResource.logLevel) {
+			loggerResource.logLevel = logLevel === this.logLevel ? undefined : logLevel;
 			this._loggers.get(resource)?.setLevel(logLevel);
-			this._onDidChangeLogLevel.fire([resource, logLevel]);
+			this._loggerResources.set(loggerResource.resource, loggerResource);
+			this._onDidChangeLogLevel.fire(loggerResource);
 		}
 	}
 
 	protected setGlobalLogLevel(logLevel: LogLevel): void {
 		this.logLevel = logLevel;
 		for (const [resource, logger] of this._loggers.entries()) {
-			if (this._logLevels.get(resource) === undefined) {
+			if (this._loggerResources.get(resource)?.logLevel === undefined) {
 				logger.setLevel(this.logLevel);
 			}
 		}
 	}
 
 	getLogLevel(resource: URI): LogLevel | undefined {
-		return this._logLevels.get(resource);
+		return this._loggerResources.get(resource)?.logLevel;
+	}
+
+	registerLoggerResource(resource: ILoggerResource): void {
+		const existing = this._loggerResources.get(resource.resource);
+		if (!existing) {
+			this._loggerResources.set(resource.resource, resource);
+			this._onDidChangeLoggerResources.fire({ added: [resource], removed: [] });
+		}
+	}
+
+	deregisterLoggerResource(resource: URI): void {
+		const existing = this._loggerResources.get(resource);
+		if (existing) {
+			this._loggerResources.delete(resource);
+			this._onDidChangeLoggerResources.fire({ added: [], removed: [existing] });
+		}
+	}
+
+	getLoggerResources(): Iterable<ILoggerResource> {
+		return this._loggerResources.values();
 	}
 
 	override dispose(): void {
 		this._loggers.forEach(logger => logger.dispose());
 		this._loggers.clear();
-		this._logLevels.clear();
+		this._loggerResources.clear();
 		super.dispose();
 	}
 

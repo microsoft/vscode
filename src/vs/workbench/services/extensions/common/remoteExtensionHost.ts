@@ -172,7 +172,9 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 							disposable.dispose();
 
 							// Register log channel for remote exthost log
-							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLog, label: localize('remote extension host Log', "Remote Extension Host"), file: logFile, log: true });
+							const remoteExtHostLoggerResource = { id: remoteExtHostLog, name: localize('remote extension host Log', "Remote Extension Host"), resource: logFile };
+							this._loggerService.registerLoggerResource(remoteExtHostLoggerResource);
+							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLoggerResource.id, label: remoteExtHostLoggerResource.name, file: remoteExtHostLoggerResource.resource, log: true });
 
 							// release this promise
 							this._protocol = protocol;
@@ -249,7 +251,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			logLevels: [...this._loggerService.logLevels],
+			loggers: [...this._loggerService.getLoggerResources()],
 			logsLocation: remoteInitData.extensionHostLogsPath,
 			logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
 			autoStart: true,

@@ -10,6 +10,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { isUndefined } from 'vs/base/common/types';
+import { revive } from 'vs/base/common/marshalling';
 
 export class ExtHostLoggerService extends AbstractLoggerService implements ExtHostLogLevelServiceShape {
 
@@ -20,13 +21,13 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(initData.logLevel, Event.None, initData.logLevels.map(([resource, logLevel]) => ([URI.revive(resource), logLevel])));
+		super(initData.logLevel, Event.None, initData.loggers.map(logger => revive(logger)));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
 	}
 
 	$setLevel(level: LogLevel, resource?: UriComponents): void {
 		if (resource) {
-			this.setLevel(URI.revive(resource), level);
+			this.setLogLevel(URI.revive(resource), level);
 		} else if (!isUndefined(level)) {
 			this.setGlobalLogLevel(level);
 		}

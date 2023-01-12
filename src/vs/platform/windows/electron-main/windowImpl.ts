@@ -25,7 +25,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
@@ -50,6 +50,7 @@ import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, su
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -183,7 +184,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
-		@ILoggerService private readonly loggerService: ILoggerService,
+		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
@@ -1086,7 +1087,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.logLevels = [...this.loggerService.logLevels];
+		configuration.loggers = this.loggerMainService.getLoggerResources(this.id);
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

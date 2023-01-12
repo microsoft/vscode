@@ -88,7 +88,7 @@ export class SetLogLevelAction extends Action {
 
 		const entry = await this.quickInputService.pick(entries, { placeHolder: logChannel ? nls.localize('selectLogLevelFor', " {0}: Select log level", logChannel?.label) : nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.logService.getLevel()] });
 		if (entry) {
-			this.loggerService.setLevel(logChannel.resource, entry.level);
+			this.loggerService.setLogLevel(logChannel.resource, entry.level);
 		}
 	}
 

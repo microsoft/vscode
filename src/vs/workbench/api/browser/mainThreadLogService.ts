@@ -26,7 +26,7 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 	) {
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogLevelServiceShape);
 		this.disposables.add(logService.onDidChangeLogLevel(level => proxy.$setLevel(level)));
-		this.disposables.add(loggerService.onDidChangeLogLevel(([resource, logLevel]) => proxy.$setLevel(logLevel, resource)));
+		this.disposables.add(loggerService.onDidChangeLogLevel(loggerResource => proxy.$setLevel(loggerResource.logLevel ?? logService.getLevel(), loggerResource.resource)));
 	}
 
 	$log(file: UriComponents, messages: [LogLevel, string][]): void {
