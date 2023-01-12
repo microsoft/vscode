@@ -107,17 +107,6 @@ export const makeEmptyCounts = () => {
 	return o as TestStateCount;
 };
 
-export const sumCounts = (counts: Iterable<TestStateCount>) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
-		}
-	}
-
-	return total;
-};
-
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	for (const state of statesInOrder) {
 		if (counts[state] > 0) {
@@ -178,7 +167,7 @@ export class LiveOutputController {
 		this.dataEmitter.fire(data);
 		this._offset += data.byteLength;
 
-		return this.writer.getValue()[0].write(data);
+		return this.writer.value[0].write(data);
 	}
 
 	/**
@@ -239,10 +228,10 @@ export class LiveOutputController {
 			return this.closed;
 		}
 
-		if (!this.writer.hasValue()) {
+		if (!this.writer.hasValue) {
 			this.closed = Promise.resolve();
 		} else {
-			const [stream, ended] = this.writer.getValue();
+			const [stream, ended] = this.writer.value;
 			stream.end();
 			this.closed = ended;
 		}
@@ -508,7 +497,7 @@ export class LiveTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
-		return this.completedAt && this.persist ? this.doSerialize.getValue() : undefined;
+		return this.completedAt && this.persist ? this.doSerialize.value : undefined;
 	}
 
 	/**

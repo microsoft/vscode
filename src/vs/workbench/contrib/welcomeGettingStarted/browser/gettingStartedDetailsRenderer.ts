@@ -8,7 +8,7 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/support
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { URI } from 'vs/base/common/uri';
-import { locale } from 'vs/base/common/platform';
+import { language } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
@@ -62,8 +62,8 @@ export class GettingStartedDetailsRenderer {
 					}
 					.theme-picker-row {
 						display: flex;
-						gap: 32px;
 						justify-content: center;
+						gap: 32px;
 					}
 					checklist {
 						display: flex;
@@ -229,9 +229,9 @@ export class GettingStartedDetailsRenderer {
 		} catch { }
 
 		try {
-			const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
+			const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${language}.md`) });
 
-			const generalizedLocale = locale?.replace(/-.*$/, '');
+			const generalizedLocale = language?.replace(/-.*$/, '');
 			const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
 
 			const fileExists = (file: URI) => this.fileService

@@ -26,6 +26,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -369,17 +370,16 @@ class DebugHoverComputer {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	public async compute(position: Position, token: CancellationToken): Promise<IDebugHoverComputeResult> {
 		const session = this.debugService.getViewModel().focusedSession;
-
 		if (!session || !this.editor.hasModel()) {
 			return { rangeChanged: false };
 		}
 
 		const model = this.editor.getModel();
-
 		const result = await this.doCompute(model, position, token);
 		if (!result) {
 			return { rangeChanged: false };
@@ -434,7 +434,8 @@ class DebugHoverComputer {
 
 	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {
 		if (!this._currentExpression) {
-			throw new Error('No expression to evaluate');
+			this.logService.error('No expression to evaluate');
+			return;
 		}
 
 		if (session.capabilities.supportsEvaluateForHovers) {

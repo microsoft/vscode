@@ -5,9 +5,10 @@
 
 import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
 import { PostCommitCommandsProvider } from './api/git';
-import { Operation, Repository } from './repository';
+import { Repository } from './repository';
 import { ApiRepository } from './api/api1';
 import { dispose } from './util';
+import { OperationKind } from './operation';
 
 export interface IPostCommitCommandsProviderRegistry {
 	readonly onDidChangePostCommitCommandsProviders: Event<void>;
@@ -28,7 +29,7 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 
 		// Icon
 		const repository = apiRepository.repository;
-		const isCommitInProgress = repository.operations.isRunning(Operation.Commit) || repository.operations.isRunning(Operation.PostCommitCommand);
+		const isCommitInProgress = repository.operations.isRunning(OperationKind.Commit) || repository.operations.isRunning(OperationKind.PostCommitCommand);
 		const icon = isCommitInProgress ? '$(sync~spin)' : alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 
 		// Tooltip (default)
@@ -173,12 +174,15 @@ export class CommitCommandsCenter {
 		const icon = alwaysPrompt ? '$(lock)' : alwaysCommitToNewBranch ? '$(git-branch)' : undefined;
 
 		// Tooltip (default)
-		let tooltip = !alwaysCommitToNewBranch ?
-			l10n.t('Commit Changes') :
-			l10n.t('Commit Changes to New Branch');
+		const branch = this.repository.HEAD?.name;
+		let tooltip = alwaysCommitToNewBranch ?
+			l10n.t('Commit Changes to New Branch') :
+			branch ?
+				l10n.t('Commit Changes on "{0}"', branch) :
+				l10n.t('Commit Changes');
 
 		// Tooltip (in progress)
-		if (this.repository.operations.isRunning(Operation.Commit)) {
+		if (this.repository.operations.isRunning(OperationKind.Commit)) {
 			tooltip = !alwaysCommitToNewBranch ?
 				l10n.t('Committing Changes...') :
 				l10n.t('Committing Changes to New Branch...');

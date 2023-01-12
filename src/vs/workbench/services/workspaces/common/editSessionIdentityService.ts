@@ -53,7 +53,7 @@ export class EditSessionIdentityService implements IEditSessionIdentityService {
 
 	async onWillCreateEditSessionIdentity(workspaceFolder: IWorkspaceFolder, cancellationToken: CancellationToken): Promise<void> {
 		for (const participant of this._participants) {
-			participant.participate(workspaceFolder, cancellationToken);
+			await participant.participate(workspaceFolder, cancellationToken);
 		}
 	}
 

@@ -19,31 +19,31 @@ class TestTelemetryLogger extends AbstractLogger implements ILogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.checkLogLevel(LogLevel.Trace)) {
 			this.logs.push(message + JSON.stringify(args));
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.checkLogLevel(LogLevel.Debug)) {
 			this.logs.push(message);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.checkLogLevel(LogLevel.Info)) {
 			this.logs.push(message);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.checkLogLevel(LogLevel.Warning)) {
 			this.logs.push(message.toString());
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.checkLogLevel(LogLevel.Error)) {
 			this.logs.push(message);
 		}
 	}
@@ -72,9 +72,13 @@ export class TestTelemetryLoggerService implements ILoggerService {
 	}
 
 	onDidChangeLogLevel = Event.None;
-	setLevel(): void { }
+	onDidChangeLoggerResources = Event.None;
+	setLogLevel(): void { }
 	getLogLevel() { return undefined; }
 	getDefaultLogLevel() { return this.logLevel; }
+	registerLoggerResource() { }
+	deregisterLoggerResource(): void { }
+	getLoggerResources() { return []; }
 }
 
 suite('TelemetryLogAdapter', () => {

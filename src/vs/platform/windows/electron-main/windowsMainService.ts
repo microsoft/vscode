@@ -44,7 +44,7 @@ import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent,
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IRecent } from 'vs/platform/workspaces/common/workspaces';
-import { hasWorkspaceFileExtension, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -54,6 +54,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 //#region Helper Interfaces
 
@@ -201,6 +202,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly machineId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerService: ILoggerMainService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -1317,6 +1319,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<ICodeWindow> {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
+		let window: ICodeWindow | undefined;
+		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
+			window = options.windowToUse || this.getLastActiveWindow();
+			if (window) {
+				window.focus();
+			}
+		}
+
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
 
@@ -1342,7 +1352,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			profiles: {
 				all: this.userDataProfilesMainService.profiles,
-				profile: await this.resolveProfileForBrowserWindow(options)
+				// Set to default profile first and resolve and update the profile
+				// only after the workspace-backup is registered.
+				// Because, workspace identifier of an empty window is known only then.
+				profile: this.userDataProfilesMainService.defaultProfile
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1359,6 +1372,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.logService.getLevel(),
+			loggers: this.loggerService.getLoggerResources(),
 			logsPath: this.environmentMainService.logsPath,
 
 			product,
@@ -1374,14 +1388,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 		};
-
-		let window: ICodeWindow | undefined;
-		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || this.getLastActiveWindow();
-			if (window) {
-				window.focus();
-			}
-		}
 
 		// New window
 		if (!window) {
@@ -1443,6 +1449,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
+			configuration.loggers = currentWindowConfig?.loggers ?? configuration.loggers;
 		}
 
 		// Update window identifier and session now
@@ -1453,19 +1460,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// first and only load the new configuration if that was
 		// not vetoed
 		if (window.isReady) {
-			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(veto => {
+			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(async veto => {
 				if (!veto) {
-					this.doOpenInBrowserWindow(window!, configuration, options);
+					await this.doOpenInBrowserWindow(window!, configuration, options);
 				}
 			});
 		} else {
-			this.doOpenInBrowserWindow(window, configuration, options);
+			await this.doOpenInBrowserWindow(window, configuration, options);
 		}
 
 		return window;
 	}
 
-	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
+	private async doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): Promise<void> {
 
 		// Register window for backups unless the window
 		// is for extension development, where we do not
@@ -1498,25 +1505,34 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		if (this.userDataProfilesMainService.isEnabled()) {
+			const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace);
+			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
+			configuration.profiles.profile = profile;
+
+			if (!configuration.extensionDevelopmentPath) {
+				// Associate the configured profile to the workspace
+				// unless the window is for extension development,
+				// where we do not persist the associations
+				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+			}
+		}
+
 		// Load it
 		window.load(configuration);
 	}
 
-	private async resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions): Promise<IUserDataProfile> {
-		let profile: IUserDataProfile | undefined;
-		if (this.userDataProfilesMainService.isEnabled()) {
-			if (options.forceProfile) {
-				profile = this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? await this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
-			} else if (options.forceTempProfile) {
-				profile = await this.userDataProfilesMainService.createTransientProfile();
-			}
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions, workspace: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> | IUserDataProfile {
+		if (options.forceProfile) {
+			return this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
 		}
-		if (profile) {
-			this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
-		} else {
-			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+
+		if (options.forceTempProfile) {
+			return this.userDataProfilesMainService.createTransientProfile();
 		}
-		return profile;
+
+		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? this.userDataProfilesMainService.defaultProfile;
 	}
 
 	private onWindowClosed(window: ICodeWindow): void {

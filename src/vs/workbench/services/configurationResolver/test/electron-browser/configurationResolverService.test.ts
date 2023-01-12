@@ -18,7 +18,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
@@ -264,26 +264,6 @@ suite('Configuration Resolver Service', () => {
 		const configurationService = new TestConfigurationService({
 			editor: {
 				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
-				}
-			}
-		});
-
-		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
-		if (platform.isWindows) {
-			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
-		} else {
-			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
-		}
-	});
-
-	test('substitute one env variable as array and a configuration variable', async () => {
-		const configurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: ['foo']
 			},
 			terminal: {
 				integrated: {
@@ -699,7 +679,7 @@ class MockLabelService implements ILabelService {
 	getUriBasenameLabel(resource: URI): string {
 		throw new Error('Method not implemented.');
 	}
-	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: Verbosity }): string {
 		throw new Error('Method not implemented.');
 	}
 	getHostLabel(scheme: string, authority?: string): string {

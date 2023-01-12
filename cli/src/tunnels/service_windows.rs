@@ -21,6 +21,7 @@ use windows_service::{
 
 use crate::{
 	commands::tunnels::ShutdownSignal,
+	constants::QUALITYLESS_PRODUCT_NAME,
 	util::errors::{wrap, wrapdbg, AnyError, WindowsNeedsElevation},
 };
 use crate::{
@@ -64,7 +65,7 @@ impl CliServiceManager for WindowsService {
 
 		let mut service_info = ServiceInfo {
 			name: OsString::from(SERVICE_NAME),
-			display_name: OsString::from("VS Code Tunnel"),
+			display_name: OsString::from(format!("{} Tunnel", QUALITYLESS_PRODUCT_NAME)),
 			service_type: SERVICE_TYPE,
 			start_type: ServiceStartType::AutoStart,
 			error_control: ServiceErrorControl::Normal,

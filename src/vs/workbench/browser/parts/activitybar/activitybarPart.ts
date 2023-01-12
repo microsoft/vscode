@@ -43,7 +43,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { IUserDataProfileService, PROFILES_TTILE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService, PROFILES_TTILE, defaultUserDataProfileIcon } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
@@ -454,7 +454,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.registerKeyboardNavigationListeners();
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		this.content = document.createElement('div');
@@ -618,11 +618,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private createProfilesActivity(): IProfileActivity {
 		const shortName = this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile);
-		const icon = ThemeIcon.fromString(shortName);
+		const icon = ThemeIcon.fromString(shortName) ?? defaultUserDataProfileIcon;
 		return {
 			id: 'workbench.actions.profiles',
 			name: icon ? this.userDataProfileService.currentProfile.name : shortName,
-			cssClass: icon ? `${ThemeIcon.asClassName(icon)} profile-activity-item` : 'profile-activity-item',
+			cssClass: ThemeIcon.asClassName(icon),
 			icon: !!icon
 		};
 	}
@@ -1067,7 +1067,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private get profilesVisibilityPreference(): boolean {
-		return this.userDataProfilesService.isEnabled() && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, this.userDataProfilesService.profiles.length > 1);
+		return this.userDataProfilesService.isEnabled() && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
 	}
 
 	private set profilesVisibilityPreference(value: boolean) {

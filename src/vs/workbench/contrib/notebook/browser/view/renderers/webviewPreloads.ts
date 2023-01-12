@@ -182,40 +182,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	document.body.addEventListener('click', handleInnerClick);
 
-	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
-		'type', 'src', 'nonce', 'noModule', 'async',
-	];
-
-	// derived from https://github.com/jquery/jquery/blob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/src/core/DOMEval.js
-	const domEval = (container: Element) => {
-		const arr = Array.from(container.getElementsByTagName('script'));
-		for (let n = 0; n < arr.length; n++) {
-			const node = arr[n];
-			const scriptTag = document.createElement('script');
-			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
-			scriptTag.text = trustedScript as string;
-			for (const key of preservedScriptAttributes) {
-				const val = node[key] || node.getAttribute && node.getAttribute(key);
-				if (val) {
-					scriptTag.setAttribute(key, val as any);
-				}
-			}
-
-			// TODO@connor4312: should script with src not be removed?
-			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
-		}
-	};
-
-	async function loadScriptSource(url: string, originalUri: string): Promise<string> {
-		const res = await fetch(url);
-		const text = await res.text();
-		if (!res.ok) {
-			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
-		}
-
-		return text;
-	}
-
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly settings: RenderOptions;
 	}
@@ -248,24 +214,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	}
 
-	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
-		const args = Object.entries(globals);
-		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
-	};
-
-	async function runKernelPreload(url: string, originalUri: string, forceLoadAsModule: boolean): Promise<void> {
-		if (forceLoadAsModule) {
-			return activateModuleKernelPreload(url);
-		}
-
-		const text = await loadScriptSource(url, originalUri);
-		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+	async function runKernelPreload(url: string): Promise<void> {
 		try {
-			if (isModule) {
-				return activateModuleKernelPreload(url);
-			} else {
-				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
-			}
+			return await activateModuleKernelPreload(url);
 		} catch (e) {
 			console.error(e);
 			throw e;
@@ -842,12 +793,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const kernelPreloadGlobals = {
-		acquireVsCodeApi,
-		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
-		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
-	};
-
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
 		createHTML: value => value,
 		createScript: value => value,
@@ -1019,12 +964,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 						break;
 					}
 
+					// Markdown preview are rendered in a shadow DOM.
 					if (options.includeMarkup && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
 						// markdown preview container
 						const preview = (selection.anchorNode?.firstChild as Element);
 						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						// find the match in the shadow dom by checking the selection inside the shadow dom
 						if (shadowSelection && shadowSelection.anchorNode) {
 							matches.push({
 								type: 'preview',
@@ -1037,6 +984,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						}
 					}
 
+					// Outputs might be rendered inside a shadow DOM.
 					if (options.includeOutput && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
 						// output container
@@ -1056,11 +1004,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 						}
 					}
 
-					const anchorNode = selection?.anchorNode?.parentElement;
+					const anchorNode = selection.anchorNode?.parentElement;
 
 					if (anchorNode) {
 						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
+						// Optimization: avoid searching for the output container
 						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
 							matches.push({
 								type: lastEl.type,
@@ -1068,10 +1017,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: window.getSelection()!.getRangeAt(0)
+								originalRange: selection.getRangeAt(0)
 							});
 
 						} else {
+							// Traverse up the DOM to find the container
 							for (let node = anchorNode as Element | null; node; node = node.parentElement) {
 								if (!(node instanceof Element)) {
 									break;
@@ -1087,7 +1037,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: window.getSelection()!.getRangeAt(0)
+											originalRange: selection.getRangeAt(0)
 										});
 									}
 									break;
@@ -1228,8 +1178,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'preload': {
 				const resources = event.data.resources;
-				for (const { uri, originalUri } of resources) {
-					kernelPreloads.load(uri, originalUri, false);
+				for (const { uri } of resources) {
+					kernelPreloads.load(uri);
 				}
 				break;
 			}
@@ -1481,9 +1431,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * @param uri URI to load from
 		 * @param originalUri URI to show in an error message if the preload is invalid.
 		 */
-		public load(uri: string, originalUri: string, forceLoadAsModule: boolean) {
+		public load(uri: string) {
 			const promise = Promise.all([
-				runKernelPreload(uri, originalUri, forceLoadAsModule),
+				runKernelPreload(uri),
 				this.waitForAllCurrent(),
 			]);
 
@@ -1636,7 +1586,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 				const error = document.createElement('div');
 				error.className = 'no-renderer-error';
-				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
+				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', () => info.mime);
 				error.innerText = errorText;
 
 				const cellText = document.createElement('div');
@@ -2248,7 +2198,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	});
 
 	for (const preload of ctx.staticPreloadsData) {
-		kernelPreloads.load(preload.entrypoint, preload.entrypoint, true);
+		kernelPreloads.load(preload.entrypoint);
 	}
 
 	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
@@ -2307,7 +2257,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (content.type === 0 /* RenderOutputType.Html */) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
-				domEval(this.element);
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);

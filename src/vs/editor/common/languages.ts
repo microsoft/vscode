@@ -385,6 +385,8 @@ export const enum CompletionItemTag {
 }
 
 export const enum CompletionItemInsertTextRule {
+	None = 0,
+
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
 	 * match the current line indentation.

@@ -20,7 +20,6 @@ import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS }
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { getMachineId } from 'vs/base/node/id';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { getDelayedChannel, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
@@ -60,7 +59,7 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -71,7 +70,7 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -103,12 +102,16 @@ import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { RequestChannel } from 'vs/platform/request/common/requestIpc';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
-import { UserDataTransientProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataTransientProfilesHandler';
+import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -524,7 +527,7 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await this.resolveMachineId();
+		const machineId = await resolveMachineId(this.stateMainService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
@@ -558,21 +561,7 @@ export class CodeApplication extends Disposable {
 		this._register(instantiationService.createInstance(ProxyAuthHandler));
 
 		// Transient profiles handler
-		this._register(instantiationService.createInstance(UserDataTransientProfilesHandler));
-	}
-
-	private async resolveMachineId(): Promise<string> {
-
-		// We cache the machineId for faster lookups on startup
-		// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
-		let machineId = this.stateMainService.getItem<string>(machineIdKey);
-		if (!machineId || (isMacintosh && machineId === '6c9d2bc8f91b89624add29c0abeae7fb42bf539fa1cdb2e3e57cd668fa9bcead')) {
-			machineId = await getMachineId();
-
-			this.stateMainService.setItem(machineIdKey, machineId);
-		}
-
-		return machineId;
+		this._register(instantiationService.createInstance(UserDataProfilesHandler));
 	}
 
 	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
@@ -817,7 +806,7 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
@@ -834,24 +823,32 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
+		const logService = this.logService;
 
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Check for initial URLs to handle from protocol link invocations
+		const protocolLinksFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : []; // Windows/Linux: protocol handler invokes CLI with --open-url
+		if (protocolLinksFromCommandLine.length) {
+			logService.trace('app#openFirstWindow() protocol links from command line:', protocolLinksFromCommandLine);
+		}
+
+		const protocolLinksFromEvent = ((<any>global).getOpenUrls() || []) as string[]; // macOS: open-url events
+		if (protocolLinksFromEvent.length) {
+			logService.trace(`app#openFirstWindow() protocol links from macOS 'open-url' event:`, protocolLinksFromEvent);
+		}
+
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = [
-
-			// Windows/Linux: protocol handler invokes CLI with --open-url
-			...this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [],
-
-			// macOS: open-url events
-			...((<any>global).getOpenUrls() || []) as string[]
-
+			...protocolLinksFromCommandLine,
+			...protocolLinksFromEvent
 		].map(url => {
 			try {
 				return { uri: URI.parse(url), url };
 			} catch {
+				logService.trace('app#openFirstWindow() protocol link failed to parse:', url);
+
 				return undefined;
 			}
 		}).filter((obj): obj is { uri: URI; url: string } => {
@@ -861,6 +858,8 @@ export class CodeApplication extends Disposable {
 
 			// If URI should be blocked, filter it out
 			if (this.shouldBlockURI(obj.uri)) {
+				logService.trace('app#openFirstWindow() protocol link was blocked:', obj.uri.toString(true));
+
 				return false;
 			}
 
@@ -869,10 +868,14 @@ export class CodeApplication extends Disposable {
 			// previous workspace too.
 			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
 			if (windowOpenable) {
+				logService.trace('app#openFirstWindow() protocol link will be handled as window to open:', obj.uri.toString(true), windowOpenable);
+
 				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
 
 				return false;
 			}
+
+			logService.trace('app#openFirstWindow() protocol link will be passed to active window for handling:', obj.uri.toString(true));
 
 			return true;
 		});
@@ -883,11 +886,11 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		const environmentService = this.environmentMainService;
 		const productService = this.productService;
-		const logService = this.logService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				logService.trace('app#handleURL: ', uri.toString(true), options);
+				logService.trace('app#handleURL():', uri.toString(true), options);
 
+				// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
 					uri = uri.with({
 						authority: 'file',
@@ -898,6 +901,8 @@ export class CodeApplication extends Disposable {
 
 				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
+					logService.trace('app#handleURL() protocol link was blocked:', uri.toString(true));
+
 					return true;
 				}
 
@@ -906,26 +911,37 @@ export class CodeApplication extends Disposable {
 				// We should handle the URI in a new window if the URL contains `windowId=_blank`
 				const params = new URLSearchParams(uri.query);
 				if (params.get('windowId') === '_blank') {
+					logService.trace(`app#handleURL() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
 					params.delete('windowId');
 					uri = uri.with({ query: params.toString() });
+
 					shouldOpenInNewWindow = true;
 				}
 
 				// or if no window is open (macOS only)
-				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+				else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+					logService.trace(`app#handleURL() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
+					shouldOpenInNewWindow = true;
+				}
 
 				// Pass along whether the application is being opened via a Continue On flow
 				const continueOn = params.get('continueOn');
 				if (continueOn !== null) {
-					environmentService.continueOn = continueOn ?? undefined;
+					logService.trace(`app#handleURL() found 'continueOn' as parameter:`, uri.toString(true));
+
 					params.delete('continueOn');
 					uri = uri.with({ query: params.toString() });
+
+					environmentService.continueOn = continueOn ?? undefined;
 				}
 
-				// Check for URIs to open in window
+				// Check if the protocol link is a window openable to open...
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
-				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
 				if (windowOpenableFromProtocolLink) {
+					logService.trace('app#handleURL() opening protocol link as window:', windowOpenableFromProtocolLink, uri.toString(true));
+
 					const [window] = await windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
@@ -940,7 +956,10 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
+				// ...or if we should open in a new window and then handle it within that window
 				if (shouldOpenInNewWindow) {
+					logService.trace('app#handleURL() opening empty window and passing in protocol link:', uri.toString(true));
+
 					const [window] = await windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
@@ -971,7 +990,7 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentMainService, this.productService));
+		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		// Open our first window
 		const args = this.environmentMainService.args;
@@ -1217,7 +1236,7 @@ export class CodeApplication extends Disposable {
 
 	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
 		try {
-			return await getResolvedShellEnv(this.logService, args, env);
+			return await getResolvedShellEnv(this.configurationService, this.logService, args, env);
 		} catch (error) {
 			const errorMessage = toErrorMessage(error);
 			if (notifyOnError) {

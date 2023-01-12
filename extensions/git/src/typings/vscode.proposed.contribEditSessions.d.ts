@@ -9,11 +9,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * An event that is emitted when an edit session identity is about to be requested.
-		 */
-		export const onWillCreateEditSessionIdentity: Event<WillCreateEditSessionIdentityEvent>;
-
-		/**
 		 *
 		 * @param scheme The URI scheme that this provider can provide edit session identities for.
 		 * @param provider A provider which can convert URIs for workspace folders of scheme @param scheme to
@@ -45,27 +40,5 @@ declare module 'vscode' {
 		Complete = 100,
 		Partial = 50,
 		None = 0
-	}
-
-	export interface WillCreateEditSessionIdentityEvent {
-
-		/**
-		 * A cancellation token.
-		 */
-		readonly token: CancellationToken;
-
-		/**
-		 * The workspace folder to create an edit session identity for.
-		 */
-		readonly workspaceFolder: WorkspaceFolder;
-
-		/**
-		 * Allows to pause the event until the provided thenable resolves.
-		 *
-		 * *Note:* This function can only be called during event dispatch.
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
 	}
 }

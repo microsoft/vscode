@@ -17,7 +17,8 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { isWeb } from 'vs/base/common/platform';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -423,6 +424,13 @@ export interface ITimerService {
 	 * returned tuples but the marks of a tuple are guaranteed to be sorted by start times.
 	 */
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][];
+
+	/**
+	 * Return the duration between two marks.
+	 * @param from from mark name
+	 * @param to to mark name
+	 */
+	getDuration(from: string, to: string): number;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -471,6 +479,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
+	private readonly rndValueShouldSendTelemetry = Math.random() < .3;
 
 	private _startupMetrics?: IStartupMetrics;
 
@@ -557,6 +566,10 @@ export abstract class AbstractTimerService implements ITimerService {
 		return this._marks.getEntries();
 	}
 
+	getDuration(from: string, to: string): number {
+		return this._marks.getDuration(from, to);
+	}
+
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
 		// report IStartupMetrics as telemetry
 		/* __GDPR__
@@ -570,13 +583,15 @@ export abstract class AbstractTimerService implements ITimerService {
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
 	}
 
-	private readonly _shouldReportPerfMarks = Math.random() < .3;
+	protected _shouldReportPerfMarks(): boolean {
+		return this.rndValueShouldSendTelemetry;
+	}
 
 	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {
 
-		if (!this._shouldReportPerfMarks) {
+		if (!this._shouldReportPerfMarks()) {
 			// the `startup.timer.mark` event is send very often. In order to save resources
-			// we let only a third of our instances send this event
+			// we let some of our instances/sessions send this event
 			return;
 		}
 
@@ -584,7 +599,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 
-		type Mark = { source: string; name: TrustedTelemetryValue<string>; startTime: number };
+		type Mark = { source: string; name: TelemetryTrustedValue<string>; startTime: number };
 		type MarkClassification = {
 			owner: 'jrieken';
 			comment: 'Information about a performance marker';
@@ -596,7 +611,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		for (const mark of marks) {
 			this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
 				source,
-				name: new TrustedTelemetryValue(mark.name),
+				name: new TelemetryTrustedValue(mark.name),
 				startTime: mark.startTime
 			});
 		}
@@ -605,7 +620,12 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 		const initialStartup = this._isInitialStartup();
-		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		let startMark: string;
+		if (isWeb) {
+			startMark = 'code/timeOrigin';
+		} else {
+			startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		}
 
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);

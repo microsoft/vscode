@@ -61,6 +61,7 @@
 	const settings = getSettings();
 	const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
+	// @ts-ignore
 	const vscode = acquireVsCodeApi();
 
 	const initialState = vscode.getState() || { scale: 'fit', offsetX: 0, offsetY: 0 };
@@ -312,7 +313,8 @@
 
 	image.src = settings.src;
 
-	document.querySelector('.open-file-link').addEventListener('click', () => {
+	document.querySelector('.open-file-link')?.addEventListener('click', (e) => {
+		e.preventDefault();
 		vscode.postMessage({
 			type: 'reopen-as-text',
 		});

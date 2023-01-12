@@ -65,11 +65,7 @@ export class ExtensionsWatcher extends Disposable {
 				this.extensionsProfileWatchDisposables.deleteAndDispose(profile.id);
 				return this.removeExtensionsFromProfile(profile.extensionsResource);
 			}));
-		} catch (error) {
-			this.logService.error(error);
-		}
 
-		try {
 			if (added.length) {
 				await Promise.all(added.map(profile => {
 					this.extensionsProfileWatchDisposables.set(profile.id, combinedDisposable(
@@ -82,6 +78,7 @@ export class ExtensionsWatcher extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
+			throw error;
 		}
 	}
 
@@ -180,7 +177,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	private async uninstallExtensionsNotInProfiles(): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		if (toUninstall.length) {
 			await this.extensionManagementService.markAsUninstalled(...toUninstall);
 		}

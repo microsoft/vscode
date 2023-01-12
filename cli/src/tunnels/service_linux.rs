@@ -64,7 +64,7 @@ impl SystemdService {
 	}
 
 	fn service_name_string() -> String {
-		format!("{}-tunnel.service", &*APPLICATION_NAME)
+		format!("{}-tunnel.service", APPLICATION_NAME)
 	}
 }
 
@@ -91,6 +91,19 @@ impl ServiceManager for SystemdService {
 			.map_err(|e| wrap(e, "error registering service"))?;
 
 		info!(self.log, "Successfully registered service...");
+
+		// note: enablement is implicit in recent systemd version, but required for older systems
+		// https://github.com/microsoft/vscode/issues/167489#issuecomment-1331222826
+		proxy
+			.enable_unit_files(
+				vec![SystemdService::service_name_string()],
+				/* 'runtime only'= */ false,
+				/* replace existing = */ true,
+			)
+			.await
+			.map_err(|e| wrap(e, "error enabling unit files for service"))?;
+
+		info!(self.log, "Successfully enabled unit files...");
 
 		proxy
 			.start_unit(SystemdService::service_name_string(), "replace".to_string())
@@ -184,9 +197,9 @@ fn write_systemd_service_file(
       ExecStart={} \"{}\"\n\
       \n\
       [Install]\n\
-      WantedBy=multi-user.target\n\
+      WantedBy=default.target\n\
     ",
-		&*PRODUCT_NAME_LONG,
+		PRODUCT_NAME_LONG,
 		exe.into_os_string().to_string_lossy(),
 		args.join("\" \"")
 	)?;

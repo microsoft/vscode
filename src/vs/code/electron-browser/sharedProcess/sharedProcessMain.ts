@@ -101,7 +101,7 @@ import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profili
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
@@ -113,6 +113,7 @@ import { IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunn
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
 import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/contrib/extensions';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -215,7 +216,7 @@ class SharedProcessMain extends Disposable {
 
 		// Logger
 		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter));
-		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, this.configuration.loggers, mainProcessService.getChannel('logger'));
 		services.set(ILoggerService, loggerService);
 
 		// Log
@@ -274,10 +275,11 @@ class SharedProcessMain extends Disposable {
 		]);
 
 		// URI Identity
-		services.set(IUriIdentityService, new UriIdentityService(fileService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
-		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
+		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, productService, logService));
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
@@ -373,7 +375,9 @@ class SharedProcessMain extends Disposable {
 		},
 			configurationService,
 			environmentService,
-			logService
+			logService,
+			loggerService,
+			uriIdentityService
 		);
 		ptyHostService.initialize();
 

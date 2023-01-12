@@ -722,9 +722,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		});
 	}
 
-	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.EditSessionIdentityWillCreateEvent): Promise<any> {
+	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.EditSessionIdentityWillCreateEvent): Promise<void> {
 
-		const promises: Promise<vscode.TextEdit[]>[] = [];
+		const promises: Promise<void>[] = [];
 
 		const t1 = Date.now();
 		const { workspaceFolder, token } = stubEvent;
@@ -732,7 +732,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		const event = Object.freeze<vscode.EditSessionIdentityWillCreateEvent>({
 			workspaceFolder,
 			token,
-			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
+			waitUntil(p: Promise<void>) {
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');
 				}
@@ -750,14 +750,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// freeze promises after event call
 		Object.freeze(promises);
 
-		return new Promise<vscode.TextEdit[][]>((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			// join on all listener promises, reject after timeout
 			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
 
-			return Promise.all(promises).then(edits => {
-				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' finished after ${(Date.now() - t1)}ms`);
+			return Promise.all(promises).then(() => {
+				this._logService.debug(`onWillCreateEditSessionIdentity-listener from extension '${extension.identifier.value}' finished after ${(Date.now() - t1)}ms`);
 				clearTimeout(handle);
-				resolve(edits);
+				resolve(undefined);
 			}).catch(err => {
 				clearTimeout(handle);
 				reject(err);

@@ -34,6 +34,7 @@ import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc'
 import { timeout } from 'vs/base/common/async';
 import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
 import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -93,18 +94,36 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 	}
 }
 
-class RemoteLogOutputChannels implements IWorkbenchContribution {
+class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILoggerService loggerService: ILoggerService,
+		@ILogService logService: ILogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
-			}
-		});
+		super();
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			remoteAgentService.getEnvironment().then(remoteEnv => {
+				if (remoteEnv) {
+					const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+					const remoteExtensionHostLogFile = joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`);
+					const remotePtyLogFile = joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`);
+					const remoteServerLoggerResource = { id: remoteServerLog, name: localize('remoteExtensionLog', "Remote Server"), resource: remoteExtensionHostLogFile };
+					loggerService.registerLoggerResource(remoteServerLoggerResource);
+					outputChannelRegistry.registerChannel({ id: remoteServerLoggerResource.id, label: remoteServerLoggerResource.name, file: remoteServerLoggerResource.resource, log: true });
+					const remotePtyHostLoggerResource = { id: remotePtyHostLog, name: localize('remotePtyHostLog', "Remote Pty Host"), resource: remotePtyLogFile };
+					loggerService.registerLoggerResource(remotePtyHostLoggerResource);
+					outputChannelRegistry.registerChannel({ id: remotePtyHostLoggerResource.id, label: remotePtyHostLoggerResource.name, file: remotePtyHostLoggerResource.resource, log: true });
+					this._register(loggerService.onDidChangeLogLevel(({ resource, logLevel }) => {
+						if (uriIdentityService.extUri.isEqual(resource, remoteExtensionHostLogFile) || uriIdentityService.extUri.isEqual(resource, remotePtyLogFile)) {
+							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel ?? logService.getLevel(), resource));
+						}
+					}));
+				}
+			});
+		}
 	}
 }
 
@@ -362,6 +381,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
 				],
 				default: 'process'
+			},
+			'remote.forwardOnOpen': {
+				type: 'boolean',
+				description: localize('remote.forwardOnClick', "Controls whether local URLs with a port will be forwarded when opened from the terminal and the debug console."),
+				default: true
 			},
 			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
 			// and extensions\configuration-editing\schemas\attachContainer.schema.json

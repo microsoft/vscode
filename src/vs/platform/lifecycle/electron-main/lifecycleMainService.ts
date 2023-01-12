@@ -26,17 +26,17 @@ interface WindowLoadEvent {
 	/**
 	 * The window that is loaded to a new workspace.
 	 */
-	window: ICodeWindow;
+	readonly window: ICodeWindow;
 
 	/**
 	 * The workspace the window is loaded into.
 	 */
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	readonly workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
 
 	/**
 	 * More details why the window loads to a new workspace.
 	 */
-	reason: LoadReason;
+	readonly reason: LoadReason;
 }
 
 export const enum ShutdownReason {

@@ -23,7 +23,7 @@
 
 .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
-	min-width: 110px;
+	min-width: 100px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;
 }

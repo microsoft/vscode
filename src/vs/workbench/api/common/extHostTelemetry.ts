@@ -52,10 +52,11 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		};
 	}
 
-	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender) {
+	instantiateLogger(extension: IExtensionDescription, sender: vscode.TelemetrySender, options?: vscode.TelemetryLoggerOptions) {
 		const telemetryDetails = this.getTelemetryDetails();
 		const logger = new ExtHostTelemetryLogger(
-			appender,
+			sender,
+			options,
 			extension,
 			this._outputLogger,
 			this._inLoggingOnlyMode,
@@ -76,7 +77,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		const commonProperties: Record<string, string | boolean | number | undefined> = {};
 		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
 		// Or will first party extensions just mix this in
-		commonProperties['common.extname'] = extension.name;
+		commonProperties['common.extname'] = `${extension.publisher}.${extension.name}`;
 		commonProperties['common.extversion'] = extension.version;
 		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
 		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
@@ -118,7 +119,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 
 	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
 		const logger = this._telemetryLoggers.get(extension.value);
-		if (!logger) {
+		if (!logger || logger.ignoreUnhandledExtHostErrors) {
 			return false;
 		}
 		logger.logError(error);
@@ -127,19 +128,26 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 }
 
 export class ExtHostTelemetryLogger {
-	private _appender: vscode.TelemetryAppender;
+	private _appender: vscode.TelemetrySender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
 	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
 	private _apiObject: vscode.TelemetryLogger | undefined;
+	private readonly _ignoreBuiltinCommonProperties: boolean;
+	private readonly _additionalCommonProperties: Record<string, any> | undefined;
+	public readonly ignoreUnhandledExtHostErrors: boolean;
 	constructor(
-		appender: vscode.TelemetryAppender,
+		sender: vscode.TelemetrySender,
+		options: vscode.TelemetryLoggerOptions | undefined,
 		private readonly _extension: IExtensionDescription,
 		private readonly _logger: ILogger,
 		private readonly _inLoggingOnlyMode: boolean,
 		private readonly _commonProperties: Record<string, any>,
 		telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean }
 	) {
-		this._appender = appender;
+		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
+		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
+		this._additionalCommonProperties = options?.additionalCommonProperties;
+		this._appender = sender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
 
@@ -153,17 +161,16 @@ export class ExtHostTelemetryLogger {
 	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
 		// Some telemetry modules prefer to break properties and measurmements up
 		// We mix common properties into the properties tab.
-		// TODO @lramos15 should this be up to the implementer and not done here?
 		let updatedData = data.properties ?? data;
 
 		// We don't clean measurements since they are just numbers
 		updatedData = cleanData(updatedData, []);
 
-		if (this._appender.additionalCommonProperties) {
-			updatedData = mixin(updatedData, this._appender.additionalCommonProperties);
+		if (this._additionalCommonProperties) {
+			updatedData = mixin(updatedData, this._additionalCommonProperties);
 		}
 
-		if (!this._appender.ignoreBuiltInCommonProperties) {
+		if (!this._ignoreBuiltinCommonProperties) {
 			updatedData = mixin(updatedData, this._commonProperties);
 		}
 
@@ -185,7 +192,7 @@ export class ExtHostTelemetryLogger {
 		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
 		if (!this._inLoggingOnlyMode) {
-			this._appender.logEvent(eventName, data);
+			this._appender.sendEventData(eventName, data);
 		}
 		this._logger.trace(eventName, data);
 	}
@@ -205,7 +212,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.logException(eventNameOrException, data);
+			this._appender.sendErrorData(eventNameOrException, data);
 		}
 	}
 

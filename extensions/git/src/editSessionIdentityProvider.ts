@@ -13,10 +13,6 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 	constructor(private model: Model) {
 		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
-
-		vscode.workspace.onWillCreateEditSessionIdentity((e) => {
-			e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder, e.token));
-		});
 	}
 
 	dispose() {
@@ -35,7 +31,7 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 		return JSON.stringify({
 			remote: repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl ?? null,
-			ref: repository.HEAD?.name ?? null,
+			ref: repository.HEAD?.upstream?.name ?? null,
 			sha: repository.HEAD?.commit ?? null,
 		});
 	}
@@ -62,26 +58,6 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 			return vscode.EditSessionIdentityMatch.Partial;
 		}
 	}
-
-	private async _onWillCreateEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, cancellationToken: vscode.CancellationToken): Promise<void> {
-		const cancellationPromise = createCancellationPromise(cancellationToken);
-		await Promise.race([this._doSync(workspaceFolder), cancellationPromise]);
-	}
-
-	private async _doSync(workspaceFolder: vscode.WorkspaceFolder) {
-		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
-
-		const repository = this.model.getRepository(workspaceFolder.uri);
-		await repository?.status();
-
-		if (!repository) {
-			return;
-		}
-
-		if (!repository.HEAD?.upstream) {
-			await vscode.commands.executeCommand('git.publish');
-		}
-	}
 }
 
 function normalizeEditSessionIdentity(identity: string) {
@@ -96,15 +72,4 @@ function normalizeEditSessionIdentity(identity: string) {
 		ref,
 		sha
 	};
-}
-
-function createCancellationPromise(cancellationToken: vscode.CancellationToken) {
-	return new Promise((resolve, _) => {
-		if (cancellationToken.isCancellationRequested) {
-			resolve(undefined);
-		}
-		cancellationToken.onCancellationRequested(() => {
-			resolve(undefined);
-		});
-	});
 }

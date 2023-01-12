@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use super::errors::{wrap, AnyError, CommandFailed, WrappedError};
-use std::{ffi::OsStr, process::Stdio, borrow::Cow};
+use std::{borrow::Cow, ffi::OsStr, process::Stdio};
 use tokio::process::Command;
 
 pub async fn capture_command_and_check_status(

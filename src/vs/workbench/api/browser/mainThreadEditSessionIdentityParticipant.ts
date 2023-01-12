@@ -13,7 +13,7 @@ import { IEditSessionIdentityCreateParticipant, IEditSessionIdentityService } fr
 import { ExtHostContext, ExtHostWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
-class ExtHostSaveParticipant implements IEditSessionIdentityCreateParticipant {
+class ExtHostEditSessionIdentityCreateParticipant implements IEditSessionIdentityCreateParticipant {
 
 	private readonly _proxy: ExtHostWorkspaceShape;
 
@@ -25,7 +25,7 @@ class ExtHostSaveParticipant implements IEditSessionIdentityCreateParticipant {
 		const p = new Promise<any>((resolve, reject) => {
 
 			setTimeout(
-				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
+				() => reject(new Error(localize('timeout.onWillCreateEditSessionIdentity', "Aborted onWillCreateEditSessionIdentity-event after 10000ms"))),
 				10000
 			);
 			this._proxy.$onWillCreateEditSessionIdentity(workspaceFolder.uri).then(resolve, reject);
@@ -35,9 +35,8 @@ class ExtHostSaveParticipant implements IEditSessionIdentityCreateParticipant {
 	}
 }
 
-// The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
 @extHostCustomer
-export class SaveParticipant {
+export class EditSessionIdentityCreateParticipant {
 
 	private _saveParticipantDisposable: IDisposable;
 
@@ -46,7 +45,7 @@ export class SaveParticipant {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService
 	) {
-		this._saveParticipantDisposable = this._editSessionIdentityService.addEditSessionIdentityCreateParticipant(instantiationService.createInstance(ExtHostSaveParticipant, extHostContext));
+		this._saveParticipantDisposable = this._editSessionIdentityService.addEditSessionIdentityCreateParticipant(instantiationService.createInstance(ExtHostEditSessionIdentityCreateParticipant, extHostContext));
 	}
 
 	dispose(): void {

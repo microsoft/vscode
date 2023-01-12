@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -639,13 +639,6 @@ export const ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND = registerColor('activityBarI
 	hcLight: ACTIVITY_BAR_FOREGROUND
 }, localize('activityBarItem.profilesHoverForeground', "Foreground color for the profile entry on the activity bar when hovering."));
 
-export const ACTIVITY_BAR_PROFILE_BACKGROUND = registerColor('activityBarItem.profilesBackground', {
-	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
-	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
-	hcDark: null,
-	hcLight: null
-}, localize('activityBarItem.profilesBackground', "Background color for the profile entry on the activity bar."));
-
 // < --- Remote --- >
 
 export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
@@ -799,15 +792,15 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 // < --- Notifications --- >
 
 export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationCenter.border', {
-	dark: null,
-	light: null,
+	dark: widgetBorder,
+	light: widgetBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('notificationCenterBorder', "Notifications center border color. Notifications slide in from the bottom right of the window."));
 
 export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationToast.border', {
-	dark: null,
-	light: null,
+	dark: widgetBorder,
+	light: widgetBorder,
 	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('notificationToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));

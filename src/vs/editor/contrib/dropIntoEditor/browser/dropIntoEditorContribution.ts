@@ -178,5 +178,5 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 }
 
 
-registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.Idle);
+registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
 

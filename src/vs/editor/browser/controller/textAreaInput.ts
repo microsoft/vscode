@@ -362,9 +362,15 @@ export class TextAreaInput extends Disposable {
 			const newState = TextAreaState.readFromTextArea(this._textArea, this._textAreaState);
 			const typeInput = TextAreaState.deduceInput(this._textAreaState, newState, /*couldBeEmojiInput*/this._OS === OperatingSystem.Macintosh);
 
-			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
-				// Ignore invalid input but keep it around for next time
-				return;
+			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1) {
+				// one character was typed
+				if (
+					strings.isHighSurrogate(typeInput.text.charCodeAt(0))
+					|| typeInput.text.charCodeAt(0) === 0x7f /* Delete */
+				) {
+					// Ignore invalid input but keep it around for next time
+					return;
+				}
 			}
 
 			this._textAreaState = newState;

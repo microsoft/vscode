@@ -13,7 +13,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { ITreeItem } from 'vs/workbench/common/views';
+import { ITreeItem, ITreeItemCheckboxState, ITreeItemLabel } from 'vs/workbench/common/views';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -68,11 +70,22 @@ export const IUserDataProfileImportExportService = createDecorator<IUserDataProf
 export interface IUserDataProfileImportExportService {
 	readonly _serviceBrand: undefined;
 
-	registerProfileContentHandler(profileContentHandler: IUserDataProfileContentHandler): void;
+	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
+	unregisterProfileContentHandler(id: string): void;
 
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI): Promise<void>;
+	showProfileContents(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
+}
+
+export const enum ProfileResourceType {
+	Settings = 'settings',
+	Keybindings = 'keybindings',
+	Snippets = 'snippets',
+	Tasks = 'tasks',
+	Extensions = 'extensions',
+	GlobalState = 'globalState',
 }
 
 export interface IProfileResource {
@@ -81,19 +94,28 @@ export interface IProfileResource {
 }
 
 export interface IProfileResourceTreeItem extends ITreeItem {
+	readonly type: ProfileResourceType;
+	checkbox: ITreeItemCheckboxState;
+	readonly label: ITreeItemLabel;
 	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
+	getContent(): Promise<string>;
 }
 
 export interface IProfileResourceChildTreeItem extends ITreeItem {
 	parent: IProfileResourceTreeItem;
 }
 
-export interface IUserDataProfileContentHandler {
+export interface ISaveProfileResult {
 	readonly id: string;
+	readonly link: URI;
+}
+
+export interface IUserDataProfileContentHandler {
 	readonly name: string;
 	readonly description?: string;
-	saveProfile(name: string, content: string): Promise<URI | null>;
-	readProfile(uri: URI): Promise<string>;
+	readonly extensionId?: string;
+	saveProfile(name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null>;
+	readProfile(idOrUri: string | URI, token: CancellationToken): Promise<string | null>;
 }
 
 export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
@@ -108,4 +130,5 @@ export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
-export const IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportExportInProgress', false);
+export const IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileExportInProgress', false);
+export const IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportInProgress', false);
