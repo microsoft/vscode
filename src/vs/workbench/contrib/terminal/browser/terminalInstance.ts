@@ -90,7 +90,6 @@ import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { importAMDNodeModule } from 'vs/amdX';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
@@ -109,12 +108,12 @@ const enum Constants {
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
-function getXtermConstructor(isBuilt: boolean): Promise<typeof XTermTerminal> {
+function getXtermConstructor(): Promise<typeof XTermTerminal> {
 	if (xtermConstructor) {
 		return xtermConstructor;
 	}
 	xtermConstructor = Promises.withAsyncBody<typeof XTermTerminal>(async (resolve) => {
-		const Terminal = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js', isBuilt)).Terminal;
+		const Terminal = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
@@ -399,8 +398,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 
@@ -732,7 +730,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected async _createXterm(): Promise<XtermTerminal> {
-		const Terminal = await getXtermConstructor(this._environmentService.isBuilt);
+		const Terminal = await getXtermConstructor();
 		if (this._isDisposed) {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}

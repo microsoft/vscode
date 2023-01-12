@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEvent, Terminal } from 'xterm';
+import type { IEvent, Terminal } from 'xterm';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -29,6 +29,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { importAMDNodeModule } from 'vs/amdX';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -94,8 +95,9 @@ suite('XtermTerminal', () => {
 	let viewDescriptorService: TestViewDescriptorService;
 	let xterm: TestXtermTerminal;
 	let configHelper: TerminalConfigHelper;
+	let XTermBaseCtor: typeof Terminal;
 
-	setup(() => {
+	setup(async () => {
 		configurationService = new TestConfigurationService({
 			editor: {
 				fastScrollSensitivity: 2,
@@ -118,7 +120,10 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
+
+		XTermBaseCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
 
 		TestWebglAddon.shouldThrow = false;
 		TestWebglAddon.isEnabled = false;
@@ -135,7 +140,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
+			xterm = instantiationService.createInstance(XtermTerminal, XTermBaseCtor, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
 			viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
 			strictEqual(xterm.raw.options.theme?.background, '#00ff00');
@@ -170,7 +175,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
+			xterm = instantiationService.createInstance(XtermTerminal, XTermBaseCtor, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore(), true);
 			deepStrictEqual(xterm.raw.options.theme, {
 				background: '#000100',
 				foreground: '#000200',

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import * as sinon from 'sinon';
@@ -11,6 +11,7 @@ import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIn
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { importAMDNodeModule } from 'vs/amdX';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -41,8 +42,10 @@ suite('ShellIntegrationAddon', () => {
 	let shellIntegrationAddon: TestShellIntegrationAddon;
 	let capabilities: ITerminalCapabilityStore;
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+	setup(async () => {
+
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, NullLogService);
 		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon, true, undefined);

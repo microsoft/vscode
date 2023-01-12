@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
+import { importAMDNodeModule } from 'vs/amdX';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -27,8 +28,9 @@ suite('LineDataEventAddon', () => {
 	suite('onLineData', () => {
 		let events: string[];
 
-		setup(() => {
-			xterm = new Terminal({ allowProposedApi: true, cols: 4 });
+		setup(async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+			xterm = new TerminalCtor({ allowProposedApi: true, cols: 4 });
 			lineDataEventAddon = new LineDataEventAddon();
 			xterm.loadAddon(lineDataEventAddon);
 

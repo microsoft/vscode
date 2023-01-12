@@ -19,7 +19,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
@@ -30,6 +30,7 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { importAMDNodeModule } from 'vs/amdX';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -38,9 +39,12 @@ suite('QuickFixAddon', () => {
 	let openerService: OpenerService;
 	let labelService: LabelService;
 	let terminal: Terminal;
-	setup(() => {
+	setup(async () => {
 		const instantiationService = new TestInstantiationService();
-		terminal = new Terminal({
+
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+
+		terminal = new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30

@@ -12,13 +12,14 @@ import { ITerminalLinkResolverService, ITerminalSimpleLink, TerminalBuiltinLinkT
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
 import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
+import { importAMDNodeModule } from 'vs/amdX';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -152,7 +153,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		await assertLinks(TerminalBuiltinLinkType.LocalFile, `[${link}]`, [{ text: link, range: [[2, 1], [link.length + 1, 1]] }]);
 	}
 
-	setup(() => {
+	setup(async () => {
 		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -167,7 +168,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		instantiationService.set(ITerminalLinkResolverService, instantiationService.createInstance(TerminalLinkResolverService));
 		validResources = [];
 
-		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 	});
 
 	suite('platform independent', () => {

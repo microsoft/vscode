@@ -6,8 +6,9 @@
 import { deepStrictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { IMarker, Terminal } from 'xterm';
+import type { IMarker, Terminal } from 'xterm';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { importAMDNodeModule } from 'vs/amdX';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
@@ -34,8 +35,10 @@ suite('PartialCommandDetectionCapability', () => {
 		deepStrictEqual(addEvents.map(e => e.line), expectedLines);
 	}
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80 }) as TestTerminal;
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 }) as TestTerminal;
 		capability = new PartialCommandDetectionCapability(xterm);
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
