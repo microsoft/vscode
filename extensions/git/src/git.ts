@@ -686,7 +686,7 @@ export class Git {
 	}
 
 	async addSafeDirectory(repositoryPath: string): Promise<void> {
-		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
+		await this.exec('', ['config', '--global', '--add', 'safe.directory', repositoryPath]);
 		return;
 	}
 }
