@@ -63,7 +63,7 @@
 		// append script after current script
 		document.currentScript.parentNode.insertBefore(importMapScript, document.currentScript.nextSibling);
 
-		globalThis._VSCODE_FILE_ROOT = baseUrl;
+		globalThis._VSCODE_FILE_ROOT = new URL('../../../src', baseUrl);
 		globalThis.require = {
 			paths: {
 				xterm: new URL('../../../node_modules/xterm', baseUrl).href,
