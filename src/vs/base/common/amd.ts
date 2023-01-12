@@ -48,7 +48,7 @@ export abstract class LoaderStats {
 		}
 
 		let stats: readonly LoaderEvent[] = [];
-		if (typeof require.getStats === 'function') {
+		if (typeof require === 'function' && typeof require.getStats === 'function') {
 			stats = require.getStats().slice(0).sort((a, b) => a.timestamp - b.timestamp);
 		}
 
