@@ -622,7 +622,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const initialStartup = this._isInitialStartup();
 		let startMark: string;
 		if (isWeb) {
-			startMark = 'code/didStartRenderer';
+			startMark = 'code/timeOrigin';
 		} else {
 			startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
 		}
