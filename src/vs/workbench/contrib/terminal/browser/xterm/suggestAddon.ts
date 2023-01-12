@@ -377,11 +377,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 
+			// TODO: Share code
+			// TODO: Expose on xterm.js
 			const dimensions = {
-				width: (this._terminal as any)._core._renderService.dimensions.actualCellWidth,
-				height: (this._terminal as any)._core._renderService.dimensions.actualCellHeight,
+				width: (this._terminal as any)._core._renderService.dimensions.device.cell.width,
+				height: (this._terminal as any)._core._renderService.dimensions.device.cell.height,
 			};
-			if (!dimensions) {
+			if (!dimensions.width || !dimensions.height) {
 				return;
 			}
 			// TODO: What do frozen and auto do?

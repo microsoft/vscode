@@ -140,6 +140,7 @@ function Send-Completions {	# Get current command line
 	}
 	$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $completionPrefix.Length
 	if ($null -eq $completions.CompletionMatches) {
+		# TODO: Refine completion sequence
 		# TODO: Send bell instead?
 		$result = "`e]633;Completions`a"
 	} else {

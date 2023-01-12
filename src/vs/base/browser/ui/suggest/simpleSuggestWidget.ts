@@ -260,13 +260,14 @@ export class SimpleSuggestWidget implements IDisposable {
 		switch (state) {
 			case State.Hidden:
 				// dom.hide(this._messageElement, this._listElement, this._status.element);
+				dom.hide(this._listElement);
 				// this._details.hide(true);
 				// this._status.hide();
 				// this._contentWidget.hide();
 				// this._ctxSuggestWidgetVisible.reset();
 				// this._ctxSuggestWidgetMultipleSuggestions.reset();
 				// this._ctxSuggestWidgetHasFocusedSuggestion.reset();
-				// this._showTimeout.cancel();
+				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
 				// this._focusedItem = undefined;
@@ -276,6 +277,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			case State.Loading:
 				this.element.domNode.classList.add('message');
 				// this._messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
+				dom.hide(this._listElement);
 				// dom.hide(this._listElement, this._status.element);
 				// dom.show(this._messageElement);
 				// this._details.hide();
@@ -286,6 +288,7 @@ export class SimpleSuggestWidget implements IDisposable {
 				this.element.domNode.classList.add('message');
 				// this._messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				// dom.hide(this._listElement, this._status.element);
+				dom.hide(this._listElement);
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
@@ -294,16 +297,19 @@ export class SimpleSuggestWidget implements IDisposable {
 			case State.Open:
 				// dom.hide(this._messageElement);
 				// dom.show(this._listElement, this._status.element);
+				dom.show(this._listElement);
 				this._show();
 				break;
 			case State.Frozen:
 				// dom.hide(this._messageElement);
 				// dom.show(this._listElement, this._status.element);
+				dom.show(this._listElement);
 				this._show();
 				break;
 			case State.Details:
 				// dom.hide(this._messageElement);
 				// dom.show(this._listElement, this._status.element);
+				dom.show(this._listElement);
 				// this._details.show();
 				this._show();
 				break;
