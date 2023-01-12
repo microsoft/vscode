@@ -204,6 +204,12 @@ registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine)
 	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.RightArrow }
 });
+registerSendSequenceKeybinding('\x1b[24~e', { // F12,e -> ctrl+space (Native auto complete)
+	// TODO: When native auto complete is enabled
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	primary: KeyMod.CtrlCmd | KeyCode.Space,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+});
 
 // Always on pwsh keybindings
 registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home

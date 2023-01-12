@@ -112,6 +112,7 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(t.isRemote ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
+		console.log('sendText', resolvedText);
 		t.sendText(resolvedText, false);
 	});
 };
@@ -2216,6 +2217,82 @@ export function registerTerminalActions() {
 		run(accessor: ServicesAccessor) {
 			getCommandHistory(accessor).clear();
 			clearShellFileHistory();
+		}
+	}); registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SelectPrevSuggestion,
+				title: { value: localize('workbench.action.terminal.selectPrevSuggestion', "Select the Previous Suggestion"), original: 'Select the Previous Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Up is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectPreviousSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SelectNextSuggestion,
+				title: { value: localize('workbench.action.terminal.selectNextSuggestion', "Select the Next Suggestion"), original: 'Select the Next Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Down is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectNextSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.AcceptSelectedSuggestion,
+				title: { value: localize('workbench.action.terminal.acceptSelectedSuggestion', "Accept Selected Suggestion"), original: 'Accept Selected Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					primary: KeyCode.Enter,
+					secondary: [KeyCode.Tab],
+					// Enter is bound to other workbench keybindings that this needs to beat
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).activeInstance?.acceptSelectedSuggestion();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.HideSuggestWidget,
+				title: { value: localize('workbench.action.terminal.hideSuggestWidget', "Hide Suggest Widget"), original: 'Hide Suggest Widget' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					primary: KeyCode.Escape,
+					// Escape is bound to other workbench keybindings that this needs to beat
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).activeInstance?.hideSuggestWidget();
 		}
 	});
 	registerAction2(class extends Action2 {

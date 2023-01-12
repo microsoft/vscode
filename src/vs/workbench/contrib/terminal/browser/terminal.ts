@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { ISimpleSelectedSuggestion } from 'vs/base/browser/ui/suggest/simpleSuggestWidget';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -935,6 +936,26 @@ export interface ITerminalInstance {
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
+
+	/**
+	 * Selects the previous suggestion if the suggest widget is visible.
+	 */
+	selectPreviousSuggestion(): void;
+
+	/**
+	 * Selects the next suggestion if the suggest widget is visible.
+	 */
+	selectNextSuggestion(): void;
+
+	/**
+	 * Accepts the current suggestion if the suggest widget is visible.
+	 */
+	acceptSelectedSuggestion(): Promise<void>;
+
+	/**
+	 * Hides the suggest widget.
+	 */
+	hideSuggestWidget(): void;
 }
 
 
@@ -1041,4 +1062,16 @@ export const enum LinuxDistro {
 
 export const enum TerminalDataTransfers {
 	Terminals = 'Terminals'
+}
+
+export interface ISuggestController {
+	selectPreviousSuggestion(): void;
+	selectNextSuggestion(): void;
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
+	hideSuggestWidget(): void;
+	/**
+	 * Handle data written to the terminal outside of xterm.js which has no corresponding
+	 * `Terminal.onData` event.
+	 */
+	handleNonXtermData(data: string): void;
 }

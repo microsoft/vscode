@@ -106,6 +106,50 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+
+	# VS Code send completions request (may override Ctrl+Spacebar)
+	Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
+		Send-Completions
+	}
 }
+
+function Send-Completions {	# Get current command line
+	$commandLine = ""
+	# TODO: Take cursor into account
+	$cursor = 0
+	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
+	#       last space and then filter on the client side? That would let you trigger ctrl+space
+	#       anywhere on a word and have full completions available
+	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursor)
+	# Get and send completions
+	$completionPrefix = $commandLine
+	if ($completionPrefix.Length -eq 0) {# TODO: Send bell instead?
+		$result = "`e]633;Completions`a"
+		Write-Host -NoNewLine $result
+		return
+	}
+	$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $completionPrefix.Length
+	if ($null -eq $completions.CompletionMatches) {
+		# TODO: Send bell instead?
+		$result = "`e]633;Completions`a"
+	} else {
+		$result = "`e]633;Completions;$($completions.ReplacementIndex);$($completions.ReplacementLength);"
+		# $serialized = $completions.CompletionMatches.ForEach({ $_.CompletionText + '<SP>' + $_.ToolTip })
+		$serialized = $completions.CompletionMatches | ConvertTo-Json -Compress
+		# $result += $([system.String]::Join("<CL>", $serialized))
+		$result += $serialized
+		$result += "`a"
+	}
+	Write-Host -NoNewLine $result
+}
+
+# Terminal suggest - on only when setting is enabled
+# if ($env:VSCODE_SUGGEST -eq '1') {
+# 	Remove-Item Env:VSCODE_SUGGEST
+# 	Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
+# 		[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
+# 		Send-Completions
+# 	}
+# }
 
 Set-MappedKeyHandlers
