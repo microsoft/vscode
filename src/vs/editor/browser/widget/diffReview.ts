@@ -34,6 +34,7 @@ import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -102,7 +103,9 @@ export class DiffReview extends Disposable {
 	constructor(
 		diffEditor: DiffEditorWidget,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._diffEditor = diffEditor;
@@ -332,7 +335,19 @@ export class DiffReview extends Disposable {
 		} else if (element?.classList.contains(DiffEditorLineClasses.Delete)) {
 			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
 		}
+		sleep(500).then(() => this._updateScreenReaderContent());
 		this.scrollbar.scanDomNode();
+	}
+
+	private _updateScreenReaderContent() {
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			const editor = this._codeEditorService.getActiveCodeEditor();
+			const line = editor?.getPosition()?.lineNumber;
+			if (editor && line) {
+				editor.setSelection({ startLineNumber: line, startColumn: 0, endLineNumber: line, endColumn: Number.MAX_VALUE });
+				editor.writeScreenReaderContent('diff-navigation');
+			}
+		}
 	}
 
 	public isVisible(): boolean {
@@ -889,3 +904,9 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | n
 
 registerEditorAction(DiffReviewNext);
 registerEditorAction(DiffReviewPrev);
+
+function sleep(ms: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
+	});
+}

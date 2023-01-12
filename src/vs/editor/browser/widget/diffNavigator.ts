@@ -12,6 +12,8 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 
 interface IDiffRange {
@@ -57,7 +59,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 	private ranges: IDiffRange[];
 	private ignoreSelectionChange: boolean;
 
-	constructor(editor: IDiffEditor, options: Options = {}) {
+	constructor(editor: IDiffEditor, options: Options = {}, @IAudioCueService private readonly _audioCueService: IAudioCueService, @ICodeEditorService private readonly _codeEditorService: ICodeEditorService) {
 		super();
 		this._editor = editor;
 		this._options = objects.mixin(options, defaultOptions, false);
@@ -208,6 +210,13 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 			const pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
 			this._editor.revealRangeInCenter(info.range, scrollType);
+			const editorModified = this._editor.getModel()?.modified;
+			const insertedOrModified = editorModified?.getLineDecorations(pos.lineNumber).find(l => l.options.className === 'line-insert');
+			this._audioCueService.playAudioCue(insertedOrModified ? AudioCue.diffLineModified : AudioCue.diffLineDeleted);
+			if (insertedOrModified) {
+				this._codeEditorService.getActiveCodeEditor()?.setSelection({ startLineNumber: pos.lineNumber, startColumn: 0, endLineNumber: pos.lineNumber, endColumn: Number.MAX_VALUE });
+				this._codeEditorService.getActiveCodeEditor()?.writeScreenReaderContent('diff-navigation');
+			}
 		} finally {
 			this.ignoreSelectionChange = false;
 		}

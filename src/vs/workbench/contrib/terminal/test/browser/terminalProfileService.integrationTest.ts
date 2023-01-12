@@ -79,6 +79,8 @@ class MockQuickInputService implements Partial<IQuickInputService> {
 	}
 }
 
+
+
 class TestTerminalProfileQuickpick extends TerminalProfileQuickpick {
 
 }
@@ -86,6 +88,8 @@ class TestTerminalProfileQuickpick extends TerminalProfileQuickpick {
 class TestTerminalExtensionService extends TestExtensionService {
 	readonly _onDidChangeExtensions = new Emitter<void>();
 }
+
+
 
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
