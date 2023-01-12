@@ -7,7 +7,7 @@ import 'vs/css!./media/bannerpart';
 import { localize } from 'vs/nls';
 import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -199,7 +199,7 @@ export class BannerPart extends Part implements IBannerService {
 		iconContainer.setAttribute('aria-hidden', 'true');
 
 		if (item.icon instanceof Codicon) {
-			iconContainer.appendChild($(`div${item.icon.cssSelector}`));
+			iconContainer.appendChild($(`div${CSSIcon.asCSSSelector(item.icon)}`));
 		} else {
 			iconContainer.classList.add('custom-icon');
 
