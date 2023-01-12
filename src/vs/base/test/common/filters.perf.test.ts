@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { importAMDNodeModule } from 'vs/amdX';
 import * as filters from 'vs/base/common/filters';
-import { data } from 'vs/base/test/common/filters.perf.data';
+import { FileAccess } from 'vs/base/common/network';
 
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons', 'zyx', 'aBc'];
 
@@ -15,7 +16,10 @@ function perfSuite(name: string, callback: (this: Mocha.Suite) => void) {
 	}
 }
 
-perfSuite('Performance - fuzzyMatch', function () {
+perfSuite('Performance - fuzzyMatch', async function () {
+
+	const uri = FileAccess.asBrowserUri('vs/base/test/common/filters.perf.data').toString(true);
+	const { data } = await importAMDNodeModule<typeof import('vs/base/test/common/filters.perf.data')>(uri, '');
 
 	// suiteSetup(() => console.profile());
 	// suiteTeardown(() => console.profileEnd());
@@ -47,7 +51,10 @@ perfSuite('Performance - fuzzyMatch', function () {
 });
 
 
-perfSuite('Performance - IFilter', function () {
+perfSuite('Performance - IFilter', async function () {
+
+	const uri = FileAccess.asBrowserUri('vs/base/test/common/filters.perf.data').toString(true);
+	const { data } = await importAMDNodeModule<typeof import('vs/base/test/common/filters.perf.data')>(uri, '');
 
 	function perfTest(name: string, match: filters.IFilter) {
 		test(name, () => {
