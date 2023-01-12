@@ -624,7 +624,7 @@ export class MouseController<T> implements IDisposable {
 			this.disposables.add(Gesture.addTarget(list.getHTMLElement()));
 		}
 
-		Event.any(list.onMouseClick, list.onMouseMiddleClick, list.onTap)(this.onViewPointer, this, this.disposables);
+		Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(list.onMouseClick, list.onMouseMiddleClick, list.onTap)(this.onViewPointer, this, this.disposables);
 	}
 
 	updateOptions(optionsUpdate: IListOptionsUpdate): void {
@@ -685,6 +685,10 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
 		const focus = e.index;
 
 		if (typeof focus === 'undefined') {
@@ -709,6 +713,7 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([focus], e.browserEvent);
 		}
 
+		e.browserEvent.isHandledByList = true;
 		this._onPointer.fire(e);
 	}
 
@@ -721,8 +726,13 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus, e.browserEvent);
+		e.browserEvent.isHandledByList = true;
 	}
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {

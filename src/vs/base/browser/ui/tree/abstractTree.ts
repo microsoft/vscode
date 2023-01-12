@@ -1358,6 +1358,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return;
 		}
 
+		if (e.browserEvent.isHandledByList) {
+			return;
+		}
+
 		const node = e.element;
 
 		if (!node) {
@@ -1406,6 +1410,10 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
 		if (onTwistie || !this.tree.expandOnDoubleClick) {
+			return;
+		}
+
+		if (e.browserEvent.isHandledByList) {
 			return;
 		}
 
