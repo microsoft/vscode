@@ -273,7 +273,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			width: (this._terminal as any)._core._renderService.dimensions.device.cell.width,
 			height: (this._terminal as any)._core._renderService.dimensions.device.cell.height,
 		};
-		if (!dimensions) {
+		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
 		// TODO: What do frozen and auto do?
