@@ -857,6 +857,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			return;
 		}
 
+		if (e.equals(KeyCode.Escape)) {
+			this._state.change({
+				isRevealed: false,
+				searchScope: null
+			}, false);
+			this._codeEditor.focus();
+			e.stopPropagation();
+			return;
+		}
+
 		if (e.equals(KeyCode.UpArrow)) {
 			return stopPropagationForMultiLineUpwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
 		}

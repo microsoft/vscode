@@ -827,6 +827,11 @@ class FindWidget<T, TFilterData> extends Disposable {
 				this.tree.domFocus();
 				return;
 			}
+			if (e.equals(KeyCode.Escape)) {
+				e.stopPropagation();
+				this.dispose();
+				return;
+			}
 			if (e.equals(KeyCode.DownArrow)) {
 				e.preventDefault();
 				e.stopPropagation();
