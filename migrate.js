@@ -247,6 +247,7 @@ function rewriteDefaultImports(fileContents) {
 	const imports = new Set([
 		'assert',
 		'minimist',
+		'sinon-test',
 	]);
 	const search = /(import )(\* as )\w+ from ['"]([^'"]+)['"];/g;
 	/** @type {Replacement[]} */
