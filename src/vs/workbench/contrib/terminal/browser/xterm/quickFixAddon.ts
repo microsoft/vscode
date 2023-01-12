@@ -93,11 +93,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}));
 		}
 		this._register(this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result))));
-		terminalContributionService.quickFixes.then(quickFixSelectors => {
-			for (const selector of quickFixSelectors) {
-				this.registerCommandSelector(selector);
-			}
-		});
+		for (const selector of terminalContributionService.quickFixes) {
+			this.registerCommandSelector(selector);
+		}
 		this._register(this._quickFixService.onDidRegisterCommandSelector(selector => this.registerCommandSelector(selector)));
 		this._register(this._quickFixService.onDidUnregisterProvider(id => this._commandListeners.delete(id)));
 	}
