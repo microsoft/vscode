@@ -178,7 +178,7 @@ export class CommitCommandsCenter {
 		let tooltip = alwaysCommitToNewBranch ?
 			l10n.t('Commit Changes to New Branch') :
 			branch ?
-				l10n.t('Commit Changes on \'{0}\'', branch) :
+				l10n.t('Commit Changes on "{0}"', branch) :
 				l10n.t('Commit Changes');
 
 		// Tooltip (in progress)
