@@ -10,7 +10,7 @@ import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptS
 import API from '../utils/api';
 import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
-import { isWeb } from '../utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers } from '../utils/platform';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -260,6 +260,10 @@ export class TypeScriptServerSpawner {
 		args.push('--noGetErrOnBackgroundUpdate');
 
 		args.push('--validateDefaultNpmLocation');
+
+		if (isWebAndHasSharedArrayBuffers()) {
+			args.push('--enableProjectWideIntelliSenseOnWeb');
+		}
 
 		return { args, tsServerLogFile, tsServerTraceDirectory };
 	}

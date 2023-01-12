@@ -544,7 +544,7 @@ async function initializeSession(args: string[], extensionUri: URI, platform: st
 	};
 
 	let sys: ServerHostWithImport;
-	if (serverMode === ts.LanguageServiceMode.Semantic) {
+	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
 		const connection = new ClientConnection<Requests>(ports.sync);
 		await connection.serviceReady();
 
