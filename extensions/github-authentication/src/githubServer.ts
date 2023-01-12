@@ -595,6 +595,7 @@ export class GitHubServer implements IGitHubServer {
 		let managed: string | undefined;
 		try {
 			const user = await this.getUserInfo(token);
+			// Apparently, this is how you tell if a user is an EMU...
 			managed = user.accountName.includes('_') ? 'true' : 'false';
 		} catch (e) {
 			// No-op
