@@ -111,6 +111,16 @@ function Set-MappedKeyHandlers {
 	Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
 		Send-Completions
 	}
+
+	# Suggest trigger characters
+	# TODO: On only when a setting is enabled?
+	# if ($env:VSCODE_SUGGEST -eq '1') {
+	Remove-Item Env:VSCODE_SUGGEST
+	Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
+		[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
+		Send-Completions
+	}
+	# }
 }
 
 function Send-Completions {	# Get current command line
