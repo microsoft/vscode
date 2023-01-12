@@ -210,12 +210,16 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 			const pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
 			this._editor.revealRangeInCenter(info.range, scrollType);
-			const editorModified = this._editor.getModel()?.modified;
-			const insertedOrModified = editorModified?.getLineDecorations(pos.lineNumber).find(l => l.options.className === 'line-insert');
+			const modifiedEditor = this._editor.getModel()?.modified;
+			if (!modifiedEditor) {
+				return;
+			}
+			const insertedOrModified = modifiedEditor.getLineDecorations(pos.lineNumber).find(l => l.options.className === 'line-insert');
 			this._audioCueService.playAudioCue(insertedOrModified ? AudioCue.diffLineModified : AudioCue.diffLineDeleted);
-			if (insertedOrModified) {
-				this._codeEditorService.getActiveCodeEditor()?.setSelection({ startLineNumber: pos.lineNumber, startColumn: 0, endLineNumber: pos.lineNumber, endColumn: Number.MAX_VALUE });
-				this._codeEditorService.getActiveCodeEditor()?.writeScreenReaderContent('diff-navigation');
+			const codeEditor = this._codeEditorService.getActiveCodeEditor();
+			if (codeEditor && insertedOrModified) {
+				codeEditor.setSelection({ startLineNumber: pos.lineNumber, startColumn: 0, endLineNumber: pos.lineNumber, endColumn: Number.MAX_VALUE });
+				codeEditor.writeScreenReaderContent('diff-navigation');
 			}
 		} finally {
 			this.ignoreSelectionChange = false;
