@@ -535,7 +535,7 @@
 			]
 		},
 		"less_builtin_functions": {
-			"match": "\\b(abs|acos|alpha|argb|asin|atan|average|blue|calc|ceil|color|contrast|convert|convert|cos|darken|data-uri|desaturate|difference|e|escape|exclusion|extract|fade|fadein|fadeout|floor|format|green|greyscale|hardlight|hsl|hsla|hsv|hsva|hsvhue|hsvsaturation|hsvvalue|hue|length|lighten|lightness|luma|max|min|mix|mod|multiply|negation|overlay|percentage|pi|pow|red|replace|round|saturate|saturation|screen|sin|softlight|spin|sqrt|tan|unit)\\b",
+			"match": "(%|abs|acos|alpha|argb|asin|atan|average|blue|boolean|ceil|color|contrast|convert|cos|darken|data-uri|default|desaturate|difference|e|each|escape|exclusion|extract|fade|fadein|fadeout|floor|get-unit|green|greyscale|hardlight|hsla?|hsva?|hsvhue|hsvsaturation|hsvvalue|hue|if|image-height|image-size|image-width|iscolor|isdefined|isem|iskeyword|isnumber|ispercentage|ispixel|isruleset|isstring|isunit|isurl|length|lighten|lightness|luma|luminance|max|min|mix|mod|multiply|negation|overlay|percentage|pi|pow|range|red|replace|rgba?|round|saturate|saturation|screen|shade|sin|softlight|spin|sqrt|svg-gradient|tan|tint|unit)(?=\\()",
 			"name": "support.function.any-method.builtin.less"
 		}
 	}
