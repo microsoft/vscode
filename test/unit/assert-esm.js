@@ -197,7 +197,7 @@ function getMessage(self) {
 // both the actual and expected values to the assertion error for
 // display purposes.
 
-function fail(actual, expected, message, operator, stackStartFunction) {
+export function fail(actual, expected, message, operator, stackStartFunction) {
   throw new assert.AssertionError({
     message: message,
     actual: actual,
@@ -217,7 +217,7 @@ assert.fail = fail;
 // message_opt);. To test strictly for the value true, use
 // assert.strictEqual(true, guard, message_opt);.
 
-function ok(value, message) {
+export function ok(value, message) {
   if (!value) { fail(value, true, message, '==', assert.ok); }
 }
 assert.ok = ok;
@@ -342,7 +342,7 @@ assert.notDeepEqual = function notDeepEqual(actual, expected, message) {
 };
 
 assert.notDeepStrictEqual = notDeepStrictEqual;
-function notDeepStrictEqual(actual, expected, message) {
+export function notDeepStrictEqual(actual, expected, message) {
   if (_deepEqual(actual, expected, true)) {
     fail(actual, expected, message, 'notDeepStrictEqual', notDeepStrictEqual);
   }
@@ -478,5 +478,21 @@ assert.doesNotReject = async function doesNotReject(fn, message) {
   expectsError(false, await waitForActual(fn), message);
 };
 
-
+// ESM export
 export default assert;
+export const AssertionError = assert.AssertionError
+// export const fail = assert.fail
+// export const ok = assert.ok
+export const equal = assert.equal
+export const notEqual = assert.notEqual
+export const deepEqual = assert.deepEqual
+export const deepStrictEqual = assert.deepStrictEqual
+export const notDeepEqual = assert.notDeepEqual
+// export const notDeepStrictEqual = assert.notDeepStrictEqual
+export const strictEqual = assert.strictEqual
+export const notStrictEqual = assert.notStrictEqual
+export const throws = assert.throws
+export const doesNotThrow = assert.doesNotThrow
+export const ifError = assert.ifError
+export const rejects = assert.rejects
+export const doesNotReject = assert.doesNotReject
