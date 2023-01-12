@@ -9,10 +9,17 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { posix } from 'vs/base/common/path';
 import { hash } from 'vs/base/common/hash';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ResourcePerformanceMarks {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService environmentService: IEnvironmentService
+	) {
 
 		type Entry = {
 			hosthash: string;
@@ -44,7 +51,30 @@ class ResourcePerformanceMarks {
 	}
 }
 
+class StartupTimings {
+	constructor(
+		@ITimerService timerService: ITimerService,
+		@ILogService logService: ILogService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
+	) {
+		if (!environmentService.profDurationMarkers) {
+			return;
+		}
+
+		const [from, to] = environmentService.profDurationMarkers;
+
+		timerService.whenReady().then(() => {
+			logService.info(`[perf] from '${from}' to '${to}': ${timerService.getDuration(from, to)}ms`);
+		});
+	}
+}
+
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	ResourcePerformanceMarks,
+	LifecyclePhase.Eventually
+);
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupTimings,
 	LifecyclePhase.Eventually
 );
