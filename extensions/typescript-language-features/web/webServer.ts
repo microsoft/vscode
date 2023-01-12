@@ -338,18 +338,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 					continue;
 				}
 
-				let stat = type;
-				if (type === FileType.SymbolicLink) {
-					try {
-						stat = fs.stat(toResource(combinePaths(path, entry))).type;
-					} catch (e) {
-						continue;
-					}
-				}
-
-				if (stat === FileType.File) {
+				if (type === FileType.File) {
 					files.push(entry);
-				} else if (stat === FileType.Directory) {
+				}
+				else if (type === FileType.Directory) {
 					directories.push(entry);
 				}
 			}
@@ -568,10 +560,10 @@ async function initializeSession(args: string[], extensionUri: URI, platform: st
 }
 
 
-let hasIntialized = false;
+let hasInitialized = false;
 const listener = async (e: any) => {
-	if (!hasIntialized) {
-		hasIntialized = true;
+	if (!hasInitialized) {
+		hasInitialized = true;
 		if ('args' in e.data) {
 			const logger: ts.server.Logger = {
 				close: () => { },

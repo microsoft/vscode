@@ -50,7 +50,7 @@ Language server host for typescript using vscode's sync-api in the browser
      a web of directory watches that then check whether the file is eventually created.
    - even later: well, it works even though it is similar to my code.
      I'm not sure what is different.
-- [ ] copy fileWatchingManager.ts to web/ ; there's no sharing code between extensions
+- [x] copy fileWatchingManager.ts to web/ ; there's no sharing code between extensions
 - [x] Find out scheme the web actually uses instead of vscode-test-web (or switch over entirely to isWeb)
 - [x] Need to parse and pass args through so that the syntax server isn't hard-coded to actually be another semantic server
 - [x] think about implementing all the other ServerHost methods
@@ -58,12 +58,14 @@ Language server host for typescript using vscode's sync-api in the browser
   - [x] also copy details from
     - previous implementation (although it's syntax-only so only covers part)
     - node implementation in typescript proper
-- [ ] make realpath support symlinks similarly to node's realpath.
+- [x] make realpath support symlinks similarly to node's realpath.
+  - Johannes says that the filesystem automatically follows symlinks,
+    so I don't think this is needed.
 - [x] organise webServer.ts into multiple files
   - OR at least re-arrange it so the diff with the previous version is smaller
   - split it into multiple files after the initial PR
 - [x] clear out TODOs
-- [ ] add semicolons everywhere; vscode's lint doesn't seem to complain, but the code clearly uses them
+- [x] add semicolons everywhere; vscode's lint doesn't seem to complain, but the code clearly uses them
 - [x] Further questions about host methods based on existing implementations
   - `require` -- is this needed? In TS, it's only used in project system
   - `trace` -- is this needed? In TS, it's only used in project system
@@ -89,7 +91,7 @@ Language server host for typescript using vscode's sync-api in the browser
 
 ### Bugs
 
-- [ ] Response `seq` is always 0.
+- [x] Response `seq` is always 0.
 - [ ] current method of encoding /scheme/authority means that (node) module resolution looks for /scheme/node_modules and /node_modules
   - even though they can't possibly exist
   - probably not a problem though
