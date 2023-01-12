@@ -714,7 +714,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		// Navigate page with keyboard
 		this._register(addDisposableListener(this.rootElement, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
-			const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				const navOrder = [this.headerContainer, this.trustedContainer, this.untrustedContainer, this.configurationContainer];
@@ -736,11 +735,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 				navOrder[newIndex].focus();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.rootElement.focus();
-			} else if (event.equals(ctrlKeyMod | KeyCode.Enter)) {
+			} else if (event.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
 				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
 				}
-			} else if (event.equals(ctrlKeyMod | KeyMod.Shift | KeyCode.Enter)) {
+			} else if (event.equals(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter)) {
 				if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 					this.workspaceTrustManagementService.setParentFolderTrust(true);
 				}
