@@ -18,7 +18,7 @@ import Tracer from '../utils/tracer';
 import { OngoingRequestCanceller } from './cancellation';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
-import { isWeb } from '../utils/platform';
+import { isWebAndHasSharedArrayBuffers } from '../utils/platform';
 
 export enum ExecutionTarget {
 	Semantic,
@@ -224,7 +224,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 				if (executeInfo.token) {
 
-					const cancelViaSAB = isWeb()
+					const cancelViaSAB = isWebAndHasSharedArrayBuffers()
 						? Cancellation.addData(request)
 						: undefined;
 

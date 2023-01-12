@@ -19,16 +19,16 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { areServiceConfigurationsEqual, ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
-import { isWeb } from './utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager, TypeScriptServerPlugin } from './utils/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
+import { ProjectType, inferredProjectCompilerOptions } from './utils/tsconfig';
 
 
 export interface TsDiagnostics {
@@ -261,7 +261,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private isProjectWideIntellisenseOnWebEnabled(): boolean {
-		return isWeb() && this._configuration.enableProjectWideIntellisenseOnWeb && globalThis['crossOriginIsolated'];
+		return isWebAndHasSharedArrayBuffers() && this._configuration.enableProjectWideIntellisenseOnWeb;
 	}
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {

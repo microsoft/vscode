@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='dom' />
+
 import * as ts from 'typescript/lib/tsserverlibrary';
 import { ApiClient, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
 import { URI } from 'vscode-uri';
+
 // GLOBALS
 const watchFiles: Map<string, { path: string; callback: ts.FileWatcherCallback; pollingInterval?: number; options?: ts.WatchOptions }> = new Map();
 const watchDirectories: Map<string, { path: string; callback: ts.DirectoryWatcherCallback; recursive?: boolean; options?: ts.WatchOptions }> = new Map();
@@ -62,10 +64,23 @@ function updateWatch(event: 'create' | 'change' | 'delete', uri: URI, extensionU
 }
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
-function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
+
+function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient | undefined, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
 	const currentDirectory = '/';
-	const fs = apiClient.vscode.workspace.fileSystem;
+	const fs = apiClient?.vscode.workspace.fileSystem;
 	let watchId = 0;
+
+	// Legacy web
+	const memoize: <T>(callback: () => T) => () => T = (ts as any).memoize;
+	const ensureTrailingDirectorySeparator: (path: string) => string = (ts as any).ensureTrailingDirectorySeparator;
+	const getDirectoryPath: (path: string) => string = (ts as any).getDirectoryPath;
+	const directorySeparator: string = (ts as any).directorySeparator;
+	const executingFilePath = findArgument(args, '--executingFilePath') || location + '';
+	const getExecutingDirectoryPath = memoize(() => memoize(() => ensureTrailingDirectorySeparator(getDirectoryPath(executingFilePath))));
+	// Later we could map ^memfs:/ to do something special if we want to enable more functionality like module resolution or something like that
+	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;
+
+
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
 			watchFiles.set(path, { path, callback, pollingInterval, options });
@@ -128,11 +143,25 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		args,
 		newLine: '\n',
 		useCaseSensitiveFileNames: true,
-		write: apiClient.vscode.terminal.write,
+		write: s => {
+			apiClient?.vscode.terminal.write(s);
+		},
 		writeOutputIsTTY() {
 			return true;
 		},
 		readFile(path) {
+			if (!fs) {
+				const webPath = getWebPath(path);
+				if (webPath) {
+					const request = new XMLHttpRequest();
+					request.open('GET', webPath, /* asynchronous */ false);
+					request.send();
+					return request.status === 200 ? request.responseText : undefined;
+				} else {
+					return undefined;
+				}
+			}
+
 			try {
 				// @vscode/sync-api-common/connection says that Uint8Array is only a view on the bytes, so slice is needed
 				return new TextDecoder().decode(new Uint8Array(fs.readFile(toResource(path))).slice());
@@ -143,6 +172,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 		},
 		getFileSize(path) {
+			if (!fs) {
+				throw new Error('not supported');
+			}
+
 			try {
 				return fs.stat(toResource(path)).size;
 			} catch (e) {
@@ -152,6 +185,9 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 		},
 		writeFile(path, data, writeByteOrderMark) {
+			if (!fs) {
+				throw new Error('not supported');
+			}
 			if (writeByteOrderMark) {
 				data = byteOrderMarkIndicator + data;
 			}
@@ -166,6 +202,18 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return path;
 		},
 		fileExists(path: string): boolean {
+			if (!fs) {
+				const webPath = getWebPath(path);
+				if (!webPath) {
+					return false;
+				}
+
+				const request = new XMLHttpRequest();
+				request.open('HEAD', webPath, /* asynchronous */ false);
+				request.send();
+				return request.status === 200;
+			}
+
 			try {
 				return fs.stat(toResource(path)).type === FileType.File;
 			} catch (e) {
@@ -175,6 +223,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 		},
 		directoryExists(path: string): boolean {
+			if (!fs) {
+				return false;
+			}
+
 			try {
 				return fs.stat(toResource(path)).type === FileType.Directory;
 			} catch (e) {
@@ -184,6 +236,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 		},
 		createDirectory(path: string): void {
+			if (!fs) {
+				throw new Error('not supported');
+			}
+
 			try {
 				fs.createDirectory(toResource(path));
 			} catch (e) {
@@ -204,6 +260,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
 		},
 		getModifiedTime(path: string): Date | undefined {
+			if (!fs) {
+				throw new Error('not supported');
+			}
+
 			try {
 				return new Date(fs.stat(toResource(path)).mtime);
 			} catch (e) {
@@ -213,6 +273,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 		},
 		deleteFile(path: string): void {
+			if (!fs) {
+				throw new Error('not supported');
+			}
+
 			try {
 				fs.delete(toResource(path));
 			} catch (e) {
@@ -258,6 +322,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	}
 
 	function getAccessibleFileSystemEntries(path: string): { files: readonly string[]; directories: readonly string[] } {
+		if (!fs) {
+			throw new Error('not supported');
+		}
+
 		try {
 			const uri = toResource(path || '.');
 			const entries = fs.readDirectory(uri);
@@ -366,7 +434,7 @@ class WorkerSession extends ts.server.Session<{}> {
 		this.listener = (message: any) => {
 			// TEMP fix since Cancellation.retrieveCheck is not correct
 			function retrieveCheck2(data: any) {
-				if (!(data.$cancellationData instanceof SharedArrayBuffer)) {
+				if (!globalThis.crossOriginIsolated || !(data.$cancellationData instanceof SharedArrayBuffer)) {
 					return () => false;
 				}
 				const typedArray = new Int32Array(data.$cancellationData, 0, 1);
@@ -461,7 +529,7 @@ function findArgumentStringArray(args: readonly string[], name: string): readonl
 	return arg === undefined ? [] : arg.split(',').filter(name => name !== '');
 }
 
-function initializeSession(args: string[], extensionUri: URI, platform: string, tsserver: MessagePort, connection: ClientConnection<Requests>, logger: ts.server.Logger, fsWatcher: MessagePort): void {
+async function initializeSession(args: string[], extensionUri: URI, platform: string, ports: { tsserver: MessagePort; sync: MessagePort; watcher: MessagePort }, logger: ts.server.Logger): Promise<void> {
 	const modeOrUnknown = parseServerMode(args);
 	const serverMode = typeof modeOrUnknown === 'number' ? modeOrUnknown : undefined;
 	const unknownServerMode = typeof modeOrUnknown === 'string' ? modeOrUnknown : undefined;
@@ -482,14 +550,28 @@ function initializeSession(args: string[], extensionUri: URI, platform: string, 
 		syntaxOnly,
 		serverMode
 	};
-	const sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, fsWatcher);
+
+	let sys: ServerHostWithImport;
+	if (serverMode === ts.LanguageServiceMode.Semantic) {
+		const connection = new ClientConnection<Requests>(ports.sync);
+		await connection.serviceReady();
+
+		sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, ports.watcher);
+	} else {
+		sys = createServerHost(extensionUri, logger, undefined, args, ports.watcher);
+
+	}
+
 	setSys(sys);
-	session = new WorkerSession(sys, options, tsserver, logger, hrtime);
+	session = new WorkerSession(sys, options, ports.tsserver, logger, hrtime);
 	session.listen();
 }
-let initial: Promise<any> | undefined;
+
+
+let hasIntialized = false;
 const listener = async (e: any) => {
-	if (!initial) {
+	if (!hasIntialized) {
+		hasIntialized = true;
 		if ('args' in e.data) {
 			const logger: ts.server.Logger = {
 				close: () => { },
@@ -505,8 +587,7 @@ const listener = async (e: any) => {
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			const extensionUri = URI.from(e.data.extensionUri);
 			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
-			const connection = new ClientConnection<Requests>(sync);
-			initial = connection.serviceReady().then(() => initializeSession(e.data.args, extensionUri, 'vscode-web', tsserver, connection, logger, watcher));
+			await initializeSession(e.data.args, extensionUri, 'vscode-web', { sync, tsserver, watcher }, logger);
 		} else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
 		}
