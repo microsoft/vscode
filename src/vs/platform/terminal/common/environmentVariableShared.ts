@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableCollection, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableCollection, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 
 // This file is shared between the renderer and extension host
 

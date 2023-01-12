@@ -206,7 +206,7 @@ declare module 'vscode' {
 		/**
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per language custom
-		 * [word definitions} can be defined. It
+		 * [word definitions] can be defined. It
 		 * is also possible to provide a custom regular expression.
 		 *
 		 * * *Note 1:* A custom regular expression must not match the empty string and
@@ -9030,7 +9030,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Additional information used to implement {@linkcode CustomEditableDocument.backup}.
+	 * Additional information used to implement {@linkcode CustomDocumentBackup}.
 	 */
 	interface CustomDocumentBackupContext {
 		/**
@@ -12435,11 +12435,11 @@ declare module 'vscode' {
 		export const notebookDocuments: readonly NotebookDocument[];
 
 		/**
-		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
-		 * the notebook is loaded and the {@linkcode notebook.onDidOpenNotebookDocument onDidOpenNotebookDocument}-event fires.
+		 * Open a notebook. Will return early if this notebook is already {@link notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@linkcode onDidOpenNotebookDocument}-event fires.
 		 *
 		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
-		 * {@linkcode notebook.onDidCloseNotebookDocument onDidCloseNotebookDocument}-event can occur at any time after.
+		 * {@linkcode onDidCloseNotebookDocument}-event can occur at any time after.
 		 *
 		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
 		 * can be shown in a notebook editor but it can also be used for other things.
@@ -15068,7 +15068,7 @@ declare module 'vscode' {
 		 *
 		 * @param debugType The debug type for which the provider is registered.
 		 * @param provider The {@link DebugConfigurationProvider debug configuration provider} to register.
-		 * @param triggerKind The {@link DebugConfigurationProviderTrigger trigger} for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
+		 * @param triggerKind The {@link DebugConfigurationProviderTriggerKind trigger} for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, triggerKind?: DebugConfigurationProviderTriggerKind): Disposable;
@@ -15223,6 +15223,14 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The state of a comment thread.
+	 */
+	export enum CommentThreadState {
+		Unresolved = 0,
+		Resolved = 1
+	}
+
+	/**
 	 * A collection of {@link Comment comments} representing a conversation at a particular range in a document.
 	 */
 	export interface CommentThread {
@@ -15278,6 +15286,11 @@ declare module 'vscode' {
 		 * The optional human-readable label describing the {@link CommentThread Comment Thread}
 		 */
 		label?: string;
+
+		/**
+		 * The optional state of a comment thread, which may affect how the comment is displayed.
+		 */
+		state?: CommentThreadState;
 
 		/**
 		 * Dispose this comment thread.
@@ -15803,8 +15816,8 @@ declare module 'vscode' {
 		 */
 		export function t(options: {
 			/**
-			 * The message to localize. If {@link args} is an array, this message supports index templating where strings like
-			 * `{0}` and `{1}` are replaced by the item at that index in the {@link args} array. If `args` is a `Record<string, any>`,
+			 * The message to localize. If {@link options.args args} is an array, this message supports index templating where strings like
+			 * `{0}` and `{1}` are replaced by the item at that index in the {@link options.args args} array. If `args` is a `Record<string, any>`,
 			 * this supports named templating where strings like `{foo}` and `{bar}` are replaced by the value in
 			 * the Record for that key (foo, bar, etc).
 			 */
@@ -15951,7 +15964,7 @@ declare module 'vscode' {
 	 */
 	export interface TestController {
 		/**
-		 * The id of the controller passed in {@link vscode.tests.createTestController}.
+		 * The id of the controller passed in {@link tests.createTestController}.
 		 * This must be globally unique.
 		 */
 		readonly id: string;
@@ -15967,7 +15980,7 @@ declare module 'vscode' {
 		 * "test tree."
 		 *
 		 * The extension controls when to add tests. For example, extensions should
-		 * add tests for a file when {@link vscode.workspace.onDidOpenTextDocument}
+		 * add tests for a file when {@link workspace.onDidOpenTextDocument}
 		 * fires in order for decorations for tests within a file to be visible.
 		 *
 		 * However, the editor may sometimes explicitly request children using the
@@ -15992,7 +16005,7 @@ declare module 'vscode' {
 		 * A function provided by the extension that the editor may call to request
 		 * children of a test item, if the {@link TestItem.canResolveChildren} is
 		 * `true`. When called, the item should discover children and call
-		 * {@link vscode.tests.createTestItem} as children are discovered.
+		 * {@link TestController.createTestItem} as children are discovered.
 		 *
 		 * Generally the extension manages the lifecycle of test items, but under
 		 * certain conditions the editor may request the children of a specific
@@ -16276,7 +16289,7 @@ declare module 'vscode' {
 
 		/**
 		 * Tags associated with this test item. May be used in combination with
-		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
+		 * {@link TestRunProfile.tag tags}, or simply as an organizational feature.
 		 */
 		tags: readonly TestTag[];
 
@@ -16589,7 +16602,7 @@ declare module 'vscode' {
 		 * Whether or not the group is currently active.
 		 *
 		 * *Note* that only one tab group is active at a time, but that multiple tab
-		 * groups can have an {@link TabGroup.aciveTab active tab}.
+		 * groups can have an {@link activeTab active tab}.
 		 *
 		 * @see {@link Tab.isActive}
 		 */
