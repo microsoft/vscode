@@ -11,7 +11,7 @@
 		"activityBarBadge.background": "#0078d4",
 		"activityBarBadge.foreground": "#ffffff",
 		"badge.background": "#0078d4",
-		"badge.foreground": "#000000",
+		"badge.foreground": "#ffffff",
 		"button.background": "#0078d4",
 		"button.border": "#ffffff12",
 		"button.foreground": "#ffffff",
