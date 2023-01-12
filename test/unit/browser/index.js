@@ -44,6 +44,8 @@ if (argv.help) {
 	process.exit(0);
 }
 
+const isDebug = !!argv.debug;
+
 const withReporter = (function () {
 	if (argv.tfs) {
 		{
@@ -169,7 +171,7 @@ async function runTestsInBrowser(testModules, browserType) {
 		target = new URL(`http://localhost:${port}/test/unit/browser/renderer-esm.html`);
 	}
 
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
+	const browser = await playwright[browserType].launch({ headless: !isDebug, devtools: isDebug });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 
@@ -217,8 +219,10 @@ async function runTestsInBrowser(testModules, browserType) {
 	} catch (err) {
 		console.error(err);
 	}
-	await browser.close();
-	server?.close();
+	if (!isDebug) {
+		await browser.close();
+		server?.close();
+	}
 
 	if (failingTests.length > 0) {
 		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
@@ -315,7 +319,9 @@ testModules.then(async modules => {
 			console.log(msg);
 		}
 	}
-	process.exit(didFail ? 1 : 0);
+	if (!isDebug) {
+		process.exit(didFail ? 1 : 0);
+	}
 
 }).catch(err => {
 	console.error(err);
