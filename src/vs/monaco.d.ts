@@ -5632,6 +5632,10 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
+		 * Write the screen reader content to be the current selection
+		 */
+		writeScreenReaderContent(reason: string): void;
+		/**
 		 * Returns the editor's container dom node
 		 */
 		getContainerDomNode(): HTMLElement;

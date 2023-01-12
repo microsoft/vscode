@@ -54,10 +54,6 @@
 	outline: 0 !important;
 }
 
-.action-widget .monaco-list .monaco-scrollable-element .monaco-list-rows {
-	height: 100% !important;
-}
-
 .action-widget .monaco-list .monaco-scrollable-element {
 	overflow: visible;
 }
@@ -123,7 +119,6 @@
 /* Action bar */
 
 .action-widget .action-widget-action-bar {
-	margin-top: 4px;
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }

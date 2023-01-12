@@ -165,6 +165,7 @@ suite('ConfigurationService', () => {
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
 
 		setting = testObject.getValue<ITestSetting>();
 
@@ -193,7 +194,7 @@ suite('ConfigurationService', () => {
 		});
 
 		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
-		testObject.initialize();
+		await testObject.initialize();
 
 		let res = testObject.inspect('something.missing');
 		assert.strictEqual(res.value, undefined);
@@ -228,7 +229,7 @@ suite('ConfigurationService', () => {
 		});
 
 		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
-		testObject.initialize();
+		await testObject.initialize();
 
 		let res = testObject.inspect('lookup.service.testNullSetting');
 		assert.strictEqual(res.defaultValue, null);

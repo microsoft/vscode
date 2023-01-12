@@ -189,6 +189,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 4.5,
 			tags: ['accessibility']
 		},
+		[TerminalSettingId.TabStopWidth]: {
+			markdownDescription: localize('terminal.integrated.tabStopWidth', "The number of cells in a tab stop."),
+			type: 'number',
+			minimum: 1,
+			default: 8
+		},
 		[TerminalSettingId.FastScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
 			type: 'number',

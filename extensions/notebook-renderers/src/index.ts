@@ -48,6 +48,14 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 		}
 	};
 
+	if (element.firstChild) {
+		const display = element.firstChild as HTMLElement;
+		if (display.firstChild && display.firstChild.nodeName === 'IMG' && display.firstChild instanceof HTMLImageElement) {
+			display.firstChild.src = src;
+			return disposable;
+		}
+	}
+
 	const image = document.createElement('img');
 	image.src = src;
 	const display = document.createElement('div');
@@ -236,6 +244,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
+	.output-plaintext,
+	.output-stream {
+		white-space: pre-wrap;
+	}
 	output-plaintext,
 	.traceback {
 		word-wrap: break-word;
@@ -297,6 +309,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'image/jpeg':
 				case 'image/git':
 					{
+						disposables.get(outputInfo.id)?.dispose();
 						const disposable = renderImage(outputInfo, element);
 						disposables.set(outputInfo.id, disposable);
 					}

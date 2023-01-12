@@ -57,31 +57,33 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
 		for (const e of results) {
-			if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
-				const locale = e.local.manifest.contributes.localizations[0].languageId;
-				if (platform.language !== locale) {
-					const updateAndRestart = platform.locale !== locale;
-					this.notificationService.prompt(
-						Severity.Info,
-						updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-							: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
-						[{
-							label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
-							run: () => {
-								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
-								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
-							}
-						}, {
-							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't Change Language") : localize('doNotRestart', "Don't Restart"),
-							run: () => { }
-						}],
-						{
-							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
-						}
-					);
-				}
+			if (e.operation !== InstallOperation.Install || !e.local?.manifest?.contributes?.localizations?.length) {
+				continue;
 			}
+			const languageId = e.local.manifest.contributes.localizations[0].languageId;
+			if (platform.language === languageId) {
+				continue;
+			}
+
+			this.notificationService.prompt(
+				Severity.Info,
+				localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+				[{
+					label: localize('changeAndRestart', "Change Language and Restart"),
+					run: async () => {
+						try {
+							await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: languageId }], true);
+							await this.hostService.restart();
+						} catch (e) {
+							this.notificationService.error(e);
+						}
+					}
+				}],
+				{
+					sticky: true,
+					neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+				}
+			);
 		}
 	}
 

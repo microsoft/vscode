@@ -129,6 +129,7 @@ export class TestProfileService implements ITestProfileService {
 			[TestRunProfileBitset.Coverage]: TestingContextKeys.hasCoverableTests.bindTo(contextKeyService),
 			[TestRunProfileBitset.HasNonDefaultProfile]: TestingContextKeys.hasNonDefaultProfile.bindTo(contextKeyService),
 			[TestRunProfileBitset.HasConfigurable]: TestingContextKeys.hasConfigurableProfile.bindTo(contextKeyService),
+			[TestRunProfileBitset.SupportsContinuousRun]: TestingContextKeys.supportsContinuousRun.bindTo(contextKeyService),
 		};
 
 		this.refreshContextKeys();
@@ -241,11 +242,31 @@ export class TestProfileService implements ITestProfileService {
 
 	/** @inheritdoc */
 	public setGroupDefaultProfiles(group: TestRunProfileBitset, profiles: ITestRunProfile[]) {
-		this.preferredDefaults.store({
+		const next = {
 			...this.preferredDefaults.get(),
 			[group]: profiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
-		});
+		};
 
+		// When switching a run/debug profile, if the controller has a same-named
+		// profile in the other group, use that instead of anything else that was selected.
+		if (group === TestRunProfileBitset.Run || group === TestRunProfileBitset.Debug) {
+			const otherGroup = group === TestRunProfileBitset.Run ? TestRunProfileBitset.Debug : TestRunProfileBitset.Run;
+
+			const previousDefaults = next[otherGroup] || [];
+			let newDefaults = previousDefaults.slice();
+			for (const [ctrlId, { profiles: ctrlProfiles }] of this.controllerProfiles) {
+				const labels = new Set(profiles.filter(p => p.controllerId === ctrlId).map(p => p.label));
+				const nextByLabels = ctrlProfiles.filter(p => labels.has(p.label) && p.group === otherGroup);
+				if (nextByLabels.length) {
+					newDefaults = newDefaults.filter(p => p.controllerId !== ctrlId);
+					newDefaults.push(...nextByLabels.map(p => ({ profileId: p.profileId, controllerId: p.controllerId })));
+				}
+			}
+
+			next[otherGroup] = newDefaults;
+		}
+
+		this.preferredDefaults.store(next);
 		this.changeEmitter.fire();
 	}
 
@@ -266,6 +287,7 @@ export class TestProfileService implements ITestProfileService {
 		for (const { profiles } of this.controllerProfiles.values()) {
 			for (const profile of profiles) {
 				allCapabilities |= allCapabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
+				allCapabilities |= profile.supportsContinuousRun ? TestRunProfileBitset.SupportsContinuousRun : 0;
 			}
 		}
 

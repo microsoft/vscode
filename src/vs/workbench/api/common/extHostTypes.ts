@@ -17,7 +17,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, CellUri, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -862,10 +862,6 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 					edit = editOrTuple;
 				}
 				if (NotebookEdit.isNotebookCellEdit(edit)) {
-					if (uri.scheme === CellUri.scheme) {
-						throw new Error('set must be called with a notebook document URI, not a cell URI.');
-					}
-
 					if (edit.newCellMetadata) {
 						this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata, metadata);
 					} else if (edit.newNotebookMetadata) {
@@ -3764,6 +3760,18 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 	) { }
+}
+
+@es5ClassCompat
+export class TestRunRequest2 extends TestRunRequest implements vscode.TestRunRequest2 {
+	constructor(
+		include: vscode.TestItem[] | undefined = undefined,
+		exclude: vscode.TestItem[] | undefined = undefined,
+		profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
+	) {
+		super(include, exclude, profile);
+	}
 }
 
 @es5ClassCompat

@@ -19,7 +19,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -173,8 +173,8 @@ export class ModelService extends Disposable implements IModelService {
 		this._disposedModelsHeapSize = 0;
 		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._languageService, this._logService));
 
-		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateModelOptions()));
-		this._updateModelOptions();
+		this._register(this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions(e)));
+		this._updateModelOptions(undefined);
 
 		this._register(new SemanticColoringFeature(this._semanticStyling, this, this._themeService, this._configurationService, this._languageFeatureDebounceService, languageFeaturesService));
 	}
@@ -280,7 +280,7 @@ export class ModelService extends Disposable implements IModelService {
 		return creationOptions;
 	}
 
-	private _updateModelOptions(): void {
+	private _updateModelOptions(e: IConfigurationChangeEvent | undefined): void {
 		const oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
@@ -291,6 +291,11 @@ export class ModelService extends Disposable implements IModelService {
 			const modelData = this._models[modelId];
 			const language = modelData.model.getLanguageId();
 			const uri = modelData.model.uri;
+
+			if (e && !e.affectsConfiguration('editor', { overrideIdentifier: language, resource: uri }) && !e.affectsConfiguration('files.eol', { overrideIdentifier: language, resource: uri })) {
+				continue; // perf: skip if this model is not affected by configuration change
+			}
+
 			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
 			const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
 			ModelService._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
