@@ -26,8 +26,8 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
-const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
-const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
+const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
+const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
 
 class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
@@ -363,7 +363,7 @@ class ProcessExplorer {
 
 	private isDebuggable(cmd: string): boolean {
 		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
-		return (matches && matches.length >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
+		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
 	private attachTo(item: ProcessItem) {
@@ -374,12 +374,8 @@ class ProcessExplorer {
 		};
 
 		let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
-		if (matches && matches.length >= 2) {
-			// attach via port
-			if (matches.length === 4 && matches[3]) {
-				config.port = parseInt(matches[3]);
-			}
-			config.protocol = matches[1] === 'debug' ? 'legacy' : 'inspector';
+		if (matches) {
+			config.port = Number(matches.groups!.port);
 		} else {
 			// no port -> try to attach via pid (send SIGUSR1)
 			config.processId = String(item.pid);
@@ -387,9 +383,9 @@ class ProcessExplorer {
 
 		// a debug-port=n or inspect-port=n overrides the port
 		matches = DEBUG_PORT_PATTERN.exec(item.cmd);
-		if (matches && matches.length === 3) {
+		if (matches) {
 			// override port
-			config.port = parseInt(matches[2]);
+			config.port = Number(matches.groups!.port);
 		}
 
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });

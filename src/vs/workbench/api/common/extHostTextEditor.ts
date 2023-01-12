@@ -428,7 +428,7 @@ export class ExtHostTextEditor {
 
 		this.value = Object.freeze({
 			get document(): vscode.TextDocument {
-				return document.getValue();
+				return document.value;
 			},
 			set document(_value) {
 				throw readonly('document');
@@ -482,7 +482,7 @@ export class ExtHostTextEditor {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
 				}
-				const edit = new TextEditorEdit(document.getValue(), options);
+				const edit = new TextEditorEdit(document.value, options);
 				callback(edit);
 				return that._applyEdit(edit);
 			},
@@ -513,7 +513,7 @@ export class ExtHostTextEditor {
 						}
 					}
 				}
-				return _proxy.$tryInsertSnippet(id, document.getValue().version, snippet.value, ranges, options);
+				return _proxy.$tryInsertSnippet(id, document.value.version, snippet.value, ranges, options);
 			},
 			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 				const willBeEmpty = (ranges.length === 0);

@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { connectRemoteAgentExtensionHost, IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -68,6 +68,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@ILoggerService protected readonly _loggerService: ILoggerService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
@@ -171,7 +172,9 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 							disposable.dispose();
 
 							// Register log channel for remote exthost log
-							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLog, label: localize('remote extension host Log', "Remote Extension Host"), file: logFile, log: true });
+							const remoteExtHostLoggerResource = { id: remoteExtHostLog, name: localize('remote extension host Log', "Remote Extension Host"), resource: logFile };
+							this._loggerService.registerLoggerResource(remoteExtHostLoggerResource);
+							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLoggerResource.id, label: remoteExtHostLoggerResource.name, file: remoteExtHostLoggerResource.resource, log: true });
 
 							// release this promise
 							this._protocol = protocol;
@@ -248,6 +251,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
+			loggers: [...this._loggerService.getLoggerResources()],
 			logsLocation: remoteInitData.extensionHostLogsPath,
 			logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
 			autoStart: true,
@@ -285,10 +289,3 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 }
 
-export function getRemoteAuthorityPrefix(remoteAuthority: string): string {
-	const plusIndex = remoteAuthority.indexOf('+');
-	if (plusIndex === -1) {
-		return remoteAuthority;
-	}
-	return remoteAuthority.substring(0, plusIndex);
-}

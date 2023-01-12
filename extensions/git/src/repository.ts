@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as picomatch from 'picomatch';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
+import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
@@ -665,13 +665,6 @@ export class Repository implements Disposable {
 
 		if (HEAD.name) {
 			return HEAD.name;
-		}
-
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-
-		if (tagName) {
-			return tagName;
 		}
 
 		return (HEAD.commit || '').substr(0, 8);
@@ -1381,8 +1374,26 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
 
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
+	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return await this.run(Operation.GetBranches, async () => {
+			const refs = await this.getRefs(query, cancellationToken);
+			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+		});
+	}
+
+	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		const config = workspace.getConfiguration('git');
+		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
+		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
+			defaultSort = 'alphabetically';
+		}
+
+		query = { ...query, sort: query?.sort ?? defaultSort };
+		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
+	}
+
+	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
+		return await this.run(Operation.GetRemoteRefs, () => this.repository.getRemoteRefs(remote, opts));
 	}
 
 	async setBranchUpstream(name: string, upstream: string): Promise<void> {
@@ -1409,8 +1420,12 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
+	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
+		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remoteName, tagName));
+	}
+
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
+		const refLabel = opts?.detached ? treeish.substring(0, 8) : treeish;
 
 		await this.run(Operation.Checkout(refLabel),
 			async () => {
@@ -1428,7 +1443,7 @@ export class Repository implements Disposable {
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		const refLabel = this.checkoutRefLabel(treeish, opts?.detached);
+		const refLabel = opts.detached ? treeish.substring(0, 8) : treeish;
 		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -1971,7 +1986,7 @@ export class Repository implements Disposable {
 
 			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
 				await Promise.all([
-					this.repository.getHEADBranch(),
+					this.repository.getHEADRef(),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
 					this.getRebaseCommit(),
@@ -1987,16 +2002,10 @@ export class Repository implements Disposable {
 			this._sourceControl.commitTemplate = commitTemplate;
 
 			// Execute cancellable long-running operations
-			const config = workspace.getConfiguration('git');
-			let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
-			if (sort !== 'alphabetically' && sort !== 'committerdate') {
-				sort = 'alphabetically';
-			}
-
 			const [resourceGroups, refs] =
 				await Promise.all([
 					this.getStatus(cancellationToken),
-					this.repository.getRefs({ sort, cancellationToken })]);
+					this.getRefs({}, cancellationToken)]);
 
 			this._refs = refs!;
 			this._updateResourceGroupsState(resourceGroups);
@@ -2284,9 +2293,7 @@ export class Repository implements Disposable {
 			return '';
 		}
 
-		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+		const head = HEAD.name || (HEAD.commit || '').substr(0, 8);
 
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
@@ -2393,13 +2400,6 @@ export class Repository implements Disposable {
 		// Force fetch tags
 		await this.repository.fetchTags({ remote, tags, force: true });
 		return true;
-	}
-
-	private checkoutRefLabel(treeish: string, detached?: boolean): string {
-		if (!detached) { return treeish; }
-
-		const ref = this.refs.filter(r => r.name === treeish);
-		return ref[0]?.commit?.substring(0, 8) ?? treeish;
 	}
 
 	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {

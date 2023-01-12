@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -36,7 +36,8 @@ class CheckoutItem implements QuickPickItem {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
-		await this.repository.checkout(this.ref.name, { ...opts, pullBeforeCheckout });
+		const treeish = opts?.detached ? this.ref.commit ?? this.ref.name : this.ref.name;
+		await this.repository.checkout(treeish, { ...opts, pullBeforeCheckout });
 	}
 }
 
@@ -69,7 +70,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		}
 
 		if (opts?.detached) {
-			await this.repository.checkout(this.ref.name, opts);
+			await this.repository.checkout(this.ref.commit ?? this.ref.name, opts);
 			return;
 		}
 
@@ -249,7 +250,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	return { merge, resolved, unresolved, deletionConflicts };
 }
 
-function createCheckoutItems(repository: Repository): CheckoutItem[] {
+async function createCheckoutItems(repository: Repository, detached = false): Promise<CheckoutItem[]> {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
 	let checkoutTypes: string[];
@@ -262,10 +263,16 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 		checkoutTypes = checkoutTypeConfig;
 	}
 
+	if (detached) {
+		// Remove tags when in detached mode
+		checkoutTypes = checkoutTypes.filter(t => t !== 'tags');
+	}
+
+	const refs = await repository.getRefs();
 	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
 		.filter(p => !!p) as CheckoutProcessor[];
 
-	for (const ref of repository.refs) {
+	for (const ref of refs) {
 		for (const processor of processors) {
 			processor.onRef(ref);
 		}
@@ -306,7 +313,7 @@ function sanitizeRemoteName(name: string) {
 }
 
 class TagItem implements QuickPickItem {
-	get label(): string { return this.ref.name ?? ''; }
+	get label(): string { return `$(tag) ${this.ref.name ?? ''}`; }
 	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
 	constructor(readonly ref: Ref) { }
 }
@@ -651,6 +658,44 @@ export class CommandCenter {
 			}
 
 			throw err;
+		}
+	}
+
+	@command('git.continueInLocalClone')
+	async continueInLocalClone(): Promise<Uri | void> {
+		if (this.model.repositories.length === 0) { return; }
+
+		// Pick a single repository to continue working on in a local clone if there's more than one
+		const items = this.model.repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
+			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
+			if (remote?.pushUrl) {
+				items.push({ repository: repository, label: remote.pushUrl });
+			}
+			return items;
+		}, []);
+
+		let selection = items[0];
+		if (items.length > 1) {
+			const pick = await window.showQuickPick(items, { canPickMany: false, placeHolder: l10n.t('Choose which repository to clone') });
+			if (pick === undefined) { return; }
+			selection = pick;
+		}
+
+		const uri = selection.label;
+		const ref = selection.repository.HEAD?.upstream?.name;
+
+		if (uri !== undefined) {
+			// Launch desktop client if currently in web
+			if (env.uiKind === UIKind.Web) {
+				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+				if (ref !== undefined) {
+					target += `&ref=${encodeURIComponent(ref)}`;
+				}
+				return Uri.parse(target);
+			}
+
+			// If already in desktop client, directly clone
+			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
 
@@ -2019,15 +2064,17 @@ export class CommandCenter {
 			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
-		picks.push(...createCheckoutItems(repository));
-
 		const quickpick = window.createQuickPick();
-		quickpick.items = picks;
+		quickpick.busy = true;
 		quickpick.placeholder = opts?.detached
-			? l10n.t('Select a branch or tag to checkout in detached mode')
+			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickpick.show();
+
+		picks.push(... await createCheckoutItems(repository, opts?.detached));
+		quickpick.items = picks;
+		quickpick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
 		quickpick.hide();
@@ -2061,11 +2108,12 @@ export class CommandCenter {
 					await this.cleanAll(repository);
 					await item.run(opts);
 				} else if (choice === stash || choice === migrate) {
-					await this.stash(repository);
-					await item.run(opts);
+					if (await this._stash(repository)) {
+						await item.run(opts);
 
-					if (choice === migrate) {
-						await this.stashPopLatest(repository);
+						if (choice === migrate) {
+							await this.stashPopLatest(repository);
+						}
 					}
 				}
 			}
@@ -2084,7 +2132,7 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private generateRandomBranchName(repository: Repository, separator: string): string {
+	private async generateRandomBranchName(repository: Repository, separator: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
 
@@ -2117,7 +2165,8 @@ export class CommandCenter {
 			});
 
 			// Check for local ref conflict
-			if (!repository.refs.find(r => r.type === RefType.Head && r.name === randomName)) {
+			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
+			if (refs.length === 0) {
 				return randomName;
 			}
 		}
@@ -2140,7 +2189,9 @@ export class CommandCenter {
 			// Branch name
 			if (!initialValue) {
 				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
-				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository, branchWhitespaceChar) : ''}`;
+				const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
+
+				initialValue = `${branchPrefix}${branchName}`;
 			}
 
 			// Branch name selection
@@ -2177,18 +2228,15 @@ export class CommandCenter {
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(repository, defaultName);
-
-		if (!branchName) {
-			return;
-		}
-
 		let target = 'HEAD';
 
 		if (from) {
-			const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
-			const placeHolder = l10n.t('Select a ref to create the "{0}" branch from', branchName);
-			const choice = await window.showQuickPick(picks, { placeHolder });
+			const getRefPicks = async () => {
+				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
+			};
+
+			const placeHolder = l10n.t('Select a ref to create the branch from');
+			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
 				return;
@@ -2197,6 +2245,12 @@ export class CommandCenter {
 			if (choice.refName) {
 				target = choice.refName;
 			}
+		}
+
+		const branchName = await this.promptForBranchName(repository, defaultName);
+
+		if (!branchName) {
+			return;
 		}
 
 		await repository.branch(branchName, true, target);
@@ -2208,12 +2262,16 @@ export class CommandCenter {
 		if (typeof name === 'string') {
 			run = force => repository.deleteBranch(name, force);
 		} else {
-			const currentHead = repository.HEAD && repository.HEAD.name;
-			const heads = repository.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
-				.map(ref => new BranchDeleteItem(ref));
+			const getBranchPicks = async () => {
+				const refs = await repository.getRefs({ pattern: 'refs/heads/*' });
+				const currentHead = repository.HEAD && repository.HEAD.name;
+
+				return refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+					.map(ref => new BranchDeleteItem(ref));
+			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+			const choice = await window.showQuickPick<BranchDeleteItem>(getBranchPicks(), { placeHolder });
 
 			if (!choice || !choice.branchName) {
 				return;
@@ -2270,17 +2328,22 @@ export class CommandCenter {
 		const checkoutType = config.get<string | string[]>('checkoutType');
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new MergeItem(ref as Branch));
+		const getBranchPicks = async (): Promise<MergeItem[]> => {
+			const refs = await repository.getRefs();
 
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new MergeItem(ref as Branch));
+			const heads = refs.filter(ref => ref.type === RefType.Head)
+				.filter(ref => ref.name || ref.commit)
+				.map(ref => new MergeItem(ref as Branch));
 
-		const picks = [...heads, ...remoteHeads];
+			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+				.filter(ref => ref.name || ref.commit)
+				.map(ref => new MergeItem(ref as Branch));
+
+			return [...heads, ...remoteHeads];
+		};
+
 		const placeHolder = l10n.t('Select a branch to merge from');
-		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick<MergeItem>(getBranchPicks(), { placeHolder });
 
 		if (!choice) {
 			return;
@@ -2300,30 +2363,35 @@ export class CommandCenter {
 		const checkoutType = config.get<string | string[]>('checkoutType');
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name !== repository.HEAD?.name)
-			.filter(ref => ref.name || ref.commit);
+		const getBranchPicks = async () => {
+			const refs = await repository.getRefs();
 
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit);
+			const heads = refs.filter(ref => ref.type === RefType.Head)
+				.filter(ref => ref.name !== repository.HEAD?.name)
+				.filter(ref => ref.name || ref.commit);
 
-		const picks = [...heads, ...remoteHeads]
-			.map(ref => new RebaseItem(ref));
+			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+				.filter(ref => ref.name || ref.commit);
 
-		// set upstream branch as first
-		if (repository.HEAD?.upstream) {
-			const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
-			const index = picks.findIndex(e => e.ref.name === upstreamName);
+			const picks = [...heads, ...remoteHeads].map(ref => new RebaseItem(ref));
 
-			if (index > -1) {
-				const [ref] = picks.splice(index, 1);
-				ref.description = '(upstream)';
-				picks.unshift(ref);
+			// set upstream branch as first
+			if (repository.HEAD?.upstream) {
+				const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
+				const index = picks.findIndex(e => e.ref.name === upstreamName);
+
+				if (index > -1) {
+					const [ref] = picks.splice(index, 1);
+					ref.description = '(upstream)';
+					picks.unshift(ref);
+				}
 			}
-		}
+
+			return picks;
+		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
-		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
+		const choice = await window.showQuickPick<RebaseItem>(getBranchPicks(), { placeHolder });
 
 		if (!choice) {
 			return;
@@ -2356,22 +2424,53 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
-		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
-			.map(ref => new TagItem(ref));
-
-		if (picks.length === 0) {
-			window.showWarningMessage(l10n.t('This repository has no tags.'));
-			return;
-		}
+		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
+		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const choice = await window.showQuickPick<TagItem | QuickPickItem>(tagPicks(), { placeHolder });
 
-		if (!choice) {
+		if (choice && choice instanceof TagItem && choice.ref.name) {
+			await repository.deleteTag(choice.ref.name);
+		}
+	}
+
+	@command('git.deleteRemoteTag', { repository: true })
+	async deleteRemoteTag(repository: Repository): Promise<void> {
+		const remotePicks = repository.remotes
+			.filter(r => r.pushUrl !== undefined)
+			.map(r => new RemoteItem(repository, r));
+
+		if (remotePicks.length === 0) {
+			window.showErrorMessage(l10n.t("Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		await repository.deleteTag(choice.label);
+		let remoteName = remotePicks[0].remoteName;
+		if (remotePicks.length > 1) {
+			const remotePickPlaceholder = l10n.t('Select a remote to delete a tag from');
+			const remotePick = await window.showQuickPick(remotePicks, { placeHolder: remotePickPlaceholder });
+
+			if (!remotePick) {
+				return;
+			}
+
+			remoteName = remotePick.remoteName;
+		}
+
+		const remoteTagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
+			const remoteTags = await repository.getRemoteRefs(remoteName, { tags: true });
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
+		};
+
+		const tagPickPlaceholder = l10n.t('Select a tag to delete');
+		const remoteTagPick = await window.showQuickPick<TagItem | QuickPickItem>(remoteTagPicks(), { placeHolder: tagPickPlaceholder });
+
+		if (remoteTagPick && remoteTagPick instanceof TagItem && remoteTagPick.ref.name) {
+			await repository.deleteRemoteTag(remoteName, remoteTagPick.ref.name);
+		}
 	}
 
 	@command('git.fetch', { repository: true })
@@ -2447,27 +2546,34 @@ export class CommandCenter {
 			return;
 		}
 
-		const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
-		const placeHolder = l10n.t('Pick a remote to pull the branch from');
-		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
+		let remoteName = remotes[0].name;
+		if (remotes.length > 1) {
+			const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
+			const placeHolder = l10n.t('Pick a remote to pull the branch from');
+			const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
-		if (!remotePick) {
-			return;
+			if (!remotePick) {
+				return;
+			}
+
+			remoteName = remotePick.label;
 		}
 
-		const remoteRefs = repository.refs;
-		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name! }));
+		const getBranchPicks = async (): Promise<QuickPickItem[]> => {
+			const remoteRefs = await repository.getRefs();
+			const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remoteName));
+			return remoteRefsFiltered.map(r => ({ label: r.name! }));
+		};
+
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
-		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
+		const branchPick = await window.showQuickPick(getBranchPicks(), { placeHolder: branchPlaceHolder });
 
 		if (!branchPick) {
 			return;
 		}
 
-		const remoteCharCnt = remotePick.label.length;
-
-		await repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		const remoteCharCnt = remoteName.length;
+		await repository.pullFrom(false, remoteName, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
@@ -2915,7 +3021,7 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -2923,12 +3029,12 @@ export class CommandCenter {
 		if (staged) {
 			if (noStagedChanges) {
 				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
-				return;
+				return false;
 			}
 		} else {
 			if (noUnstagedChanges && noStagedChanges) {
 				window.showInformationMessage(l10n.t('There are no changes to stash.'));
-				return;
+				return false;
 			}
 		}
 
@@ -2955,7 +3061,7 @@ export class CommandCenter {
 				if (pick === saveAndStash) {
 					await Promise.all(documents.map(d => d.save()));
 				} else if (pick !== stash) {
-					return; // do not stash on cancel
+					return false; // do not stash on cancel
 				}
 			}
 		}
@@ -2973,15 +3079,16 @@ export class CommandCenter {
 		});
 
 		if (typeof message === 'undefined') {
-			return;
+			return false;
 		}
 
 		try {
 			await repository.createStash(message, includeUntracked, staged);
+			return true;
 		} catch (err) {
 			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
 				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
-				return;
+				return false;
 			}
 
 			throw err;
@@ -2989,18 +3096,18 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	stash(repository: Repository): Promise<void> {
-		return this._stash(repository);
+	async stash(repository: Repository): Promise<void> {
+		await this._stash(repository);
 	}
 
 	@command('git.stashStaged', { repository: true })
-	stashStaged(repository: Repository): Promise<void> {
-		return this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<void> {
+		await this._stash(repository, false, true);
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	stashIncludeUntracked(repository: Repository): Promise<void> {
-		return this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<void> {
+		await this._stash(repository, true);
 	}
 
 	@command('git.stashPop', { repository: true })

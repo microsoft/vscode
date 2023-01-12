@@ -243,12 +243,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			return this._terminalProfileService.availableProfiles.find(e => e.profileName === defaultProfileName);
-		}
-
-		return undefined;
+		return this._terminalProfileService.getDefaultProfile(os);
 	}
 
 	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
@@ -294,14 +289,18 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 
-		// Try select an existing profile to fallback to, based on the default system shell
-		let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
-		if (existingProfile) {
-			if (options.allowAutomationShell) {
-				existingProfile = deepClone(existingProfile);
-				existingProfile.icon = Codicon.tools;
+		// Try select an existing profile to fallback to, based on the default system shell, only do
+		// this when it is NOT a local terminal in a remote window where the front and back end OS
+		// differs (eg. Windows -> WSL, Mac -> Linux)
+		if (options.os === OS) {
+			let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
+			if (existingProfile) {
+				if (options.allowAutomationShell) {
+					existingProfile = deepClone(existingProfile);
+					existingProfile.icon = Codicon.tools;
+				}
+				return existingProfile;
 			}
-			return existingProfile;
 		}
 
 		// Finally fallback to a generated profile

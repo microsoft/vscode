@@ -8,22 +8,22 @@ import { distinct, coalesce } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { OperatingSystem, Language } from 'vs/base/common/platform';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
 import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { IKeybindingItemEntry, KeybindingMatches, KeybindingMatch, IKeybindingItem } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
-import { isEmptyObject } from 'vs/base/common/types';
+import { isEmptyObject, isString } from 'vs/base/common/types';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
-const SOURCE_DEFAULT = localize('default', "Default");
+const SOURCE_SYSTEM = localize('default', "System");
 const SOURCE_EXTENSION = localize('extension', "Extension");
 const SOURCE_USER = localize('user', "User");
 
@@ -34,6 +34,8 @@ interface ModifierLabels {
 }
 
 const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+const SOURCE_REGEX = /@source:\s*(user|default|system|extension)/i;
+const EXTENSION_REGEX = /@ext:\s*((".+")|([^\s]+))/i;
 
 export class KeybindingsEditorModel extends EditorModel {
 
@@ -43,7 +45,8 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	constructor(
 		os: OperatingSystem,
-		@IKeybindingService private readonly keybindingsService: IKeybindingService
+		@IKeybindingService private readonly keybindingsService: IKeybindingService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 		this._keybindingItems = [];
@@ -64,13 +67,20 @@ export class KeybindingsEditorModel extends EditorModel {
 				.map(keybindingItem => (<IKeybindingItemEntry>{ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
-		if (/@source:\s*(user|default|extension)/i.test(searchValue)) {
+		if (SOURCE_REGEX.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
-			searchValue = searchValue.replace(/@source:\s*(user|default|extension)/i, '');
+			searchValue = searchValue.replace(SOURCE_REGEX, '');
 		} else {
-			const keybindingMatches = /@keybinding:\s*((\".+\")|(\S+))/i.exec(searchValue);
-			if (keybindingMatches && (keybindingMatches[2] || keybindingMatches[3])) {
-				searchValue = keybindingMatches[2] || `"${keybindingMatches[3]}"`;
+			const extensionMatches = EXTENSION_REGEX.exec(searchValue);
+			if (extensionMatches && (extensionMatches[2] || extensionMatches[3])) {
+				const extensionId = extensionMatches[2] ? extensionMatches[2].substring(1, extensionMatches[2].length - 1) : extensionMatches[3];
+				keybindingItems = this.filterByExtension(keybindingItems, extensionId);
+				searchValue = searchValue.replace(EXTENSION_REGEX, '');
+			} else {
+				const keybindingMatches = /@keybinding:\s*((\".+\")|(\S+))/i.exec(searchValue);
+				if (keybindingMatches && (keybindingMatches[2] || keybindingMatches[3])) {
+					searchValue = keybindingMatches[2] || `"${keybindingMatches[3]}"`;
+				}
 			}
 		}
 
@@ -83,16 +93,21 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItem[] {
-		if (/@source:\s*default/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
+		if (/@source:\s*default/i.test(searchValue) || /@source:\s*system/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source === SOURCE_SYSTEM);
 		}
 		if (/@source:\s*user/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_USER);
 		}
 		if (/@source:\s*extension/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_EXTENSION);
+			return keybindingItems.filter(k => !isString(k.source) || k.source === SOURCE_EXTENSION);
 		}
 		return keybindingItems;
+	}
+
+	private filterByExtension(keybindingItems: IKeybindingItem[], extension: string): IKeybindingItem[] {
+		extension = extension.toLowerCase().trim();
+		return keybindingItems.filter(k => !isString(k.source) && (ExtensionIdentifier.equals(k.source.identifier, extension) || k.source.displayName?.toLowerCase() === extension.toLowerCase()));
 	}
 
 	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItemEntry[] {
@@ -117,7 +132,10 @@ export class KeybindingsEditorModel extends EditorModel {
 				|| keybindingMatches.commandDefaultLabelMatches
 				|| keybindingMatches.sourceMatches
 				|| keybindingMatches.whenMatches
-				|| keybindingMatches.keybindingMatches) {
+				|| keybindingMatches.keybindingMatches
+				|| keybindingMatches.extensionIdMatches
+				|| keybindingMatches.extensionLabelMatches
+			) {
 				result.push({
 					id: KeybindingsEditorModel.getId(keybindingItem),
 					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
@@ -127,7 +145,9 @@ export class KeybindingsEditorModel extends EditorModel {
 					keybindingMatches: keybindingMatches.keybindingMatches || undefined,
 					commandIdMatches: keybindingMatches.commandIdMatches || undefined,
 					sourceMatches: keybindingMatches.sourceMatches || undefined,
-					whenMatches: keybindingMatches.whenMatches || undefined
+					whenMatches: keybindingMatches.whenMatches || undefined,
+					extensionIdMatches: keybindingMatches.extensionIdMatches || undefined,
+					extensionLabelMatches: keybindingMatches.extensionLabelMatches || undefined
 				});
 			}
 		}
@@ -143,13 +163,16 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	override async resolve(actionLabels = new Map<string, string>()): Promise<void> {
-		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+		const extensions = new Map<string, IExtensionDescription>();
+		for (const extension of this.extensionService.extensions) {
+			extensions.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+		}
 
 		this._keybindingItemsSortedByPrecedence = [];
 		const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 		for (const keybinding of this.keybindingsService.getKeybindings()) {
 			if (keybinding.command) { // Skip keybindings without commands
-				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, actionLabels));
+				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, actionLabels, extensions));
 				boundCommands.set(keybinding.command, true);
 			}
 		}
@@ -157,7 +180,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 		for (const command of getAllUnboundCommands(boundCommands)) {
 			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1, null, false);
-			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, actionLabels));
+			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, actionLabels, extensions));
 		}
 		this._keybindingItemsSortedByPrecedence = distinct(this._keybindingItemsSortedByPrecedence, keybindingItem => KeybindingsEditorModel.getId(keybindingItem));
 		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
@@ -166,7 +189,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private static getId(keybindingItem: IKeybindingItem): string {
-		return keybindingItem.command + (keybindingItem.keybinding ? keybindingItem.keybinding.getAriaLabel() : '') + keybindingItem.source + keybindingItem.when;
+		return keybindingItem.command + (keybindingItem?.keybinding?.getAriaLabel() ?? '') + keybindingItem.when + (isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.identifier.value);
 	}
 
 	private static compareKeybindingData(a: IKeybindingItem, b: IKeybindingItem): number {
@@ -193,25 +216,27 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, actions: Map<string, string>): IKeybindingItem {
-		const menuCommand = MenuRegistry.getCommand(command)!;
-		const editorActionLabel = actions.get(command)!;
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, actions: Map<string, string>, extensions: Map<string, IExtensionDescription>): IKeybindingItem {
+		const menuCommand = MenuRegistry.getCommand(command);
+		const editorActionLabel = actions.get(command);
+		let source: string | IExtensionDescription = SOURCE_USER;
+		if (keybindingItem.isDefault) {
+			const extensionId = keybindingItem.extensionId ?? (keybindingItem.resolvedKeybinding ? undefined : menuCommand?.source?.id);
+			source = extensionId ? extensions.get(ExtensionIdentifier.toKey(extensionId)) ?? SOURCE_EXTENSION : SOURCE_SYSTEM;
+		}
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
 			command,
 			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorActionLabel),
-			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand, workbenchActionsRegistry),
+			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
-			source: (
-				keybindingItem.extensionId
-					? (keybindingItem.isBuiltinExtension ? SOURCE_DEFAULT : SOURCE_EXTENSION)
-					: (keybindingItem.isDefault ? SOURCE_DEFAULT : SOURCE_USER)
-			)
+			source
+
 		};
 	}
 
-	private static getCommandDefaultLabel(menuCommand: ICommandAction, workbenchActionsRegistry: IWorkbenchActionRegistry): string | null {
+	private static getCommandDefaultLabel(menuCommand: ICommandAction | undefined): string | null {
 		if (!Language.isDefaultVariant()) {
 			if (menuCommand && menuCommand.title && (<ILocalizedString>menuCommand.title).original) {
 				const category: string | undefined = menuCommand.category ? (<ILocalizedString>menuCommand.category).original : undefined;
@@ -222,7 +247,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return null;
 	}
 
-	private static getCommandLabel(menuCommand: ICommandAction, editorActionLabel: string): string {
+	private static getCommandLabel(menuCommand: ICommandAction | undefined, editorActionLabel: string | undefined): string {
 		if (menuCommand) {
 			const category: string | undefined = menuCommand.category ? typeof menuCommand.category === 'string' ? menuCommand.category : menuCommand.category.value : undefined;
 			const title = typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
@@ -245,14 +270,20 @@ class KeybindingItemMatches {
 	readonly sourceMatches: IMatch[] | null = null;
 	readonly whenMatches: IMatch[] | null = null;
 	readonly keybindingMatches: KeybindingMatches | null = null;
+	readonly extensionIdMatches: IMatch[] | null = null;
+	readonly extensionLabelMatches: IMatch[] | null = null;
 
 	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], completeMatch: boolean) {
 		if (!completeMatch) {
 			this.commandIdMatches = this.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase), words);
 			this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
 			this.commandDefaultLabelMatches = keybindingItem.commandDefaultLabel ? this.matches(searchValue, keybindingItem.commandDefaultLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandDefaultLabel, true), words) : null;
-			this.sourceMatches = this.matches(searchValue, keybindingItem.source, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.source, true), words);
 			this.whenMatches = keybindingItem.when ? this.matches(null, keybindingItem.when, or(matchesWords, matchesCamelCase), words) : null;
+			if (isString(keybindingItem.source)) {
+				this.sourceMatches = this.matches(searchValue, keybindingItem.source, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.source as string, true), words);
+			} else {
+				this.extensionLabelMatches = keybindingItem.source.displayName ? this.matches(searchValue, keybindingItem.source.displayName, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
+			}
 		}
 		this.keybindingMatches = keybindingItem.keybinding ? this.matchesKeybinding(keybindingItem.keybinding, searchValue, keybindingWords, completeMatch) : null;
 	}

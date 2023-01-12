@@ -9,7 +9,7 @@ import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, ByteSize, getPlatformLimits, Arch, IFileReadLimits } from 'vs/platform/files/common/files';
+import { IFileService, ByteSize, getPlatformFileLimits, Arch, IFileReadLimits } from 'vs/platform/files/common/files';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -114,7 +114,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		if (typeof ensuredLimits.memory !== 'number') {
 			const maxMemory = this.environmentService.args['max-memory'];
-			ensuredLimits.memory = Math.max(typeof maxMemory === 'string' ? parseInt(maxMemory) * ByteSize.MB || 0 : 0, getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxHeapSize);
+			ensuredLimits.memory = Math.max(typeof maxMemory === 'string' ? parseInt(maxMemory) * ByteSize.MB || 0 : 0, getPlatformFileLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxHeapSize);
 		}
 
 		return ensuredOptions;

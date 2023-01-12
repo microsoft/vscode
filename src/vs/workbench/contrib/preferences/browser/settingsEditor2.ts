@@ -14,7 +14,7 @@ import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -981,7 +981,7 @@ export class SettingsEditor2 extends EditorPane {
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean, scope: ConfigurationScope | undefined): void {
 		const parsedQuery = parseQuery(this.searchWidget.getValue());
 		const languageFilter = parsedQuery.languageFilter;
-		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
+		if (manualReset || (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key)) {
 			this.updateChangedSetting(key, value, manualReset, languageFilter, scope);
 		}
 
@@ -1633,21 +1633,21 @@ export class SettingsEditor2 extends EditorPane {
 				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
-					type SettingsSearchErrorEvent = {
-						'message': string;
-					};
-					type SettingsSearchErrorClassification = {
-						owner: 'rzhao271';
-						comment: 'Helps understand when settings search errors out';
-						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					};
+					// type SettingsSearchErrorEvent = {
+					// 	'message': string;
+					// };
+					// type SettingsSearchErrorClassification = {
+					// 	owner: 'rzhao271';
+					// 	comment: 'Helps understand when settings search errors out';
+					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
+					// };
 
-					const message = getErrorMessage(err).trim();
-					if (message && message !== 'Error') {
-						// "Error" = any generic network error
-						this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-						this.logService.info('Setting search error: ' + message);
-					}
+					// const message = getErrorMessage(err).trim();
+					// if (message && message !== 'Error') {
+					// 	// "Error" = any generic network error
+					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
+					// 	this.logService.info('Setting search error: ' + message);
+					// }
 					return null;
 				}
 			});
@@ -1744,7 +1744,7 @@ class SyncControls extends Disposable {
 		const last = this.userDataSyncService.lastSyncTime;
 		let label: string;
 		if (typeof last === 'number') {
-			const d = fromNow(last, true);
+			const d = fromNow(last, true, undefined, true);
 			label = localize('lastSyncedLabel', "Last synced: {0}", d);
 		} else {
 			label = '';

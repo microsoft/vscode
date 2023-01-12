@@ -114,12 +114,11 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
 				.map(async e => ([e, await this.getMetadata(e)])));
 			await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, e.profile.extensionsResource!);
+			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const newExtensions = await this.getInstalled(ExtensionType.User);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			if (added.length || removed.length) {
-				this._onDidChangeProfile.fire({ added, removed });
-			}
+			this._onDidChangeProfile.fire({ added, removed });
 		}
 	}
 

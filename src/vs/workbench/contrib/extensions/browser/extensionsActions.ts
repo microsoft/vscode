@@ -18,7 +18,7 @@ import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOp
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -68,6 +68,7 @@ import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { isString } from 'vs/base/common/types';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -85,6 +86,8 @@ export class PromptExtensionInstallFailureAction extends Action {
 		@ILogService private readonly logService: ILogService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super('extension.promptExtensionInstallFailure');
 	}
@@ -129,26 +132,61 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		else if (this.extension.gallery && this.productService.extensionsGallery && (this.extensionManagementServerService.localExtensionManagementServer || this.extensionManagementServerService.remoteExtensionManagementServer) && !isIOS) {
-			additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${Constants.showWindowLogActionId}`);
-			promptChoices.push({
-				label: localize('download', "Try Downloading Manually..."),
-				run: () => this.openerService.open(URI.parse(`${this.productService.extensionsGallery!.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.version}/vspackage`)).then(() => {
-					this.notificationService.prompt(
-						Severity.Info,
-						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
-						[{
-							label: localize('installVSIX', "Install from VSIX..."),
-							run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
-						}]
-					);
-				})
-			});
+		else {
+			const downloadUrl = await this.getDownloadUrl();
+			if (downloadUrl) {
+				additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${Constants.showWindowLogActionId}`);
+				promptChoices.push({
+					label: localize('download', "Try Downloading Manually..."),
+					run: () => this.openerService.open(downloadUrl).then(() => {
+						this.notificationService.prompt(
+							Severity.Info,
+							localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
+							[{
+								label: localize('installVSIX', "Install from VSIX..."),
+								run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
+							}]
+						);
+					})
+				});
+			}
 		}
 
 		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
+
+	private async getDownloadUrl(): Promise<URI | undefined> {
+		if (isIOS) {
+			return undefined;
+		}
+		if (!this.extension.gallery) {
+			return undefined;
+		}
+		if (!this.productService.extensionsGallery) {
+			return undefined;
+		}
+		if (!this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return undefined;
+		}
+		let targetPlatform = this.extension.gallery.properties.targetPlatform;
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+			try {
+				const manifest = await this.galleryService.getManifest(this.extension.gallery, CancellationToken.None);
+				if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(manifest)) {
+					targetPlatform = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getTargetPlatform();
+				}
+			} catch (error) {
+				this.logService.error(error);
+				return undefined;
+			}
+		}
+		if (targetPlatform === TargetPlatform.UNKNOWN) {
+			return undefined;
+		}
+		return URI.parse(`${this.productService.extensionsGallery.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.version}/vspackage${targetPlatform !== TargetPlatform.UNDEFINED ? `?targetPlatform=${targetPlatform}` : ''}`);
+	}
+
 }
 
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
@@ -287,7 +325,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
-			let detail = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
+			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			let action: () => Promise<any> = async () => undefined;
 			const buttons = [
 				localize('install anyway', "Install Anyway"),
@@ -305,13 +343,24 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 				buttons.splice(1, 0, localize('configure in settings', "Configure Settings"));
 				const settings = this.extension.deprecationInfo.settings;
 				action = () => this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
+			} else if (this.extension.deprecationInfo.additionalInfo) {
+				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
 			}
 
 			const result = await this.dialogService.show(
 				Severity.Warning,
 				localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
 				buttons,
-				{ detail, cancelId: buttons.length - 1 });
+				{
+					detail: isString(detail) ? detail : undefined,
+					cancelId: buttons.length - 1,
+					custom: isString(detail) ? undefined : {
+						markdownDetails: [{
+							markdown: detail
+						}]
+					}
+				},
+			);
 			if (result.choice === 1) {
 				return action();
 			}
@@ -1014,6 +1063,8 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extension', extension.identifier.id]);
 			cksOverlay.push(['isBuiltinExtension', extension.isBuiltin]);
 			cksOverlay.push(['extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration]);
+			cksOverlay.push(['extensionHasKeybindings', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.keybindings]);
+			cksOverlay.push(['extensionHasCommands', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes?.commands]);
 			cksOverlay.push(['isExtensionRecommended', !!extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]]);
 			cksOverlay.push(['isExtensionWorkspaceRecommended', extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]?.reasonId === ExtensionRecommendationReason.Workspace]);
 			cksOverlay.push(['isUserIgnoredRecommendation', extensionIgnoredRecommendationsService.globalIgnoredRecommendations.some(e => e === extension.identifier.id.toLowerCase())]);
@@ -2232,7 +2283,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 				const link = `[${localize('settings', "settings")}](${URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' ')]))}`)})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained.")) }, true);
+				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
+				if (this.extension.deprecationInfo.additionalInfo) {
+					message.appendMarkdown(` ${this.extension.deprecationInfo.additionalInfo}`);
+				}
+				this.updateStatus({ icon: warningIcon, message }, true);
 			}
 			return;
 		}

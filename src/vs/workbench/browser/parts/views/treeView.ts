@@ -58,7 +58,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, NoTreeViewError, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -68,7 +68,7 @@ import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TreeViewPane extends ViewPane {
 
@@ -344,8 +344,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
-						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-						children = node.children ?? [];
+						try {
+							node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+							children = node.children ?? [];
+						} catch (e) {
+							if (e instanceof NoTreeViewError) {
+								// It can happen that a tree view is hidden right as `getChildren` is called. This results in an error because the data provider gets removed.
+								// The tree will shortly get cleaned up in this case. We just need to handle the error here.
+								node.children = [];
+								children = [];
+								return children;
+							} else {
+								throw e;
+							}
+						}
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -723,7 +735,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			}
 		}));
 
-		this._register(treeMenus.onDidChange((changed) => this.tree?.rerender(changed)));
+		this._register(treeMenus.onDidChange((changed) => {
+			if (this.tree?.hasNode(changed)) {
+				this.tree?.rerender(changed);
+			}
+		}));
 	}
 
 	private async resolveCommand(element: ITreeItem | undefined): Promise<TreeCommand | undefined> {
@@ -1464,7 +1480,7 @@ export class CustomTreeView extends AbstractTreeView {
 	protected activate() {
 		if (!this.activated) {
 			type ExtensionViewTelemetry = {
-				extensionId: TrustedTelemetryValue<string>;
+				extensionId: TelemetryTrustedValue<string>;
 				id: string;
 			};
 			type ExtensionViewTelemetryMeta = {
@@ -1474,7 +1490,7 @@ export class CustomTreeView extends AbstractTreeView {
 				comment: 'Helps to gain insights on what extension contributed views are most popular';
 			};
 			this.telemetryService.publicLog2<ExtensionViewTelemetry, ExtensionViewTelemetryMeta>('Extension:ViewActivate', {
-				extensionId: new TrustedTelemetryValue(this.extensionId),
+				extensionId: new TelemetryTrustedValue(this.extensionId),
 				id: this.id,
 			});
 			this.createTree();

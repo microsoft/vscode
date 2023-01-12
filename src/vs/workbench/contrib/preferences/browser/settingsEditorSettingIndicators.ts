@@ -17,8 +17,7 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
@@ -38,6 +37,19 @@ interface SettingIndicator {
 	label: SimpleIconLabel;
 	disposables: DisposableStore;
 }
+
+/**
+ * Contains a set of the sync-ignored settings
+ * to keep the sync ignored indicator and the getIndicatorsLabelAriaLabel() function in sync.
+ * SettingsTreeIndicatorsLabel#updateSyncIgnored provides the source of truth.
+ */
+let cachedSyncIgnoredSettingsSet: Set<string> = new Set<string>();
+
+/**
+ * Contains a copy of the sync-ignored settings to determine when to update
+ * cachedSyncIgnoredSettingsSet.
+ */
+let cachedSyncIgnoredSettings: string[] = [];
 
 /**
  * Renders the indicators next to a setting, such as "Also Modified In".
@@ -214,6 +226,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.syncIgnoredIndicator.element.style.display = this.userDataSyncEnablementService.isEnabled()
 			&& ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
 		this.render();
+		if (cachedSyncIgnoredSettings !== ignoredSettings) {
+			cachedSyncIgnoredSettings = ignoredSettings;
+			cachedSyncIgnoredSettingsSet = new Set<string>(cachedSyncIgnoredSettings);
+		}
 	}
 
 	private getInlineScopeDisplayText(completeScope: string): string {
@@ -455,8 +471,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add sync ignored text
-	const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), configurationService);
-	if (ignoredSettings.includes(element.setting.key)) {
+	if (cachedSyncIgnoredSettingsSet.has(element.setting.key)) {
 		ariaLabelSections.push(localize('syncIgnoredAriaLabel', "Setting ignored during sync"));
 	}
 

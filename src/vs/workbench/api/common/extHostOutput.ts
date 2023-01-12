@@ -246,12 +246,16 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			}
 		};
 		const onDidChangeLogLevel = disposables.add(new Emitter<LogLevel>());
+		function setLogLevel(newLogLevel: LogLevel): void {
+			logLevel = newLogLevel;
+			onDidChangeLogLevel.fire(newLogLevel);
+		}
 		channelPromise.then(channel => {
 			disposables.add(channel);
-			disposables.add(channel.onDidChangeLogLevel(e => {
-				logLevel = e;
-				onDidChangeLogLevel.fire(e);
-			}));
+			if (channel.logLevel !== logLevel) {
+				setLogLevel(channel.logLevel);
+			}
+			disposables.add(channel.onDidChangeLogLevel(e => setLogLevel(e)));
 		});
 		return {
 			...this.createExtHostOutputChannel(name, channelPromise),

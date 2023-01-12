@@ -435,7 +435,7 @@ const firstLineRange = (originalRange: IRange) => ({
 	startLineNumber: originalRange.startLineNumber,
 	endLineNumber: originalRange.startLineNumber,
 	startColumn: 0,
-	endColumn: 1,
+	endColumn: Number.MAX_SAFE_INTEGER,
 });
 
 const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[], visible: boolean): IModelDeltaDecoration => {
@@ -704,6 +704,7 @@ abstract class RunTestDecoration {
 		this.tests = newTests;
 		this.visible = visible;
 		this.editorDecoration.options = createRunTestDecoration(newTests.map(t => t.test), newTests.map(t => t.resultItem), visible).options;
+		this.editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
 		return true;
 	}
 

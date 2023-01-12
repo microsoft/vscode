@@ -211,6 +211,20 @@ registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.LeftArrow }
 });
 
+// Map ctrl+alt+r -> ctrl+r when in accessibility mode due to default run recent command keybinding
+registerSendSequenceKeybinding('\x12', {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR }
+});
+
+// Map ctrl+alt+g -> ctrl+g due to default go to recent directory keybinding
+registerSendSequenceKeybinding('\x07', {
+	when: TerminalContextKeys.focus,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyG }
+});
+
 // send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
 if (isIOS) {
 	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+c

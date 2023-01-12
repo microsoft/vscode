@@ -23,6 +23,7 @@ export interface IMenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isHiddenByDefault?: boolean;
 }
 
 export interface ISubmenuItem {
@@ -83,8 +84,8 @@ export class MenuId {
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
-	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
-	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
+	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
+	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
