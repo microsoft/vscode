@@ -18,7 +18,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { getOriginalResource } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
+import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 
 registerEditorAction(class FormatModifiedAction extends EditorAction {
 
@@ -50,11 +50,11 @@ registerEditorAction(class FormatModifiedAction extends EditorAction {
 
 
 export async function getModifiedRanges(accessor: ServicesAccessor, modified: ITextModel): Promise<Range[] | undefined | null> {
-	const scmService = accessor.get(ISCMService);
+	const quickDiffService = accessor.get(IQuickDiffService);
 	const workerService = accessor.get(IEditorWorkerService);
 	const modelService = accessor.get(ITextModelService);
 
-	const original = await getOriginalResource(scmService, modified.uri);
+	const original = await getOriginalResource(quickDiffService, modified.uri);
 	if (!original) {
 		return null; // let undefined signify no changes, null represents no source control (there's probably a better way, but I can't think of one rn)
 	}
