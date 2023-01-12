@@ -10,7 +10,7 @@ import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, 
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
+import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -1512,6 +1512,150 @@ export class NavigateToLastNavigationLocationAction extends Action {
 
 	override async run(): Promise<void> {
 		await this.historyService.goLast(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateForwardInEditsInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInEditLocationsInCurrentEditor';
+	static readonly LABEL = localize('navigateForwardInEditsInCurrentEditor', "Go Forward in Edit Locations in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.EDITS, GoScope.EDITOR);
+	}
+}
+
+export class NavigateBackwardsInEditsInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInEditLocationsInCurrentEditor';
+	static readonly LABEL = localize('navigateBackInEditsInCurrentEditor', "Go Back in Edit Locations in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.EDITS, GoScope.EDITOR);
+	}
+}
+
+export class NavigatePreviousInEditsInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInEditLocationsInCurrentEditor';
+	static readonly LABEL = localize('navigatePreviousInEditsInCurrentEditor', "Go Previous in Edit Locations in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.EDITS, GoScope.EDITOR);
+	}
+}
+
+export class NavigateToLastEditLocationInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastEditLocationInCurrentEditor';
+	static readonly LABEL = localize('navigateToLastEditLocationInCurrentEditor', "Go to Last Edit Location in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goLast(GoFilter.EDITS, GoScope.EDITOR);
+	}
+}
+
+export class NavigateForwardInNavigationsInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInNavigationLocationsInCurrentEditor';
+	static readonly LABEL = localize('navigateForwardInNavigationsInCurrentEditor', "Go Forward in Navigation Locations in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.NAVIGATION, GoScope.EDITOR);
+	}
+}
+
+export class NavigateBackwardsInNavigationsInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInNavigationLocationsInCurrentEditor';
+	static readonly LABEL = localize('navigateBackInNavigationsInCurrentEditor', "Go Back in Navigation Locations in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.NAVIGATION, GoScope.EDITOR);
+	}
+}
+
+export class NavigatePreviousInNavigationsInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInNavigationLocationsInCurrentEditor';
+	static readonly LABEL = localize('navigatePreviousInNavigationLocationsInCurrentEditor', "Go Previous in Navigation Locations in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.NAVIGATION, GoScope.EDITOR);
+	}
+}
+
+export class NavigateToLastNavigationLocationInCurrentEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastNavigationLocationInCurrentEditor';
+	static readonly LABEL = localize('navigateToLastNavigationLocationInCurrentEditor', "Go to Last Navigation Location in Current Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goLast(GoFilter.NAVIGATION, GoScope.EDITOR);
 	}
 }
 

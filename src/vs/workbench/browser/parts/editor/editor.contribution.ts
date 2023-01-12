@@ -42,7 +42,7 @@ import {
 	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction,
 	ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction,
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
-	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction
+	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction, NavigateForwardInEditsInCurrentEditorAction, NavigateBackwardsInEditsInCurrentEditorAction, NavigateBackwardsInNavigationsInCurrentEditorAction, NavigateForwardInNavigationsInCurrentEditorAction, NavigatePreviousInEditsInCurrentEditorAction, NavigatePreviousInNavigationsInCurrentEditorAction, NavigateToLastEditLocationInCurrentEditorAction, NavigateToLastNavigationLocationInCurrentEditorAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
@@ -255,6 +255,16 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateForwardInNavi
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBackwardsInNavigationsAction), 'Go Back in Navigation Locations');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigatePreviousInNavigationsAction), 'Go Previous in Navigation Locations');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateToLastNavigationLocationAction), 'Go to Last Navigation Location');
+
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateForwardInEditsInCurrentEditorAction), 'Go Forward in Edit Locations in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBackwardsInEditsInCurrentEditorAction), 'Go Back in Edit Locations in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigatePreviousInEditsInCurrentEditorAction), 'Go Previous in Edit Locations in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateToLastEditLocationInCurrentEditorAction), 'Go to Last Edit Location in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateForwardInNavigationsInCurrentEditorAction), 'Go Forward in Navigation Locations in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBackwardsInNavigationsInCurrentEditorAction), 'Go Back in Navigation Locations in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigatePreviousInNavigationsInCurrentEditorAction), 'Go Previous in Navigation Locations in Current Editor');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateToLastNavigationLocationInCurrentEditorAction), 'Go to Last Navigation Location in Current Editor');
+
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearEditorHistoryAction), 'Clear Editor History');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(RevertAndCloseEditorAction), 'View: Revert and Close Editor', Categories.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutSingleAction), 'View: Single Column Editor Layout', Categories.View.value);

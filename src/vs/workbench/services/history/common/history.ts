@@ -64,12 +64,12 @@ export interface IHistoryService {
 	/**
 	 * Navigate forwards in editor navigation history.
 	 */
-	goForward(filter?: GoFilter): Promise<void>;
+	goForward(filter?: GoFilter, scope?: GoScope): Promise<void>;
 
 	/**
 	 * Navigate backwards in editor navigation history.
 	 */
-	goBack(filter?: GoFilter): Promise<void>;
+	goBack(filter?: GoFilter, scope?: GoScope): Promise<void>;
 
 	/**
 	 * Navigate between the current editor navigtion history entry
@@ -77,12 +77,12 @@ export interface IHistoryService {
 	 * like a toggle for `forward` and `back` to jump between 2 points
 	 * in editor navigation history.
 	 */
-	goPrevious(filter?: GoFilter): Promise<void>;
+	goPrevious(filter?: GoFilter, scope?: GoScope): Promise<void>;
 
 	/**
 	 * Navigate to the last entry in editor navigation history.
 	 */
-	goLast(filter?: GoFilter): Promise<void>;
+	goLast(filter?: GoFilter, scope?: GoScope): Promise<void>;
 
 	/**
 	 * Re-opens the last closed editor if any.

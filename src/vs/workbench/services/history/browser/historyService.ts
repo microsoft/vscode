@@ -269,7 +269,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	updateContextKeys(): void {
 		this.contextKeyService.bufferChangeEvents(() => {
-			const activeStack = this.getStack();
+			const activeStack = this.getStack({ scope: this.editorNavigationScope });
 
 			this.canNavigateBackContextKey.set(activeStack.canGoBack(GoFilter.NONE));
 			this.canNavigateForwardContextKey.set(activeStack.canGoForward(GoFilter.NONE));
@@ -325,8 +325,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		handleEditorNavigationScopeChange();
 	}
 
-	private getStack(group = this.editorGroupService.activeGroup, editor = group.activeEditor): IEditorNavigationStacks {
-		switch (this.editorNavigationScope) {
+	private getStack({
+		group = this.editorGroupService.activeGroup,
+		editor = group.activeEditor,
+		scope,
+	}: {
+		group?: IEditorGroup;
+		editor?: typeof group.activeEditor;
+		scope: GoScope;
+	}): IEditorNavigationStacks {
+		switch (scope) {
 
 			// Per Editor
 			case GoScope.EDITOR: {
@@ -381,28 +389,32 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	goForward(filter?: GoFilter): Promise<void> {
-		return this.getStack().goForward(filter);
+	goForward(filter?: GoFilter, scope: GoScope = this.editorNavigationScope): Promise<void> {
+		return this.getStack({ scope }).goForward(filter);
 	}
 
-	goBack(filter?: GoFilter): Promise<void> {
-		return this.getStack().goBack(filter);
+	goBack(filter?: GoFilter, scope: GoScope = this.editorNavigationScope): Promise<void> {
+		return this.getStack({ scope }).goBack(filter);
 	}
 
-	goPrevious(filter?: GoFilter): Promise<void> {
-		return this.getStack().goPrevious(filter);
+	goPrevious(filter?: GoFilter, scope: GoScope = this.editorNavigationScope): Promise<void> {
+		return this.getStack({ scope }).goPrevious(filter);
 	}
 
-	goLast(filter?: GoFilter): Promise<void> {
-		return this.getStack().goLast(filter);
+	goLast(filter?: GoFilter, scope: GoScope = this.editorNavigationScope): Promise<void> {
+		return this.getStack({ scope }).goLast(filter);
 	}
 
 	private handleActiveEditorChangeInNavigationStacks(group: IEditorGroup, editorPane?: IEditorPane): void {
-		this.getStack(group, editorPane?.input).handleActiveEditorChange(editorPane);
+		for (const scope of [GoScope.DEFAULT, GoScope.EDITOR, GoScope.EDITOR_GROUP]) {
+			this.getStack({ scope, group, editor: editorPane?.input }).handleActiveEditorChange(editorPane);
+		}
 	}
 
 	private handleActiveEditorSelectionChangeInNavigationStacks(group: IEditorGroup, editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
-		this.getStack(group, editorPane.input).handleActiveEditorSelectionChange(editorPane, event);
+		for (const scope of [GoScope.DEFAULT, GoScope.EDITOR, GoScope.EDITOR_GROUP]) {
+			this.getStack({ scope, group, editor: editorPane.input }).handleActiveEditorSelectionChange(editorPane, event);
+		}
 	}
 
 	private handleEditorCloseEventInHistory(e: IEditorCloseEvent): void {
