@@ -40,7 +40,7 @@ import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/brow
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getShellIntegrationTooltip, getShellProcessTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -498,8 +498,9 @@ function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator:
 		return '';
 	}
 	const shellIntegrationString = getShellIntegrationTooltip(instance, false);
+	const shellProcessString = getShellProcessTooltip(instance, false);
 	const title = getSingleTabTitle(instance, separator);
-	return shellIntegrationString ? title + shellIntegrationString : title;
+	return shellIntegrationString || shellProcessString ? title + shellProcessString + shellIntegrationString : title;
 }
 
 function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {
