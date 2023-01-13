@@ -6,6 +6,8 @@
 import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
+import { asArray } from 'vs/base/common/arrays';
 
 export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean): string {
 	const shellIntegrationCapabilities: TerminalCapability[] = [];
@@ -28,4 +30,26 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 		}
 	}
 	return shellIntegrationString;
+}
+
+export function getShellProcessTooltip(instance: ITerminalInstance, markdown: boolean): string {
+	const lines: string[] = [];
+
+	if (instance.processId) {
+		lines.push(localize({ key: 'shellProcessTooltip.processId', comment: ['Do not translate "PID" as it is a pre-defined shell variable'] }, "Process ID (PID): {0}", instance.processId));
+	}
+
+	if (instance.shellLaunchConfig.executable) {
+		lines.push(markdown
+			? localize('shellProcessTooltip.executableAsMarkdown', "Executable: `{0}`", escapeMarkdownSyntaxTokens(instance.shellLaunchConfig.executable))
+			: localize('shellProcessTooltip.executable', "Executable: {0}", instance.shellLaunchConfig.executable)
+		);
+
+		const args = asArray(instance.shellLaunchConfig.args || []).map(x => `'${x}'`).join(' ');
+		if (args) {
+			lines.push(localize('shellProcessTooltip.args', "Args: {0}", args));
+		}
+	}
+
+	return lines.length ? `${markdown ? '\n\n---\n\n' : '\n\n'}${lines.join(markdown ? '\n\n' : '\n')}` : '';
 }
