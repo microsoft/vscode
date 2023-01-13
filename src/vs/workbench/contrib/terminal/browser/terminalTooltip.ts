@@ -47,7 +47,7 @@ export function getShellProcessTooltip(instance: ITerminalInstance, markdown: bo
 
 		const args = asArray(instance.shellLaunchConfig.args || []).map(x => `'${x}'`).join(' ');
 		if (args) {
-			lines.push(localize('shellProcessTooltip.args', "Args: {0}", args));
+			lines.push(localize('shellProcessTooltip.args', "Args: {0}", markdown ? escapeMarkdownSyntaxTokens(args) : args));
 		}
 	}
 
