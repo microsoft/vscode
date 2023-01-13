@@ -92,7 +92,8 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const enum Constants {
 	/**
@@ -1130,7 +1131,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const fontSize = this._configurationService.getValue(TerminalSettingId.FontSize);
 		this._accessibilityElement.style.fontFamily = fontFamily ? fontFamily.toString() : '';
 		this._accessibilityElement.style.fontSize = fontSize ? fontSize + 'px' : '';
-		this._accessibilityElement.style.color = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? 'black' : 'white';
+		const theme = this._themeService.getColorTheme();
+		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		this._accessibilityElement.style.backgroundColor = backgroundColor ? backgroundColor.toString() : 'black';
+		this._accessibilityElement.style.color = backgroundColor ? backgroundColor.opposite().toString() : 'white';
 		this._accessibilityElement.scrollTop = this._accessibilityElement.scrollHeight;
 		const selection = document.getSelection();
 		if (selection && elements.cursorElement) {
