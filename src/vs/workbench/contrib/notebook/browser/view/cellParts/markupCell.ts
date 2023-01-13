@@ -7,7 +7,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -255,7 +256,7 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.innerText = '';
 
 		const markdownIcon = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('span'));
-		markdownIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.markdown));
+		markdownIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.markdown));
 
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
@@ -264,7 +265,7 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
 			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double-click to expand cell input ({0})", keybinding.getLabel());

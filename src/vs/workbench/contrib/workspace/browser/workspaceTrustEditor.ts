@@ -14,7 +14,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { splitName } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
@@ -23,7 +23,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -36,11 +36,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -56,6 +56,9 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -678,11 +681,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -733,6 +736,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 				navOrder[newIndex].focus();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.rootElement.focus();
+			} else if (event.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
+				}
+			} else if (event.equals(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter)) {
+				if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
+					this.workspaceTrustManagementService.setParentFolderTrust(true);
+				}
 			}
 		}));
 	}
@@ -1003,28 +1014,18 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
-	private createButtonRow(parent: HTMLElement, actions: Action | Action[], enabled?: boolean): void {
+	private createButtonRow(parent: HTMLElement, buttonInfo: { action: Action; keybinding: ResolvedKeybinding }[], enabled?: boolean): void {
 		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
 
-		if (actions instanceof Action) {
-			actions = [actions];
-		}
-
-		for (const action of actions) {
-			const button =
-				action instanceof ChoiceAction && action.menu?.length ?
-					buttonBar.addButtonWithDropdown({
-						title: true,
-						actions: action.menu ?? [],
-						contextMenuProvider: this.contextMenuService,
-						...defaultButtonStyles
-					}) :
-					buttonBar.addButton(defaultButtonStyles);
+		for (const { action, keybinding } of buttonInfo) {
+			const button = buttonBar.addButtonWithDescription(defaultButtonStyles);
 
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
+			button.description = keybinding.getLabel()!;
+			button.element.ariaLabel = action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!);
 
 			this.rerenderDisposables.add(button.onDidClick(e => {
 				if (e) {
@@ -1037,11 +1038,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const trustActions = [
-			new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
-				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
-			})
-		];
+		const trustAction = new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
+			await this.workspaceTrustManagementService.setWorkspaceTrust(true);
+		});
+
+		const trustActions = [{ action: trustAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0] }];
 
 		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
@@ -1050,18 +1051,23 @@ export class WorkspaceTrustEditor extends EditorPane {
 			const trustMessageElement = append(parent, $('.trust-message-box'));
 			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
 
-			trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
+			const trustParentAction = new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setParentFolderTrust(true);
-			}));
+			});
+
+			trustActions.push({ action: trustParentAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Shift+Enter' : 'Ctrl+Shift+Enter')[0] });
 		}
 
 		this.createButtonRow(parent, trustActions);
 	}
 
 	private addDontTrustButtonToElement(parent: HTMLElement): void {
-		this.createButtonRow(parent, new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
-			await this.workspaceTrustManagementService.setWorkspaceTrust(false);
-		}));
+		this.createButtonRow(parent, [{
+			action: new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
+				await this.workspaceTrustManagementService.setWorkspaceTrust(false);
+			}),
+			keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0]
+		}]);
 	}
 
 	private addTrustedTextToElement(parent: HTMLElement): void {
