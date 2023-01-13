@@ -1103,9 +1103,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (this._accessibilityElement) {
-			for (const element of elements.bufferElements) {
-				element.textContent?.replaceAll(' ', '\xA0');
-			}
 			this._accessibilityElement.replaceChildren(...elements.bufferElements);
 		} else {
 			const contentEditable = this._configurationService.getValue(TerminalSettingId.AccessibilityElementContentEditable);
@@ -1117,7 +1114,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._accessibilityElement.classList.add('xterm-accessibility');
 			this.xterm.raw.element.insertAdjacentElement('afterbegin', this._accessibilityElement);
 			for (const element of elements.bufferElements) {
-				element.textContent?.replaceAll(' ', '\xA0');
 				this._accessibilityElement.appendChild(element);
 			}
 		}
