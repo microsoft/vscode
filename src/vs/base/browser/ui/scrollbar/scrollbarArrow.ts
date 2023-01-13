@@ -6,7 +6,7 @@
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { ThemeIcon } from 'vs/base/common/themed';
+import { ThemeIcon } from 'vs/base/common/themables';
 import * as dom from 'vs/base/browser/dom';
 
 /**

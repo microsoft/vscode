@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/severityIcon';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themed';
+import { ThemeIcon } from 'vs/base/common/themables';
 import Severity from 'vs/base/common/severity';
 
 export namespace SeverityIcon {

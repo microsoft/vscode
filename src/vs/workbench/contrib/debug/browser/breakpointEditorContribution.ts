@@ -34,7 +34,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themed';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';

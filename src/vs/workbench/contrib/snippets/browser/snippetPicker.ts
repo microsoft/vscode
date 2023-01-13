@@ -8,7 +8,7 @@ import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themed';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 

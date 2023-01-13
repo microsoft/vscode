@@ -21,7 +21,7 @@ import { Action } from 'vs/base/common/actions';
 import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themed';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { SetMap } from 'vs/base/common/collections';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';

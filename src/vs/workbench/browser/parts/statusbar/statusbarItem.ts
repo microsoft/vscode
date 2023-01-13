@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStatusbarEntry, ShowTooltipCommand } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themed';
+import { ThemeColor } from 'vs/base/common/themables';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { addDisposableListener, EventType, hide, show, append, EventHelper } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
