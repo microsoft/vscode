@@ -7,6 +7,7 @@ import { isESM } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
+import { URI } from 'vs/base/common/uri';
 
 class DefineCall {
 	constructor(
@@ -20,6 +21,8 @@ class AMDModuleImporter {
 	public static INSTANCE = new AMDModuleImporter();
 
 	private readonly _isWebWorker = (typeof self === 'object' && self.constructor && self.constructor.name === 'DedicatedWorkerGlobalScope');
+	private readonly _isRenderer = typeof document === 'object';
+
 	private readonly _defineCalls: DefineCall[] = [];
 	private _initialized = false;
 	private _amdPolicy: Pick<TrustedTypePolicy<{
@@ -52,7 +55,7 @@ class AMDModuleImporter {
 
 		(<any>globalThis).define.amd = true;
 
-		if (!this._isWebWorker) {
+		if (this._isRenderer) {
 			this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
 					if (value.startsWith(window.location.origin)) {
@@ -61,7 +64,7 @@ class AMDModuleImporter {
 					throw new Error(`Invalid script url: ${value}`);
 				}
 			});
-		} else {
+		} else if (this._isWebWorker) {
 			this._amdPolicy = (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value: string) {
 					return value;
@@ -72,7 +75,7 @@ class AMDModuleImporter {
 
 	public async load<T>(scriptSrc: string): Promise<T> {
 		this._initialize();
-		const defineCall = await (!this._isWebWorker ? this._rendererLoadScript(scriptSrc) : this._workerLoadScript(scriptSrc));
+		const defineCall = await (this._isWebWorker ? this._workerLoadScript(scriptSrc) : this._isRenderer ? this._rendererLoadScript(scriptSrc) : this._nodeJSLoadScript(scriptSrc));
 		if (!defineCall) {
 			throw new Error(`Did not receive a define call from script ${scriptSrc}`);
 		}
@@ -130,6 +133,25 @@ class AMDModuleImporter {
 				reject(err);
 			}
 		});
+	}
+
+	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
+		try {
+			const fs = <typeof import('fs')>globalThis._VSCODE_NODE_MODULES['fs'];
+			const vm = <typeof import('vm')>globalThis._VSCODE_NODE_MODULES['vm'];
+			const module = <typeof import('module')>globalThis._VSCODE_NODE_MODULES['module'];
+
+			const filePath = URI.parse(scriptSrc).fsPath;
+			const content = fs.readFileSync(filePath).toString();
+			const scriptSource = module.wrap(content.replace(/^#!.*/, ''));
+			const script = new vm.Script(scriptSource);
+			const compileWrapper = script.runInThisContext();
+			compileWrapper.apply();
+			return this._defineCalls.pop();
+
+		} catch (error) {
+			throw error;
+		}
 	}
 }
 

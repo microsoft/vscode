@@ -16,7 +16,7 @@ const srcFolder = path.join(__dirname, 'src');
 const dstFolder = path.join(__dirname, 'src2');
 
 const binaryFileExtensions = new Set([
-	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.md', '.txt'
+	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le'
 ]);
 
 function migrate() {

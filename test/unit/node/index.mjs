@@ -75,7 +75,7 @@ function main() {
 	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
 
 	// VSCODE_GLOBALS: file root
-	globalThis._VSCODE_FILE_ROOT = baseUrl;
+	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);

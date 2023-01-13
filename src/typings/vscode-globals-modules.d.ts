@@ -28,6 +28,7 @@ declare global {
 		// ESM-required (because of the shared process)
 		['node:module']: typeof import('node:module');
 		fs: typeof import('fs'),
+		vm: typeof import('vm'),
 		util: typeof import('util'),
 		child_process: typeof import('child_process'),
 		path: typeof import('path'),
