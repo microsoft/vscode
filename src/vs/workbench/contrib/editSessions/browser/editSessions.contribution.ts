@@ -651,6 +651,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					continue;
 				}
 
+				await this.editSessionIdentityService.onWillCreateEditSessionIdentity(workspaceFolder, cancellationToken);
+
 				name = name ?? workspaceFolder.name;
 				const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
 
