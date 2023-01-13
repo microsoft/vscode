@@ -20,9 +20,9 @@ import 'vs/css!./button';
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;
 	readonly supportIcons?: boolean;
+	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
 }
-
 
 export interface IButtonStyles {
 	readonly buttonBackground: string | undefined;
@@ -62,8 +62,10 @@ export interface IButtonWithDescription extends IButton {
 
 export class Button extends Disposable implements IButton {
 
-	protected _element: HTMLElement;
 	protected options: IButtonOptions;
+	protected _element: HTMLElement;
+	protected _labelElement: HTMLElement | undefined;
+	protected _labelShortElement: HTMLElement | undefined;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -86,6 +88,17 @@ export class Button extends Disposable implements IButton {
 		this._element.style.color = foreground || '';
 		this._element.style.backgroundColor = background || '';
 
+		if (options.supportShortLabel) {
+			this._labelShortElement = document.createElement('div');
+			this._labelShortElement.classList.add('monaco-button-label-short');
+			this._element.appendChild(this._labelShortElement);
+
+			this._labelElement = document.createElement('div');
+			this._labelElement.classList.add('monaco-button-label');
+			this._element.appendChild(this._labelElement);
+
+			this._element.classList.add('monaco-text-button-with-short-label');
+		}
 
 		container.appendChild(this._element);
 
@@ -134,6 +147,29 @@ export class Button extends Disposable implements IButton {
 		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateBackground(false); } }));
 	}
 
+	private getContentElements(content: string): HTMLElement[] {
+		const elements: HTMLSpanElement[] = [];
+		for (let segment of renderLabelWithIcons(content)) {
+			if (typeof (segment) === 'string') {
+				segment = segment.trim();
+
+				// Ignore empty segment
+				if (segment === '') {
+					continue;
+				}
+
+				// Convert string segments to <span> nodes
+				const node = document.createElement('span');
+				node.textContent = segment;
+				elements.push(node);
+			} else {
+				elements.push(segment);
+			}
+		}
+
+		return elements;
+	}
+
 	private updateBackground(hover: boolean): void {
 		let background;
 		if (this.options.secondary) {
@@ -152,30 +188,14 @@ export class Button extends Disposable implements IButton {
 
 	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
+		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
+
 		if (this.options.supportIcons) {
-			const content: HTMLSpanElement[] = [];
-			for (let segment of renderLabelWithIcons(value)) {
-				if (typeof (segment) === 'string') {
-					segment = segment.trim();
-
-					// Ignore empty segment
-					if (segment === '') {
-						continue;
-					}
-
-					// Convert string segments to <span> nodes
-					const node = document.createElement('span');
-					node.textContent = segment;
-					content.push(node);
-				} else {
-					content.push(segment);
-				}
-			}
-
-			reset(this._element, ...content);
+			reset(labelElement, ...this.getContentElements(value));
 		} else {
-			this._element.textContent = value;
+			labelElement.textContent = value;
 		}
+
 		if (typeof this.options.title === 'string') {
 			this._element.title = this.options.title;
 		} else if (this.options.title) {
@@ -183,6 +203,19 @@ export class Button extends Disposable implements IButton {
 		}
 	}
 
+	set labelShort(value: string) {
+		if (!this.options.supportShortLabel || !this._labelShortElement) {
+			return;
+		}
+
+		const labelElement = this.options.supportShortLabel ? this._labelShortElement! : this._element;
+
+		if (this.options.supportIcons) {
+			reset(labelElement, ...this.getContentElements(value));
+		} else {
+			labelElement.textContent = value;
+		}
+	}
 	set icon(icon: CSSIcon) {
 		this._element.classList.add(...CSSIcon.asClassNameArray(icon));
 	}

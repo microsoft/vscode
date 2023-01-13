@@ -31,9 +31,37 @@
 	cursor: default;
 }
 
-.monaco-text-button > .codicon {
+.monaco-text-button .codicon {
 	margin: 0 0.2em;
 	color: inherit !important;
+}
+
+.monaco-text-button.monaco-text-button-with-short-label {
+	flex-direction: row;
+	flex-wrap: wrap;
+	padding: 0 4px;
+	overflow: hidden;
+	height: 28px;
+}
+
+.monaco-text-button.monaco-text-button-with-short-label > .monaco-button-label {
+	flex-basis: 100%;
+}
+
+.monaco-text-button.monaco-text-button-with-short-label > .monaco-button-label-short {
+	flex-grow: 1;
+	width: 0;
+	overflow: hidden;
+}
+
+.monaco-text-button.monaco-text-button-with-short-label > .monaco-button-label,
+.monaco-text-button.monaco-text-button-with-short-label > .monaco-button-label-short {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	font-weight: normal;
+	font-style: inherit;
+	padding: 4px 0;
 }
 
 .monaco-button-dropdown {
@@ -99,8 +127,7 @@
 }
 
 .monaco-description-button .monaco-button-label > .codicon,
-.monaco-description-button .monaco-button-description > .codicon
-{
+.monaco-description-button .monaco-button-description > .codicon {
 	margin: 0 0.2em;
 	color: inherit !important;
 }

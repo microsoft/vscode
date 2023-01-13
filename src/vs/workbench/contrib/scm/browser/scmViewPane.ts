@@ -2550,17 +2550,16 @@ export class SCMActionButton implements IDisposable {
 				supportIcons: true,
 				...defaultButtonStyles
 			});
-		} else if (button.description) {
-			// ButtonWithDescription
-			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip, ...defaultButtonStyles });
-			(this.button as ButtonWithDescription).description = button.description;
 		} else {
 			// Button
-			this.button = new Button(this.container, { supportIcons: true, title: button.command.tooltip, ...defaultButtonStyles });
+			this.button = new Button(this.container, { supportIcons: true, supportShortLabel: !!button.description, title: button.command.tooltip, ...defaultButtonStyles });
 		}
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
+		if (this.button instanceof Button && button.description) {
+			this.button.labelShort = button.description;
+		}
 		this.button.onDidClick(async () => await this.executeCommand(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 
 		this.disposables.value!.add(this.button);

@@ -224,35 +224,6 @@
 	align-items: center;
 }
 
-.scm-view .button-container .monaco-description-button {
-	flex-direction: row;
-	flex-wrap: wrap;
-	padding: 0 4px;
-	overflow: hidden;
-	height: 28px;
-}
-
-.scm-view .button-container .monaco-description-button:hover {
-	border-color: var(--vscode-button-hoverBackground);
-}
-
-.scm-view .button-container .monaco-description-button > .monaco-button-label {
-	flex-grow: 1;
-	width: 0;
-	overflow: hidden;
-}
-
-.scm-view .button-container .monaco-description-button > .monaco-button-description {
-	flex-basis: 100%;
-}
-
-.scm-view .button-container .monaco-description-button > .monaco-button-label,
-.scm-view .button-container .monaco-description-button > .monaco-button-description {
-	font-weight: normal;
-	font-style: inherit;
-	padding: 4px 0;
-}
-
 .scm-view .button-container .codicon.codicon-cloud-upload,
 .scm-view .button-container .codicon.codicon-sync {
 	margin: 0 4px 0 0;
