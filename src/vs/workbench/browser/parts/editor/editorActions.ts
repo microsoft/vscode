@@ -22,7 +22,7 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
@@ -405,7 +405,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.close.classNames);
+		super(id, label, CSSIcon.asClassName(Codicon.close));
 	}
 
 	override run(context?: IEditorCommandsContext): Promise<void> {
@@ -423,7 +423,7 @@ export class UnpinEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.pinned.classNames);
+		super(id, label, CSSIcon.asClassName(Codicon.pinned));
 	}
 
 	override run(context?: IEditorCommandsContext): Promise<void> {
@@ -441,7 +441,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, Codicon.close.classNames);
+		super(id, label, CSSIcon.asClassName(Codicon.close));
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
@@ -731,7 +731,7 @@ export class CloseAllEditorsAction extends AbstractCloseAllAction {
 		@IEditorService editorService: IEditorService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, Codicon.closeAll.classNames, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		super(id, label, CSSIcon.asClassName(Codicon.closeAll), fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected get excludeSticky(): boolean {
