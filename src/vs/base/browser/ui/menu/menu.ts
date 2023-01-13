@@ -14,7 +14,7 @@ import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/u
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon, getCodiconFontCharacters } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -1001,8 +1001,9 @@ export function cleanMnemonic(label: string): string {
 	return label.replace(regex, mnemonicInText ? '$2$3' : '').trim();
 }
 
-export function formatRule(c: CSSIcon & { fontCharacter: string }) {
-	return `.codicon-${c.id}:before { content: '${c.fontCharacter}'; }`;
+export function formatRule(c: CSSIcon) {
+	const fontCharacter = getCodiconFontCharacters()[c.id];
+	return `.codicon-${c.id}:before { content: '\\${fontCharacter.toString(16)}'; }`;
 }
 
 function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
