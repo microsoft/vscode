@@ -284,7 +284,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._logService.trace('ptyService#start', id);
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
@@ -691,7 +691,7 @@ class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();

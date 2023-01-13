@@ -185,6 +185,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _fixedRows: number | undefined;
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
+	private _injectedArgs: string[] | undefined = undefined;
 	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _areLinksReady: boolean = false;
@@ -323,6 +324,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 	get userHome(): string | undefined { return this._userHome; }
+	get injectedArgs(): string[] | undefined { return this._injectedArgs; }
 
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
@@ -1520,11 +1522,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
-			if (error) {
-				this._onProcessExit(error);
+		const result = await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized());
+		if (result) {
+			if ('message' in result) {
+				this._onProcessExit(result);
+			} else if ('injectedArgs' in result) {
+				this._injectedArgs = result.injectedArgs;
 			}
-		});
+		}
 		if (this.xterm?.shellIntegration) {
 			this.capabilities.add(this.xterm?.shellIntegration.capabilities);
 		}
@@ -1768,11 +1773,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
-		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset).then(error => {
-			if (error) {
-				this._onProcessExit(error);
+		const result = await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset);
+		if (result) {
+			if ('message' in result) {
+				this._onProcessExit(result);
+			} else if ('injectedArgs' in result) {
+				this._injectedArgs = result.injectedArgs;
 			}
-		});
+		}
 
 		this._xtermTypeAheadAddon?.reset();
 	}

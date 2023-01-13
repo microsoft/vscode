@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
 import { asArray } from 'vs/base/common/arrays';
 
 export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean): string {
@@ -36,20 +35,22 @@ export function getShellProcessTooltip(instance: ITerminalInstance, markdown: bo
 	const lines: string[] = [];
 
 	if (instance.processId) {
-		lines.push(localize({ key: 'shellProcessTooltip.processId', comment: ['Do not translate "PID" as it is a pre-defined shell variable'] }, "Process ID (PID): {0}", instance.processId));
+		lines.push(localize({ key: 'shellProcessTooltip.processId', comment: ['The first arg is "PID" which shouldn\'t be translated'] }, "Process ID ({0}): {1}", 'PID', instance.processId) + '\n');
 	}
 
 	if (instance.shellLaunchConfig.executable) {
-		lines.push(markdown
-			? localize('shellProcessTooltip.executableAsMarkdown', "Executable: `{0}`", escapeMarkdownSyntaxTokens(instance.shellLaunchConfig.executable))
-			: localize('shellProcessTooltip.executable', "Executable: {0}", instance.shellLaunchConfig.executable)
-		);
-
-		const args = asArray(instance.shellLaunchConfig.args || []).map(x => `'${x}'`).join(' ');
+		let commandLine = instance.shellLaunchConfig.executable;
+		const args = asArray(instance.injectedArgs || instance.shellLaunchConfig.args || []).map(x => `'${x}'`).join(' ');
 		if (args) {
-			lines.push(localize('shellProcessTooltip.args', "Args: {0}", markdown ? escapeMarkdownSyntaxTokens(args) : args));
+			commandLine += ` ${args}`;
 		}
+
+		lines.push(localize('shellProcessTooltip.executable', 'Executable:\n'));
+		lines.push(markdown
+			? `\`\`\`\n${commandLine}\n\`\`\``
+			: `${commandLine}`
+		);
 	}
 
-	return lines.length ? `${markdown ? '\n\n---\n\n' : '\n\n'}${lines.join(markdown ? '\n\n' : '\n')}` : '';
+	return lines.length ? `${markdown ? '\n\n---\n\n' : '\n\n'}${lines.join('\n')}` : '';
 }
