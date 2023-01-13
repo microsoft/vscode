@@ -9,11 +9,12 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +31,7 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
+	private _inputCollapseElement: HTMLElement | undefined;
 
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;
@@ -55,6 +57,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
+		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
 
@@ -110,7 +113,8 @@ export class CodeCell extends Disposable {
 		this.updateForOutputFocus();
 
 		// Render Outputs
-		this._outputContainerRenderer.render(editorHeight);
+		this.viewCell.editorHeight = editorHeight;
+		this._outputContainerRenderer.render();
 		// Need to do this after the intial renderOutput
 		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
 			this.initialViewUpdateExpanded();
@@ -180,6 +184,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (model && this.templateData.editor) {
+				this._reigsterModelListeners(model);
 				this.templateData.editor.setModel(model);
 				this.viewCell.attachTextEditor(this.templateData.editor, this.viewCell.layoutInfo.estimatedHasHorizontalScrolling);
 				const focusEditorIfNeeded = () => {
@@ -258,8 +263,25 @@ export class CodeCell extends Disposable {
 			const selections = this.templateData.editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = this.templateData.editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
+			}
+		}));
+	}
+
+	private _reigsterModelListeners(model: ITextModel) {
+		this._register(model.onDidChangeTokens(() => {
+			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
+				// flush the collapsed input with the latest tokens
+				const content = this._getRichTextFromLineTokens(model);
+				DOM.safeInnerHtml(this._inputCollapseElement, content);
+				this._attachInputExpandButton(this._inputCollapseElement);
 			}
 		}));
 	}
@@ -366,10 +388,17 @@ export class CodeCell extends Disposable {
 		this._collapsedExecutionIcon.setVisibility(true);
 
 		// update preview
-		const richEditorText = this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
+		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
 		DOM.safeInnerHtml(element, richEditorText);
+		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		this._attachInputExpandButton(element);
+
+		DOM.show(this.templateData.cellInputCollapsedContainer);
+	}
+
+	private _attachInputExpandButton(element: HTMLElement) {
 		const expandIcon = DOM.$('span.expandInputIcon');
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
@@ -379,8 +408,6 @@ export class CodeCell extends Disposable {
 
 		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
 		element.appendChild(expandIcon);
-
-		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}
 
 	private _showInput() {
@@ -391,6 +418,24 @@ export class CodeCell extends Disposable {
 
 	private _getRichText(buffer: IReadonlyTextBuffer, language: string) {
 		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
+	}
+
+	private _getRichTextFromLineTokens(model: ITextModel) {
+		let result = `<div class="monaco-tokenized-source">`;
+
+		const firstLineTokens = model.tokenization.getLineTokens(1);
+		const viewLineTokens = firstLineTokens.inflate();
+		const line = model.getLineContent(1);
+		let startOffset = 0;
+		for (let j = 0, lenJ = viewLineTokens.getCount(); j < lenJ; j++) {
+			const type = viewLineTokens.getClassName(j);
+			const endIndex = viewLineTokens.getEndOffset(j);
+			result += `<span class="${type}">${strings.escape(line.substring(startOffset, endIndex))}</span>`;
+			startOffset = endIndex;
+		}
+
+		result += `</div>`;
+		return result;
 	}
 
 	private _removeInputCollapsePreview() {

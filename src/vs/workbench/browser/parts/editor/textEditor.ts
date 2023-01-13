@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -64,12 +64,8 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	) {
 		super(id, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
-			const resource = this.getActiveResource();
-			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
-
-			return this.handleConfigurationChangeEvent(value);
-		}));
+		// Listen to configuration changes
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(e)));
 
 		// ARIA: if a group is added or removed, update the editor's ARIA
 		// label so that it appears in the label for when there are > 1 groups
@@ -86,12 +82,21 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
-	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+	private handleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent): void {
+		const resource = this.getActiveResource();
+		if (!this.shouldHandleConfigurationChangeEvent(e, resource)) {
+			return;
+		}
+
 		if (this.isVisible()) {
-			this.updateEditorConfiguration(configuration);
+			this.updateEditorConfiguration(resource);
 		} else {
 			this.hasPendingConfigurationChange = true;
 		}
+	}
+
+	protected shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
+		return e.affectsConfiguration(resource, 'editor');
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
@@ -249,12 +254,10 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		return input.resource;
 	}
 
-	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
-		if (!configuration) {
-			const resource = this.getActiveResource();
-			if (resource) {
-				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
-			}
+	private updateEditorConfiguration(resource = this.getActiveResource()): void {
+		let configuration: IEditorConfiguration | undefined = undefined;
+		if (resource) {
+			configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
 		}
 
 		if (!configuration) {

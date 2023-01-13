@@ -20,7 +20,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -415,10 +415,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 		}, true));
 
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-			ActivityActionViewItem.hoverLeaveTime = Date.now();
-			this.hoverService.hideHover();
-			this.showHoverScheduler.cancel();
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
+			if (e.target === this.container) {
+				ActivityActionViewItem.hoverLeaveTime = Date.now();
+				this.hoverService.hideHover();
+				this.showHoverScheduler.cancel();
+			}
 		}, true));
 
 		this.hoverDisposables.add(toDisposable(() => {
@@ -463,7 +465,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: localize('additionalViews', "Additional Views"),
-			cssClass: Codicon.more.classNames
+			cssClass: CSSIcon.asClassName(Codicon.more)
 		});
 	}
 

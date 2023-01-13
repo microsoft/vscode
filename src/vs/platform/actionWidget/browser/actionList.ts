@@ -7,7 +7,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -28,7 +28,7 @@ export interface IRenderDelegate {
 export interface IListMenuItem<T extends IActionItem> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
-	readonly group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
+	readonly group?: { kind?: any; icon?: { codicon: CSSIcon; color?: string }; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;
@@ -102,10 +102,10 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
-			data.icon.className = element.group.icon.codicon.classNames;
+			data.icon.className = CSSIcon.asClassName(element.group.icon.codicon);
 			data.icon.style.color = element.group.icon.color ?? '';
 		} else {
-			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.className = CSSIcon.asClassName(Codicon.lightBulb);
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 
@@ -184,7 +184,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService), new HeaderRenderer()], {
+
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
+			new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService),
+			new HeaderRenderer(),
+		], {
 			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
@@ -228,8 +232,8 @@ export class ActionList<T extends IActionItem> extends Disposable {
 	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this._allMenuItems.filter(item => item.kind === 'header').length;
-		const height = this._allMenuItems.length * this._actionLineHeight;
-		const heightWithHeaders = height + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
+		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
+		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
@@ -246,9 +250,12 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const width = Math.max(...itemWidths, minWidth);
-		this._list.layout(heightWithHeaders, width);
 
-		this.domNode.style.height = `${heightWithHeaders}px`;
+		const maxVhPrecentage = 0.7;
+		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
+		this._list.layout(height, width);
+
+		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
 		return width;

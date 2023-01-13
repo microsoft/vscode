@@ -80,7 +80,7 @@ export namespace ThemeIcon {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}
 
-	export function asThemeIcon(codicon: Codicon, color?: string): ThemeIcon {
+	export function asThemeIcon(codicon: CSSIcon, color?: string): ThemeIcon {
 		return { id: codicon.id, color: color ? themeColorFromId(color) : undefined };
 	}
 

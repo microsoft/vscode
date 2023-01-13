@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { Cancellation } from '@vscode/sync-api-common/lib/common/messageCancellation';
 import type * as Proto from '../protocol';
 import { EventName } from '../protocol.const';
 import { CallbackMap } from '../tsServer/callbackMap';
@@ -17,6 +18,7 @@ import Tracer from '../utils/tracer';
 import { OngoingRequestCanceller } from './cancellation';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { isWebAndHasSharedArrayBuffers } from '../utils/platform';
 
 export enum ExecutionTarget {
 	Semantic,
@@ -64,6 +66,7 @@ export interface TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		extensionUri: vscode.Uri,
 	): TsServerProcess;
 }
 
@@ -171,17 +174,16 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		}
 	}
 
-	private tryCancelRequest(seq: number, command: string): boolean {
+	private tryCancelRequest(request: Proto.Request, command: string): boolean {
+		const seq = request.seq;
 		try {
 			if (this._requestQueue.tryDeletePendingRequest(seq)) {
 				this.logTrace(`Canceled request with sequence number ${seq}`);
 				return true;
 			}
-
 			if (this._requestCanceller.tryCancelOngoingRequest(seq)) {
 				return true;
 			}
-
 			this.logTrace(`Tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 			return false;
 		} finally {
@@ -221,8 +223,14 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
+
+					const cancelViaSAB = isWebAndHasSharedArrayBuffers()
+						? Cancellation.addData(request)
+						: undefined;
+
 					executeInfo.token.onCancellationRequested(() => {
-						this.tryCancelRequest(request.seq, command);
+						cancelViaSAB?.();
+						this.tryCancelRequest(request, command);
 					});
 				}
 			}).catch((err: Error) => {

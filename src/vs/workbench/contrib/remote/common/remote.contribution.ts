@@ -12,7 +12,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -33,7 +32,6 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
 import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
-import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -93,18 +91,30 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 	}
 }
 
-class RemoteLogOutputChannels implements IWorkbenchContribution {
+class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
-			}
-		});
+		super();
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			remoteAgentService.getEnvironment().then(remoteEnv => {
+				if (remoteEnv) {
+					const remoteServerLog = 'remoteServerLog';
+					const remotePtyHostLog = 'remotePtyHostLog';
+					loggerService.registerLogger({ id: remoteServerLog, name: localize('remoteExtensionLog', "Remote Server"), resource: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`) });
+					loggerService.registerLogger({ id: remotePtyHostLog, name: localize('remotePtyHostLog', "Remote Pty Host"), resource: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`) });
+					this._register(loggerService.onDidChangeLogLevel(([resource, logLevel]) => {
+						const logger = loggerService.getRegisteredLogger(resource);
+						if (logger?.id === remoteServerLog || logger?.id === remotePtyHostLog) {
+							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel, resource));
+						}
+					}));
+				}
+			});
+		}
 	}
 }
 

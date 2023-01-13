@@ -107,13 +107,15 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 					localize('openLooseFileWorkspaceDetails', "You are trying to open untrusted files in a workspace which is trusted.") :
 					localize('openLooseFileWindowDetails', "You are trying to open untrusted files in a window which is trusted."),
-				localize('openLooseFileLearnMore', "If you don't trust the authors of these files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+				localize('openLooseFileLearnMore', "If you don't want to open untrusted files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
 			];
 
 			// Dialog
 			const result = await this.dialogService.show(
 				Severity.Info,
-				localize('openLooseFileMesssage', "Do you trust the authors of these files?"),
+				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
+					localize('openLooseFileWorkspaceMesssage', "Do you want to allow untrusted files in this workspace?") :
+					localize('openLooseFileWindowMesssage', "Do you want to allow untrusted files in this window?"),
 				[localize('open', "Open"), localize('newWindow', "Open in Restricted Mode"), localize('cancel', "Cancel")],
 				{
 					cancelId: 2,

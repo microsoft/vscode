@@ -9,10 +9,17 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { posix } from 'vs/base/common/path';
 import { hash } from 'vs/base/common/hash';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ResourcePerformanceMarks {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService environmentService: IEnvironmentService
+	) {
 
 		type Entry = {
 			hosthash: string;
@@ -44,7 +51,33 @@ class ResourcePerformanceMarks {
 	}
 }
 
+class StartupTimings {
+	constructor(
+		@ITimerService private readonly timerService: ITimerService,
+		@ILogService private readonly logService: ILogService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
+	) {
+		this.logPerfMarks();
+	}
+
+	private async logPerfMarks(): Promise<void> {
+		if (!this.environmentService.profDurationMarkers) {
+			return;
+		}
+
+		await this.timerService.whenReady();
+
+		const [from, to] = this.environmentService.profDurationMarkers;
+		this.logService.info(`[perf] from '${from}' to '${to}': ${this.timerService.getDuration(from, to)}ms`);
+	}
+}
+
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	ResourcePerformanceMarks,
+	LifecyclePhase.Eventually
+);
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	StartupTimings,
 	LifecyclePhase.Eventually
 );

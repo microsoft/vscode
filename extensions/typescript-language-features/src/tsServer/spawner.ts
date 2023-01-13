@@ -10,7 +10,7 @@ import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptS
 import API from '../utils/api';
 import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
-import { isWeb } from '../utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers } from '../utils/platform';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -44,6 +44,7 @@ export class TypeScriptServerSpawner {
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 		private readonly _factory: TsServerProcessFactory,
+		private readonly _extensionUri: vscode.Uri,
 	) { }
 
 	public spawn(
@@ -152,7 +153,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version, args, kind, configuration, this._versionManager);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, this._extensionUri);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new ProcessBasedTsServer(
@@ -259,6 +260,10 @@ export class TypeScriptServerSpawner {
 		args.push('--noGetErrOnBackgroundUpdate');
 
 		args.push('--validateDefaultNpmLocation');
+
+		if (isWebAndHasSharedArrayBuffers()) {
+			args.push('--enableProjectWideIntelliSenseOnWeb');
+		}
 
 		return { args, tsServerLogFile, tsServerTraceDirectory };
 	}

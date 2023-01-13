@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon, getCodiconFontCharacters } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { isString } from 'vs/base/common/types';
@@ -298,8 +298,10 @@ export function getIconRegistry(): IIconRegistry {
 }
 
 function initialize() {
-	for (const icon of Codicon.getAll()) {
-		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
+	const codiconFontCharacters = getCodiconFontCharacters();
+	for (const icon in codiconFontCharacters) {
+		const fontCharacter = '\\' + codiconFontCharacters[icon].toString(16);
+		iconRegistry.registerIcon(icon, { fontCharacter });
 	}
 }
 initialize();

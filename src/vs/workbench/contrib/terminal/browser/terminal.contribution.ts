@@ -53,6 +53,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 import { Schemas } from 'vs/base/common/network';
 import { TerminalQuickFixService } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixService';
+import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
+import { ITerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/links';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, InstantiationType.Delayed);
@@ -61,6 +63,7 @@ registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);
 registerSingleton(ITerminalProfileService, TerminalProfileService, InstantiationType.Delayed);
 registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
+registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
 
 // Register quick accesses
 const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
@@ -206,6 +209,20 @@ registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine)
 registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell)),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.LeftArrow }
+});
+
+// Map ctrl+alt+r -> ctrl+r when in accessibility mode due to default run recent command keybinding
+registerSendSequenceKeybinding('\x12', {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR }
+});
+
+// Map ctrl+alt+g -> ctrl+g due to default go to recent directory keybinding
+registerSendSequenceKeybinding('\x07', {
+	when: TerminalContextKeys.focus,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyG }
 });
 
 // send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)

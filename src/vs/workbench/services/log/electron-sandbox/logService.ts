@@ -7,6 +7,8 @@ import { LogService, ConsoleLogger, MultiplexLogService, ILogger, LogLevel } fro
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { LogLevelChannelClient, FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { rendererLogId } from 'vs/workbench/common/logConstants';
 
 export class NativeLogService extends LogService {
 
@@ -17,7 +19,7 @@ export class NativeLogService extends LogService {
 		const loggers: ILogger[] = [];
 
 		// Always log to file
-		loggers.push(disposables.add(loggerService.createLogger(environmentService.logFile, { name })));
+		loggers.push(disposables.add(loggerService.createLogger(environmentService.logFile, { id: rendererLogId, name: localize('rendererLog', "Window") })));
 
 		// Extension development test CLI: forward everything to main side
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {

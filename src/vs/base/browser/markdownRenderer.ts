@@ -438,7 +438,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { renderer: plainTextRenderer.getValue() }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	const html = marked.parse(value, { renderer: plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
 	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
 }

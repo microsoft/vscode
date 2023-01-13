@@ -13,7 +13,7 @@ import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTr
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElement, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -110,10 +110,10 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			twistieElement.classList.add(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.add(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
 			return true;
 		} else {
-			twistieElement.classList.remove(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.remove(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
 			return false;
 		}
 	}
@@ -268,7 +268,18 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
-		)
+		),
+		defaultFindVisibility: e => {
+			if (e.hasChildren && e.stale) {
+				return TreeVisibility.Visible;
+			} else if (typeof options.defaultFindVisibility === 'number') {
+				return options.defaultFindVisibility;
+			} else if (typeof options.defaultFindVisibility === 'undefined') {
+				return TreeVisibility.Recurse;
+			} else {
+				return (options.defaultFindVisibility as ((e: T) => TreeVisibility))(e.element as T);
+			}
+		}
 	};
 }
 
@@ -1094,10 +1105,10 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			twistieElement.classList.add(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.add(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
 			return true;
 		} else {
-			twistieElement.classList.remove(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.remove(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
 			return false;
 		}
 	}

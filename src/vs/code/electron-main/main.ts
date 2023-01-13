@@ -46,7 +46,6 @@ import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainS
 import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -69,6 +68,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 /**
  * The main VS Code entry point.
@@ -129,7 +129,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { name: 'main' });
+				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { id: 'mainLog', name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(evt => {
@@ -177,7 +177,7 @@ class CodeMain {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Logger
-		services.set(ILoggerService, new LoggerService(logService));
+		services.set(ILoggerMainService, new LoggerMainService(logService));
 
 		// State
 		const stateMainService = new StateMainService(environmentMainService, logService, fileService);

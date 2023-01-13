@@ -54,6 +54,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 //#region Helper Interfaces
 
@@ -201,6 +202,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly machineId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerService: ILoggerMainService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -1370,6 +1372,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.logService.getLevel(),
+			loggers: this.loggerService.getRegisteredLoggers(),
 			logsPath: this.environmentMainService.logsPath,
 
 			product,
@@ -1446,6 +1449,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
+			configuration.loggers = currentWindowConfig?.loggers ?? configuration.loggers;
 		}
 
 		// Update window identifier and session now

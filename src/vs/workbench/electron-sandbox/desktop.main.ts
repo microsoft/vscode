@@ -35,7 +35,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ISandboxKeyboardLayoutService, SandboxKeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/sandboxKeyboardLayout';
+import { INativeKeyboardLayoutService, NativeKeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayoutService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -171,7 +171,7 @@ export class DesktopMain extends Disposable {
 
 		// Logger
 		const logLevelChannelClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
-		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, this.configuration.loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
@@ -273,10 +273,10 @@ export class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createSandboxKeyboardLayoutService(mainProcessService).then(service => {
+			this.createKeyboardLayoutService(mainProcessService).then(service => {
 
 				// KeyboardLayout
-				serviceCollection.set(ISandboxKeyboardLayoutService, service);
+				serviceCollection.set(INativeKeyboardLayoutService, service);
 
 				return service;
 			})
@@ -359,17 +359,17 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createSandboxKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<SandboxKeyboardLayoutService> {
-		const sandboxKeyboardLayoutService = new SandboxKeyboardLayoutService(mainProcessService);
+	private async createKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<NativeKeyboardLayoutService> {
+		const keyboardLayoutService = new NativeKeyboardLayoutService(mainProcessService);
 
 		try {
-			await sandboxKeyboardLayoutService.initialize();
+			await keyboardLayoutService.initialize();
 
-			return sandboxKeyboardLayoutService;
+			return keyboardLayoutService;
 		} catch (error) {
 			onUnexpectedError(error);
 
-			return sandboxKeyboardLayoutService;
+			return keyboardLayoutService;
 		}
 	}
 }
