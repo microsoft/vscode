@@ -7,7 +7,8 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -28,7 +29,7 @@ export interface IRenderDelegate {
 export interface IListMenuItem<T extends IActionItem> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
-	readonly group?: { kind?: any; icon?: { codicon: CSSIcon; color?: string }; title: string };
+	readonly group?: { kind?: any; icon?: { codicon: ThemeIcon; color?: string }; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;
@@ -102,10 +103,10 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
-			data.icon.className = CSSIcon.asClassName(element.group.icon.codicon);
+			data.icon.className = ThemeIcon.asClassName(element.group.icon.codicon);
 			data.icon.style.color = element.group.icon.color ?? '';
 		} else {
-			data.icon.className = CSSIcon.asClassName(Codicon.lightBulb);
+			data.icon.className = ThemeIcon.asClassName(Codicon.lightBulb);
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 

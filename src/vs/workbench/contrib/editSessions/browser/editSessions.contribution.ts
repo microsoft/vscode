@@ -50,7 +50,7 @@ import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workben
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';

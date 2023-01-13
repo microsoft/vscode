@@ -21,7 +21,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -98,7 +99,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		].map(c => ({
 			...c,
 			buttons: [{
-				iconClass: CSSIcon.asClassName(Codicon.gear),
+				iconClass: ThemeIcon.asClassName(Codicon.gear),
 				tooltip: localize('configure keybinding', "Configure Keybinding"),
 			}],
 			trigger: (): TriggerAction => {

@@ -5,7 +5,8 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Gesture } from 'vs/base/browser/touch';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -210,8 +211,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _updateLightBulbTitleAndIcon(): void {
 		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
 			// update icon
-			this._domNode.classList.remove(...CSSIcon.asClassNameArray(Codicon.lightBulb));
-			this._domNode.classList.add(...CSSIcon.asClassNameArray(Codicon.lightbulbAutofix));
+			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
 
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
@@ -220,8 +221,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		// update icon
-		this._domNode.classList.remove(...CSSIcon.asClassNameArray(Codicon.lightbulbAutofix));
-		this._domNode.classList.add(...CSSIcon.asClassNameArray(Codicon.lightBulb));
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
+		this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
 
 		if (this._quickFixKbLabel) {
 			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);

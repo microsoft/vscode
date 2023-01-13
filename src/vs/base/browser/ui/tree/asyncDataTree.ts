@@ -13,7 +13,8 @@ import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTr
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElement, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -110,10 +111,10 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			twistieElement.classList.add(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
+			twistieElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return true;
 		} else {
-			twistieElement.classList.remove(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
+			twistieElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return false;
 		}
 	}
@@ -1105,10 +1106,10 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			twistieElement.classList.add(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
+			twistieElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return true;
 		} else {
-			twistieElement.classList.remove(...CSSIcon.asClassNameArray(Codicon.treeItemLoading));
+			twistieElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return false;
 		}
 	}

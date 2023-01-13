@@ -7,14 +7,15 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./toggle';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
-	readonly icon?: CSSIcon;
+	readonly icon?: ThemeIcon;
 	readonly title: string;
 	readonly isChecked: boolean;
 	readonly notFocusable?: boolean;
@@ -101,7 +102,7 @@ export class Toggle extends Widget {
 	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private readonly _opts: IToggleOpts;
-	private _icon: CSSIcon | undefined;
+	private _icon: ThemeIcon | undefined;
 	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
@@ -115,7 +116,7 @@ export class Toggle extends Widget {
 		const classes = ['monaco-custom-toggle'];
 		if (this._opts.icon) {
 			this._icon = this._opts.icon;
-			classes.push(...CSSIcon.asClassNameArray(this._icon));
+			classes.push(...ThemeIcon.asClassNameArray(this._icon));
 		}
 		if (this._opts.actionClassName) {
 			classes.push(...this._opts.actionClassName.split(' '));
@@ -180,13 +181,13 @@ export class Toggle extends Widget {
 		this.applyStyles();
 	}
 
-	setIcon(icon: CSSIcon | undefined): void {
+	setIcon(icon: ThemeIcon | undefined): void {
 		if (this._icon) {
-			this.domNode.classList.remove(...CSSIcon.asClassNameArray(this._icon));
+			this.domNode.classList.remove(...ThemeIcon.asClassNameArray(this._icon));
 		}
 		this._icon = icon;
 		if (this._icon) {
-			this.domNode.classList.add(...CSSIcon.asClassNameArray(this._icon));
+			this.domNode.classList.add(...ThemeIcon.asClassNameArray(this._icon));
 		}
 	}
 

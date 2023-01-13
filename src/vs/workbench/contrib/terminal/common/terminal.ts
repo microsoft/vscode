@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 

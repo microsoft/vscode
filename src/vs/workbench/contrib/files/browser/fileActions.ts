@@ -41,7 +41,8 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -578,7 +579,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	override get class(): string {
-		return 'explorer-action ' + CSSIcon.asClassName(Codicon.saveAll);
+		return 'explorer-action ' + ThemeIcon.asClassName(Codicon.saveAll);
 	}
 
 	protected doRun(context: unknown): Promise<void> {
@@ -592,7 +593,7 @@ export class CloseGroupAction extends Action {
 	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, CSSIcon.asClassName(Codicon.closeAll));
+		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
 	}
 
 	override run(context?: unknown): Promise<void> {
