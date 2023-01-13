@@ -199,14 +199,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
-		if (this.repositories.length !== 0) {
-			if (this._parentRepositories.size !== 0) {
-				// Parent repositories notification
-				this.showParentRepositoryNotification();
-			} else if (this._unsafeRepositories.size !== 0) {
-				// Unsafe repositories notification
-				this.showUnsafeRepositoryNotification();
-			}
+		if (this._parentRepositories.size !== 0) {
+			// Parent repositories notification
+			this.showParentRepositoryNotification();
+		} else if (this._unsafeRepositories.size !== 0) {
+			// Unsafe repositories notification
+			this.showUnsafeRepositoryNotification();
 		}
 
 		/* __GDPR__
@@ -438,8 +436,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
 				if (parentRepositoryConfig === 'prompt') {
-					// Show a notification if the parent repository is opened after the initial scan, and the welcome view is not visible
-					if (this.state === 'initialized' && !this._parentRepositories.has(repositoryRoot) && this.repositories.length !== 0) {
+					// Show a notification if the parent repository is opened after the initial scan
+					if (this.state === 'initialized' && !this._parentRepositories.has(repositoryRoot)) {
 						this.showParentRepositoryNotification();
 					}
 
@@ -453,8 +451,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
 				this.logger.trace(`Unsafe repository: ${repositoryRoot}`);
 
-				// Show a notification if the unsafe repository is opened after the initial scan, and the welcome view is not visible
-				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot) && this.repositories.length !== 0) {
+				// Show a notification if the unsafe repository is opened after the initial scan
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot)) {
 					this.showUnsafeRepositoryNotification();
 				}
 
@@ -775,7 +773,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async showParentRepositoryNotification(): Promise<void> {
-		const question = l10n.t('Would you like to open repositories from parent folders of the workspace, or file(s) being opened?');
+		// If no repositories are open, we will use a welcome view to inform the user
+		// that a repository was found in one of the parent folders so we do not have
+		// to show the notification
+		if (this.repositories.length === 0) {
+			return;
+		}
 
 		const message = this.parentRepositories.size === 1 ?
 			workspace.workspaceFolders !== undefined ?
@@ -784,6 +787,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			workspace.workspaceFolders !== undefined ?
 				l10n.t('We found git repositories in one of the parent folders of this workspace.') :
 				l10n.t('We found git repositories in one of the parent folders of the open file(s).');
+
+		const question = l10n.t('Would you like to open repositories from parent folders of the workspace, or file(s) being opened?');
 
 		const yes = l10n.t('Yes');
 		const always = l10n.t('Always');
@@ -812,6 +817,13 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async showUnsafeRepositoryNotification(): Promise<void> {
+		// If no repositories are open, we will use a welcome view to inform the user
+		// that a potentially unsafe repository was found so we do not have to show
+		// the notification
+		if (this.repositories.length === 0) {
+			return;
+		}
+
 		const message = this._unsafeRepositories.size === 1 ?
 			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
 			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
