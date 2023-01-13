@@ -27,10 +27,10 @@ suite('LineDataEventAddon', () => {
 	suite('onLineData', () => {
 		let events: string[];
 
-		setup(() => {
+		setup(async () => {
 			xterm = new Terminal({ allowProposedApi: true, cols: 4 });
 			lineDataEventAddon = new LineDataEventAddon();
-			xterm.loadAddon(lineDataEventAddon);
+			await xterm.loadAddon(lineDataEventAddon);
 
 			events = [];
 			lineDataEventAddon.onLineData(e => events.push(e));
