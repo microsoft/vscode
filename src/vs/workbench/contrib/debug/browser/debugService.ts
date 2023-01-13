@@ -1196,7 +1196,7 @@ export class DebugService implements IDebugService {
 
 		await addTempBreakPoint();
 		if (this.state === State.Inactive) {
-			// If no session exists start the degbugger;
+			// If no session exists start the debugger
 			const { launch, name, getConfig } = this.getConfigurationManager().selectedConfiguration;
 			const config = await getConfig();
 			const configOrName = config ? Object.assign(deepClone(config), {}) : name;
@@ -1206,18 +1206,19 @@ export class DebugService implements IDebugService {
 				}
 			});
 			await this.startDebugging(launch, configOrName, undefined, true);
-			return;
 		}
 		if (this.state === State.Stopped) {
 			const focusedSession = this.getViewModel().focusedSession;
-			if (!focusedSession || !threadToContinue) { return; }
+			if (!focusedSession || !threadToContinue) {
+				return;
+			}
+
 			const listener = threadToContinue.session.onDidChangeState(() => {
 				if (removeTempBreakPoint(focusedSession.state)) {
 					listener.dispose();
 				}
 			});
 			await threadToContinue.continue();
-			return;
 		}
 	}
 
