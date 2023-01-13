@@ -208,14 +208,13 @@ export class Button extends Disposable implements IButton {
 			return;
 		}
 
-		const labelElement = this.options.supportShortLabel ? this._labelShortElement! : this._element;
-
 		if (this.options.supportIcons) {
-			reset(labelElement, ...this.getContentElements(value));
+			reset(this._labelShortElement, ...this.getContentElements(value));
 		} else {
-			labelElement.textContent = value;
+			this._labelShortElement.textContent = value;
 		}
 	}
+
 	set icon(icon: CSSIcon) {
 		this._element.classList.add(...CSSIcon.asClassNameArray(icon));
 	}
