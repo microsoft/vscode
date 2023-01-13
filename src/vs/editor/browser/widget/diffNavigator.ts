@@ -80,6 +80,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 				if (this.ignoreSelectionChange) {
 					return;
 				}
+				this._updateAccessibilityState(e.position.lineNumber);
 				this.nextIdx = -1;
 			}));
 		}
@@ -210,19 +211,33 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 			const pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
 			this._editor.revealRangeInCenter(info.range, scrollType);
-			const modifiedEditor = this._editor.getModel()?.modified;
-			if (!modifiedEditor) {
-				return;
-			}
-			const insertedOrModified = modifiedEditor.getLineDecorations(pos.lineNumber).find(l => l.options.className === 'line-insert');
-			this._audioCueService.playAudioCue(insertedOrModified ? AudioCue.diffLineModified : AudioCue.diffLineDeleted);
-			const codeEditor = this._codeEditorService.getActiveCodeEditor();
-			if (codeEditor && insertedOrModified) {
-				codeEditor.setSelection({ startLineNumber: pos.lineNumber, startColumn: 0, endLineNumber: pos.lineNumber, endColumn: Number.MAX_VALUE });
-				codeEditor.writeScreenReaderContent('diff-navigation');
-			}
+			this._updateAccessibilityState(pos.lineNumber, true);
 		} finally {
 			this.ignoreSelectionChange = false;
+		}
+	}
+
+	_updateAccessibilityState(lineNumber: number, jumpToChange?: boolean): void {
+		const modifiedEditor = this._editor.getModel()?.modified;
+		if (!modifiedEditor) {
+			return;
+		}
+		const insertedOrModified = modifiedEditor.getLineDecorations(lineNumber).find(l => l.options.className === 'line-insert');
+		if (insertedOrModified) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineModified);
+		} else if (jumpToChange) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+		} else {
+			return;
+		}
+
+		if (!jumpToChange || !insertedOrModified) {
+			return;
+		}
+		const codeEditor = this._codeEditorService.getActiveCodeEditor();
+		if (codeEditor && insertedOrModified) {
+			codeEditor.setSelection({ startLineNumber: lineNumber, startColumn: 0, endLineNumber: lineNumber, endColumn: Number.MAX_VALUE });
+			codeEditor.writeScreenReaderContent('diff-navigation');
 		}
 	}
 
