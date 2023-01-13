@@ -549,7 +549,8 @@
 	right: 0;
 	padding: .5em;
 	opacity: 0;
-	overflow: scroll;
+	overflow-y: scroll;
+	overflow-x: hidden;
 }
 
 .xterm .xterm-accessibility:focus {
