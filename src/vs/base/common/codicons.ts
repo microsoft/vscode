@@ -2,17 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-// Selects all codicon names encapsulated in the `$()` syntax and wraps the
-// results with spaces so that screen readers can read the text better.
-export function getCodiconAriaLabel(text: string | undefined) {
-	if (!text) {
-		return '';
-	}
-
-	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
-}
-
 /**
  * The Codicon library is a set of default icons that are built-in in VS Code.
  *

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 
 suite('Codicon', () => {
 	test('Can get proper aria labels', () => {
