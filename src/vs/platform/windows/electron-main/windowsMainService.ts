@@ -1372,7 +1372,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToWait: options.filesToOpen?.filesToWait,
 
 			logLevel: this.logService.getLevel(),
-			loggers: this.loggerService.getLoggerResources(),
+			loggers: this.loggerService.getRegisteredLoggers(),
 			logsPath: this.environmentMainService.logsPath,
 
 			product,

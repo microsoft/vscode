@@ -508,12 +508,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		if (!name) {
 			return;
 		}
-		const icon = await this.pickIcon();
-		if (!icon) {
-			return;
-		}
 		try {
-			await this.userDataProfileManagementService.createAndEnterProfile(name, { shortName: icon }, fromExisting);
+			await this.userDataProfileManagementService.createAndEnterProfile(name, undefined, fromExisting);
 		} catch (error) {
 			this.notificationService.error(error);
 		}

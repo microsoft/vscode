@@ -193,6 +193,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); /** Do nothing. Enter causes new line which is not expected. */ }, this));
 		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();

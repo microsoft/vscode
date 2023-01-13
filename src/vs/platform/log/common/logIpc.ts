@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI, UriDto } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggerResourceEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, ILogService, LogLevel, LogService } from 'vs/platform/log/common/log';
+import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, ILogService, LogLevel, LogService } from 'vs/platform/log/common/log';
 
 export class LogLevelChannel implements IServerChannel {
 
@@ -59,13 +59,14 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 
 	constructor(private readonly windowId: number | undefined, logLevel: LogLevel, onDidChangeLogLevel: Event<LogLevel>, loggers: UriDto<ILoggerResource>[], private readonly channel: IChannel) {
 		super(logLevel, onDidChangeLogLevel, loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })));
-		this._register(channel.listen<ILoggerResource>('onDidChangeLogLevel', windowId)((loggerResource) => super.setLogLevel(URI.revive(loggerResource.resource), loggerResource.logLevel ?? this.logLevel)));
-		this._register(channel.listen<DidChangeLoggerResourceEvent>('onDidChangeLoggerResources', windowId)(({ added, removed }) => {
+		this._register(channel.listen<[URI, LogLevel]>('onDidChangeLogLevel', windowId)(([resource, logLevel]) => super.setLogLevel(URI.revive(resource), logLevel)));
+		this._register(channel.listen<[URI, boolean]>('onDidChangeVisibility', windowId)(([resource, visibility]) => super.setVisibility(URI.revive(resource), visibility)));
+		this._register(channel.listen<DidChangeLoggersEvent>('onDidChangeLoggers', windowId)(({ added, removed }) => {
 			for (const loggerResource of added) {
-				super.registerLoggerResource({ ...loggerResource, resource: URI.revive(loggerResource.resource) });
+				super.registerLogger({ ...loggerResource, resource: URI.revive(loggerResource.resource) });
 			}
 			for (const loggerResource of removed) {
-				super.deregisterLoggerResource(loggerResource.resource);
+				super.deregisterLogger(loggerResource.resource);
 			}
 		}));
 	}
@@ -78,16 +79,24 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 		});
 	}
 
-	override registerLoggerResource(resource: ILoggerResource): void {
-		this.channel.call('registerLoggerResource', [resource, this.windowId]);
+	override registerLogger(logger: ILoggerResource): void {
+		super.registerLogger(logger);
+		this.channel.call('registerLogger', [logger, this.windowId]);
 	}
 
-	override deregisterLoggerResource(resource: URI): void {
-		this.channel.call('deregisterLoggerResource', [resource, this.windowId]);
+	override deregisterLogger(resource: URI): void {
+		super.deregisterLogger(resource);
+		this.channel.call('deregisterLogger', [resource, this.windowId]);
 	}
 
 	override setLogLevel(resource: URI, logLevel: LogLevel): void {
+		super.setLogLevel(resource, logLevel);
 		this.channel.call('setLogLevel', [resource, logLevel]);
+	}
+
+	override setVisibility(resource: URI, visibility: boolean): void {
+		super.setVisibility(resource, visibility);
+		this.channel.call('setVisibility', [resource, visibility]);
 	}
 
 	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
@@ -107,7 +116,7 @@ class Logger extends AbstractMessageLogger {
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
 	) {
-		super(loggerOptions?.always);
+		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
 		this.channel.call('createLogger', [file, loggerOptions])
 			.then(() => {

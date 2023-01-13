@@ -187,13 +187,13 @@ export class PtyHostService extends Disposable implements IPtyService {
 		const logChannel = client.getChannel(TerminalIpcChannels.Log);
 		LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		const ptyHostLogResource = URI.file(join(this._environmentService.logsPath, `${TerminalLogConstants.FileName}.log`));
-		this._loggerService.registerLoggerResource({ id: 'ptyHostLog', name: localize('ptyHost', "Pty Host"), resource: ptyHostLogResource });
+		this._loggerService.registerLogger({ id: 'ptyHostLog', name: localize('ptyHost', "Pty Host"), resource: ptyHostLogResource });
 		this._register(this._logService.onDidChangeLogLevel(() => {
 			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
 		}));
-		this._register(this._loggerService.onDidChangeLogLevel(({ resource, logLevel }) => {
+		this._register(this._loggerService.onDidChangeLogLevel(([resource, logLevel]) => {
 			if (this._uriIdentityService.extUri.isEqual(ptyHostLogResource, resource)) {
-				LogLevelChannelClient.setLevel(logChannel, logLevel ?? this._logService.getLevel());
+				LogLevelChannelClient.setLevel(logChannel, logLevel);
 			}
 		}));
 

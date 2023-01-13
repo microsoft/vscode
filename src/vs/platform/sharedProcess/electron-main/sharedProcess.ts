@@ -248,7 +248,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel(),
-			loggers: this.loggerMainService.getLoggerResources(),
+			loggers: this.loggerMainService.getRegisteredLoggers(),
 			product,
 			policiesData: this.policyService.serialize()
 		});

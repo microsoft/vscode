@@ -427,11 +427,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return userExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
 	}
 
-	async scanMetadata(extensionLocation: URI, profileLocation: URI): Promise<Metadata | undefined> {
-		const extension = await this.scanExistingExtension(extensionLocation, ExtensionType.User, profileLocation);
-		return extension?.metadata;
-	}
-
 	async scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null> {
 		try {
 			return await this.getExtensionManifest(extensionLocation);
@@ -455,6 +450,27 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async removeExtension(extension: IScannedExtension, profileLocation: URI): Promise<void> {
 		await this.writeInstalledExtensions(profileLocation, installedExtensions => installedExtensions.filter(installedExtension => !areSameExtensions(installedExtension.identifier, extension.identifier)));
+	}
+
+	async updateMetadata(extension: IScannedExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<IScannedExtension> {
+		let updatedExtension: IWebExtension | undefined = undefined;
+		await this.writeInstalledExtensions(profileLocation, installedExtensions => {
+			const result: IWebExtension[] = [];
+			for (const installedExtension of installedExtensions) {
+				if (areSameExtensions(extension.identifier, installedExtension.identifier)) {
+					installedExtension.metadata = { ...installedExtension.metadata, ...metadata };
+					updatedExtension = installedExtension;
+					result.push(installedExtension);
+				} else {
+					result.push(installedExtension);
+				}
+			}
+			return result;
+		});
+		if (!updatedExtension) {
+			throw new Error('Extension not found');
+		}
+		return this.toScannedExtension(updatedExtension, extension.isBuiltin);
 	}
 
 	async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void> {

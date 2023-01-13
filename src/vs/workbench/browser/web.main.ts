@@ -84,6 +84,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
 import { timeout } from 'vs/base/common/async';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { rendererLogId } from 'vs/workbench/common/logConstants';
 
 export class BrowserMain extends Disposable {
 
@@ -438,7 +439,7 @@ export class BrowserMain extends Disposable {
 
 		logService.logger = new MultiplexLogService(coalesce([
 			new ConsoleLogger(logService.getLevel()),
-			loggerService.createLogger(environmentService.logFile, { name: 'window' }),
+			loggerService.createLogger(environmentService.logFile, { id: rendererLogId, name: localize('rendererLog', "Window") }),
 			// Extension development test CLI: forward everything to test runner
 			environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
 		]));
