@@ -119,12 +119,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
       }
     ],
     "markdown.previewStyles": [

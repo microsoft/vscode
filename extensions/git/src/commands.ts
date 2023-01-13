@@ -3336,18 +3336,18 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
-	@command('git.openExternalRepositories')
-	async openExternalRepositories(): Promise<void> {
-		const externalRepositories: string[] = [];
+	@command('git.openRepositoriesInParentFolders')
+	async openRepositoriesInParentFolders(): Promise<void> {
+		const parentRepositories: string[] = [];
 
-		const title = l10n.t('Open External Repositories');
-		const placeHolder = l10n.t('Pick an repository to open');
+		const title = l10n.t('Open Repositories In Parent Folders');
+		const placeHolder = l10n.t('Pick a repository to open');
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.externalRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys()).sort().map(r => new RepositoryItem(r));
 
-		const items = this.model.externalRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+		const items = this.model.parentRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
@@ -3357,19 +3357,19 @@ export class CommandCenter {
 
 		if (repositoryItem === allRepositoriesQuickPickItem) {
 			// All Repositories
-			externalRepositories.push(...this.model.externalRepositories.keys());
+			parentRepositories.push(...this.model.parentRepositories.keys());
 		} else {
 			// One Repository
-			externalRepositories.push((repositoryItem as RepositoryItem).path);
+			parentRepositories.push((repositoryItem as RepositoryItem).path);
 		}
 
-		for (const externalRepository of externalRepositories) {
+		for (const parentRepository of parentRepositories) {
 			// Mark repository to be opened
-			this.model.externalRepositories.set(externalRepository, true);
+			this.model.parentRepositories.set(parentRepository, true);
 
 			// Open Repository
-			await this.model.openRepository(externalRepository);
-			this.model.externalRepositories.delete(externalRepository);
+			await this.model.openRepository(parentRepository);
+			this.model.parentRepositories.delete(parentRepository);
 		}
 	}
 

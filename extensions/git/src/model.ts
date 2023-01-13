@@ -72,9 +72,9 @@ class UnsafeRepositoryMap extends RepositoryMap<string> {
  * Key   - normalized path used in user interface
  * Value - value indicating whether the repository should be opened
  */
-class ExternalRepositoryMap extends RepositoryMap<boolean> {
+class ParentRepositoryMap extends RepositoryMap<boolean> {
 	updateContextKey(): void {
-		commands.executeCommand('setContext', 'git.externalRepositoryCount', this.size);
+		commands.executeCommand('setContext', 'git.parentRepositoryCount', this.size);
 	}
 }
 
@@ -159,9 +159,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return this._unsafeRepositories;
 	}
 
-	private _externalRepositories = new ExternalRepositoryMap();
-	get externalRepositories(): ExternalRepositoryMap {
-		return this._externalRepositories;
+	private _parentRepositories = new ParentRepositoryMap();
+	get parentRepositories(): ParentRepositoryMap {
+		return this._parentRepositories;
 	}
 
 	private disposables: Disposable[] = [];
@@ -199,12 +199,14 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await initialScanFn();
 		}
 
-		if (this._externalRepositories.size !== 0) {
-			// External repositories notification
-			this.showExternalRepositoryNotification();
-		} else if (this._unsafeRepositories.size !== 0) {
-			// Unsafe repositories notification
-			this.showUnsafeRepositoryNotification();
+		if (this.repositories.length !== 0) {
+			if (this._parentRepositories.size !== 0) {
+				// Parent repositories notification
+				this.showParentRepositoryNotification();
+			} else if (this._unsafeRepositories.size !== 0) {
+				// Unsafe repositories notification
+				this.showUnsafeRepositoryNotification();
+			}
 		}
 
 		/* __GDPR__
@@ -427,21 +429,21 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				return;
 			}
 
-			// Handle git repositories that are outside the workspace
+			// Handle git repositories that are in parent folders
 			const isRepositoryOutsideWorkspace = (workspace.workspaceFolders ?? [])
 				.find(f => pathEquals(f.uri.fsPath, repositoryRoot) || isDescendant(f.uri.fsPath, repositoryRoot)) === undefined;
-			const externalRepositoriesConfig = config.get<'always' | 'never' | 'prompt'>('openExternalRepositories', 'prompt');
+			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
-			if (isRepositoryOutsideWorkspace && externalRepositoriesConfig !== 'always' && this.externalRepositories.get(repositoryRoot) !== true) {
-				this.logger.trace(`External repository: ${repositoryRoot}`);
+			if (isRepositoryOutsideWorkspace && parentRepositoryConfig !== 'always' && this.parentRepositories.get(repositoryRoot) !== true) {
+				this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
-				if (externalRepositoriesConfig === 'prompt') {
-					// Show a notification if the external repository is opened after the initial scan
-					if (this.state === 'initialized' && !this._externalRepositories.has(repositoryRoot)) {
-						this.showExternalRepositoryNotification();
+				if (parentRepositoryConfig === 'prompt') {
+					// Show a notification if the parent repository is opened after the initial scan, and the welcome view is not visible
+					if (this.state === 'initialized' && !this._parentRepositories.has(repositoryRoot) && this.repositories.length !== 0) {
+						this.showParentRepositoryNotification();
 					}
 
-					this._externalRepositories.set(repositoryRoot, false);
+					this._parentRepositories.set(repositoryRoot, false);
 				}
 
 				return;
@@ -451,8 +453,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
 				this.logger.trace(`Unsafe repository: ${repositoryRoot}`);
 
-				// Show a notification if the unsafe repository is opened after the initial repository scan
-				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot)) {
+				// Show a notification if the unsafe repository is opened after the initial scan, and the welcome view is not visible
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot) && this.repositories.length !== 0) {
 					this.showUnsafeRepositoryNotification();
 				}
 
@@ -772,16 +774,16 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return [...this.pushErrorHandlers];
 	}
 
-	private async showExternalRepositoryNotification(): Promise<void> {
-		const question = l10n.t('Would you like to open repositories from parent directories of the workspace, or file being opened?');
+	private async showParentRepositoryNotification(): Promise<void> {
+		const question = l10n.t('Would you like to open repositories from parent folders of the workspace, or file(s) being opened?');
 
-		const message = this.externalRepositories.size === 1 ?
+		const message = this.parentRepositories.size === 1 ?
 			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found a git repository in one of the parent directories of this workspace.') :
-				l10n.t('We found a git repository in one of the parent directories of the open file(s).') :
+				l10n.t('We found a git repository in one of the parent folders of this workspace.') :
+				l10n.t('We found a git repository in one of the parent folders of the open file(s).') :
 			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found git repositories in one of the parent directories of this workspace.') :
-				l10n.t('We found git repositories in one of the parent directories of the open file(s).');
+				l10n.t('We found git repositories in one of the parent folders of this workspace.') :
+				l10n.t('We found git repositories in one of the parent folders of the open file(s).');
 
 		const yes = l10n.t('Yes');
 		const always = l10n.t('Always');
@@ -789,21 +791,21 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const choice = await window.showWarningMessage(`${message} ${question}`, yes, always, never);
 		if (choice === yes) {
-			// Open External Repositories
-			commands.executeCommand('git.openExternalRepositories');
+			// Open Parent Repositories
+			commands.executeCommand('git.openRepositoriesInParentFolders');
 		} else if (choice === always || choice === never) {
 			// Update setting
 			const config = workspace.getConfiguration('git');
-			await config.update('openExternalRepositories', choice === always ? 'always' : 'never', true);
+			await config.update('openRepositoryInParentFolders', choice === always ? 'always' : 'never', true);
 
 			if (choice === always) {
-				for (const externalRepository of [...this.externalRepositories.keys()]) {
+				for (const parentRepository of [...this.parentRepositories.keys()]) {
 					// Mark repository to be opened
-					this.externalRepositories.set(externalRepository, true);
+					this.parentRepositories.set(parentRepository, true);
 
 					// Open Repository
-					await this.openRepository(externalRepository);
-					this.externalRepositories.delete(externalRepository);
+					await this.openRepository(parentRepository);
+					this.parentRepositories.delete(parentRepository);
 				}
 			}
 		}

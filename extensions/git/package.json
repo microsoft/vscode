@@ -714,8 +714,8 @@
         "category": "Git"
       },
       {
-        "command": "git.openExternalRepositories",
-        "title": "%command.openExternalRepositories%",
+        "command": "git.openRepositoriesInParentFolders",
+        "title": "%command.openRepositoriesInParentFolders%",
         "category": "Git"
       }
     ],
@@ -1169,8 +1169,8 @@
           "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
         },
         {
-          "command": "git.openExternalRepositories",
-          "when": "config.git.enabled && !git.missing && git.externalRepositoryCount != 0"
+          "command": "git.openRepositoriesInParentFolders",
+          "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -2683,7 +2683,7 @@
             "experimental"
           ]
         },
-        "git.openExternalRepositories": {
+        "git.openRepositoryInParentFolders": {
           "type": "string",
           "enum": [
             "always",
@@ -2691,12 +2691,12 @@
             "prompt"
           ],
           "enumDescriptions": [
-            "%config.openExternalRepositories.always%",
-            "%config.openExternalRepositories.never%",
-            "%config.openExternalRepositories.prompt%"
+            "%config.openRepositoryInParentFolders.always%",
+            "%config.openRepositoryInParentFolders.never%",
+            "%config.openRepositoryInParentFolders.prompt%"
           ],
           "default": "prompt",
-          "markdownDescription": "%config.openExternalRepositories%",
+          "markdownDescription": "%config.openRepositoryInParentFolders%",
           "scope": "resource"
         }
       }
@@ -2843,14 +2843,14 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
@@ -2867,24 +2867,24 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.externalRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.externalRepository%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && git.externalRepositoryCount == 1"
+        "contents": "%view.workbench.scm.repositoryInParentFolders%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.parentRepositoryCount == 1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.externalRepositories%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && git.externalRepositoryCount > 1"
+        "contents": "%view.workbench.scm.repositoriesInParentFolders%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.parentRepositoryCount > 1"
       },
       {
         "view": "scm",
