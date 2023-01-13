@@ -61,7 +61,10 @@ class AMDModuleImporter {
 					if (value.startsWith(window.location.origin)) {
 						return value;
 					}
-					throw new Error(`Invalid script url: ${value}`);
+					if (value.startsWith('vscode-file://vscode-app')) {
+						return value;
+					}
+					throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
 				}
 			});
 		} else if (this._isWebWorker) {

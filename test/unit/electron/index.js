@@ -33,6 +33,7 @@ const optimist = require('optimist')
 	.describe('timeout', 'timeout for tests')
 	.describe('crash-reporter-directory', 'crash reporter directory').string('crash-reporter-directory')
 	.describe('tfs').string('tfs')
+	.describe('esm').string('esm')
 	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
@@ -235,7 +236,9 @@ app.on('ready', () => {
 		win.webContents.send('run', argv);
 	}
 
-	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
+	const target = url.pathToFileURL(path.join(__dirname, `renderer${argv.esm ? '-esm' : ''}.html`));
+	target.searchParams.set('argv', JSON.stringify(argv));
+	win.loadURL(target.href);
 
 	const runner = new IPCRunner();
 	createStatsCollector(runner);

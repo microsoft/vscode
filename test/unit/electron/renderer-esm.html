@@ -1,0 +1,88 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>VSCode Tests</title>
+	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
+</head>
+
+<body>
+	<div id="mocha"></div>
+	<script src="../../../node_modules/mocha/mocha.js"></script>
+
+	<script>
+
+		// !!! DO NOT CHANGE !!!
+		// Our unit tests may run in environments without
+		// display (e.g. from builds) and tests may by
+		// accident bring up native dialogs or even open
+		// windows. This we cannot allow as it may crash
+		// the test run.
+		// !!! DO NOT CHANGE !!!
+		window.open = function () { throw new Error('window.open() is not supported in tests!'); };
+		window.alert = function () { throw new Error('window.alert() is not supported in tests!'); }
+		window.confirm = function () { throw new Error('window.confirm() is not supported in tests!'); }
+
+		// Ignore uncaught cancelled promise errors
+		window.addEventListener('unhandledrejection', e => {
+			const name = e && e.reason && e.reason.name;
+
+			if (name === 'Canceled') {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		});
+
+		mocha.setup({
+			ui: 'tdd',
+			timeout: 5000,
+			forbidOnly: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' // disallow .only() when running on build machine
+		});
+		// require('./renderer-esm.js');
+	</script>
+	<script>
+		const urlParams = new URLSearchParams(window.location.search);
+		const argv = JSON.parse(urlParams.get('argv'));
+
+		const outdir = argv.build ? 'out-build' : 'out';
+		const baseUrl = require('url').pathToFileURL(require('path').join(__dirname, `../../../${outdir}/`));
+
+		// generate import map
+		const importMap = {
+			imports: {
+				// vs: new URL(`../../../${outdir}/vs`, baseUrl).href,
+				assert: new URL('../test/unit/assert-esm.js', baseUrl).href,
+				sinon: new URL('../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
+				'sinon-test': new URL('../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
+
+				// NODE-STUFF, remove/ignore?
+				'os': new URL('vs/base/node/typings-esm/os.js', baseUrl),
+				'yauzl': new URL('vs/base/node/typings-esm/yauzl.js', baseUrl),
+				'yazl': new URL('vs/base/node/typings-esm/yazl.js', baseUrl),
+				'minimist': new URL('vs/base/node/typings-esm/minimist.js', baseUrl),
+				'child_process': new URL('vs/base/node/typings-esm/child_process.js', baseUrl),
+				'string_decoder': new URL('vs/base/node/typings-esm/string_decoder.js', baseUrl),
+				'console': new URL('vs/base/node/typings-esm/console.js', baseUrl),
+				'crypto': new URL('vs/base/node/typings-esm/crypto.js', baseUrl),
+				'fs': new URL('vs/base/node/typings-esm/fs.js', baseUrl),
+				'https': new URL('vs/base/node/typings-esm/https.js', baseUrl),
+				'events': new URL('vs/base/node/typings-esm/events.js', baseUrl),
+				'net': new URL('vs/base/node/typings-esm/net.js', baseUrl),
+				'path': new URL('vs/base/node/typings-esm/path.js', baseUrl),
+				'util': new URL('vs/base/node/typings-esm/util.js', baseUrl),
+				'cookie': new URL('vs/base/node/typings-esm/minimist.js', baseUrl),
+				// '@vscode/ripgrep': new URL('../node_modules/@vscode/ripgrep/lib/index.js', baseUrl),
+				'vscode-regexpp': new URL('../node_modules/vscode-regexpp/index.mjs', baseUrl),
+			}
+		};
+
+		const rawImportMap = JSON.stringify(importMap, undefined, 2);
+		const importMapScript = document.createElement('script');
+		importMapScript.type = 'importmap';
+		importMapScript.textContent = rawImportMap;
+		document.currentScript?.after(importMapScript);
+	</script>
+	<script src="./renderer-esm.js"></script>
+</body>
+
+</html>
