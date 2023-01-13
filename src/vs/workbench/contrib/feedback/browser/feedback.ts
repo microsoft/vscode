@@ -22,7 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -122,7 +122,7 @@ export class FeedbackWidget extends Disposable {
 		append(this.feedbackForm, $('h2.title')).textContent = localize("label.sendASmile", "Tweet us your feedback.");
 
 		// Close Button (top right)
-		const closeBtn = append(this.feedbackForm, $(`div.cancel${Codicon.close.cssSelector}`));
+		const closeBtn = append(this.feedbackForm, $(`div.cancel${CSSIcon.asCSSSelector(Codicon.close)}`));
 		closeBtn.tabIndex = 0;
 		closeBtn.setAttribute('role', 'button');
 		closeBtn.title = localize('close', "Close");
@@ -284,7 +284,7 @@ export class FeedbackWidget extends Disposable {
 		this.sendButton = new Button(buttonsContainer, defaultButtonStyles);
 		this.sendButton.enabled = false;
 		this.sendButton.label = localize('tweet', "Tweet");
-		prepend(this.sendButton.element, $(`span${Codicon.twitter.cssSelector}`));
+		prepend(this.sendButton.element, $(`span${CSSIcon.asCSSSelector(Codicon.twitter)}`));
 		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = localize('tweetFeedback', "Tweet Feedback");
 

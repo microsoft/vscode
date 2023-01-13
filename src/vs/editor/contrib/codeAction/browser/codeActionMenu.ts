@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { CodeAction } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -15,7 +15,7 @@ import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/brow
 interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
-	readonly icon?: { readonly codicon: Codicon; readonly color?: string };
+	readonly icon?: { readonly codicon: CSSIcon; readonly color?: string };
 }
 
 const uncategorizedCodeActionGroup = Object.freeze<ActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });

@@ -23,7 +23,7 @@ import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliaryba
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -1110,10 +1110,10 @@ interface CustomizeLayoutItem {
 	id: string;
 	active: ContextKeyExpression;
 	label: string;
-	activeIcon: Codicon;
+	activeIcon: CSSIcon;
 	visualIcon?: LayoutVisualIcon;
 	activeAriaLabel: string;
-	inactiveIcon?: Codicon;
+	inactiveIcon?: CSSIcon;
 	inactiveAriaLabel?: string;
 	useButtons: boolean;
 }
@@ -1226,6 +1226,8 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				label = `$(${icon.id}) ${label}`;
 			}
 
+			const icon = toggled ? item.activeIcon : item.inactiveIcon;
+
 			return {
 				type: 'item',
 				id: item.id,
@@ -1235,7 +1237,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					{
 						alwaysVisible: false,
 						tooltip: ariaLabel,
-						iconClass: toggled ? item.activeIcon.classNames : item.inactiveIcon?.classNames
+						iconClass: icon ? CSSIcon.asClassName(icon) : undefined
 					}
 				]
 			};
@@ -1284,13 +1286,13 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 
 		const closeButton = {
 			alwaysVisible: true,
-			iconClass: Codicon.close.classNames,
+			iconClass: CSSIcon.asClassName(Codicon.close),
 			tooltip: localize('close', "Close")
 		};
 
 		const resetButton = {
 			alwaysVisible: true,
-			iconClass: Codicon.discard.classNames,
+			iconClass: CSSIcon.asClassName(Codicon.discard),
 			tooltip: localize('restore defaults', "Restore Defaults")
 		};
 

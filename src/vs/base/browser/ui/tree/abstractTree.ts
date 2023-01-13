@@ -20,7 +20,7 @@ import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITr
 import { Action } from 'vs/base/common/actions';
 import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { SetMap } from 'vs/base/common/collections';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -455,7 +455,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			templateData.container.removeAttribute('aria-expanded');
 		}
 
-		templateData.twistie.classList.remove(...Codicon.treeItemExpanded.classNamesArray);
+		templateData.twistie.classList.remove(...CSSIcon.asClassNameArray(Codicon.treeItemExpanded));
 
 		let twistieRendered = false;
 
@@ -465,7 +465,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
 			if (!twistieRendered) {
-				templateData.twistie.classList.add(...Codicon.treeItemExpanded.classNamesArray);
+				templateData.twistie.classList.add(...CSSIcon.asClassNameArray(Codicon.treeItemExpanded));
 			}
 
 			templateData.twistie.classList.add('collapsible');
