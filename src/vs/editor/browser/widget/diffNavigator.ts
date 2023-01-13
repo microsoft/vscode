@@ -14,6 +14,7 @@ import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 
 interface IDiffRange {
@@ -59,7 +60,13 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 	private ranges: IDiffRange[];
 	private ignoreSelectionChange: boolean;
 
-	constructor(editor: IDiffEditor, options: Options = {}, @IAudioCueService private readonly _audioCueService: IAudioCueService, @ICodeEditorService private readonly _codeEditorService: ICodeEditorService) {
+	constructor(
+		editor: IDiffEditor,
+		options: Options = {},
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+	) {
 		super();
 		this._editor = editor;
 		this._options = objects.mixin(options, defaultOptions, false);
@@ -226,6 +233,8 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		if (insertedOrModified) {
 			this._audioCueService.playAudioCue(AudioCue.diffLineModified);
 		} else if (jumpToChange) {
+			// The modified editor does not include deleted lines, but when
+			// we are moved to the area where lines were deleted, play this cue
 			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
 		} else {
 			return;
@@ -235,7 +244,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 			return;
 		}
 		const codeEditor = this._codeEditorService.getActiveCodeEditor();
-		if (codeEditor && insertedOrModified) {
+		if (codeEditor && insertedOrModified && this._accessibilityService.isScreenReaderOptimized()) {
 			codeEditor.setSelection({ startLineNumber: lineNumber, startColumn: 0, endLineNumber: lineNumber, endColumn: Number.MAX_VALUE });
 			codeEditor.writeScreenReaderContent('diff-navigation');
 		}
