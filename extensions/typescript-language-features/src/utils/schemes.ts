@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+export const Schemes = Object.freeze({
+	file: 'file',
+	untitled: 'untitled',
+	mailto: 'mailto',
+	vscode: 'vscode',
+	'vscode-insiders': 'vscode-insiders',
+	notebookCell: 'vscode-notebook-cell',
+});
 
-export function isWeb(): boolean {
-	return 'navigator' in globalThis && vscode.env.uiKind === vscode.UIKind.Web;
-}
-
-export function isWebAndHasSharedArrayBuffers(): boolean {
-	return isWeb() && (globalThis as any)['crossOriginIsolated'];
+export function isOfScheme(scheme: string, link: string): boolean {
+	return link.toLowerCase().startsWith(scheme + ':');
 }

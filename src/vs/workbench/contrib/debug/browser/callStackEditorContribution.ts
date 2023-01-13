@@ -14,7 +14,7 @@ import { IModelDecorationOptions, IModelDeltaDecoration, OverviewRulerLane, Trac
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
@@ -177,14 +177,3 @@ export class CallStackEditorContribution extends Disposable implements IEditorCo
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const topStackFrame = theme.getColor(topStackFrameColor);
-	if (topStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
-	}
-
-	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
-	if (focusedStackFrame) {
-		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
-	}
-});

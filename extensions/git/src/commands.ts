@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -658,6 +658,44 @@ export class CommandCenter {
 			}
 
 			throw err;
+		}
+	}
+
+	@command('git.continueInLocalClone')
+	async continueInLocalClone(): Promise<Uri | void> {
+		if (this.model.repositories.length === 0) { return; }
+
+		// Pick a single repository to continue working on in a local clone if there's more than one
+		const items = this.model.repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
+			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
+			if (remote?.pushUrl) {
+				items.push({ repository: repository, label: remote.pushUrl });
+			}
+			return items;
+		}, []);
+
+		let selection = items[0];
+		if (items.length > 1) {
+			const pick = await window.showQuickPick(items, { canPickMany: false, placeHolder: l10n.t('Choose which repository to clone') });
+			if (pick === undefined) { return; }
+			selection = pick;
+		}
+
+		const uri = selection.label;
+		const ref = selection.repository.HEAD?.upstream?.name;
+
+		if (uri !== undefined) {
+			// Launch desktop client if currently in web
+			if (env.uiKind === UIKind.Web) {
+				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+				if (ref !== undefined) {
+					target += `&ref=${encodeURIComponent(ref)}`;
+				}
+				return Uri.parse(target);
+			}
+
+			// If already in desktop client, directly clone
+			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
 

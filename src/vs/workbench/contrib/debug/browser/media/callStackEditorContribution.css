@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-
-export function isWeb(): boolean {
-	return 'navigator' in globalThis && vscode.env.uiKind === vscode.UIKind.Web;
+.monaco-editor .view-overlays .debug-top-stack-frame-line {
+	background-color: var(--vscode-editor-stackFrameHighlightBackground);
 }
 
-export function isWebAndHasSharedArrayBuffers(): boolean {
-	return isWeb() && (globalThis as any)['crossOriginIsolated'];
+.monaco-editor .view-overlays .debug-focused-stack-frame-line {
+	background-color: var(--vscode-editor-focusedStackFrameHighlightBackground);
 }

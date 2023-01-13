@@ -23,13 +23,15 @@ function Global:__VSCode-Escape-Value([string]$value) {
 	[regex]::Replace($value, '[\\\n;]', { param($match)
 		# Encode the (ascii) matches as `\x<hex>`
 		-Join (
-			[System.Text.Encoding]::UTF8.GetBytes($match.Value)
-			| ForEach-Object { '\x{0:x2}' -f $_ }
+			[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
 		)
 	})
 }
 
 function Global:Prompt() {
+	# NOTE: We disable strict mode for the scope of this function because it unhelpfully throws an
+	# error when $LastHistoryEntry is null, and is not otherwise useful.
+	Set-StrictMode -Off
 	$FakeCode = [int]!$global:?
 	$LastHistoryEntry = Get-History -Count 1
 	# Skip finishing the command if the first command has not yet started
