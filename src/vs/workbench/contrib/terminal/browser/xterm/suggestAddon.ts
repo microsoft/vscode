@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { SimpleCompletionItem } from 'vs/base/browser/ui/suggest/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/base/browser/ui/suggest/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/base/browser/ui/suggest/simpleSuggestWidget';
+import { timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -75,9 +76,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _terminal?: Terminal;
 	private _container?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
+	private _enableWidget: boolean = true;
 	private _leadingLineContent?: string;
 	private _additionalInput?: string;
-	private _cursorIndex: number = 0;
+	private _cursorIndexStart: number = 0;
+	private _cursorIndexDelta: number = 0;
+	private _inputQueue?: string[];
 
 	private readonly _onBell = new Emitter<void>();
 	readonly onBell = this._onBell.event;
@@ -94,7 +98,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
+			console.log('osc', data);
+			return this._handleVSCodeSequence(data);
+		}));
+		this._register(xterm.onData(e => {
+			console.log('data', e);
+			this._handleTerminalInput(e);
+		}));
 	}
 
 	setContainer(container: HTMLElement): void {
@@ -125,13 +136,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _handleCompletionsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
 		// Nothing to handle if the terminal is not attached
-		if (!terminal.element) {
+		if (!terminal.element || !this._enableWidget) {
 			return;
 		}
 
 		const replacementIndex = parseInt(args[0]);
 		const replacementLength = parseInt(args[1]);
-		this._cursorIndex = parseInt(args[2]);
+		this._cursorIndexStart = parseInt(args[2]);
 		if (!args[3]) {
 			this._onBell.fire();
 			return;
@@ -150,6 +161,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 
 		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
+		this._cursorIndexDelta = 0;
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		if (completions.length === 1) {
 			const insertText = completions[0].completion.label.substring(replacementLength);
@@ -288,9 +300,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
+
+		// Flush the input queue if any characters were typed after a trigger character
+		console.log('flush input queue');
+		if (this._inputQueue) {
+			const inputQueue = this._inputQueue;
+			this._inputQueue = undefined;
+			for (const data of inputQueue) {
+				this._handleTerminalInput(data);
+			}
+		}
 	}
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
+		this._terminalSuggestWidgetVisibleContextKey.set(true);
 		if (!this._suggestWidget) {
 			// TODO: Layer breaker
 			this._suggestWidget = this._register(new SimpleSuggestWidget(
@@ -304,7 +327,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e));
 			this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false));
 			this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true));
-			this._register(terminal.onData(e => this._handleTerminalInput(e)));
 		}
 		return this._suggestWidget;
 	}
@@ -325,25 +347,35 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget?.hide();
 
 			// Disable Send-Completions requests
-			this._onAcceptedCompletion.fire('\x1b[24~f');
+			// this._onAcceptedCompletion.fire('\x1b[24~f');
 
 			// Send the completion
 			this._onAcceptedCompletion.fire([
 				// TODO: Right arrow to end of the replacement
 				// Left arrow to end of the replacement
-				'\x1b[C'.repeat(suggestion.model.replacementLength - this._cursorIndex),
-				// Backspace to delete the replacement
-				'\x7F'.repeat(this._leadingLineContent.length + (this._additionalInput?.length ?? 0)),
+				'\x1b[D'.repeat(suggestion.model.replacementLength - this._cursorIndexStart + this._cursorIndexDelta),
+				// Delete to remove additional input
+				'\x1b[3~'.repeat(this._additionalInput?.length ?? 0),
+				// Backspace to remove the replacement
+				'\x7F'.repeat(suggestion.model.replacementLength),
 				// Write the completion
 				suggestion.item.completion.label,
 			].join(''));
 
+			this._enableWidget = false;
+			// TODO: Disable in a more sophisticated way
+			timeout(500).then(e => this._enableWidget = true);
+
+
+			// this._onAcceptedCompletion.fire(suggestion.item.completion.label);
+
+
 			// Enable Send-Completions requests, this is done after a timeout as otherwise a race
 			// occurs where a trigger character in the completion can still trigger the completions
 			// TODO: Disposable
-			setTimeout(() => {
-				this._onAcceptedCompletion.fire('\x1b[24~g');
-			}, 100);
+			// setTimeout(() => {
+			// 	this._onAcceptedCompletion.fire('\x1b[24~g');
+			// }, 100);
 		}
 	}
 
@@ -356,40 +388,73 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _handleTerminalInput(data: string): void {
-		if (!this._terminal || !this._terminalSuggestWidgetVisibleContextKey.get()) {
+		if (!this._terminal || !this._enableWidget || !this._terminalSuggestWidgetVisibleContextKey.get()) {
+			// HACK: Buffer any input to be evaluated when the completions come in, this is needed
+			// because conpty may "render" the completion request after input characters that
+			// actually come after it. This can happen when typing quickly after a trigger
+			// character, especially on a freshly launched session.
+			if (data === '-') {
+				this._inputQueue = [];
+			} else {
+				this._inputQueue?.push(data);
+			}
+
 			return;
 		}
 		let handled = false;
+
 		// Backspace
 		if (data === '\x7f') {
-			if (this._additionalInput && this._additionalInput.length > 0) {
+			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta > 0) {
 				handled = true;
-				this._additionalInput = this._additionalInput.substring(0, this._cursorIndex-- - 1) + this._additionalInput.substring(this._cursorIndex);
+				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta-- - 1) + this._additionalInput.substring(this._cursorIndexDelta);
+			}
+		}
+		// Delete
+		if (data === '\x1b[3~') {
+			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta < this._additionalInput.length - 1) {
+				handled = true;
+				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta) + this._additionalInput.substring(this._cursorIndexDelta + 1);
 			}
 		}
 		// Left
 		if (data === '\x1b[D') {
-			handled = true;
-			this._cursorIndex -= 1;
+			// If left goes beyond where the completion was requested, hide
+			if (this._cursorIndexDelta > 0) {
+				handled = true;
+				this._cursorIndexDelta--;
+			}
 		}
-		if (data.match(/^[a-z]$/i)) {
+		// Right
+		if (data === '\x1b[C') {
+			handled = true;
+			this._cursorIndexDelta += 1;
+		}
+		console.log(`data ${data}`);
+		if (data.match(/^[a-z0-9]$/i)) {
+
+			// TODO: There is a race here where the completions may come through after new character presses because of conpty's rendering!
+
 			handled = true;
 			if (this._additionalInput === undefined) {
 				this._additionalInput = '';
 			}
 			this._additionalInput += data;
+			console.log('match', data);
+			this._cursorIndexDelta++;
 		}
 		if (handled) {
 			// typed -> moved cursor RIGHT -> update UI
-			// TODO: Leading line content is not correct
-			this._suggestWidget?.setLineContext(new LineContext(this._leadingLineContent! + (this._additionalInput ?? ''), this._additionalInput?.length ?? 0));
+			if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+				this._suggestWidget?.setLineContext(new LineContext(this._leadingLineContent! + (this._additionalInput ?? ''), this._additionalInput?.length ?? 0));
+			}
 
 			// Hide and clear model if there are no more items
 			if ((this._suggestWidget as any)._completionModel?.items.length === 0) {
 				this._additionalInput = undefined;
 				this.hideSuggestWidget();
 				// TODO: Don't request every time; refine completions
-				this._onAcceptedCompletion.fire('\x1b[24~e');
+				// this._onAcceptedCompletion.fire('\x1b[24~e');
 				return;
 			}
 
@@ -416,7 +481,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._additionalInput = undefined;
 			this.hideSuggestWidget();
 			// TODO: Don't request every time; refine completions
-			this._onAcceptedCompletion.fire('\x1b[24~e');
+			// this._onAcceptedCompletion.fire('\x1b[24~e');
 		}
 	}
 }

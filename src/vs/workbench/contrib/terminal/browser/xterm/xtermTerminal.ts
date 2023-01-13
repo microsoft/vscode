@@ -272,6 +272,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
 		this.raw.loadAddon(this._suggestAddon);
 		this._suggestAddon.onAcceptedCompletion(async text => {
+			console.log(`accept completion "${text}"`);
 			this._onDidRequestFocus.fire();
 			this._onDidRequestSendText.fire(text);
 		});
