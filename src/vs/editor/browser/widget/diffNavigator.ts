@@ -240,9 +240,6 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 			return;
 		}
 
-		if (!jumpToChange || !insertedOrModified) {
-			return;
-		}
 		const codeEditor = this._codeEditorService.getActiveCodeEditor();
 		if (codeEditor && insertedOrModified && this._accessibilityService.isScreenReaderOptimized()) {
 			codeEditor.setSelection({ startLineNumber: lineNumber, startColumn: 0, endLineNumber: lineNumber, endColumn: Number.MAX_VALUE });
