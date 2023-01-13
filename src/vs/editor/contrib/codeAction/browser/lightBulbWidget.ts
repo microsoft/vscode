@@ -210,8 +210,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _updateLightBulbTitleAndIcon(): void {
 		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
 			// update icon
-			this._domNode.classList.remove(...Codicon.lightBulb.classNamesArray);
-			this._domNode.classList.add(...Codicon.lightbulbAutofix.classNamesArray);
+			this._domNode.classList.remove(...Codicon.classNamesArray(Codicon.lightBulb));
+			this._domNode.classList.add(...Codicon.classNamesArray(Codicon.lightbulbAutofix));
 
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
@@ -220,8 +220,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		// update icon
-		this._domNode.classList.remove(...Codicon.lightbulbAutofix.classNamesArray);
-		this._domNode.classList.add(...Codicon.lightBulb.classNamesArray);
+		this._domNode.classList.remove(...Codicon.classNamesArray(Codicon.lightbulbAutofix));
+		this._domNode.classList.add(...Codicon.classNamesArray(Codicon.lightBulb));
 
 		if (this._quickFixKbLabel) {
 			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);

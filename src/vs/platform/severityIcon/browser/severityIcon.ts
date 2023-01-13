@@ -12,13 +12,13 @@ export namespace SeverityIcon {
 	export function className(severity: Severity): string {
 		switch (severity) {
 			case Severity.Ignore:
-				return 'severity-ignore ' + Codicon.info.classNames;
+				return 'severity-ignore ' + Codicon.classNames(Codicon.info);
 			case Severity.Info:
-				return Codicon.info.classNames;
+				return Codicon.classNames(Codicon.info);
 			case Severity.Warning:
-				return Codicon.warning.classNames;
+				return Codicon.classNames(Codicon.warning);
 			case Severity.Error:
-				return Codicon.error.classNames;
+				return Codicon.classNames(Codicon.error);
 			default:
 				return '';
 		}

@@ -83,11 +83,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private onDidChangeWindowMaximized(maximized: boolean): void {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
-				this.maxRestoreControl.classList.add(...Codicon.chromeRestore.classNamesArray);
+				this.maxRestoreControl.classList.remove(...Codicon.classNamesArray(Codicon.chromeMaximize));
+				this.maxRestoreControl.classList.add(...Codicon.classNamesArray(Codicon.chromeRestore));
 			} else {
-				this.maxRestoreControl.classList.remove(...Codicon.chromeRestore.classNamesArray);
-				this.maxRestoreControl.classList.add(...Codicon.chromeMaximize.classNamesArray);
+				this.maxRestoreControl.classList.remove(...Codicon.classNamesArray(Codicon.chromeRestore));
+				this.maxRestoreControl.classList.add(...Codicon.classNamesArray(Codicon.chromeMaximize));
 			}
 		}
 
@@ -165,7 +165,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
 			// Minimize
-			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
+			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + Codicon.cssSelector(Codicon.chromeMinimize)));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.nativeHostService.minimizeWindow();
 			}));
@@ -182,7 +182,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
+			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + Codicon.cssSelector(Codicon.chromeClose)));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
 			}));

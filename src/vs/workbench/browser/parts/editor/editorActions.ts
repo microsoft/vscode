@@ -405,7 +405,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.close.classNames);
+		super(id, label, Codicon.classNames(Codicon.close));
 	}
 
 	override run(context?: IEditorCommandsContext): Promise<void> {
@@ -423,7 +423,7 @@ export class UnpinEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.pinned.classNames);
+		super(id, label, Codicon.classNames(Codicon.pinned));
 	}
 
 	override run(context?: IEditorCommandsContext): Promise<void> {
@@ -441,7 +441,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, Codicon.close.classNames);
+		super(id, label, Codicon.classNames(Codicon.close));
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
@@ -731,7 +731,7 @@ export class CloseAllEditorsAction extends AbstractCloseAllAction {
 		@IEditorService editorService: IEditorService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, Codicon.closeAll.classNames, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		super(id, label, Codicon.classNames(Codicon.closeAll), fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected get excludeSticky(): boolean {

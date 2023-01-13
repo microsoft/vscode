@@ -1534,7 +1534,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
 					localize('testing.showResultOutput', "Show Result Output"),
-					Codicon.terminal.classNames,
+					Codicon.classNames(Codicon.terminal),
 					undefined,
 					() => this.testTerminalService.open(element.value)
 				));
@@ -1563,7 +1563,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.goToFile',
 					localize('testing.goToFile', "Go to File"),
-					Codicon.goToFile.classNames,
+					Codicon.classNames(Codicon.goToFile),
 					undefined,
 					() => this.commandService.executeCommand('vscode.revealTest', extId),
 				));
@@ -1571,7 +1571,7 @@ class TreeActionsProvider {
 				secondary.push(new Action(
 					'testing.outputPeek.revealInExplorer',
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
-					Codicon.listTree.classNames,
+					Codicon.classNames(Codicon.listTree),
 					undefined,
 					() => this.commandService.executeCommand('_revealTestInExplorer', extId),
 				));
@@ -1602,7 +1602,7 @@ class TreeActionsProvider {
 					primary.push(new Action(
 						'testing.outputPeek.showMessageInTerminal',
 						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
-						Codicon.terminal.classNames,
+						Codicon.classNames(Codicon.terminal),
 						undefined,
 						() => this.testTerminalService.open(element.result, element.marker),
 					));

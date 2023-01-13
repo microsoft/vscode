@@ -38,7 +38,7 @@ export class ShowAudioCueHelp extends Action2 {
 				: `${audioCueService.isEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
-				iconClass: Codicon.settingsGear.classNames,
+				iconClass: Codicon.classNames(Codicon.settingsGear),
 				tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
 			}],
 		}));

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
+import { ICodicon } from 'vs/base/common/codicons';
 import 'vs/css!./codicon/codicon';
 import 'vs/css!./codicon/codicon-modifiers';
 
-export function formatRule(c: Codicon) {
-	return `.codicon-${c.id}:before { content: '${c.fontCharacter}'; }`;
+export function formatRule(c: ICodicon) {
+	return `.codicon-${c.id}:before { content: '${c.codiconFontCharacter}'; }`;
 }

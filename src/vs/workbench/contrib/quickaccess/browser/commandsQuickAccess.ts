@@ -98,7 +98,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		].map(c => ({
 			...c,
 			buttons: [{
-				iconClass: Codicon.gear.classNames,
+				iconClass: Codicon.classNames(Codicon.gear),
 				tooltip: localize('configure keybinding', "Configure Keybinding"),
 			}],
 			trigger: (): TriggerAction => {

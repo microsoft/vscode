@@ -578,7 +578,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	override get class(): string {
-		return 'explorer-action ' + Codicon.saveAll.classNames;
+		return 'explorer-action ' + Codicon.classNames(Codicon.saveAll);
 	}
 
 	protected doRun(context: unknown): Promise<void> {
@@ -592,7 +592,7 @@ export class CloseGroupAction extends Action {
 	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, Codicon.closeAll.classNames);
+		super(id, label, Codicon.classNames(Codicon.closeAll));
 	}
 
 	override run(context?: unknown): Promise<void> {

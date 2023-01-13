@@ -48,12 +48,12 @@ const fileCategory = { value: localize('file', "File"), original: 'File' };
 abstract class BaseOpenRecentAction extends Action2 {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
+		iconClass: Codicon.classNames(Codicon.removeClose),
 		tooltip: localize('remove', "Remove from Recently Opened")
 	};
 
 	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
-		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
+		iconClass: 'dirty-workspace ' + Codicon.classNames(Codicon.closeDirty),
 		tooltip: localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
 		alwaysVisible: true
 	};

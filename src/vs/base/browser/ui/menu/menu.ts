@@ -525,7 +525,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check' + Codicon.menuSelection.cssSelector));
+		this.check = append(this.item, $('span.menu-item-check' + Codicon.cssSelector(Codicon.menuSelection)));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
@@ -756,7 +756,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.item.tabIndex = 0;
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
-			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + Codicon.menuSubmenu.cssSelector));
+			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + Codicon.cssSelector(Codicon.menuSubmenu)));
 			this.submenuIndicator.setAttribute('aria-hidden', 'true');
 		}
 

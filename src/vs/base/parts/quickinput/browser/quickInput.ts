@@ -77,7 +77,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
-	iconClass: Codicon.quickInputBack.classNames,
+	iconClass: Codicon.classNames(Codicon.quickInputBack),
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };

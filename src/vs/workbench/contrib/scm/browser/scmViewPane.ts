@@ -2128,7 +2128,7 @@ class SCMInputWidget {
 				}
 				const actionsContainer = append(validationContainer, $('.scm-editor-validation-actions'));
 				const actionbar = new ActionBar(actionsContainer);
-				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), Codicon.close.classNames, true, () => {
+				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), Codicon.classNames(Codicon.close), true, () => {
 					this.contextViewService.hideContextView();
 				});
 				disposables.add(actionbar);

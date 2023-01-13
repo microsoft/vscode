@@ -161,7 +161,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				buttons: (() => {
 					return [
 						{
-							iconClass: isDirty ? ('dirty-editor ' + Codicon.closeDirty.classNames) : Codicon.close.classNames,
+							iconClass: isDirty ? ('dirty-editor ' + Codicon.classNames(Codicon.closeDirty)) : Codicon.classNames(Codicon.close),
 							tooltip: localize('closeEditor', "Close Editor"),
 							alwaysVisible: isDirty
 						}

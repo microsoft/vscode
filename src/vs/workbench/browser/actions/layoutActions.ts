@@ -23,7 +23,7 @@ import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliaryba
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, ICodicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -1110,10 +1110,10 @@ interface CustomizeLayoutItem {
 	id: string;
 	active: ContextKeyExpression;
 	label: string;
-	activeIcon: Codicon;
+	activeIcon: ICodicon;
 	visualIcon?: LayoutVisualIcon;
 	activeAriaLabel: string;
-	inactiveIcon?: Codicon;
+	inactiveIcon?: ICodicon;
 	inactiveAriaLabel?: string;
 	useButtons: boolean;
 }
@@ -1235,7 +1235,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					{
 						alwaysVisible: false,
 						tooltip: ariaLabel,
-						iconClass: toggled ? item.activeIcon.classNames : item.inactiveIcon?.classNames
+						iconClass: toggled ? Codicon.classNames(item.activeIcon) : item.inactiveIcon ? Codicon.classNames(item.inactiveIcon) : undefined
 					}
 				]
 			};
@@ -1284,13 +1284,13 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 
 		const closeButton = {
 			alwaysVisible: true,
-			iconClass: Codicon.close.classNames,
+			iconClass: Codicon.classNames(Codicon.close),
 			tooltip: localize('close', "Close")
 		};
 
 		const resetButton = {
 			alwaysVisible: true,
-			iconClass: Codicon.discard.classNames,
+			iconClass: Codicon.classNames(Codicon.discard),
 			tooltip: localize('restore defaults', "Restore Defaults")
 		};
 

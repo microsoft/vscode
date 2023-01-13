@@ -19,7 +19,7 @@ import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, ICodicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { CommentThreadState } from 'vs/editor/common/languages';
@@ -188,7 +188,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): Codicon {
+	private getIcon(threadState?: CommentThreadState): ICodicon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {

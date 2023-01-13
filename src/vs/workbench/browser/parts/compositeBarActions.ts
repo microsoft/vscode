@@ -465,7 +465,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: localize('additionalViews', "Additional Views"),
-			cssClass: Codicon.more.classNames
+			cssClass: Codicon.classNames(Codicon.more)
 		});
 	}
 

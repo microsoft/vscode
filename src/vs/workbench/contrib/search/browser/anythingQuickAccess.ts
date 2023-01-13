@@ -982,7 +982,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			// Open to side / below
 			buttons.push({
-				iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+				iconClass: openSideBySideDirection === 'right' ? Codicon.classNames(Codicon.splitHorizontal) : Codicon.classNames(Codicon.splitVertical),
 				tooltip: openSideBySideDirection === 'right' ?
 					localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
 					localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
@@ -991,7 +991,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Remove from History
 			if (isEditorHistoryEntry) {
 				buttons.push({
-					iconClass: isDirty ? ('dirty-anything ' + Codicon.circleFilled.classNames) : Codicon.close.classNames,
+					iconClass: isDirty ? ('dirty-anything ' + Codicon.classNames(Codicon.circleFilled)) : Codicon.classNames(Codicon.close),
 					tooltip: localize('closeEditor', "Remove from Recently Opened"),
 					alwaysVisible: isDirty
 				});

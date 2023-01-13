@@ -58,13 +58,13 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 				const isEnabled = snippetService.isEnabled(snippet);
 				if (isEnabled) {
 					pick.buttons = [{
-						iconClass: Codicon.eyeClosed.classNames,
+						iconClass: Codicon.classNames(Codicon.eyeClosed),
 						tooltip: nls.localize('disableSnippet', 'Hide from IntelliSense')
 					}];
 				} else {
 					pick.description = nls.localize('isDisabled', "(hidden from IntelliSense)");
 					pick.buttons = [{
-						iconClass: Codicon.eye.classNames,
+						iconClass: Codicon.classNames(Codicon.eye),
 						tooltip: nls.localize('enable.snippet', 'Show in IntelliSense')
 					}];
 				}

@@ -242,7 +242,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const openSideBySideDirection = this.options?.openSideBySideDirection?.();
 		if (openSideBySideDirection) {
 			buttons = [{
-				iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+				iconClass: openSideBySideDirection === 'right' ? Codicon.classNames(Codicon.splitHorizontal) : Codicon.classNames(Codicon.splitVertical),
 				tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 			}];
 		}

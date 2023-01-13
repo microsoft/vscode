@@ -308,14 +308,14 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
-			action = new Action('pin', localize('pin', "Add to Status Bar"), Codicon.pin.classNames, true, () => {
+			action = new Action('pin', localize('pin', "Add to Status Bar"), Codicon.classNames(Codicon.pin), true, () => {
 				this._dedicated.add(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, true);
 				this._update();
 				this._storeState();
 			});
 		} else {
-			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), Codicon.pinned.classNames, true, () => {
+			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), Codicon.classNames(Codicon.pinned), true, () => {
 				this._dedicated.delete(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, false);
 				this._update();

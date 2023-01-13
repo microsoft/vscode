@@ -575,7 +575,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				this.accountsActivityAction = this._register(new ActivityAction({
 					id: 'workbench.actions.accounts',
 					name: localize('accounts', "Accounts"),
-					cssClass: Codicon.account.classNames
+					cssClass: Codicon.classNames(Codicon.account)
 				}));
 				this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
 			}

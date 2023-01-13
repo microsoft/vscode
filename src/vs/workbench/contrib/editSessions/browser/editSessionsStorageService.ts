@@ -32,7 +32,7 @@ import { Emitter } from 'vs/base/common/event';
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
-const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
+const configureContinueOnPreference = { iconClass: Codicon.classNames(Codicon.settingsGear), tooltip: localize('configure continue on', 'Configure this preference in settings') };
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
 	declare _serviceBrand: undefined;

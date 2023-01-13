@@ -181,7 +181,7 @@ export class ZoomResetAction extends BaseZoomAction {
 abstract class BaseSwitchWindow extends Action2 {
 
 	private readonly closeWindowAction: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
+		iconClass: Codicon.classNames(Codicon.removeClose),
 		tooltip: localize('close', "Close Window")
 	};
 

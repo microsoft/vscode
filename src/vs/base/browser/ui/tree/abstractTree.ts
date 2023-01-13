@@ -455,7 +455,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			templateData.container.removeAttribute('aria-expanded');
 		}
 
-		templateData.twistie.classList.remove(...Codicon.treeItemExpanded.classNamesArray);
+		templateData.twistie.classList.remove(...Codicon.classNamesArray(Codicon.treeItemExpanded));
 
 		let twistieRendered = false;
 
@@ -465,7 +465,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
 			if (!twistieRendered) {
-				templateData.twistie.classList.add(...Codicon.treeItemExpanded.classNamesArray);
+				templateData.twistie.classList.add(...Codicon.classNamesArray(Codicon.treeItemExpanded));
 			}
 
 			templateData.twistie.classList.add('collapsible');

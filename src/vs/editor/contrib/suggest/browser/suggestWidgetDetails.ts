@@ -62,7 +62,7 @@ export class SuggestDetailsWidget {
 		this._disposables.add(this._scrollbar);
 
 		this._header = dom.append(this._body, dom.$('.header'));
-		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
+		this._close = dom.append(this._header, dom.$('span' + Codicon.cssSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
 		this._type = dom.append(this._header, dom.$('p.type'));
 

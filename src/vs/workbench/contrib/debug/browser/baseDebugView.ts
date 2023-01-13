@@ -157,7 +157,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
-		lazyButton.classList.add(...Codicon.eye.classNamesArray);
+		lazyButton.classList.add(...Codicon.classNamesArray(Codicon.eye));
 		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
 		const value = dom.append(expression, $('span.value'));
 
