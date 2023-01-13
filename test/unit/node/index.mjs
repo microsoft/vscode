@@ -8,18 +8,23 @@
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
-const assert = require('assert');
-const mocha = require('mocha');
-const path = require('path');
-const fs = require('fs');
-const glob = require('glob');
-const minimatch = require('minimatch');
-const coverage = require('../coverage');
-const optimist = require('optimist')
+import * as assert from 'assert';
+import mocha from 'mocha';
+import * as path from 'path';
+import * as fs from 'fs';
+import glob from 'glob';
+import minimatch from 'minimatch';
+import * as module from 'module';
+// const coverage = require('../coverage');
+import _optimist from 'optimist';
+import { fileURLToPath, pathToFileURL } from 'url';
+
+const optimist = _optimist
 	.usage('Run the Code tests. All mocha options apply.')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
 	.describe('coverage', 'Generate a coverage report').boolean('coverage')
+	.describe('esm', 'Assume ESM output').boolean('esm')
 	.alias('h', 'help').boolean('h')
 	.describe('h', 'Show help');
 
@@ -30,11 +35,13 @@ const excludeGlobs = [
 	'**/{browser,electron-sandbox,electron-browser,electron-main}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
 	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
-	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
+	'**/vs/workbench/contrib/testing/test/**', // flaky (https://github.com/microsoft/vscode/issues/137853)
+	'**/css.build.test.js' // AMD only
 ];
 
+
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; esm: boolean; }}
  */
 const argv = optimist.argv;
 
@@ -43,10 +50,12 @@ if (argv.help) {
 	process.exit(1);
 }
 
-const REPO_ROOT = path.join(__dirname, '../../../');
+// const REPO_ROOT = path.join(__dirname, '../../../');
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const out = argv.build ? 'out-build' : 'out';
-const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
+const baseUrl = pathToFileURL(src);
+
 
 const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
 const currentMajorNodeVersion = process.version.substring(0, 3);
@@ -58,67 +67,36 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 function main() {
 
 	// VSCODE_GLOBALS: node_modules
-	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
+	const _require = module.createRequire(import.meta.url);
+	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => _require(String(mod)) });
 
 	// VSCODE_GLOBALS: package/product.json
-	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
-	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
+	globalThis._VSCODE_PRODUCT_JSON = _require(`${REPO_ROOT}/product.json`);
+	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
 
+	// VSCODE_GLOBALS: file root
+	globalThis._VSCODE_FILE_ROOT = baseUrl;
 
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
 	});
 
+
+
 	/**
-	 * @param {string} path
-	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
-	 * @returns {string}
+	 * @param modules
+	 * @param onLoad
+	 * @param onError
 	 */
-	function fileUriFromPath(path, config) {
+	const loader = function (modules, onLoad, onError) {
 
-		// Since we are building a URI, we normalize any backslash
-		// to slashes and we ensure that the path begins with a '/'.
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-			pathName = `/${pathName}`;
-		}
-
-		/** @type {string} */
-		let uri;
-
-		// Windows: in order to support UNC paths (which start with '//')
-		// that have their own authority, we do not use the provided authority
-		// but rather preserve it.
-		if (config.isWindows && pathName.startsWith('//')) {
-			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
-		}
-
-		// Otherwise we optionally add the provided authority if specified
-		else {
-			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
-		}
-
-		return uri.replace(/#/g, '%23');
-	}
-
-	const loaderConfig = {
-		nodeRequire: require,
-		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
-		catchError: true
+		const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
+			console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
+			throw err;
+		}));
+		Promise.all(loads).then(onLoad, onError);
 	};
 
-	if (argv.coverage) {
-		coverage.initialize(loaderConfig);
-
-		process.on('exit', function (code) {
-			if (code !== 0) {
-				return;
-			}
-			coverage.createReport(argv.run || argv.runGlob);
-		});
-	}
-
-	loader.config(loaderConfig);
 
 	let didErr = false;
 	const write = process.stderr.write;
@@ -132,7 +110,7 @@ function main() {
 
 	if (argv.runGlob) {
 		loadFunc = (cb) => {
-			const doRun = /** @param {string[]} tests */(tests) => {
+			const doRun = /** @param tests */(tests) => {
 				const modulesToLoad = tests.map(test => {
 					if (path.isAbsolute(test)) {
 						test = path.relative(src, path.resolve(test));
@@ -203,7 +181,7 @@ function main() {
 		});
 
 		// replace the default unexpected error handler to be useful during tests
-		loader(['vs/base/common/errors'], function (errors) {
+		import(`${baseUrl}/vs/base/common/errors.js`).then(errors => {
 			errors.setUnexpectedErrorHandler(function (err) {
 				const stack = (err && err.stack) || (new Error().stack);
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
@@ -212,6 +190,7 @@ function main() {
 			// fire up mocha
 			mocha.run();
 		});
+
 	});
 }
 
