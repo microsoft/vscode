@@ -555,7 +555,7 @@ export class ExtensionsListView extends ViewPane {
 			const reloadRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
-				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+				if (e.outdated && !e.pinned) {
 					outdated.push(e);
 				}
 				else if (e.reloadRequiredStatus) {

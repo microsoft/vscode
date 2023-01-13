@@ -911,7 +911,7 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 			return;
 		}
 		super.update();
-		this._checked = this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
+		this._checked = this.extension.pinned;
 	}
 
 	override async run(): Promise<any> {
@@ -919,8 +919,8 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 			return;
 		}
 		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
-		const newIgnoresAutoUpdates = !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
-		this.extensionsWorkbenchService.setExtensionIgnoresUpdate(this.extension, newIgnoresAutoUpdates);
+		const newIgnoresAutoUpdates = !this.extension.pinned;
+		await this.extensionsWorkbenchService.pinExtension(this.extension, newIgnoresAutoUpdates);
 	}
 }
 

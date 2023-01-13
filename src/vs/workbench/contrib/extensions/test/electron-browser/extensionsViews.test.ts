@@ -100,6 +100,7 @@ suite('ExtensionsViews Tests', () => {
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
 			onDidChangeProfile: Event.None,
+			onDidUpdateExtensionMetadata: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
