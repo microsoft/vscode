@@ -346,9 +346,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (suggestion && this._leadingLineContent) {
 			this._suggestWidget?.hide();
 
-			// Disable Send-Completions requests
-			// this._onAcceptedCompletion.fire('\x1b[24~f');
-
 			// Send the completion
 			this._onAcceptedCompletion.fire([
 				// TODO: Right arrow to end of the replacement
@@ -362,20 +359,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				suggestion.item.completion.label,
 			].join(''));
 
+			// Disable completions triggering the widget temporarily to avoid completion requests
+			// caused by the completion itself to show.
 			this._enableWidget = false;
-			// TODO: Disable in a more sophisticated way
-			timeout(500).then(e => this._enableWidget = true);
-
-
-			// this._onAcceptedCompletion.fire(suggestion.item.completion.label);
-
-
-			// Enable Send-Completions requests, this is done after a timeout as otherwise a race
-			// occurs where a trigger character in the completion can still trigger the completions
-			// TODO: Disposable
-			// setTimeout(() => {
-			// 	this._onAcceptedCompletion.fire('\x1b[24~g');
-			// }, 100);
+			// TODO: Disable the widget in a more sophisticated way
+			timeout(100).then(e => this._enableWidget = true);
 		}
 	}
 
