@@ -107,20 +107,20 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 
-	# VS Code send completions request (may override Ctrl+Spacebar)
-	Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
-		Send-Completions
-	}
+	if ($env:VSCODE_SUGGEST -eq '1') {
+		Remove-Item Env:VSCODE_SUGGEST
 
-	# Suggest trigger characters
-	# TODO: On only when a setting is enabled?
-	# if ($env:VSCODE_SUGGEST -eq '1') {
-	Remove-Item Env:VSCODE_SUGGEST
-	Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
-		[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
-		Send-Completions
+		# VS Code send completions request (may override Ctrl+Spacebar)
+		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
+			Send-Completions
+		}
+
+		# Suggest trigger characters
+		Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
+			[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
+			Send-Completions
+		}
 	}
-	# }
 }
 
 function Send-Completions {	# Get current command line
@@ -153,14 +153,5 @@ function Send-Completions {	# Get current command line
 	}
 	Write-Host -NoNewLine $result
 }
-
-# Terminal suggest - on only when setting is enabled
-# if ($env:VSCODE_SUGGEST -eq '1') {
-# 	Remove-Item Env:VSCODE_SUGGEST
-# 	Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
-# 		[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
-# 		Send-Completions
-# 	}
-# }
 
 Set-MappedKeyHandlers
