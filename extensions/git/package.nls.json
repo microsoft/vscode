@@ -242,6 +242,7 @@
 	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
 	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"config.optimisticUpdate": "Controls whether to optimistically update the state of the Source Control view after running git commands.",
+	"config.publishBeforeContinueOn": "Controls whether to publish unpublished git state when using Continue Working On from a git repository.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
