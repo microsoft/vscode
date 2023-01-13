@@ -92,6 +92,7 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const enum Constants {
 	/**
@@ -1121,6 +1122,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const fontSize = this._configurationService.getValue(TerminalSettingId.FontSize);
 		this._accessibilityElement.style.fontFamily = fontFamily ? fontFamily.toString() : '';
 		this._accessibilityElement.style.fontSize = fontSize ? fontSize + 'px' : '';
+		this._accessibilityElement.style.color = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? 'black' : 'white';
 		this._accessibilityElement.scrollTop = this._accessibilityElement.scrollHeight;
 		const selection = document.getSelection();
 		if (selection && elements.cursorElement) {

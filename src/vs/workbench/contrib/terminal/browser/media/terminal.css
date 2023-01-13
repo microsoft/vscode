@@ -548,8 +548,7 @@
 	bottom: 0;
 	right: 0;
 	padding: .5em;
-	background: #000;
-	color: #fff !important;
+	background: var(--vscode-editorPane-background);
 	opacity: 0;
 	overflow: scroll;
 }
