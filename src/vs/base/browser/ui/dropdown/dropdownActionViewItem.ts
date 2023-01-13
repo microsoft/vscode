@@ -12,7 +12,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseAction
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
@@ -200,7 +200,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			separator.classList.toggle('prominent', menuActionClassNames.includes('prominent'));
 			append(this.element, separator);
 
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...menuActionClassNames] });
+			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...CSSIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames] });
 			this.dropdownMenuActionViewItem.render(this.element);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {

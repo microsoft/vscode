@@ -917,23 +917,25 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Proxy
-		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
-			|| undefined;
+		if (!e || e.affectsConfiguration('http.proxy')) {
+			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
+				|| undefined;
 
-		if (newHttpProxy?.endsWith('/')) {
-			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
-		}
+			if (newHttpProxy?.endsWith('/')) {
+				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+			}
 
-		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
-		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
-			this.currentHttpProxy = newHttpProxy;
-			this.currentNoProxy = newNoProxy;
+			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
+				this.currentHttpProxy = newHttpProxy;
+				this.currentNoProxy = newNoProxy;
 
-			const proxyRules = newHttpProxy || '';
-			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
-			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-			this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				const proxyRules = newHttpProxy || '';
+				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
+				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
+				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+			}
 		}
 	}
 
@@ -1087,7 +1089,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.loggers = this.loggerMainService.getLoggerResources(this.id);
+		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1661,7 +1663,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		super.dispose();
 
 		// Deregister the loggers for this window
-		this.loggerMainService.deregisterLoggerResources(this.id);
+		this.loggerMainService.deregisterLoggers(this.id);
 
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}

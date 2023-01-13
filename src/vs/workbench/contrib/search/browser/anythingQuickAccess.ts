@@ -49,7 +49,7 @@ import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
@@ -982,7 +982,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			// Open to side / below
 			buttons.push({
-				iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+				iconClass: openSideBySideDirection === 'right' ? CSSIcon.asClassName(Codicon.splitHorizontal) : CSSIcon.asClassName(Codicon.splitVertical),
 				tooltip: openSideBySideDirection === 'right' ?
 					localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
 					localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
@@ -991,7 +991,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Remove from History
 			if (isEditorHistoryEntry) {
 				buttons.push({
-					iconClass: isDirty ? ('dirty-anything ' + Codicon.circleFilled.classNames) : Codicon.close.classNames,
+					iconClass: isDirty ? ('dirty-anything ' + CSSIcon.asClassName(Codicon.circleFilled)) : CSSIcon.asClassName(Codicon.close),
 					tooltip: localize('closeEditor', "Remove from Recently Opened"),
 					alwaysVisible: isDirty
 				});

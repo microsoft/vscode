@@ -12,7 +12,7 @@ import { cleanMnemonic, Direction, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED
 import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { asArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
@@ -314,7 +314,7 @@ export class MenuBar extends Disposable {
 	createOverflowMenu(): void {
 		const label = this.isCompact ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
 		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + Codicon.menuBarMore.cssSelector, { 'role': 'none', 'aria-hidden': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + CSSIcon.asCSSSelector(Codicon.menuBarMore), { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);

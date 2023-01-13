@@ -9,7 +9,6 @@ import { asTextOrError } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -18,6 +17,7 @@ import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileAccess } from 'vs/base/common/network';
 
 interface ColorInfo {
 	description: string;
@@ -115,7 +115,7 @@ function getDescription(color: ColorContribution) {
 }
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
-	const extPath = getPathFromAmdModule(require, '../../../../../../../extensions');
+	const extPath = FileAccess.asFileUri('vs/../../extensions').fsPath;
 	const extFolders = await pfs.Promises.readDirsInDir(extPath);
 	const result: { [id: string]: string } = Object.create(null);
 	for (const folder of extFolders) {

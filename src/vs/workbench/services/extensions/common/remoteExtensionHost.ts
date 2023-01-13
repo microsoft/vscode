@@ -18,7 +18,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { connectRemoteAgentExtensionHost, IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -27,8 +26,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, remoteExtHostLog, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
+import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IRemoteExtensionHostInitData {
 	readonly connectionData: IRemoteConnectionData | null;
@@ -171,10 +169,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 							// stop listening for messages here
 							disposable.dispose();
 
-							// Register log channel for remote exthost log
-							const remoteExtHostLoggerResource = { id: remoteExtHostLog, name: localize('remote extension host Log', "Remote Extension Host"), resource: logFile };
-							this._loggerService.registerLoggerResource(remoteExtHostLoggerResource);
-							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLoggerResource.id, label: remoteExtHostLoggerResource.name, file: remoteExtHostLoggerResource.resource, log: true });
+							// Register logger for remote exthost log
+							this._loggerService.registerLogger({ id: 'remoteExtHostLog', name: localize('remote extension host Log', "Remote Extension Host"), resource: logFile });
 
 							// release this promise
 							this._protocol = protocol;
@@ -251,7 +247,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			loggers: [...this._loggerService.getLoggerResources()],
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: remoteInitData.extensionHostLogsPath,
 			logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
 			autoStart: true,

@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomPath } from 'vs/base/common/extpath';
-import { join } from 'vs/base/common/path';
-import * as testUtils from 'vs/base/test/common/testUtils';
+export const Schemes = Object.freeze({
+	file: 'file',
+	untitled: 'untitled',
+	mailto: 'mailto',
+	vscode: 'vscode',
+	'vscode-insiders': 'vscode-insiders',
+	notebookCell: 'vscode-notebook-cell',
+});
 
-export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {
-	return randomPath(join(tmpdir, ...segments));
+export function isOfScheme(scheme: string, link: string): boolean {
+	return link.toLowerCase().startsWith(scheme + ':');
 }
-
-export import flakySuite = testUtils.flakySuite;

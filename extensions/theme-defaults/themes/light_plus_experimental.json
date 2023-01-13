@@ -35,7 +35,6 @@
 		"editor.foreground": "#000000e4",
 		"editor.inactiveSelectionBackground": "#E5EBF1",
 		"editor.selectionHighlightBackground": "#ADD6FF80",
-		"editorCursor.foreground": "#005FB8",
 		"editorGroup.border": "#0000001a",
 		"editorGroupHeader.tabsBackground": "#f8f8f8",
 		"editorGroupHeader.tabsBorder": "#0000001a",
@@ -66,7 +65,6 @@
 		"keybindingLabel.foreground": "#000000e4",
 		"list.activeSelectionBackground": "#e8e8e8",
 		"list.activeSelectionForeground": "#000000",
-		"list.activeSelectionIconForeground": "#000000",
 		"list.hoverBackground": "#f2f2f2",
 		"menu.border": "#D4D4D4",
 		"notebook.cellBorderColor": "#E8E8E8",
@@ -150,6 +148,6 @@
 		"titleBar.inactiveBackground": "#f8f8f8",
 		"titleBar.inactiveForeground": "#8b949e",
 		"welcomePage.tileBackground": "#f3f3f3",
-		"wdgetBorder": "#0000001a",
+		"widgetBorder": "#0000001a",
 	},
 }

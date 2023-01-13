@@ -34,7 +34,6 @@
 		"editor.background": "#1f1f1f",
 		"editor.findMatchBackground": "#9e6a03",
 		"editor.foreground": "#ffffffd3",
-		"editorCursor.foreground": "#0078d4",
 		"editorGroup.border": "#ffffff17",
 		"editorGroupHeader.tabsBackground": "#181818",
 		"editorGroupHeader.tabsBorder": "#ffffff15",
