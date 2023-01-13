@@ -69,7 +69,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { Codicon } from 'vs/base/common/codicons';
+import { CSSIcon, Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -2128,7 +2128,7 @@ class SCMInputWidget {
 				}
 				const actionsContainer = append(validationContainer, $('.scm-editor-validation-actions'));
 				const actionbar = new ActionBar(actionsContainer);
-				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), Codicon.close.classNames, true, () => {
+				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), CSSIcon.asClassName(Codicon.close), true, () => {
 					this.contextViewService.hideContextView();
 				});
 				disposables.add(actionbar);

@@ -69,7 +69,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-		console.log('playing', sound);
 		const url = FileAccess.asBrowserUri(
 			`vs/platform/audioCues/browser/media/${sound.fileName}`
 		).toString();
@@ -77,7 +76,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		audio.volume = this.getVolumeInPercent() / 100;
 		audio.addEventListener('ended', () => {
 			this.playingSounds.delete(sound);
-			console.log('ending', sound);
 		});
 		try {
 			try {

@@ -18,11 +18,16 @@ import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/gho
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
 	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
 	public static readonly inlineSuggestionHasIndentationLessThanTabSize = new RawContextKey<boolean>('inlineSuggestionHasIndentationLessThanTabSize', true, nls.localize('inlineSuggestionHasIndentationLessThanTabSize', "Whether the inline suggestion starts with whitespace that is less than what would be inserted by tab"));
+	/**
+	 * Enables to use Ctrl+Left to undo fully (partially) accepted inline completions (the completion is no longer visible then).
+	 */
+	public static readonly inlineSuggestionJustCommitted = new RawContextKey<boolean>('inlineSuggestionJustCommitted', false, nls.localize('inlineSuggestionJustCommitted', "Whether an inline suggestion just got committed"));
 
 	static ID = 'editor.contrib.ghostTextController';
 
@@ -91,10 +96,12 @@ export class GhostTextController extends Disposable {
 
 	public commitPartially(): void {
 		this.activeModel?.commitInlineCompletionPartially();
+		this.activeController?.value?.contextKeys.inlineSuggestionJustCommitted.set(true);
 	}
 
 	public commit(): void {
 		this.activeModel?.commitInlineCompletion();
+		this.activeController?.value?.contextKeys.inlineSuggestionJustCommitted.set(true);
 	}
 
 	public hide(): void {
@@ -119,6 +126,7 @@ class GhostTextContextKeys {
 	public readonly inlineCompletionVisible = GhostTextController.inlineSuggestionVisible.bindTo(this.contextKeyService);
 	public readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
 	public readonly inlineCompletionSuggestsIndentationLessThanTabSize = GhostTextController.inlineSuggestionHasIndentationLessThanTabSize.bindTo(this.contextKeyService);
+	public readonly inlineSuggestionJustCommitted = GhostTextController.inlineSuggestionJustCommitted.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
 	}
@@ -129,7 +137,7 @@ class GhostTextContextKeys {
  * Must be disposed as soon as the model detaches from the editor.
 */
 export class ActiveGhostTextController extends Disposable {
-	private readonly contextKeys = new GhostTextContextKeys(this.contextKeyService);
+	public readonly contextKeys = new GhostTextContextKeys(this.contextKeyService);
 	public readonly model = this._register(this.instantiationService.createInstance(GhostTextModel, this.editor));
 	public readonly widget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, this.model));
 
@@ -148,6 +156,12 @@ export class ActiveGhostTextController extends Disposable {
 
 		this._register(this.model.onDidChange(() => {
 			this.updateContextKeys();
+		}));
+		this._register(this.editor.onDidChangeModelContent(() => {
+			this.contextKeys.inlineSuggestionJustCommitted.reset();
+		}));
+		this._register(this.editor.onDidChangeCursorPosition(() => {
+			this.contextKeys.inlineSuggestionJustCommitted.reset();
 		}));
 		this.updateContextKeys();
 	}
@@ -258,7 +272,11 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			id: 'editor.action.inlineSuggest.acceptNextWord',
 			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
 			alias: 'Accept Next Word Of Inline Suggestion',
-			precondition: EditorContextKeys.writable
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
+			kbOpts: {
+				weight: 1000,
+				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+			}
 		});
 	}
 
@@ -269,3 +287,10 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 		}
 	}
 }
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'undo',
+	weight: 1000,
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	when: ContextKeyExpr.and(EditorContextKeys.writable, ContextKeyExpr.or(GhostTextController.inlineSuggestionVisible, GhostTextController.inlineSuggestionJustCommitted)),
+});

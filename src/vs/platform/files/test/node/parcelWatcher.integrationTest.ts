@@ -10,12 +10,13 @@ import { timeout } from 'vs/base/common/async';
 import { join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
 import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
+import { FileAccess } from 'vs/base/common/network';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -78,7 +79,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});

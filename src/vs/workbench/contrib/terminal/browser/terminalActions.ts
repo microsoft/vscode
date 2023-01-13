@@ -359,8 +359,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.CopyLastCommand,
-				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+				id: TerminalCommandId.CopyLastCommandOutput,
+				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
