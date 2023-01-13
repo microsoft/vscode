@@ -30,6 +30,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -45,6 +46,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 // import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { DummyFileSystem } from 'vs/workbench/contrib/interactive/browser/dummyFileSystemProvider';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
@@ -82,6 +84,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService
 	) {
 		super();
 
@@ -92,28 +95,42 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			cellContentMetadata: {}
 		};
 
+		const interactiveWindowFS = new DummyFileSystem();
+		this._register(fileService.registerProvider('vscode-interactive', interactiveWindowFS));
+
 		const serializer: INotebookSerializer = {
 			options: contentOptions,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
-				const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
+				if (data.byteLength > 0) {
+					try {
+						const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
+						return Promise.resolve({
+							cells: document.cells.map(cell => ({
+								source: cell.content,
+								language: cell.language,
+								cellKind: cell.kind,
+								mime: cell.mime,
+								outputs: cell.outputs
+									? cell.outputs.map(output => ({
+										outputId: output.outputId,
+										outputs: output.outputs.map(ot => ({
+											mime: ot.mime,
+											data: ot.data
+										}))
+									}))
+									: [],
+								metadata: cell.metadata
+							})),
+							metadata: {}
+						});
+					} catch (e) {
+						console.log(e);
+					}
+				}
+
 				return Promise.resolve({
-					cells: document.cells.map(cell => ({
-						source: cell.content,
-						language: cell.language,
-						cellKind: cell.kind,
-						mime: cell.mime,
-						outputs: cell.outputs
-							? cell.outputs.map(output => ({
-								outputId: output.outputId,
-								outputs: output.outputs.map(ot => ({
-									mime: ot.mime,
-									data: ot.data
-								}))
-							}))
-							: [],
-						metadata: cell.metadata
-					})),
-					metadata: {}
+					metadata: {},
+					cells: []
 				});
 
 			},
@@ -385,7 +402,7 @@ registerAction2(class extends Action2 {
 		let inputUri: URI | undefined = undefined;
 		let counter = 1;
 		do {
-			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `/Interactive-${counter}.interactive` });
 			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
