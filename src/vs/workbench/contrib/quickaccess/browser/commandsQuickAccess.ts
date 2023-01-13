@@ -72,7 +72,13 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			noResultsPick: {
 				label: localize('noCommandResults', "No matching commands"),
 				commandId: ''
-			}
+			},
+			suggestedCommandIds: new Set([
+				'workbench.action.tasks.runTask',
+				'workbench.action.files.openFolder',
+				'remoteHub.openRepository',
+				'workbench.action.remote.showMenu'
+			])
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 	}
 
