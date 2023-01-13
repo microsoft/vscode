@@ -604,15 +604,15 @@ export namespace Codicon {
 	}
 
 	export function classNames(codicon: ICodicon): string {
-		return 'codicon codicon-' + codicon.id;
+		return `codicon codicon-${codicon.id}`;
 	}
 
 	export function classNamesArray(codicon: ICodicon): string[] {
-		return ['codicon', 'codicon-' + codicon.id];
+		return ['codicon', `codicon-${codicon.id}`];
 	}
 
 	export function cssSelector(codicon: ICodicon): string {
-		return '.codicon.codicon-' + codicon.id;
+		return `.codicon.codicon-${codicon.id}`;
 	}
 }
 
@@ -631,16 +631,16 @@ export namespace CSSIcon {
 
 	export function asClassNameArray(icon: CSSIcon): string[] {
 		if (isCodicon(icon)) {
-			return ['codicon', 'codicon-' + icon.id];
+			return ['codicon', `codicon-${icon.id}`];
 		}
 		const match = cssIconIdRegex.exec(icon.id);
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
 		const [, id, modifier] = match;
-		const classNames = ['codicon', 'codicon-' + id];
+		const classNames = ['codicon', `codicon-${id}`];
 		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substring(1));
+			classNames.push(`codicon-modifier-${modifier.substring(1)}`);
 		}
 		return classNames;
 	}
@@ -650,6 +650,6 @@ export namespace CSSIcon {
 	}
 
 	export function asCSSSelector(icon: CSSIcon): string {
-		return '.' + asClassNameArray(icon).join('.');
+		return `.${asClassNameArray(icon).join('.')}`;
 	}
 }
