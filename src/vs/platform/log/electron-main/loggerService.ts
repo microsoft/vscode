@@ -7,22 +7,24 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DidChangeLoggerResourceEvent, ILoggerResource, ILoggerService } from 'vs/platform/log/common/log';
+import { DidChangeLoggersEvent, ILoggerResource, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 
 export const ILoggerMainService = refineServiceDecorator<ILoggerService, ILoggerMainService>(ILoggerService);
 
 export interface ILoggerMainService extends ILoggerService {
 
-	getOnDidChangeLogLevelEvent(windowId: number): Event<ILoggerResource>;
+	getOnDidChangeLogLevelEvent(windowId: number): Event<[URI, LogLevel]>;
 
-	getOnDidChangeLoggerResourcesEvent(windowId: number): Event<DidChangeLoggerResourceEvent>;
+	getOnDidChangeVisibilityEvent(windowId: number): Event<[URI, boolean]>;
 
-	registerLoggerResource(resource: ILoggerResource, windowId?: number): void;
+	getOnDidChangeLoggersEvent(windowId: number): Event<DidChangeLoggersEvent>;
 
-	getLoggerResources(windowId?: number): ILoggerResource[];
+	registerLogger(resource: ILoggerResource, windowId?: number): void;
 
-	deregisterLoggerResources(windowId: number): void;
+	getRegisteredLoggers(windowId?: number): ILoggerResource[];
+
+	deregisterLoggers(windowId: number): void;
 
 }
 
@@ -30,21 +32,21 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 
 	private readonly loggerResourcesByWindow = new ResourceMap<number>();
 
-	override registerLoggerResource(resource: ILoggerResource, windowId?: number): void {
+	override registerLogger(resource: ILoggerResource, windowId?: number): void {
 		if (windowId !== undefined) {
 			this.loggerResourcesByWindow.set(resource.resource, windowId);
 		}
-		super.registerLoggerResource(resource);
+		super.registerLogger(resource);
 	}
 
-	override deregisterLoggerResource(resource: URI): void {
+	override deregisterLogger(resource: URI): void {
 		this.loggerResourcesByWindow.delete(resource);
-		super.deregisterLoggerResource(resource);
+		super.deregisterLogger(resource);
 	}
 
-	override getLoggerResources(windowId?: number): ILoggerResource[] {
+	override getRegisteredLoggers(windowId?: number): ILoggerResource[] {
 		const resources: ILoggerResource[] = [];
-		for (const resource of super.getLoggerResources()) {
+		for (const resource of super.getRegisteredLoggers()) {
 			if (this.isInterestedLoggerResource(resource.resource, windowId)) {
 				resources.push(resource);
 			}
@@ -52,13 +54,17 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 		return resources;
 	}
 
-	getOnDidChangeLogLevelEvent(windowId: number): Event<ILoggerResource> {
-		return Event.filter(this.onDidChangeLogLevel, e => this.isInterestedLoggerResource(e.resource, windowId));
+	getOnDidChangeLogLevelEvent(windowId: number): Event<[URI, LogLevel]> {
+		return Event.filter(this.onDidChangeLogLevel, ([resource]) => this.isInterestedLoggerResource(resource, windowId));
 	}
 
-	getOnDidChangeLoggerResourcesEvent(windowId: number): Event<DidChangeLoggerResourceEvent> {
+	getOnDidChangeVisibilityEvent(windowId: number): Event<[URI, boolean]> {
+		return Event.filter(this.onDidChangeVisibility, ([resource]) => this.isInterestedLoggerResource(resource, windowId));
+	}
+
+	getOnDidChangeLoggersEvent(windowId: number): Event<DidChangeLoggersEvent> {
 		return Event.filter(
-			Event.map(this.onDidChangeLoggerResources, e => {
+			Event.map(this.onDidChangeLoggers, e => {
 				const r = {
 					added: [...e.added].filter(loggerResource => this.isInterestedLoggerResource(loggerResource.resource, windowId)),
 					removed: [...e.removed].filter(loggerResource => this.isInterestedLoggerResource(loggerResource.resource, windowId)),
@@ -67,10 +73,10 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 			}), e => e.added.length > 0 || e.removed.length > 0);
 	}
 
-	deregisterLoggerResources(windowId: number): void {
+	deregisterLoggers(windowId: number): void {
 		for (const [resource, resourceWindow] of this.loggerResourcesByWindow) {
 			if (resourceWindow === windowId) {
-				this.deregisterLoggerResource(resource);
+				this.deregisterLogger(resource);
 			}
 		}
 	}
