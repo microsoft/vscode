@@ -176,6 +176,7 @@ export interface IWebExtensionsScannerService {
 	removeExtension(extension: IScannedExtension, profileLocation: URI): Promise<void>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void>;
 
-	scanMetadata(extensionLocation: URI, profileLocation: URI): Promise<Metadata | undefined>;
+	updateMetadata(extension: IScannedExtension, metaData: Partial<Metadata>, profileLocation: URI): Promise<IScannedExtension>;
+
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }
