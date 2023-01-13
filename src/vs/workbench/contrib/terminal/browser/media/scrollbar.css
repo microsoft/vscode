@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.xterm .xterm-accessibility,
 .monaco-workbench .editor-instance .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	/* Use the hack presented in https://stackoverflow.com/a/38748186/1156119 to get opacity transitions working on the scrollbar */
