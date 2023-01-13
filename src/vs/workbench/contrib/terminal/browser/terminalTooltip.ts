@@ -45,7 +45,7 @@ export function getShellProcessTooltip(instance: ITerminalInstance, markdown: bo
 			commandLine += ` ${args}`;
 		}
 
-		lines.push(localize('shellProcessTooltip.executable', 'Executable:\n'));
+		lines.push(localize('shellProcessTooltip.commandLine', 'Command line:') + '\n');
 		lines.push(markdown
 			? `\`\`\`\n${commandLine}\n\`\`\``
 			: `${commandLine}`
