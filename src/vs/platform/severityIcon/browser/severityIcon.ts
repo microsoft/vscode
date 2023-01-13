@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/severityIcon';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themed';
 import Severity from 'vs/base/common/severity';
 
 export namespace SeverityIcon {
@@ -12,13 +13,13 @@ export namespace SeverityIcon {
 	export function className(severity: Severity): string {
 		switch (severity) {
 			case Severity.Ignore:
-				return 'severity-ignore ' + CSSIcon.asClassName(Codicon.info);
+				return 'severity-ignore ' + ThemeIcon.asClassName(Codicon.info);
 			case Severity.Info:
-				return CSSIcon.asClassName(Codicon.info);
+				return ThemeIcon.asClassName(Codicon.info);
 			case Severity.Warning:
-				return CSSIcon.asClassName(Codicon.warning);
+				return ThemeIcon.asClassName(Codicon.warning);
 			case Severity.Error:
-				return CSSIcon.asClassName(Codicon.error);
+				return ThemeIcon.asClassName(Codicon.error);
 			default:
 				return '';
 		}

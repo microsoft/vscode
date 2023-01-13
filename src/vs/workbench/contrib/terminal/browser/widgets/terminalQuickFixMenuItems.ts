@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themed';
 import { Schemas } from 'vs/base/common/network';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
@@ -55,7 +56,7 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 	return menuItems;
 }
 
-function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: CSSIcon } {
+function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: ThemeIcon } {
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
 			if ('uri' in quickFix.action && quickFix.action.uri) {

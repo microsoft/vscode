@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themed';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
@@ -38,7 +39,7 @@ export class ShowAudioCueHelp extends Action2 {
 				: `${audioCueService.isEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
-				iconClass: CSSIcon.asClassName(Codicon.settingsGear),
+				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 				tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
 			}],
 		}));

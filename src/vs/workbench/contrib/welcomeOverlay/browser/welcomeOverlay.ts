@@ -17,7 +17,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themed';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
@@ -227,7 +228,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${CSSIcon.asCSSSelector(Codicon.warning)}`);
+		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${ThemeIcon.asCSSSelector(Codicon.warning)}`);
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();

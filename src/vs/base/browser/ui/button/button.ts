@@ -9,7 +9,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themed';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -50,7 +51,7 @@ export interface IButton extends IDisposable {
 	readonly element: HTMLElement;
 	readonly onDidClick: BaseEvent<Event | undefined>;
 	label: string;
-	icon: CSSIcon;
+	icon: ThemeIcon;
 	enabled: boolean;
 	focus(): void;
 	hasFocus(): boolean;
@@ -183,8 +184,8 @@ export class Button extends Disposable implements IButton {
 		}
 	}
 
-	set icon(icon: CSSIcon) {
-		this._element.classList.add(...CSSIcon.asClassNameArray(icon));
+	set icon(icon: ThemeIcon) {
+		this._element.classList.add(...ThemeIcon.asClassNameArray(icon));
 	}
 
 	set enabled(value: boolean) {
@@ -281,7 +282,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.action.label = value;
 	}
 
-	set icon(icon: CSSIcon) {
+	set icon(icon: ThemeIcon) {
 		this.button.icon = icon;
 	}
 
