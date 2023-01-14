@@ -105,7 +105,7 @@ pub fn new_rpc_prefix() -> String {
 // Base logger implementation
 #[derive(Clone)]
 pub struct Logger {
-	tracer: Tracer,
+	tracer: Arc<Tracer>,
 	sink: Vec<Box<dyn LogSink>>,
 	prefix: Option<String>,
 }
@@ -188,7 +188,7 @@ impl LogSink for FileLogSink {
 impl Logger {
 	pub fn test() -> Self {
 		Self {
-			tracer: TracerProvider::builder().build().tracer("codeclitest"),
+			tracer: Arc::new(TracerProvider::builder().build().tracer("codeclitest")),
 			sink: vec![],
 			prefix: None,
 		}
@@ -196,7 +196,7 @@ impl Logger {
 
 	pub fn new(tracer: Tracer, level: Level) -> Self {
 		Self {
-			tracer,
+			tracer: Arc::new(tracer),
 			sink: vec![Box::new(StdioLogSink { level })],
 			prefix: None,
 		}
