@@ -829,56 +829,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Check for initial URLs to handle from protocol link invocations
-		const protocolLinksFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : []; // Windows/Linux: protocol handler invokes CLI with --open-url
-		if (protocolLinksFromCommandLine.length) {
-			logService.trace('app#openFirstWindow() protocol links from command line:', protocolLinksFromCommandLine);
-		}
-
-		const protocolLinksFromEvent = ((<any>global).getOpenUrls() || []) as string[]; // macOS: open-url events
-		if (protocolLinksFromEvent.length) {
-			logService.trace(`app#openFirstWindow() protocol links from macOS 'open-url' event:`, protocolLinksFromEvent);
-		}
-
-		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-		const pendingProtocolLinksToHandle = [
-			...protocolLinksFromCommandLine,
-			...protocolLinksFromEvent
-		].map(url => {
-			try {
-				return { uri: URI.parse(url), url };
-			} catch {
-				logService.trace('app#openFirstWindow() protocol link failed to parse:', url);
-
-				return undefined;
-			}
-		}).filter((obj): obj is { uri: URI; url: string } => {
-			if (!obj) {
-				return false;
-			}
-
-			// If URI should be blocked, filter it out
-			if (this.shouldBlockURI(obj.uri)) {
-				logService.trace('app#openFirstWindow() protocol link was blocked:', obj.uri.toString(true));
-
-				return false;
-			}
-
-			// Filter out any protocol link that wants to open as window so that
-			// we open the right set of windows on startup and not restore the
-			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
-			if (windowOpenable) {
-				logService.trace('app#openFirstWindow() protocol link will be handled as window to open:', obj.uri.toString(true), windowOpenable);
-
-				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
-
-				return false;
-			}
-
-			logService.trace('app#openFirstWindow() protocol link will be passed to active window for handling:', obj.uri.toString(true));
-
-			return true;
-		});
+		const { pendingProtocolLinksToHandle, pendingWindowOpenablesFromProtocolLinks } = this.resolveProtocolLinks();
 
 		// Create a URL handler to open file URIs in the active window
 		// or open new windows. The URL handler will be invoked from
@@ -1067,6 +1018,69 @@ export class CodeApplication extends Disposable {
 			forceProfile,
 			forceTempProfile
 		});
+	}
+
+	private resolveProtocolLinks(): { pendingProtocolLinksToHandle: { uri: URI; url: string }[]; pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] } {
+
+		// Windows/Linux: protocol handler invokes CLI with --open-url
+		const protocolLinksFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
+		if (protocolLinksFromCommandLine.length) {
+			this.logService.trace('app#resolveProtocolLinks() protocol links from command line:', protocolLinksFromCommandLine);
+		}
+
+		// macOS: open-url events that were received before the app is ready
+		const protocolLinksFromEvent = ((<any>global).getOpenUrls() || []) as string[];
+		if (protocolLinksFromEvent.length) {
+			this.logService.trace(`app#resolveProtocolLinks() protocol links from macOS 'open-url' event:`, protocolLinksFromEvent);
+		}
+
+		// Go over all protocol links and split window openables
+		// from other protocol links that need to be handled within
+		// the app.
+		// Filter out blocked links or invalid ones.
+
+		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
+		const pendingProtocolLinksToHandle = [
+			...protocolLinksFromCommandLine,
+			...protocolLinksFromEvent
+		].map(url => {
+			try {
+				return { uri: URI.parse(url), url };
+			} catch {
+				this.logService.trace('app#resolveProtocolLinks() protocol link failed to parse:', url);
+
+				return undefined;
+			}
+		}).filter((obj): obj is { uri: URI; url: string } => {
+			if (!obj) {
+				return false;
+			}
+
+			// If URI should be blocked, filter it out
+			if (this.shouldBlockURI(obj.uri)) {
+				this.logService.trace('app#resolveProtocolLinks() protocol link was blocked:', obj.uri.toString(true));
+
+				return false;
+			}
+
+			// Filter out any protocol link that wants to open as window so that
+			// we open the right set of windows on startup and not restore the
+			// previous workspace too.
+			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
+			if (windowOpenable) {
+				this.logService.trace('app#resolveProtocolLinks() protocol link will be handled as window to open:', obj.uri.toString(true), windowOpenable);
+
+				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
+
+				return false;
+			}
+
+			this.logService.trace('app#resolveProtocolLinks() protocol link will be passed to active window for handling:', obj.uri.toString(true));
+
+			return true;
+		});
+
+		return { pendingProtocolLinksToHandle, pendingWindowOpenablesFromProtocolLinks };
 	}
 
 	private shouldBlockURI(uri: URI): boolean {
