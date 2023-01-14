@@ -14,17 +14,13 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState, ITerminalProcessOptions, TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 enum Constants {
 	MaxRestarts = 5
@@ -83,11 +79,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
+		private readonly loggerName: string,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -143,6 +139,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
+				VSCODE_PTY_LOG_NAME: this.loggerName,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
@@ -184,18 +181,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}));
 
 		// Setup logging
-		const logChannel = client.getChannel(TerminalIpcChannels.Log);
-		LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
-		const ptyHostLogResource = URI.file(join(this._environmentService.logsPath, `${TerminalLogConstants.FileName}.log`));
-		this._loggerService.registerLogger({ id: 'ptyHostLog', name: localize('ptyHost', "Pty Host"), resource: ptyHostLogResource });
-		this._register(this._logService.onDidChangeLogLevel(() => {
-			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
-		}));
-		this._register(this._loggerService.onDidChangeLogLevel(([resource, logLevel]) => {
-			if (this._uriIdentityService.extUri.isEqual(ptyHostLogResource, resource)) {
-				LogLevelChannelClient.setLevel(logChannel, logLevel);
-			}
-		}));
+		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
