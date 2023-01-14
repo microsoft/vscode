@@ -112,6 +112,7 @@ import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryU
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -827,8 +828,8 @@ export class CodeApplication extends Disposable {
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
-		// Check for initial URLs to handle from protocol link invocations
-		const { pendingProtocolLinksToHandle, pendingWindowOpenablesFromProtocolLinks } = this.resolveProtocolLinks();
+		// Check for initial URLs to handle from protocol url invocations
+		const { pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls } = this.resolveProtocolUrls();
 
 		// Create a URL handler to open file URIs in the active window
 		// or open new windows. The URL handler will be invoked from
@@ -837,7 +838,7 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				return app.handleProtocolLink(windowsMainService, urlService, uri, options);
+				return app.handleProtocolUrl(windowsMainService, urlService, uri, options);
 			}
 		});
 
@@ -853,7 +854,7 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
+		this._register(new ElectronURLListener(pendingProtocolUrlsToHandle, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		// Open our first window
 		const args = this.environmentMainService.args;
@@ -871,14 +872,14 @@ export class CodeApplication extends Disposable {
 		// check for a pending window to open from URI
 		// e.g. when running code with --open-uri from
 		// a protocol handler
-		if (pendingWindowOpenablesFromProtocolLinks.length > 0) {
+		if (pendingWindowOpenablesFromProtocolUrls.length > 0) {
 			return windowsMainService.open({
 				context,
 				cli: args,
-				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
+				urisToOpen: pendingWindowOpenablesFromProtocolUrls,
 				gotoLineMode: true,
 				initialStartup: true
-				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolLinks
+				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolUrls
 			});
 		}
 
@@ -932,67 +933,67 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private resolveProtocolLinks(): { pendingProtocolLinksToHandle: { uri: URI; url: string }[]; pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] } {
+	private resolveProtocolUrls(): { pendingProtocolUrlsToHandle: IProtocolUrl[]; pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] } {
 
 		// Windows/Linux: protocol handler invokes CLI with --open-url
-		const protocolLinksFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
-		if (protocolLinksFromCommandLine.length) {
-			this.logService.trace('app#resolveProtocolLinks() protocol links from command line:', protocolLinksFromCommandLine);
+		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
+		if (protocolUrlsFromCommandLine.length) {
+			this.logService.trace('app#resolveProtocolUrls() protocol urls from command line:', protocolUrlsFromCommandLine);
 		}
 
 		// macOS: open-url events that were received before the app is ready
-		const protocolLinksFromEvent = ((<any>global).getOpenUrls() || []) as string[];
-		if (protocolLinksFromEvent.length) {
-			this.logService.trace(`app#resolveProtocolLinks() protocol links from macOS 'open-url' event:`, protocolLinksFromEvent);
+		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
+		if (protocolUrlsFromEvent.length) {
+			this.logService.trace(`app#resolveProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
 
-		// Go over all protocol links and split window openables
-		// from other protocol links that need to be handled within
+		// Go over all protocol urls and split window openables
+		// from other protocol urls that need to be handled within
 		// the app.
-		// Filter out blocked links or invalid ones.
+		// Filter out blocked urls or invalid ones.
 
-		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-		const pendingProtocolLinksToHandle = [
-			...protocolLinksFromCommandLine,
-			...protocolLinksFromEvent
+		const pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] = [];
+		const pendingProtocolUrlsToHandle = [
+			...protocolUrlsFromCommandLine,
+			...protocolUrlsFromEvent
 		].map(url => {
 			try {
-				return { uri: URI.parse(url), url };
+				return { uri: URI.parse(url), originalUrl: url };
 			} catch {
-				this.logService.trace('app#resolveProtocolLinks() protocol link failed to parse:', url);
+				this.logService.trace('app#resolveProtocolUrls() protocol url failed to parse:', url);
 
 				return undefined;
 			}
-		}).filter((obj): obj is { uri: URI; url: string } => {
+		}).filter((obj): obj is IProtocolUrl => {
 			if (!obj) {
 				return false;
 			}
 
 			// If URI should be blocked, filter it out
 			if (this.shouldBlockURI(obj.uri)) {
-				this.logService.trace('app#resolveProtocolLinks() protocol link was blocked:', obj.uri.toString(true));
+				this.logService.trace('app#resolveProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
 
 				return false;
 			}
 
-			// Filter out any protocol link that wants to open as window so that
+			// Filter out any protocol url that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(obj.uri);
 			if (windowOpenable) {
-				this.logService.trace('app#resolveProtocolLinks() protocol link will be handled as window to open:', obj.uri.toString(true), windowOpenable);
+				this.logService.trace('app#resolveProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
 
-				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
+				pendingWindowOpenablesFromProtocolUrls.push(windowOpenable);
 
 				return false;
 			}
 
-			this.logService.trace('app#resolveProtocolLinks() protocol link will be passed to active window for handling:', obj.uri.toString(true));
+			this.logService.trace('app#resolveProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
 
 			return true;
 		});
 
-		return { pendingProtocolLinksToHandle, pendingWindowOpenablesFromProtocolLinks };
+		return { pendingProtocolUrlsToHandle: pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls: pendingWindowOpenablesFromProtocolUrls };
 	}
 
 	private shouldBlockURI(uri: URI): boolean {
@@ -1019,7 +1020,7 @@ export class CodeApplication extends Disposable {
 		return false;
 	}
 
-	private getWindowOpenableFromProtocolLink(uri: URI): IWindowOpenable | undefined {
+	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
 		if (!uri.path) {
 			return undefined;
 		}
@@ -1037,9 +1038,11 @@ export class CodeApplication extends Disposable {
 
 		// Remote path
 		else if (uri.authority === Schemas.vscodeRemote) {
+
 			// Example conversion:
 			// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
 			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
+
 			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
 			if (secondSlash !== -1) {
 				const authority = uri.path.substring(1, secondSlash);
@@ -1062,8 +1065,8 @@ export class CodeApplication extends Disposable {
 		return undefined;
 	}
 
-	private async handleProtocolLink(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		this.logService.trace('app#handleProtocolLink():', uri.toString(true), options);
+	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
@@ -1076,7 +1079,7 @@ export class CodeApplication extends Disposable {
 
 		// If URI should be blocked, behave as if it's handled
 		if (this.shouldBlockURI(uri)) {
-			this.logService.trace('app#handleProtocolLink() protocol link was blocked:', uri.toString(true));
+			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
 
 			return true;
 		}
@@ -1086,7 +1089,7 @@ export class CodeApplication extends Disposable {
 		// We should handle the URI in a new window if the URL contains `windowId=_blank`
 		const params = new URLSearchParams(uri.query);
 		if (params.get('windowId') === '_blank') {
-			this.logService.trace(`app#handleProtocolLink() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+			this.logService.trace(`app#handleProtocolUrl() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
 
 			params.delete('windowId');
 			uri = uri.with({ query: params.toString() });
@@ -1096,7 +1099,7 @@ export class CodeApplication extends Disposable {
 
 		// or if no window is open (macOS only)
 		else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
-			this.logService.trace(`app#handleProtocolLink() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+			this.logService.trace(`app#handleProtocolUrl() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
 
 			shouldOpenInNewWindow = true;
 		}
@@ -1104,7 +1107,7 @@ export class CodeApplication extends Disposable {
 		// Pass along whether the application is being opened via a Continue On flow
 		const continueOn = params.get('continueOn');
 		if (continueOn !== null) {
-			this.logService.trace(`app#handleProtocolLink() found 'continueOn' as parameter:`, uri.toString(true));
+			this.logService.trace(`app#handleProtocolUrl() found 'continueOn' as parameter:`, uri.toString(true));
 
 			params.delete('continueOn');
 			uri = uri.with({ query: params.toString() });
@@ -1112,18 +1115,18 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
-		// Check if the protocol link is a window openable to open...
-		const windowOpenableFromProtocolLink = this.getWindowOpenableFromProtocolLink(uri);
-		if (windowOpenableFromProtocolLink) {
-			this.logService.trace('app#handleProtocolLink() opening protocol link as window:', windowOpenableFromProtocolLink, uri.toString(true));
+		// Check if the protocol URL is a window openable to open...
+		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
+		if (windowOpenableFromProtocolUrl) {
+			this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
 			const [window] = await windowsMainService.open({
 				context: OpenContext.API,
 				cli: { ...this.environmentMainService.args },
-				urisToOpen: [windowOpenableFromProtocolLink],
+				urisToOpen: [windowOpenableFromProtocolUrl],
 				forceNewWindow: shouldOpenInNewWindow,
 				gotoLineMode: true
-				// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
+				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
 			});
 
 			window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
@@ -1133,7 +1136,7 @@ export class CodeApplication extends Disposable {
 
 		// ...or if we should open in a new window and then handle it within that window
 		if (shouldOpenInNewWindow) {
-			this.logService.trace('app#handleProtocolLink() opening empty window and passing in protocol link:', uri.toString(true));
+			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
 			const [window] = await windowsMainService.open({
 				context: OpenContext.API,
