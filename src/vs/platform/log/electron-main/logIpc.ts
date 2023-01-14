@@ -26,7 +26,7 @@ export class LoggerChannel implements IServerChannel {
 
 	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1], arg[2]); return;
+			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1]); return;
 			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
 			case 'setLogLevel': return this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
@@ -38,8 +38,8 @@ export class LoggerChannel implements IServerChannel {
 		throw new Error(`Call not found: ${command}`);
 	}
 
-	private createLogger(file: URI, options: ILoggerOptions, donotRegister?: boolean): void {
-		this.loggers.set(file.toString(), this.loggerService.createLogger(file, options, donotRegister));
+	private createLogger(file: URI, options: ILoggerOptions): void {
+		this.loggers.set(file.toString(), this.loggerService.createLogger(file, options));
 	}
 
 	private consoleLog(level: LogLevel, args: any[]): void {

@@ -32,7 +32,7 @@ import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
@@ -427,7 +427,7 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, file: UriComponents, log: boolean, languageId: string | undefined, extensionId: string): Promise<string>;
+	$register(label: string, file: UriComponents, languageId: string | undefined, extensionId: string): Promise<string>;
 	$update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void>;
 	$reveal(channelId: string, preserveFocus: boolean): Promise<void>;
 	$close(channelId: string): Promise<void>;
@@ -1988,12 +1988,14 @@ export interface ExtHostWindowShape {
 }
 
 export interface ExtHostLogLevelServiceShape {
-	$setLevel(level: LogLevel, resource?: UriComponents): void;
+	$setLogLevel(level: LogLevel, resource?: UriComponents): void;
 }
 
 export interface MainThreadLoggerShape {
 	$log(file: UriComponents, messages: [LogLevel, string][]): void;
 	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
+	$registerLogger(logger: UriDto<ILoggerResource>): Promise<void>;
+	$deregisterLogger(resource: UriComponents): Promise<void>;
 }
 
 export interface ExtHostOutputServiceShape {
