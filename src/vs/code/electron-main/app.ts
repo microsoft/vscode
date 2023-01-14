@@ -823,7 +823,6 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
-		const logService = this.logService;
 
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
@@ -834,98 +833,11 @@ export class CodeApplication extends Disposable {
 		// Create a URL handler to open file URIs in the active window
 		// or open new windows. The URL handler will be invoked from
 		// protocol invocations outside of VSCode.
+
 		const app = this;
-		const environmentService = this.environmentMainService;
-		const productService = this.productService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				logService.trace('app#handleURL():', uri.toString(true), options);
-
-				// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
-				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
-					uri = uri.with({
-						authority: 'file',
-						path: URI.parse(uri.query).path,
-						query: ''
-					});
-				}
-
-				// If URI should be blocked, behave as if it's handled
-				if (app.shouldBlockURI(uri)) {
-					logService.trace('app#handleURL() protocol link was blocked:', uri.toString(true));
-
-					return true;
-				}
-
-				let shouldOpenInNewWindow = false;
-
-				// We should handle the URI in a new window if the URL contains `windowId=_blank`
-				const params = new URLSearchParams(uri.query);
-				if (params.get('windowId') === '_blank') {
-					logService.trace(`app#handleURL() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
-
-					params.delete('windowId');
-					uri = uri.with({ query: params.toString() });
-
-					shouldOpenInNewWindow = true;
-				}
-
-				// or if no window is open (macOS only)
-				else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
-					logService.trace(`app#handleURL() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
-
-					shouldOpenInNewWindow = true;
-				}
-
-				// Pass along whether the application is being opened via a Continue On flow
-				const continueOn = params.get('continueOn');
-				if (continueOn !== null) {
-					logService.trace(`app#handleURL() found 'continueOn' as parameter:`, uri.toString(true));
-
-					params.delete('continueOn');
-					uri = uri.with({ query: params.toString() });
-
-					environmentService.continueOn = continueOn ?? undefined;
-				}
-
-				// Check if the protocol link is a window openable to open...
-				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
-				if (windowOpenableFromProtocolLink) {
-					logService.trace('app#handleURL() opening protocol link as window:', windowOpenableFromProtocolLink, uri.toString(true));
-
-					const [window] = await windowsMainService.open({
-						context: OpenContext.API,
-						cli: { ...environmentService.args },
-						urisToOpen: [windowOpenableFromProtocolLink],
-						forceNewWindow: shouldOpenInNewWindow,
-						gotoLineMode: true
-						// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
-					});
-
-					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
-
-					return true;
-				}
-
-				// ...or if we should open in a new window and then handle it within that window
-				if (shouldOpenInNewWindow) {
-					logService.trace('app#handleURL() opening empty window and passing in protocol link:', uri.toString(true));
-
-					const [window] = await windowsMainService.open({
-						context: OpenContext.API,
-						cli: { ...environmentService.args },
-						forceNewWindow: true,
-						forceEmpty: true,
-						gotoLineMode: true,
-						remoteAuthority: getRemoteAuthority(uri)
-					});
-
-					await window.ready();
-
-					return urlService.open(uri, options);
-				}
-
-				return false;
+				return app.handleProtocolLink(windowsMainService, urlService, uri, options);
 			}
 		});
 
@@ -1148,6 +1060,96 @@ export class CodeApplication extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	private async handleProtocolLink(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		this.logService.trace('app#handleProtocolLink():', uri.toString(true), options);
+
+		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
+		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
+			uri = uri.with({
+				authority: 'file',
+				path: URI.parse(uri.query).path,
+				query: ''
+			});
+		}
+
+		// If URI should be blocked, behave as if it's handled
+		if (this.shouldBlockURI(uri)) {
+			this.logService.trace('app#handleProtocolLink() protocol link was blocked:', uri.toString(true));
+
+			return true;
+		}
+
+		let shouldOpenInNewWindow = false;
+
+		// We should handle the URI in a new window if the URL contains `windowId=_blank`
+		const params = new URLSearchParams(uri.query);
+		if (params.get('windowId') === '_blank') {
+			this.logService.trace(`app#handleProtocolLink() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
+			params.delete('windowId');
+			uri = uri.with({ query: params.toString() });
+
+			shouldOpenInNewWindow = true;
+		}
+
+		// or if no window is open (macOS only)
+		else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+			this.logService.trace(`app#handleProtocolLink() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
+			shouldOpenInNewWindow = true;
+		}
+
+		// Pass along whether the application is being opened via a Continue On flow
+		const continueOn = params.get('continueOn');
+		if (continueOn !== null) {
+			this.logService.trace(`app#handleProtocolLink() found 'continueOn' as parameter:`, uri.toString(true));
+
+			params.delete('continueOn');
+			uri = uri.with({ query: params.toString() });
+
+			this.environmentMainService.continueOn = continueOn ?? undefined;
+		}
+
+		// Check if the protocol link is a window openable to open...
+		const windowOpenableFromProtocolLink = this.getWindowOpenableFromProtocolLink(uri);
+		if (windowOpenableFromProtocolLink) {
+			this.logService.trace('app#handleProtocolLink() opening protocol link as window:', windowOpenableFromProtocolLink, uri.toString(true));
+
+			const [window] = await windowsMainService.open({
+				context: OpenContext.API,
+				cli: { ...this.environmentMainService.args },
+				urisToOpen: [windowOpenableFromProtocolLink],
+				forceNewWindow: shouldOpenInNewWindow,
+				gotoLineMode: true
+				// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
+			});
+
+			window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+
+			return true;
+		}
+
+		// ...or if we should open in a new window and then handle it within that window
+		if (shouldOpenInNewWindow) {
+			this.logService.trace('app#handleProtocolLink() opening empty window and passing in protocol link:', uri.toString(true));
+
+			const [window] = await windowsMainService.open({
+				context: OpenContext.API,
+				cli: { ...this.environmentMainService.args },
+				forceNewWindow: true,
+				forceEmpty: true,
+				gotoLineMode: true,
+				remoteAuthority: getRemoteAuthority(uri)
+			});
+
+			await window.ready();
+
+			return urlService.open(uri, options);
+		}
+
+		return false;
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
