@@ -537,14 +537,26 @@ export class CodeApplication extends Disposable {
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
 
-		// Setup Handlers
-		this.setUpHandlers(appInstantiationService);
+		// Auth Handler
+		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
+
+		// Transient profiles handler
+		this._register(appInstantiationService.createInstance(UserDataProfilesHandler));
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
+		// Setup Protocol URL Handlers
+		const protocolUrlWindowOpenables = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
+
+		// Signal phase: ready - before opening first window
+		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
+
 		// Open Windows
-		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
+		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, protocolUrlWindowOpenables));
+
+		// Signal phase: after window open
+		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
@@ -556,13 +568,262 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private setUpHandlers(instantiationService: IInstantiationService): void {
+	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IWindowOpenable[] {
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		const urlService = accessor.get(IURLService);
+		const nativeHostMainService = accessor.get(INativeHostMainService);
 
-		// Auth Handler
-		this._register(instantiationService.createInstance(ProxyAuthHandler));
+		// Check for initial URLs to handle from protocol url invocations
+		const { pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls } = this.resolveProtocolUrls();
 
-		// Transient profiles handler
-		this._register(instantiationService.createInstance(UserDataProfilesHandler));
+		// Create a URL handler to open file URIs in the active window
+		// or open new windows. The URL handler will be invoked from
+		// protocol invocations outside of VSCode.
+
+		const app = this;
+		urlService.registerHandler({
+			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+				return app.handleProtocolUrl(windowsMainService, urlService, uri, options);
+			}
+		});
+
+		// Create a URL handler which forwards to the last active window
+		const activeWindowManager = this._register(new ActiveWindowManager({
+			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
+			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
+			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
+		}));
+		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
+		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
+		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
+		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
+
+		// Watch Electron URLs and forward them to the UrlService
+		this._register(new ElectronURLListener(pendingProtocolUrlsToHandle, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
+
+		return pendingWindowOpenablesFromProtocolUrls;
+	}
+
+	private resolveProtocolUrls(): { pendingProtocolUrlsToHandle: IProtocolUrl[]; pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] } {
+
+		// Windows/Linux: protocol handler invokes CLI with --open-url
+		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
+		if (protocolUrlsFromCommandLine.length) {
+			this.logService.trace('app#resolveProtocolUrls() protocol urls from command line:', protocolUrlsFromCommandLine);
+		}
+
+		// macOS: open-url events that were received before the app is ready
+		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
+		if (protocolUrlsFromEvent.length) {
+			this.logService.trace(`app#resolveProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
+		}
+
+		// Go over all protocol urls and split window openables
+		// from other protocol urls that need to be handled within
+		// the app.
+		// Filter out blocked urls or invalid ones.
+
+		const pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] = [];
+		const pendingProtocolUrlsToHandle = [
+			...protocolUrlsFromCommandLine,
+			...protocolUrlsFromEvent
+		].map(url => {
+			try {
+				return { uri: URI.parse(url), originalUrl: url };
+			} catch {
+				this.logService.trace('app#resolveProtocolUrls() protocol url failed to parse:', url);
+
+				return undefined;
+			}
+		}).filter((obj): obj is IProtocolUrl => {
+			if (!obj) {
+				return false;
+			}
+
+			// If URI should be blocked, filter it out
+			if (this.shouldBlockURI(obj.uri)) {
+				this.logService.trace('app#resolveProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
+
+				return false;
+			}
+
+			// Filter out any protocol url that wants to open as window so that
+			// we open the right set of windows on startup and not restore the
+			// previous workspace too.
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(obj.uri);
+			if (windowOpenable) {
+				this.logService.trace('app#resolveProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
+
+				pendingWindowOpenablesFromProtocolUrls.push(windowOpenable);
+
+				return false;
+			}
+
+			this.logService.trace('app#resolveProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
+
+			return true;
+		});
+
+		return { pendingProtocolUrlsToHandle: pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls: pendingWindowOpenablesFromProtocolUrls };
+	}
+
+	private shouldBlockURI(uri: URI): boolean {
+		if (uri.authority === Schemas.file && isWindows) {
+			const res = dialog.showMessageBoxSync({
+				title: this.productService.nameLong,
+				type: 'question',
+				buttons: [
+					mnemonicButtonLabel(localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
+					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
+				],
+				defaultId: 0,
+				cancelId: 1,
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri, { os: OS, tildify: this.environmentMainService }), this.productService.nameShort),
+				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
+				noLink: true
+			});
+
+			if (res === 1) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
+		if (!uri.path) {
+			return undefined;
+		}
+
+		// File path
+		if (uri.authority === Schemas.file) {
+			const fileUri = URI.file(uri.fsPath);
+
+			if (hasWorkspaceFileExtension(fileUri)) {
+				return { workspaceUri: fileUri };
+			}
+
+			return { fileUri };
+		}
+
+		// Remote path
+		else if (uri.authority === Schemas.vscodeRemote) {
+
+			// Example conversion:
+			// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
+			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
+
+			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+			if (secondSlash !== -1) {
+				const authority = uri.path.substring(1, secondSlash);
+				const path = uri.path.substring(secondSlash);
+				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+				if (hasWorkspaceFileExtension(path)) {
+					return { workspaceUri: remoteUri };
+				}
+
+				if (/:[\d]+$/.test(path)) {
+					// path with :line:column syntax
+					return { fileUri: remoteUri };
+				}
+
+				return { folderUri: remoteUri };
+			}
+		}
+
+		return undefined;
+	}
+
+	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
+
+		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
+		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
+			uri = uri.with({
+				authority: 'file',
+				path: URI.parse(uri.query).path,
+				query: ''
+			});
+		}
+
+		// If URI should be blocked, behave as if it's handled
+		if (this.shouldBlockURI(uri)) {
+			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
+
+			return true;
+		}
+
+		let shouldOpenInNewWindow = false;
+
+		// We should handle the URI in a new window if the URL contains `windowId=_blank`
+		const params = new URLSearchParams(uri.query);
+		if (params.get('windowId') === '_blank') {
+			this.logService.trace(`app#handleProtocolUrl() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
+			params.delete('windowId');
+			uri = uri.with({ query: params.toString() });
+
+			shouldOpenInNewWindow = true;
+		}
+
+		// or if no window is open (macOS only)
+		else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+			this.logService.trace(`app#handleProtocolUrl() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
+
+			shouldOpenInNewWindow = true;
+		}
+
+		// Pass along whether the application is being opened via a Continue On flow
+		const continueOn = params.get('continueOn');
+		if (continueOn !== null) {
+			this.logService.trace(`app#handleProtocolUrl() found 'continueOn' as parameter:`, uri.toString(true));
+
+			params.delete('continueOn');
+			uri = uri.with({ query: params.toString() });
+
+			this.environmentMainService.continueOn = continueOn ?? undefined;
+		}
+
+		// Check if the protocol URL is a window openable to open...
+		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
+		if (windowOpenableFromProtocolUrl) {
+			this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
+
+			const [window] = await windowsMainService.open({
+				context: OpenContext.API,
+				cli: { ...this.environmentMainService.args },
+				urisToOpen: [windowOpenableFromProtocolUrl],
+				forceNewWindow: shouldOpenInNewWindow,
+				gotoLineMode: true
+				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
+			});
+
+			window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+
+			return true;
+		}
+
+		// ...or if we should open in a new window and then handle it within that window
+		if (shouldOpenInNewWindow) {
+			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
+
+			const [window] = await windowsMainService.open({
+				context: OpenContext.API,
+				cli: { ...this.environmentMainService.args },
+				forceNewWindow: true,
+				forceEmpty: true,
+				gotoLineMode: true,
+				remoteAuthority: getRemoteAuthority(uri)
+			});
+
+			await window.ready();
+
+			return urlService.open(uri, options);
+		}
+
+		return false;
 	}
 
 	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
@@ -820,46 +1081,24 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private async openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<ICodeWindow[]> {
+	private async openFirstWindow(accessor: ServicesAccessor, protocolUrlWindowOpenables: IWindowOpenable[]): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
-		const urlService = accessor.get(IURLService);
-		const nativeHostMainService = accessor.get(INativeHostMainService);
-
-		// Signal phase: ready (services set)
-		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
-
-		// Check for initial URLs to handle from protocol url invocations
-		const { pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls } = this.resolveProtocolUrls();
-
-		// Create a URL handler to open file URIs in the active window
-		// or open new windows. The URL handler will be invoked from
-		// protocol invocations outside of VSCode.
-
-		const app = this;
-		urlService.registerHandler({
-			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				return app.handleProtocolUrl(windowsMainService, urlService, uri, options);
-			}
-		});
-
-		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = this._register(new ActiveWindowManager({
-			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
-			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
-			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
-		}));
-		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
-		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
-		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
-
-		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingProtocolUrlsToHandle, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
-
-		// Open our first window
-		const args = this.environmentMainService.args;
-		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
+		const args = this.environmentMainService.args;
+
+		// Open from protocol URL(s)
+		if (protocolUrlWindowOpenables.length > 0) {
+			return windowsMainService.open({
+				context,
+				cli: args,
+				urisToOpen: protocolUrlWindowOpenables,
+				gotoLineMode: true,
+				initialStartup: true
+				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolUrls
+			});
+		}
+
+		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
@@ -868,20 +1107,6 @@ export class CodeApplication extends Disposable {
 		const remoteAuthority = args.remote || undefined;
 		const forceProfile = args.profile;
 		const forceTempProfile = args['profile-temp'];
-
-		// check for a pending window to open from URI
-		// e.g. when running code with --open-uri from
-		// a protocol handler
-		if (pendingWindowOpenablesFromProtocolUrls.length > 0) {
-			return windowsMainService.open({
-				context,
-				cli: args,
-				urisToOpen: pendingWindowOpenablesFromProtocolUrls,
-				gotoLineMode: true,
-				initialStartup: true
-				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolUrls
-			});
-		}
 
 		// Start without file/folder arguments
 		if (!hasCliArgs && !hasFolderURIs && !hasFileURIs) {
@@ -933,234 +1158,9 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private resolveProtocolUrls(): { pendingProtocolUrlsToHandle: IProtocolUrl[]; pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] } {
-
-		// Windows/Linux: protocol handler invokes CLI with --open-url
-		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
-		if (protocolUrlsFromCommandLine.length) {
-			this.logService.trace('app#resolveProtocolUrls() protocol urls from command line:', protocolUrlsFromCommandLine);
-		}
-
-		// macOS: open-url events that were received before the app is ready
-		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
-		if (protocolUrlsFromEvent.length) {
-			this.logService.trace(`app#resolveProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
-		}
-
-		// Go over all protocol urls and split window openables
-		// from other protocol urls that need to be handled within
-		// the app.
-		// Filter out blocked urls or invalid ones.
-
-		const pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] = [];
-		const pendingProtocolUrlsToHandle = [
-			...protocolUrlsFromCommandLine,
-			...protocolUrlsFromEvent
-		].map(url => {
-			try {
-				return { uri: URI.parse(url), originalUrl: url };
-			} catch {
-				this.logService.trace('app#resolveProtocolUrls() protocol url failed to parse:', url);
-
-				return undefined;
-			}
-		}).filter((obj): obj is IProtocolUrl => {
-			if (!obj) {
-				return false;
-			}
-
-			// If URI should be blocked, filter it out
-			if (this.shouldBlockURI(obj.uri)) {
-				this.logService.trace('app#resolveProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
-
-				return false;
-			}
-
-			// Filter out any protocol url that wants to open as window so that
-			// we open the right set of windows on startup and not restore the
-			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(obj.uri);
-			if (windowOpenable) {
-				this.logService.trace('app#resolveProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
-
-				pendingWindowOpenablesFromProtocolUrls.push(windowOpenable);
-
-				return false;
-			}
-
-			this.logService.trace('app#resolveProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
-
-			return true;
-		});
-
-		return { pendingProtocolUrlsToHandle: pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls: pendingWindowOpenablesFromProtocolUrls };
-	}
-
-	private shouldBlockURI(uri: URI): boolean {
-		if (uri.authority === Schemas.file && isWindows) {
-			const res = dialog.showMessageBoxSync({
-				title: this.productService.nameLong,
-				type: 'question',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri, { os: OS, tildify: this.environmentMainService }), this.productService.nameShort),
-				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
-				noLink: true
-			});
-
-			if (res === 1) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
-		if (!uri.path) {
-			return undefined;
-		}
-
-		// File path
-		if (uri.authority === Schemas.file) {
-			const fileUri = URI.file(uri.fsPath);
-
-			if (hasWorkspaceFileExtension(fileUri)) {
-				return { workspaceUri: fileUri };
-			}
-
-			return { fileUri };
-		}
-
-		// Remote path
-		else if (uri.authority === Schemas.vscodeRemote) {
-
-			// Example conversion:
-			// From: vscode://vscode-remote/wsl+ubuntu/mnt/c/GitDevelopment/monaco
-			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
-
-			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
-			if (secondSlash !== -1) {
-				const authority = uri.path.substring(1, secondSlash);
-				const path = uri.path.substring(secondSlash);
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
-
-				if (hasWorkspaceFileExtension(path)) {
-					return { workspaceUri: remoteUri };
-				}
-
-				if (/:[\d]+$/.test(path)) {
-					// path with :line:column syntax
-					return { fileUri: remoteUri };
-				}
-
-				return { folderUri: remoteUri };
-			}
-		}
-
-		return undefined;
-	}
-
-	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
-
-		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
-		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
-			uri = uri.with({
-				authority: 'file',
-				path: URI.parse(uri.query).path,
-				query: ''
-			});
-		}
-
-		// If URI should be blocked, behave as if it's handled
-		if (this.shouldBlockURI(uri)) {
-			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
-
-			return true;
-		}
-
-		let shouldOpenInNewWindow = false;
-
-		// We should handle the URI in a new window if the URL contains `windowId=_blank`
-		const params = new URLSearchParams(uri.query);
-		if (params.get('windowId') === '_blank') {
-			this.logService.trace(`app#handleProtocolUrl() found 'windowId=_blank' as parameter, setting shouldOpenInNewWindow=true:`, uri.toString(true));
-
-			params.delete('windowId');
-			uri = uri.with({ query: params.toString() });
-
-			shouldOpenInNewWindow = true;
-		}
-
-		// or if no window is open (macOS only)
-		else if (isMacintosh && windowsMainService.getWindowCount() === 0) {
-			this.logService.trace(`app#handleProtocolUrl() running on macOS with no window open, setting shouldOpenInNewWindow=true:`, uri.toString(true));
-
-			shouldOpenInNewWindow = true;
-		}
-
-		// Pass along whether the application is being opened via a Continue On flow
-		const continueOn = params.get('continueOn');
-		if (continueOn !== null) {
-			this.logService.trace(`app#handleProtocolUrl() found 'continueOn' as parameter:`, uri.toString(true));
-
-			params.delete('continueOn');
-			uri = uri.with({ query: params.toString() });
-
-			this.environmentMainService.continueOn = continueOn ?? undefined;
-		}
-
-		// Check if the protocol URL is a window openable to open...
-		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
-		if (windowOpenableFromProtocolUrl) {
-			this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
-
-			const [window] = await windowsMainService.open({
-				context: OpenContext.API,
-				cli: { ...this.environmentMainService.args },
-				urisToOpen: [windowOpenableFromProtocolUrl],
-				forceNewWindow: shouldOpenInNewWindow,
-				gotoLineMode: true
-				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-			});
-
-			window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
-
-			return true;
-		}
-
-		// ...or if we should open in a new window and then handle it within that window
-		if (shouldOpenInNewWindow) {
-			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
-
-			const [window] = await windowsMainService.open({
-				context: OpenContext.API,
-				cli: { ...this.environmentMainService.args },
-				forceNewWindow: true,
-				forceEmpty: true,
-				gotoLineMode: true,
-				remoteAuthority: getRemoteAuthority(uri)
-			});
-
-			await window.ready();
-
-			return urlService.open(uri, options);
-		}
-
-		return false;
-	}
-
 	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
 		const telemetryService = accessor.get(ITelemetryService);
 		const updateService = accessor.get(IUpdateService);
-
-		// Signal phase: after window open
-		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Observe shared process for errors
 		this.handleSharedProcessErrors(telemetryService, sharedProcess);
