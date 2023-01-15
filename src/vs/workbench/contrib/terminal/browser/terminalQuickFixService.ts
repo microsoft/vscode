@@ -22,9 +22,11 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
 
 	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
-		for (const selector of this._terminalContributionService.quickFixes) {
-			this.registerCommandSelector(selector);
-		}
+		this._terminalContributionService.quickFixes.then(selectors => {
+			for (const selector of selectors) {
+				this.registerCommandSelector(selector);
+			}
+		});
 	}
 
 	registerCommandSelector(selector: ITerminalCommandSelector): void {

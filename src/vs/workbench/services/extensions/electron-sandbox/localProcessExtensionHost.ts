@@ -415,9 +415,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					// stop listening for messages here
 					disposable.dispose();
 
-					// Register logger for exthost log
-					this._loggerService.registerLogger({ id: 'extHostLog', name: nls.localize('extension host Log', "Extension Host"), resource: this._extensionHostLogFile });
-
 					// release this promise
 					resolve();
 					return;
@@ -474,6 +471,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			logFile: this._extensionHostLogFile,
+			logName: nls.localize('extension host Log', "Extension Host"),
 			autoStart: initData.autoStart,
 			uiKind: UIKind.Desktop
 		};

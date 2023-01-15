@@ -58,8 +58,7 @@ import { IIssueMainService, IssueMainService } from 'vs/platform/issue/electron-
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -799,11 +798,6 @@ export class CodeApplication extends Disposable {
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
-
-		// Log Level (main & shared process)
-		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService), accessor.get(ILoggerService));
-		mainProcessElectronServer.registerChannel('logLevel', logLevelChannel);
-		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);

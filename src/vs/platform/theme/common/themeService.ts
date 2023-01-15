@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -16,77 +16,8 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
-export interface ThemeColor {
-	id: string;
-}
-
-export namespace ThemeColor {
-	export function isThemeColor(obj: any): obj is ThemeColor {
-		return obj && typeof obj === 'object' && typeof (<ThemeColor>obj).id === 'string';
-	}
-}
-
 export function themeColorFromId(id: ColorIdentifier) {
 	return { id };
-}
-
-// theme icon
-export interface ThemeIcon {
-	readonly id: string;
-	readonly color?: ThemeColor;
-}
-
-export namespace ThemeIcon {
-	export function isThemeIcon(obj: any): obj is ThemeIcon {
-		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
-	}
-
-	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
-
-	export function fromString(str: string): ThemeIcon | undefined {
-		const match = _regexFromString.exec(str);
-		if (!match) {
-			return undefined;
-		}
-		const [, name] = match;
-		return { id: name };
-	}
-
-	export function fromId(id: string): ThemeIcon {
-		return { id };
-	}
-
-	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
-		let id = icon.id;
-		const tildeIndex = id.lastIndexOf('~');
-		if (tildeIndex !== -1) {
-			id = id.substring(0, tildeIndex);
-		}
-		if (modifier) {
-			id = `${id}~${modifier}`;
-		}
-		return { id };
-	}
-
-	export function getModifier(icon: ThemeIcon): string | undefined {
-		const tildeIndex = icon.id.lastIndexOf('~');
-		if (tildeIndex !== -1) {
-			return icon.id.substring(tildeIndex + 1);
-		}
-		return undefined;
-	}
-
-	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
-		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
-	}
-
-	export function asThemeIcon(codicon: Codicon, color?: string): ThemeIcon {
-		return { id: codicon.id, color: color ? themeColorFromId(color) : undefined };
-	}
-
-	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;
-	export const asClassName: (icon: ThemeIcon) => string = CSSIcon.asClassName;
-	export const asCSSSelector: (icon: ThemeIcon) => string = CSSIcon.asCSSSelector;
 }
 
 export const FileThemeIcon = Codicon.file;

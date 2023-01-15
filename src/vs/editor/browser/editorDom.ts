@@ -10,7 +10,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { asCssValue } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)

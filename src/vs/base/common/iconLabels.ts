@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CSSIcon } from 'vs/base/common/codicons';
 import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 const iconStartMarker = '$(';
 
-const iconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
+const iconsRegex = new RegExp(`\\$\\(${ThemeIcon.iconNameExpression}(?:${ThemeIcon.iconModifierExpression})?\\)`, 'g'); // no capturing groups
 
 const escapeIconsRegex = new RegExp(`(\\\\)?${iconsRegex.source}`, 'g');
 export function escapeIcons(text: string): string {
@@ -53,7 +53,7 @@ export interface IParsedLabelWithIcons {
 	readonly iconOffsets?: readonly number[];
 }
 
-const _parseIconsRegex = new RegExp(`\\$\\(${CSSIcon.iconNameCharacter}+\\)`, 'g');
+const _parseIconsRegex = new RegExp(`\\$\\(${ThemeIcon.iconNameCharacter}+\\)`, 'g');
 
 /**
  * Takes a label with icons (`abc $(iconId)xyz`) and returns the text (`abc xyz`) and the offsets of the icons (`[3]`)

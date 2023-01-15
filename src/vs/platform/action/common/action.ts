@@ -5,7 +5,7 @@
 
 import { URI, UriDto } from 'vs/base/common/uri';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Categories } from './actionCommonCategories';
 
 export interface ILocalizedString {

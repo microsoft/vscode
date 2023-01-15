@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel, LogLevelToString, parseLogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, ILoggerResource, ILoggerService, ILogService, isLogLevel, log, LogLevel, LogLevelToString, parseLogLevel } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import { UriComponents, URI, UriDto } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
 
 @extHostNamedCustomer(MainContext.MainThreadLogger)
 export class MainThreadLoggerService implements MainThreadLoggerShape {
@@ -20,13 +19,16 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ILogService logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
-		@IOutputService outputService: IOutputService,
 	) {
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostLogLevelServiceShape);
-		this.disposables.add(logService.onDidChangeLogLevel(level => proxy.$setLevel(level)));
-		this.disposables.add(loggerService.onDidChangeLogLevel(([resource, logLevel]) => proxy.$setLevel(logLevel, resource)));
+		this.disposables.add(loggerService.onDidChangeLogLevel(arg => {
+			if (isLogLevel(arg)) {
+				proxy.$setLogLevel(arg);
+			} else {
+				proxy.$setLogLevel(arg[1], arg[0]);
+			}
+		}));
 	}
 
 	$log(file: UriComponents, messages: [LogLevel, string][]): void {
@@ -40,7 +42,18 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 	}
 
 	async $createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void> {
-		this.loggerService.createLogger(URI.revive(file), options, true /* do not register the loggers from the extension host */);
+		this.loggerService.createLogger(URI.revive(file), options);
+	}
+
+	async $registerLogger(logResource: UriDto<ILoggerResource>): Promise<void> {
+		this.loggerService.registerLogger({
+			...logResource,
+			resource: URI.revive(logResource.resource)
+		});
+	}
+
+	async $deregisterLogger(resource: UriComponents): Promise<void> {
+		this.loggerService.deregisterLogger(URI.revive(resource));
 	}
 
 	dispose(): void {
@@ -51,13 +64,13 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 // --- Internal commands to improve extension test runs
 
 CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: string) {
-	const logService = accessor.get(ILogService);
+	const loggerService = accessor.get(ILoggerService);
 	const environmentService = accessor.get(IEnvironmentService);
 
 	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 		const logLevel = parseLogLevel(level);
 		if (logLevel !== undefined) {
-			logService.setLevel(logLevel);
+			loggerService.setLogLevel(logLevel);
 		}
 	}
 });

@@ -14,6 +14,7 @@ import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, I
 import { IAsyncDataSource, ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElement, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -110,10 +111,10 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			twistieElement.classList.add(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return true;
 		} else {
-			twistieElement.classList.remove(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return false;
 		}
 	}
@@ -1105,10 +1106,10 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			twistieElement.classList.add(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return true;
 		} else {
-			twistieElement.classList.remove(...Codicon.treeItemLoading.classNamesArray);
+			twistieElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.treeItemLoading));
 			return false;
 		}
 	}
