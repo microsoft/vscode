@@ -68,11 +68,11 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		const result = await super.open(uri, options);
 
 		if (result) {
-			this.logService.trace('[URL #handleURL()] handled', uri.toString(true));
+			this.logService.trace('URLService#handleURL(): handled', uri.toString(true));
 
 			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */ });
 		} else {
-			this.logService.trace('[URL #handleURL()] not handled', uri.toString(true));
+			this.logService.trace('URLService#handleURL(): not handled', uri.toString(true));
 		}
 
 		return result;

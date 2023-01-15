@@ -571,7 +571,7 @@ export class CodeApplication extends Disposable {
 	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls | undefined {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
-		const nativeHostMainService = accessor.get(INativeHostMainService);
+		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
 
 		// Install URL handlers that deal with protocl URLs either
 		// from this process by opening windows and/or by forwarding
@@ -603,20 +603,19 @@ export class CodeApplication extends Disposable {
 	private resolveInitialProtocolUrls(): IInitialProtocolUrls | undefined {
 
 		/**
-		 * Protocol URL handling on startup is complex,
-		 * refer to {@link IInitialProtocolUrls} for an
-		 * explainer.
+		 * Protocol URL handling on startup is complex, refer to
+		 * {@link IInitialProtocolUrls} for an explainer.
 		 */
 
 		// Windows/Linux: protocol handler invokes CLI with --open-url
 		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
-		if (protocolUrlsFromCommandLine.length) {
+		if (protocolUrlsFromCommandLine.length > 0) {
 			this.logService.trace('app#resolveInitialProtocolUrls() protocol urls from command line:', protocolUrlsFromCommandLine);
 		}
 
 		// macOS: open-url events that were received before the app is ready
 		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
-		if (protocolUrlsFromEvent.length) {
+		if (protocolUrlsFromEvent.length > 0) {
 			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
 

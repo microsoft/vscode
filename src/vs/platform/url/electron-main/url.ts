@@ -25,12 +25,11 @@ export interface IProtocolUrl {
  * form of the protocol URL:
  *
  * On the high level, there are 2 types of protocol URLs:
- * - those that need to be handled within a window for
- *   example because they need to be forwarded to an
- *   extension
+ * - those that need to be handled within a window because
+ *   they need to be forwarded to an extension for example
  * - those that can be handled directly as window to open
  *
- * The former are for example of the form:
+ * The former can be of the form:
  * ```
  * <protocol>://<extension.id>/<path>
  * ```
