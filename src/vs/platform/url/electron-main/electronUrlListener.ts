@@ -13,7 +13,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
+import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 /**
@@ -34,17 +34,17 @@ export class ElectronURLListener {
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		initialUrisToHandle: IProtocolUrl[],
+		initialProtocolUrls: IInitialProtocolUrls,
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
 		environmentMainService: IEnvironmentMainService,
 		productService: IProductService,
 		private readonly logService: ILogService
 	) {
-		logService.trace('ElectronURLListener initialUrisToHandle:', initialUrisToHandle.map(initialUri => initialUri.originalUrl));
+		logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.urls.map(url => url.originalUrl));
 
 		// the initial set of URIs we need to handle once the window is ready
-		this.uris = initialUrisToHandle;
+		this.uris = initialProtocolUrls.urls;
 
 		// Windows: install as protocol handler
 		if (isWindows) {

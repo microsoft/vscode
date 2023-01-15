@@ -4,8 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface IProtocolUrl {
+
+	/**
+	 * The parsed URI from the raw URL.
+	 */
 	readonly uri: URI;
+
+	/**
+	 * The raw URL that was passed in.
+	 */
 	readonly originalUrl: string;
+}
+
+/**
+ * Protocol URLs that are passed in on startup.
+ */
+export interface IInitialProtocolUrls {
+
+	/**
+	 * Initial protocol URLs to handle that are not
+	 * already converted to `IWindowOpenable` instances.
+	 */
+	readonly urls: IProtocolUrl[];
+
+	/**
+	 * Initial protocol URLs that result in direct
+	 * `IWindowOpenable` instances.
+	 */
+	readonly openables: IWindowOpenable[];
 }

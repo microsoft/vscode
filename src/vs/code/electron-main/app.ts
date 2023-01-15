@@ -112,7 +112,7 @@ import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryU
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
+import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -573,8 +573,10 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
 
-		// Check for initial URLs to handle from protocol url invocations
-		const { pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls } = this.resolveProtocolUrls();
+		// Check for initial URLs to handle from protocol url
+		// invocations that happened right on startup
+
+		const initialProtocolUrls = this.resolveProtocolUrls();
 
 		// Create a URL handler to open file URIs in the active window
 		// or open new windows. The URL handler will be invoked from
@@ -599,12 +601,12 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingProtocolUrlsToHandle, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
+		this._register(new ElectronURLListener(initialProtocolUrls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
-		return pendingWindowOpenablesFromProtocolUrls;
+		return initialProtocolUrls.openables;
 	}
 
-	private resolveProtocolUrls(): { pendingProtocolUrlsToHandle: IProtocolUrl[]; pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] } {
+	private resolveProtocolUrls(): IInitialProtocolUrls {
 
 		// Windows/Linux: protocol handler invokes CLI with --open-url
 		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
@@ -623,8 +625,8 @@ export class CodeApplication extends Disposable {
 		// the app.
 		// Filter out blocked urls or invalid ones.
 
-		const pendingWindowOpenablesFromProtocolUrls: IWindowOpenable[] = [];
-		const pendingProtocolUrlsToHandle = [
+		const openables: IWindowOpenable[] = [];
+		const urls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
 		].map(url => {
@@ -654,7 +656,7 @@ export class CodeApplication extends Disposable {
 			if (windowOpenable) {
 				this.logService.trace('app#resolveProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
 
-				pendingWindowOpenablesFromProtocolUrls.push(windowOpenable);
+				openables.push(windowOpenable);
 
 				return false;
 			}
@@ -664,7 +666,7 @@ export class CodeApplication extends Disposable {
 			return true;
 		});
 
-		return { pendingProtocolUrlsToHandle: pendingProtocolUrlsToHandle, pendingWindowOpenablesFromProtocolUrls: pendingWindowOpenablesFromProtocolUrls };
+		return { urls, openables };
 	}
 
 	private shouldBlockURI(uri: URI): boolean {
@@ -1081,20 +1083,20 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private async openFirstWindow(accessor: ServicesAccessor, protocolUrlWindowOpenables: IWindowOpenable[]): Promise<ICodeWindow[]> {
+	private async openFirstWindow(accessor: ServicesAccessor, openables: IWindowOpenable[]): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// Open from protocol URL(s)
-		if (protocolUrlWindowOpenables.length > 0) {
+		// If we have openables (e.g. from protocol URLs), open them directly
+		if (openables.length > 0) {
 			return windowsMainService.open({
 				context,
 				cli: args,
-				urisToOpen: protocolUrlWindowOpenables,
+				urisToOpen: openables,
 				gotoLineMode: true,
 				initialStartup: true
-				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolUrls
+				// remoteAuthority: will be determined based on openables
 			});
 		}
 
