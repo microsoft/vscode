@@ -86,7 +86,7 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, isWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
@@ -625,8 +625,7 @@ export class CodeApplication extends Disposable {
 		// the app.
 		// Filter out blocked urls or invalid ones.
 
-		const openables: IWindowOpenable[] = [];
-		const emptyWindows: IProtocolUrl[] = [];
+		const openables: (IWindowOpenable | IOpenEmptyWindowOptions)[] = [];
 		const urls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
@@ -662,11 +661,15 @@ export class CodeApplication extends Disposable {
 			if (params.get('windowId') === '_blank') {
 				this.logService.trace(`app#resolveInitialProtocolUrls() found 'windowId=_blank' as parameter, protocol url will be handled as empty window to open:`, obj.uri.toString(true));
 
-				params.delete('windowId');
+				// Remove the windowId parameter from the URL since
+				// we consider this as handled by recording an empty
+				// window to open
 
+				params.delete('windowId');
 				obj.originalUrl = obj.uri.toString(true);
 				obj.uri = obj.uri.with({ query: params.toString() });
-				emptyWindows.push(obj);
+
+				openables.push({} /* empty window */);
 
 				return true; // still needs to be handled within empty window
 			}
@@ -676,7 +679,7 @@ export class CodeApplication extends Disposable {
 			return true; // handled within active window
 		});
 
-		return { urls, openables, emptyWindows };
+		return { urls, openables };
 	}
 
 	private shouldBlockURI(uri: URI): boolean {
@@ -1100,24 +1103,16 @@ export class CodeApplication extends Disposable {
 
 		// If we have openables from protocol URLs, open them directly
 		if (initialProtocolUrls.openables.length > 0) {
+			const windowOpenables = initialProtocolUrls.openables.filter(openable => isWindowOpenable(openable)) as IWindowOpenable[] /* TS bug */;
+
 			return windowsMainService.open({
 				context,
 				cli: args,
-				urisToOpen: initialProtocolUrls.openables,
+				urisToOpen: windowOpenables,
+				forceEmpty: windowOpenables.length === 0,
 				gotoLineMode: true,
 				initialStartup: true
 				// remoteAuthority: will be determined based on openables
-			});
-		}
-
-		// If we have empty windows from protocol URLs, open one directly
-		if (initialProtocolUrls.emptyWindows.length > 0) {
-			return windowsMainService.open({
-				context,
-				cli: args,
-				forceNewWindow: true,
-				forceEmpty: true,
-				gotoLineMode: true
 			});
 		}
 

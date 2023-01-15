@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 
 export interface IProtocolUrl {
 
@@ -36,17 +36,9 @@ export interface IInitialProtocolUrls {
 
 	/**
 	 * Initial protocol URLs that result in direct
-	 * `IWindowOpenable` instances. These are not
-	 * handled within the URL service but directly
-	 * result in a window to open (currently only
-	 * `file` and `vscode-remote` URLs).
+	 * `IWindowOpenable` or empty instances. These
+	 * are either handled directly by the window
+	 * when opening or within the empty window.
 	 */
-	readonly openables: IWindowOpenable[];
-
-	/**
-	 * Initial protocol URLs that result require
-	 * a new window to be handled within (having
-	 * a `windowId` property of `blank`).
-	 */
-	readonly emptyWindows: IProtocolUrl[];
+	readonly openables: (IWindowOpenable | IOpenEmptyWindowOptions)[];
 }

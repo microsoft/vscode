@@ -103,6 +103,15 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
+export function isWindowOpenable(obj: unknown): obj is IWindowOpenable {
+	if (!obj) {
+		return false;
+	}
+
+	const candidate = obj as IWindowOpenable;
+	return isWorkspaceToOpen(candidate) || isFolderToOpen(candidate) || isFileToOpen(candidate);
+}
+
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
