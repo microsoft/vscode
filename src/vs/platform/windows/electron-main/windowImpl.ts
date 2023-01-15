@@ -31,7 +31,7 @@ import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protoco
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
@@ -50,6 +50,7 @@ import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, su
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -183,6 +184,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
@@ -915,23 +917,25 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Proxy
-		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
-			|| undefined;
+		if (!e || e.affectsConfiguration('http.proxy')) {
+			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
+				|| undefined;
 
-		if (newHttpProxy?.endsWith('/')) {
-			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
-		}
+			if (newHttpProxy?.endsWith('/')) {
+				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+			}
 
-		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
-		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
-			this.currentHttpProxy = newHttpProxy;
-			this.currentNoProxy = newNoProxy;
+			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
+				this.currentHttpProxy = newHttpProxy;
+				this.currentNoProxy = newNoProxy;
 
-			const proxyRules = newHttpProxy || '';
-			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
-			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-			this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				const proxyRules = newHttpProxy || '';
+				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
+				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
+				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+			}
 		}
 	}
 
@@ -1085,6 +1089,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
+		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1656,6 +1661,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	override dispose(): void {
 		super.dispose();
+
+		// Deregister the loggers for this window
+		this.loggerMainService.deregisterLoggers(this.id);
 
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}

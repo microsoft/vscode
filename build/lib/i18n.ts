@@ -580,15 +580,16 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 	});
 }
 
-function createL10nBundleForExtension(extensionFolderName: string): NodeJS.ReadWriteStream {
+function createL10nBundleForExtension(extensionFolderName: string, prefixWithBuildFolder: boolean): NodeJS.ReadWriteStream {
+	const prefix = prefixWithBuildFolder ? '.build/' : '';
 	return gulp
 		.src([
 			// For source code of extensions
-			`extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
+			`${prefix}extensions/${extensionFolderName}/{src,client,server}/**/*.{ts,tsx}`,
 			// // For any dependencies pulled in (think vscode-css-languageservice or @vscode/emmet-helper)
-			`extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
+			`${prefix}extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/*.{js,jsx}`,
 			// // For any dependencies pulled in that bundle @vscode/l10n. They needed to export the bundle
-			`extensions/${extensionFolderName}/**/node_modules/{@vscode,vscode-*}/**/bundle.l10n.json`,
+			`${prefix}extensions/${extensionFolderName}/**/bundle.l10n.json`,
 		])
 		.pipe(map(function (data, callback) {
 			const file = data as File;
@@ -643,6 +644,12 @@ function createL10nBundleForExtension(extensionFolderName: string): NodeJS.ReadW
 		}));
 }
 
+const EXTERNAL_EXTENSIONS = [
+	'ms-vscode.js-debug',
+	'ms-vscode.js-debug-companion',
+	'ms-vscode.vscode-js-profile-table',
+];
+
 export function createXlfFilesForExtensions(): ThroughStream {
 	let counter: number = 0;
 	let folderStreamEnded: boolean = false;
@@ -672,7 +679,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 		}
 		merge(
 			gulp.src([`.build/extensions/${extensionFolderName}/package.nls.json`, `.build/extensions/${extensionFolderName}/**/nls.metadata.json`], { allowEmpty: true }),
-			createL10nBundleForExtension(extensionFolderName)
+			createL10nBundleForExtension(extensionFolderName, EXTERNAL_EXTENSIONS.includes(extensionId))
 		).pipe(through(function (file: File) {
 			if (file.isBuffer()) {
 				const buffer: Buffer = file.contents as Buffer;

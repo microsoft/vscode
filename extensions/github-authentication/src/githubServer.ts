@@ -561,14 +561,16 @@ export class GitHubServer implements IGitHubServer {
 		}
 
 		if (this._type === AuthProviderType.github) {
-			return await this.checkEduDetails(token);
+			return await this.checkUserDetails(token);
 		}
 
 		// GHES
 		await this.checkEnterpriseVersion(token);
 	}
 
-	private async checkEduDetails(token: string): Promise<void> {
+	private async checkUserDetails(token: string): Promise<void> {
+		let edu: string | undefined;
+
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
 				headers: {
@@ -580,24 +582,33 @@ export class GitHubServer implements IGitHubServer {
 
 			if (result.ok) {
 				const json: { student: boolean; faculty: boolean } = await result.json();
-
-				/* __GDPR__
-					"session" : {
-						"owner": "TylerLeonhardt",
-						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryReporter.sendTelemetryEvent('session', {
-					isEdu: json.student
-						? 'student'
-						: json.faculty
-							? 'faculty'
-							: 'none'
-				});
+				edu = json.student
+					? 'student'
+					: json.faculty
+						? 'faculty'
+						: 'none';
 			}
 		} catch (e) {
 			// No-op
 		}
+
+		let managed: string | undefined;
+		try {
+			const user = await this.getUserInfo(token);
+			// Apparently, this is how you tell if a user is an EMU...
+			managed = user.accountName.includes('_') ? 'true' : 'false';
+		} catch (e) {
+			// No-op
+		}
+
+		if (edu === undefined && managed === undefined) {
+			return;
+		}
+
+		this._telemetryReporter.sendTelemetryEvent('session', {
+			isEdu: edu ?? 'unknown',
+			isManaged: managed ?? 'unknown'
+		});
 	}
 
 	private async checkEnterpriseVersion(token: string): Promise<void> {

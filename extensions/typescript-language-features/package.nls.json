@@ -194,6 +194,8 @@
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members.",
 	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace.",
 
+	"typescript.experimental.tsserver.web.enableProjectWideIntellisense": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
+
 	"walkthroughs.nodejsWelcome.title": "Get started with JavaScript and Node.js",
 	"walkthroughs.nodejsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",
 

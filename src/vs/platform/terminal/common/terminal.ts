@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
@@ -209,7 +209,7 @@ export enum TerminalIpcChannels {
 	/**
 	 * Deals with logging from the pty host process.
 	 */
-	Log = 'log',
+	Logger = 'logger',
 	/**
 	 * Enables the detection of unresponsive pty hosts.
 	 */

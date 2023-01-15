@@ -89,6 +89,14 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 		return super.getInstalled(type, profileLocation);
 	}
 
+	override getMetadata(local: ILocalExtension, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<Metadata | undefined> {
+		return super.getMetadata(local, profileLocation);
+	}
+
+	override updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<ILocalExtension> {
+		return super.updateMetadata(local, metadata, profileLocation);
+	}
+
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
 		if (vsix.scheme === Schemas.file) {
 			return { location: vsix, async cleanup() { } };

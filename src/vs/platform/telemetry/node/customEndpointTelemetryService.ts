@@ -7,7 +7,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -21,6 +21,7 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService
@@ -50,7 +51,7 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			const channel = client.getChannel('telemetryAppender');
 			const appenders = [
 				new TelemetryAppenderClient(channel),
-				new TelemetryLogAppender(this.loggerService, this.environmentService, `[${endpoint.id}] `),
+				new TelemetryLogAppender(this.logService, this.loggerService, this.environmentService, this.productService, `[${endpoint.id}] `),
 			];
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({

@@ -27,7 +27,8 @@ import { IExtensionService, toExtension, toExtensionDescription } from 'vs/workb
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { buttonBackground, buttonForeground, buttonHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from 'vs/platform/theme/common/colorRegistry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -54,7 +55,6 @@ import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDa
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { errorIcon, infoIcon, manageExtensionIcon, preReleaseIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { isIOS, isWeb, language } from 'vs/base/common/platform';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
@@ -69,6 +69,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 import { isString } from 'vs/base/common/types';
+import { showWindowLogActionId } from 'vs/workbench/common/logConstants';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -135,7 +136,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		else {
 			const downloadUrl = await this.getDownloadUrl();
 			if (downloadUrl) {
-				additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${Constants.showWindowLogActionId}`);
+				additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", `command:${showWindowLogActionId}`);
 				promptChoices.push({
 					label: localize('download', "Try Downloading Manually..."),
 					run: () => this.openerService.open(downloadUrl).then(() => {
@@ -911,7 +912,7 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 			return;
 		}
 		super.update();
-		this._checked = this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
+		this._checked = this.extension.pinned;
 	}
 
 	override async run(): Promise<any> {
@@ -919,8 +920,8 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 			return;
 		}
 		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
-		const newIgnoresAutoUpdates = !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(this.extension);
-		this.extensionsWorkbenchService.setExtensionIgnoresUpdate(this.extension, newIgnoresAutoUpdates);
+		const newIgnoresAutoUpdates = !this.extension.pinned;
+		await this.extensionsWorkbenchService.pinExtension(this.extension, newIgnoresAutoUpdates);
 	}
 }
 

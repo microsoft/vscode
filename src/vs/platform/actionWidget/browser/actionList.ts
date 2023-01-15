@@ -8,6 +8,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -16,6 +17,7 @@ import { localize } from 'vs/nls';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { asCssValue } from 'vs/platform/theme/common/colorRegistry';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -28,7 +30,7 @@ export interface IRenderDelegate {
 export interface IListMenuItem<T extends IActionItem> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
-	readonly group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
+	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;
@@ -102,10 +104,12 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
-			data.icon.className = element.group.icon.codicon.classNames;
-			data.icon.style.color = element.group.icon.color ?? '';
+			data.icon.className = ThemeIcon.asClassName(element.group.icon);
+			if (element.group.icon.color) {
+				data.icon.style.color = asCssValue(element.group.icon.color.id);
+			}
 		} else {
-			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.className = ThemeIcon.asClassName(Codicon.lightBulb);
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 

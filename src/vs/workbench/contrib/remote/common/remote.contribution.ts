@@ -9,12 +9,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
-import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -32,8 +29,7 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
-import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
-import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -76,35 +72,24 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		const updateRemoteLogLevel = () => {
-			const connection = remoteAgentService.getConnection();
-			if (!connection) {
-				return;
-			}
-			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
-		};
-		updateRemoteLogLevel();
-		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService, loggerService));
 		}
 	}
 }
 
-class RemoteLogOutputChannels implements IWorkbenchContribution {
+class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
-			}
-		});
+		super();
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.withChannel('logger', async channel => this._register(new RemoteLoggerChannelClient(loggerService, channel)));
+		}
 	}
 }
 

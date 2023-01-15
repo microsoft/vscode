@@ -409,9 +409,6 @@ export class ExtensionPointContribution<T> {
 }
 
 export const ExtensionHostLogFileName = 'exthost';
-export const localExtHostLog = 'extHostLog';
-export const remoteExtHostLog = 'remoteExtHostLog';
-export const webWorkerExtHostLog = 'webWorkerExtHostLog';
 
 export interface IWillActivateEvent {
 	readonly event: string;

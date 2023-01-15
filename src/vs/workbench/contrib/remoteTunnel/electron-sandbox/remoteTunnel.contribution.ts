@@ -20,7 +20,7 @@ import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IOutputService, registerLogChannel } from 'vs/workbench/services/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -113,7 +113,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		const remoteTunnelServiceLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
 
-		this.logger = this._register(loggerService.createLogger(remoteTunnelServiceLogResource, { name: LOGGER_NAME }));
+		this.logger = this._register(loggerService.createLogger(remoteTunnelServiceLogResource, { name: LOGGER_NAME, id: LOG_CHANNEL_ID }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
@@ -149,8 +149,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 
 		this.registerCommands();
-
-		registerLogChannel(LOG_CHANNEL_ID, localize('remoteTunnelLog', "Remote Tunnel Service"), remoteTunnelServiceLogResource, fileService, logService);
 
 		this.initialize();
 

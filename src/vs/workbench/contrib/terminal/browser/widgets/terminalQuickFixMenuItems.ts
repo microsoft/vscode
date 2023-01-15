@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Schemas } from 'vs/base/common/network';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
@@ -55,16 +56,16 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 	return menuItems;
 }
 
-function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
+function getQuickFixIcon(quickFix: TerminalQuickFix): ThemeIcon {
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
 			if ('uri' in quickFix.action && quickFix.action.uri) {
 				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
-				return { codicon: isUrl ? Codicon.linkExternal : Codicon.goToFile };
+				return isUrl ? Codicon.linkExternal : Codicon.goToFile;
 			}
 		case TerminalQuickFixType.Command:
-			return { codicon: Codicon.run };
+			return Codicon.run;
 		case TerminalQuickFixType.Port:
-			return { codicon: Codicon.debugDisconnect };
+			return Codicon.debugDisconnect;
 	}
 }

@@ -24,6 +24,7 @@ interface IProfileExtension {
 	displayName?: string;
 	preRelease?: boolean;
 	disabled?: boolean;
+	version?: string;
 }
 
 export class ExtensionsResource implements IProfileResource {
@@ -71,14 +72,20 @@ export class ExtensionsResource implements IProfileResource {
 				}
 			}
 			if (extensionsToInstall.length) {
-				const galleryExtensions = await this.extensionGalleryService.getExtensions(extensionsToInstall.map(e => ({ ...e.identifier, hasPreRelease: e.preRelease })), CancellationToken.None);
+				const galleryExtensions = await this.extensionGalleryService.getExtensions(extensionsToInstall.map(e => ({ ...e.identifier, version: e.version, hasPreRelease: e.version ? undefined : e.preRelease })), CancellationToken.None);
 				await Promise.all(extensionsToInstall.map(async e => {
 					const extension = galleryExtensions.find(galleryExtension => areSameExtensions(galleryExtension.identifier, e.identifier));
 					if (!extension) {
 						return;
 					}
 					if (await this.extensionManagementService.canInstall(extension)) {
-						await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true, installPreReleaseVersion: e.preRelease, profileLocation: profile.extensionsResource } /* set isMachineScoped value to prevent install and sync dialog in web */);
+						await this.extensionManagementService.installFromGallery(extension, {
+							isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
+							donotIncludePackAndDependencies: true,
+							installGivenVersion: !!e.version,
+							installPreReleaseVersion: e.preRelease,
+							profileLocation: profile.extensionsResource
+						});
 					} else {
 						this.logService.info(`Profile: Skipped installing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
 					}
@@ -116,7 +123,10 @@ export class ExtensionsResource implements IProfileResource {
 				if (disabled) {
 					profileExtension.disabled = true;
 				}
-				if (preRelease) {
+				if (extension.type === ExtensionType.User && extension.pinned) {
+					profileExtension.version = extension.manifest.version;
+				}
+				if (!profileExtension.version && preRelease) {
 					profileExtension.preRelease = true;
 				}
 				result.push(profileExtension);

@@ -110,6 +110,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly implicitProjectConfiguration: ImplicitProjectConfiguration;
 	readonly disableAutomaticTypeAcquisition: boolean;
 	readonly useSyntaxServer: SyntaxServerConfiguration;
+	readonly enableProjectWideIntellisenseOnWeb: boolean;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
@@ -140,6 +141,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			implicitProjectConfiguration: new ImplicitProjectConfiguration(configuration),
 			disableAutomaticTypeAcquisition: this.readDisableAutomaticTypeAcquisition(configuration),
 			useSyntaxServer: this.readUseSyntaxServer(configuration),
+			enableProjectWideIntellisenseOnWeb: this.readEnableProjectWideIntellisenseOnWeb(configuration),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
@@ -221,5 +223,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	protected readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
+	}
+
+	private readEnableProjectWideIntellisenseOnWeb(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.experimental.tsserver.web.enableProjectWideIntellisense', false);
 	}
 }

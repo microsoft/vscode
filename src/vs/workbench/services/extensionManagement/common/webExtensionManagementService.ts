@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -48,6 +48,9 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfile = this._onDidChangeProfile.event;
+
+	private readonly _onDidUpdateExtensionMetadata = this._register(new Emitter<ILocalExtension>());
+	override readonly onDidUpdateExtensionMetadata = this._onDidUpdateExtensionMetadata.event;
 
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -109,8 +112,20 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
-	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
-		return this.webExtensionsScannerService.scanMetadata(extension.location, this.userDataProfileService.currentProfile.extensionsResource);
+	async getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
+		const scannedExtension = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
+		return scannedExtension?.metadata;
+	}
+
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+		// unset if false
+		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
+		metadata.isBuiltin = metadata.isBuiltin || undefined;
+		metadata.pinned = metadata.pinned || undefined;
+		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
+		const updatedLocalExtension = toLocalExtension(updatedExtension);
+		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
+		return updatedLocalExtension;
 	}
 
 	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
@@ -129,10 +144,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return !!configuredExtensionKind && configuredExtensionKind.includes('web');
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		return local;
-	}
-
 	protected getCurrentExtensionsManifestLocation(): URI {
 		return this.userDataProfileService.currentProfile.extensionsResource;
 	}
@@ -148,7 +159,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
-	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
 	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
@@ -183,7 +193,8 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		preRelease: !!metadata.preRelease,
 		targetPlatform: TargetPlatform.WEB,
-		updated: !!metadata.updated
+		updated: !!metadata.updated,
+		pinned: !!metadata?.pinned,
 	};
 }
 
@@ -234,6 +245,7 @@ class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtensio
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
 					: metadata?.preRelease /* Respect the existing pre-release flag if it was set */);
 		}
+		metadata.pinned = this.options.installGivenVersion ? true : undefined;
 
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.options.profileLocation)
 			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata, this.options.profileLocation);

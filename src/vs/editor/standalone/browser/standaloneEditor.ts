@@ -102,7 +102,8 @@ export interface IDiffNavigatorOptions {
 }
 
 export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
-	return new DiffNavigator(diffEditor, opts);
+	const instantiationService = StandaloneServices.initialize({});
+	return instantiationService.createInstance(DiffNavigator, diffEditor, opts);
 }
 
 /**
