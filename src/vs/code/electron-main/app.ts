@@ -547,13 +547,13 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Setup Protocol URL Handlers
-		const protocolUrlWindowOpenables = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
+		const initialProtocolUrls = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
 		// Open Windows
-		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, protocolUrlWindowOpenables));
+		await appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, initialProtocolUrls));
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
@@ -568,7 +568,7 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IWindowOpenable[] {
+	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
@@ -603,7 +603,7 @@ export class CodeApplication extends Disposable {
 		// Watch Electron URLs and forward them to the UrlService
 		this._register(new ElectronURLListener(initialProtocolUrls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
-		return initialProtocolUrls.openables;
+		return initialProtocolUrls;
 	}
 
 	private resolveProtocolUrls(): IInitialProtocolUrls {
@@ -1083,17 +1083,17 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private async openFirstWindow(accessor: ServicesAccessor, openables: IWindowOpenable[]): Promise<ICodeWindow[]> {
+	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// If we have openables (e.g. from protocol URLs), open them directly
-		if (openables.length > 0) {
+		// If we have openables from protocol URLs, open them directly
+		if (initialProtocolUrls.openables.length > 0) {
 			return windowsMainService.open({
 				context,
 				cli: args,
-				urisToOpen: openables,
+				urisToOpen: initialProtocolUrls.openables,
 				gotoLineMode: true,
 				initialStartup: true
 				// remoteAuthority: will be determined based on openables
