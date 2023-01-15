@@ -576,7 +576,7 @@ export class CodeApplication extends Disposable {
 		// Check for initial URLs to handle from protocol url
 		// invocations that happened right on startup
 
-		const initialProtocolUrls = this.resolveProtocolUrls();
+		const initialProtocolUrls = this.resolveInitialProtocolUrls();
 
 		// Create a URL handler to open file URIs in the active window
 		// or open new windows. The URL handler will be invoked from
@@ -606,18 +606,18 @@ export class CodeApplication extends Disposable {
 		return initialProtocolUrls;
 	}
 
-	private resolveProtocolUrls(): IInitialProtocolUrls {
+	private resolveInitialProtocolUrls(): IInitialProtocolUrls {
 
 		// Windows/Linux: protocol handler invokes CLI with --open-url
 		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
 		if (protocolUrlsFromCommandLine.length) {
-			this.logService.trace('app#resolveProtocolUrls() protocol urls from command line:', protocolUrlsFromCommandLine);
+			this.logService.trace('app#resolveInitialProtocolUrls() protocol urls from command line:', protocolUrlsFromCommandLine);
 		}
 
 		// macOS: open-url events that were received before the app is ready
 		const protocolUrlsFromEvent = ((<any>global).getOpenUrls() || []) as string[];
 		if (protocolUrlsFromEvent.length) {
-			this.logService.trace(`app#resolveProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
+			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
 
 		// Go over all protocol urls and split window openables
@@ -626,6 +626,7 @@ export class CodeApplication extends Disposable {
 		// Filter out blocked urls or invalid ones.
 
 		const openables: IWindowOpenable[] = [];
+		const emptyWindows: IProtocolUrl[] = [];
 		const urls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
@@ -633,40 +634,49 @@ export class CodeApplication extends Disposable {
 			try {
 				return { uri: URI.parse(url), originalUrl: url };
 			} catch {
-				this.logService.trace('app#resolveProtocolUrls() protocol url failed to parse:', url);
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url failed to parse:', url);
 
 				return undefined;
 			}
 		}).filter((obj): obj is IProtocolUrl => {
 			if (!obj) {
-				return false;
+				return false; // invalid
 			}
 
-			// If URI should be blocked, filter it out
 			if (this.shouldBlockURI(obj.uri)) {
-				this.logService.trace('app#resolveProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
 
-				return false;
+				return false; // blocked
 			}
 
-			// Filter out any protocol url that wants to open as window so that
-			// we open the right set of windows on startup and not restore the
-			// previous workspace too.
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(obj.uri);
 			if (windowOpenable) {
-				this.logService.trace('app#resolveProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
 
 				openables.push(windowOpenable);
 
-				return false;
+				return false; // handled as window to open
 			}
 
-			this.logService.trace('app#resolveProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
+			const params = new URLSearchParams(obj.uri.query);
+			if (params.get('windowId') === '_blank') {
+				this.logService.trace(`app#resolveInitialProtocolUrls() found 'windowId=_blank' as parameter, protocol url will be handled as empty window to open:`, obj.uri.toString(true));
 
-			return true;
+				params.delete('windowId');
+
+				obj.originalUrl = obj.uri.toString(true);
+				obj.uri = obj.uri.with({ query: params.toString() });
+				emptyWindows.push(obj);
+
+				return true; // still needs to be handled within empty window
+			}
+
+			this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
+
+			return true; // handled within active window
 		});
 
-		return { urls, openables };
+		return { urls, openables, emptyWindows };
 	}
 
 	private shouldBlockURI(uri: URI): boolean {
@@ -904,7 +914,6 @@ export class CodeApplication extends Disposable {
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
-
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -1085,6 +1094,7 @@ export class CodeApplication extends Disposable {
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
@@ -1097,6 +1107,17 @@ export class CodeApplication extends Disposable {
 				gotoLineMode: true,
 				initialStartup: true
 				// remoteAuthority: will be determined based on openables
+			});
+		}
+
+		// If we have empty windows from protocol URLs, open one directly
+		if (initialProtocolUrls.emptyWindows.length > 0) {
+			return windowsMainService.open({
+				context,
+				cli: args,
+				forceNewWindow: true,
+				forceEmpty: true,
+				gotoLineMode: true
 			});
 		}
 

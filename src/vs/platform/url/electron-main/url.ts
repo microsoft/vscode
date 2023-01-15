@@ -26,13 +26,27 @@ export interface IInitialProtocolUrls {
 
 	/**
 	 * Initial protocol URLs to handle that are not
-	 * already converted to `IWindowOpenable` instances.
+	 * already converted to `IWindowOpenable` or empty
+	 * window instances.
+	 *
+	 * These URLs will be handled by the URL service
+	 * in the active window (i.e. forwarded to extensions).
 	 */
 	readonly urls: IProtocolUrl[];
 
 	/**
 	 * Initial protocol URLs that result in direct
-	 * `IWindowOpenable` instances.
+	 * `IWindowOpenable` instances. These are not
+	 * handled within the URL service but directly
+	 * result in a window to open (currently only
+	 * `file` and `vscode-remote` URLs).
 	 */
 	readonly openables: IWindowOpenable[];
+
+	/**
+	 * Initial protocol URLs that result require
+	 * a new window to be handled within (having
+	 * a `windowId` property of `blank`).
+	 */
+	readonly emptyWindows: IProtocolUrl[];
 }
