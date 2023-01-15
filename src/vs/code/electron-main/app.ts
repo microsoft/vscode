@@ -86,7 +86,7 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IOpenEmptyWindowOptions, IWindowOpenable, isWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
@@ -568,7 +568,7 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls {
+	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls | undefined {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
@@ -595,12 +595,12 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		const initialProtocolUrls = this.resolveInitialProtocolUrls();
-		this._register(new ElectronURLListener(initialProtocolUrls.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
+		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
 	}
 
-	private resolveInitialProtocolUrls(): IInitialProtocolUrls {
+	private resolveInitialProtocolUrls(): IInitialProtocolUrls | undefined {
 
 		/**
 		 * Protocol URL handling on startup is complex,
@@ -620,7 +620,11 @@ export class CodeApplication extends Disposable {
 			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
 
-		const openables: (IWindowOpenable | IOpenEmptyWindowOptions)[] = [];
+		if (protocolUrlsFromCommandLine.length + protocolUrlsFromEvent.length === 0) {
+			return undefined;
+		}
+
+		let openables: IWindowOpenable[] | undefined = undefined;
 		const urls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
@@ -647,26 +651,12 @@ export class CodeApplication extends Disposable {
 			if (windowOpenable) {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
 
+				if (!openables) {
+					openables = [];
+				}
 				openables.push(windowOpenable);
 
 				return false; // handled as window to open
-			}
-
-			const params = new URLSearchParams(obj.uri.query);
-			if (params.get('windowId') === '_blank') {
-				this.logService.trace(`app#resolveInitialProtocolUrls() found 'windowId=_blank' as parameter, protocol url will be handled in an empty window to open:`, obj.uri.toString(true));
-
-				// Remove the windowId parameter from the URL since
-				// we consider this as handled by recording an empty
-				// window to open
-
-				params.delete('windowId');
-				obj.originalUrl = obj.uri.toString(true);
-				obj.uri = obj.uri.with({ query: params.toString() });
-
-				openables.push({} /* empty window */);
-
-				return true; // still needs to be handled within the empty window
 			}
 
 			this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
@@ -1090,25 +1080,59 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
-	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls): Promise<ICodeWindow[]> {
+	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// If we have openables from protocol URLs, open them directly
-		if (initialProtocolUrls.openables.length > 0) {
-			const windowOpenables = initialProtocolUrls.openables.filter((openable): openable is IWindowOpenable => isWindowOpenable(openable));
+		// First check for windows from protocol links to open
+		if (initialProtocolUrls) {
 
-			return windowsMainService.open({
-				context,
-				cli: args,
-				urisToOpen: windowOpenables,
-				forceEmpty: windowOpenables.length === 0, // this means we have empty windows to open
-				gotoLineMode: true,
-				initialStartup: true
-				// remoteAuthority: will be determined based on openables
-			});
+			// Openables can open as windows directly
+			if (Array.isArray(initialProtocolUrls.openables) && initialProtocolUrls.openables.length > 0) {
+				return windowsMainService.open({
+					context,
+					cli: args,
+					urisToOpen: initialProtocolUrls.openables,
+					gotoLineMode: true,
+					initialStartup: true
+					// remoteAuthority: will be determined based on openables
+				});
+			}
+
+			// Protocol links with `windowId=_blank` on startup
+			// should be handled in a special way:
+			// We take the first one of these and open an empty
+			// window for it. This ensures we are not restoring
+			// all windows of the previous session.
+			// If there are any more URLs like these, they will
+			// be handled from the URL listeners installed later.
+
+			if (initialProtocolUrls.urls.length > 0) {
+				for (const protocolUrl of initialProtocolUrls.urls) {
+					const params = new URLSearchParams(protocolUrl.uri.query);
+					if (params.get('windowId') === '_blank') {
+
+						// It is important here that we remove `windowId=_blank` from
+						// this URL because here we open an empty window for it.
+
+						params.delete('windowId');
+						protocolUrl.originalUrl = protocolUrl.uri.toString(true);
+						protocolUrl.uri = protocolUrl.uri.with({ query: params.toString() });
+
+						return windowsMainService.open({
+							context,
+							cli: args,
+							forceNewWindow: true,
+							forceEmpty: true,
+							gotoLineMode: true,
+							initialStartup: true
+							// remoteAuthority: will be determined based on openables
+						});
+					}
+				}
+			}
 		}
 
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;

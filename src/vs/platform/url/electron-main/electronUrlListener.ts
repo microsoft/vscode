@@ -34,17 +34,19 @@ export class ElectronURLListener {
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		initialProtocolUrls: IProtocolUrl[],
+		initialProtocolUrls: IProtocolUrl[] | undefined,
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
 		environmentMainService: IEnvironmentMainService,
 		productService: IProductService,
 		private readonly logService: ILogService
 	) {
-		logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.map(url => url.originalUrl));
+		if (initialProtocolUrls) {
+			logService.trace('ElectronURLListener initialUrisToHandle:', initialProtocolUrls.map(url => url.originalUrl));
 
-		// the initial set of URIs we need to handle once the window is ready
-		this.uris = initialProtocolUrls;
+			// the initial set of URIs we need to handle once the window is ready
+			this.uris = initialProtocolUrls;
+		}
 
 		// Windows: install as protocol handler
 		if (isWindows) {
