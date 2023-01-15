@@ -573,14 +573,9 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
 
-		// Check for initial URLs to handle from protocol url
-		// invocations that happened right on startup
-
-		const initialProtocolUrls = this.resolveInitialProtocolUrls();
-
-		// Create a URL handler to open file URIs in the active window
-		// or open new windows. The URL handler will be invoked from
-		// protocol invocations outside of VSCode.
+		// Install URL handlers that deal with protocl URLs either
+		// from this process by opening windows and/or by forwarding
+		// the URLs into a window process to be handled there.
 
 		const app = this;
 		urlService.registerHandler({
@@ -589,7 +584,6 @@ export class CodeApplication extends Disposable {
 			}
 		});
 
-		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = this._register(new ActiveWindowManager({
 			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
 			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
@@ -600,13 +594,19 @@ export class CodeApplication extends Disposable {
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
-		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(initialProtocolUrls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
+		const initialProtocolUrls = this.resolveInitialProtocolUrls();
+		this._register(new ElectronURLListener(initialProtocolUrls.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
 	}
 
 	private resolveInitialProtocolUrls(): IInitialProtocolUrls {
+
+		/**
+		 * Protocol URL handling on startup is complex,
+		 * refer to {@link IInitialProtocolUrls} for an
+		 * explainer.
+		 */
 
 		// Windows/Linux: protocol handler invokes CLI with --open-url
 		const protocolUrlsFromCommandLine = this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [];
@@ -619,11 +619,6 @@ export class CodeApplication extends Disposable {
 		if (protocolUrlsFromEvent.length) {
 			this.logService.trace(`app#resolveInitialProtocolUrls() protocol urls from macOS 'open-url' event:`, protocolUrlsFromEvent);
 		}
-
-		// Go over all protocol urls and split window openables
-		// from other protocol urls that need to be handled within
-		// the app.
-		// Filter out blocked urls or invalid ones.
 
 		const openables: (IWindowOpenable | IOpenEmptyWindowOptions)[] = [];
 		const urls = [
@@ -659,7 +654,7 @@ export class CodeApplication extends Disposable {
 
 			const params = new URLSearchParams(obj.uri.query);
 			if (params.get('windowId') === '_blank') {
-				this.logService.trace(`app#resolveInitialProtocolUrls() found 'windowId=_blank' as parameter, protocol url will be handled as empty window to open:`, obj.uri.toString(true));
+				this.logService.trace(`app#resolveInitialProtocolUrls() found 'windowId=_blank' as parameter, protocol url will be handled in an empty window to open:`, obj.uri.toString(true));
 
 				// Remove the windowId parameter from the URL since
 				// we consider this as handled by recording an empty
@@ -671,7 +666,7 @@ export class CodeApplication extends Disposable {
 
 				openables.push({} /* empty window */);
 
-				return true; // still needs to be handled within empty window
+				return true; // still needs to be handled within the empty window
 			}
 
 			this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
@@ -1103,13 +1098,13 @@ export class CodeApplication extends Disposable {
 
 		// If we have openables from protocol URLs, open them directly
 		if (initialProtocolUrls.openables.length > 0) {
-			const windowOpenables = initialProtocolUrls.openables.filter(openable => isWindowOpenable(openable)) as IWindowOpenable[] /* TS bug */;
+			const windowOpenables = initialProtocolUrls.openables.filter((openable): openable is IWindowOpenable => isWindowOpenable(openable));
 
 			return windowsMainService.open({
 				context,
 				cli: args,
 				urisToOpen: windowOpenables,
-				forceEmpty: windowOpenables.length === 0,
+				forceEmpty: windowOpenables.length === 0, // this means we have empty windows to open
 				gotoLineMode: true,
 				initialStartup: true
 				// remoteAuthority: will be determined based on openables
@@ -1126,7 +1121,7 @@ export class CodeApplication extends Disposable {
 		const forceProfile = args.profile;
 		const forceTempProfile = args['profile-temp'];
 
-		// Start without file/folder arguments
+		// Started without file/folder arguments
 		if (!hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 
 			// Force new window
