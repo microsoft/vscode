@@ -114,7 +114,6 @@ export class WorkbenchToolBar extends ToolBar {
 
 		const extraSecondary: IAction[] = [];
 
-		let someAreHidden = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
 		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
 			for (let i = 0; i < primary.length; i++) {
@@ -132,7 +131,6 @@ export class WorkbenchToolBar extends ToolBar {
 
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
-					someAreHidden = true;
 					primary[i] = undefined!;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
 						extraSecondary[i] = action;
@@ -197,7 +195,7 @@ export class WorkbenchToolBar extends ToolBar {
 				if (this._options?.resetMenu && !menuIds) {
 					menuIds = [this._options.resetMenu];
 				}
-				if (someAreHidden && menuIds) {
+				if (menuIds) {
 					actions.push(new Separator());
 					actions.push(toAction({
 						id: 'resetThisMenu',
