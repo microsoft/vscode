@@ -469,7 +469,7 @@ export class LabelService extends Disposable implements ILabelService {
 			label = formatting.authorityPrefix + label;
 		}
 
-		return label.replace(sepRegexp, formatting.separator);
+		return formatting.separator ? label.replace(sepRegexp, formatting.separator) : label;
 	}
 
 	private appendWorkspaceSuffix(label: string, uri: URI): string {
