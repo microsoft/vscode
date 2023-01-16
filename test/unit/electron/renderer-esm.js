@@ -95,7 +95,7 @@ function initLoader(opts) {
 	const baseUrl = pathToFileURL(path.join(__dirname, `../../../${outdir}/`));
 	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
-	const _excludeGlob = '**/{node,electron-browser,electron-main}/**/*.test';
+	const _excludeGlob = '**/{node,electron-browser,electron-main}/**/*.{test,integrationTest}';
 
 	// set loader
 	/**
@@ -105,7 +105,16 @@ function initLoader(opts) {
 	function esmRequire(modules, callback, errorback) {
 
 		modules = modules.filter(file => {
-			return !minimatch(file, _excludeGlob);
+
+			if (!minimatch(file, _excludeGlob)) {
+				return true;
+			}
+
+			// filtered out -> warn when not default config
+			if (opts.runGlob || opts.run) {
+				console.warn(`[EXCLUDED] ${file}`);
+				return false;
+			}
 		});
 
 
