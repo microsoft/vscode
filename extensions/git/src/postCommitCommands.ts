@@ -93,22 +93,23 @@ export class CommitCommandsCenter {
 		const root = Uri.file(repository.root);
 
 		// Migrate post commit command storage
-		this.migratePostCommitCommandStorage();
-
-		const onRememberPostCommitCommandChange = async () => {
-			const config = workspace.getConfiguration('git', root);
-			if (!config.get<boolean>('rememberPostCommitCommand')) {
-				await this.globalState.update(this.getGlobalStateKey(), undefined);
-			}
-		};
-		this.disposables.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('git.rememberPostCommitCommand', root)) {
+		this.migratePostCommitCommandStorage()
+			.then(() => {
+				const onRememberPostCommitCommandChange = async () => {
+					const config = workspace.getConfiguration('git', root);
+					if (!config.get<boolean>('rememberPostCommitCommand')) {
+						await this.globalState.update(this.getGlobalStateKey(), undefined);
+					}
+				};
+				this.disposables.push(workspace.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('git.rememberPostCommitCommand', root)) {
+						onRememberPostCommitCommandChange();
+					}
+				}));
 				onRememberPostCommitCommandChange();
-			}
-		}));
-		onRememberPostCommitCommandChange();
 
-		this.disposables.push(postCommitCommandsProviderRegistry.onDidChangePostCommitCommandsProviders(() => this._onDidChange.fire()));
+				this.disposables.push(postCommitCommandsProviderRegistry.onDidChangePostCommitCommandsProviders(() => this._onDidChange.fire()));
+			});
 	}
 
 	getPrimaryCommand(): Command {
