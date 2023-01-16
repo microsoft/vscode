@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
 import Severity from 'vs/base/common/severity';
@@ -188,7 +188,7 @@ export interface ICustomDialogOptions {
 	readonly buttonDetails?: string[];
 	readonly markdownDetails?: ICustomDialogMarkdown[];
 	readonly classes?: string[];
-	readonly icon?: CSSIcon;
+	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
 }
 

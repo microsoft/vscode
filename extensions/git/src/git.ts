@@ -673,7 +673,7 @@ export class Git {
 		}
 
 		try {
-			const result = await this.exec('', args);
+			const result = await this.exec(os.homedir(), args);
 			return result.stdout;
 		} catch (err) {
 			if (typeof err.stdout === 'string') {
@@ -686,7 +686,7 @@ export class Git {
 	}
 
 	async addSafeDirectory(repositoryPath: string): Promise<void> {
-		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
+		await this.exec(os.homedir(), ['config', '--global', '--add', 'safe.directory', repositoryPath]);
 		return;
 	}
 }

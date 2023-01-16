@@ -23,7 +23,7 @@ import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplat
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getAllCodicons } from 'vs/base/common/codicons';
+import { getAllCodicons, getCodiconFontCharacters } from 'vs/base/common/codicons';
 import { IFileService } from 'vs/platform/files/common/files';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -32,7 +32,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { distinct } from 'vs/base/common/arrays';
 
 const SelectProfileSubMenu = new MenuId('SelectProfile');
 
@@ -520,7 +521,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		codiconQuickPicks.push({ label: `$(${defaultUserDataProfileIcon.id})`, description: localize('default', "Default") });
 		codiconQuickPicks.push({ label: '', type: 'separator' });
 		const currentIcon = profile?.shortName ? ThemeIcon.fromString(profile.shortName) : undefined;
-		for (const codicon of getAllCodicons()) {
+		const fontCharacters = getCodiconFontCharacters();
+		for (const codicon of distinct(getAllCodicons(), c => fontCharacters[c.id])) {
 			codiconQuickPicks.push({ label: `$(${codicon.id})`, description: `${codicon.id}${currentIcon?.id === codicon.id ? ` (${localize('current', "Current")})` : ''}` });
 		}
 		const result = await this.quickInputService.pick(codiconQuickPicks, {

@@ -20,7 +20,8 @@ import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -77,7 +78,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
-	iconClass: CSSIcon.asClassName(Codicon.quickInputBack),
+	iconClass: ThemeIcon.asClassName(Codicon.quickInputBack),
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
