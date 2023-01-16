@@ -3364,11 +3364,7 @@ export class CommandCenter {
 		}
 
 		for (const parentRepository of parentRepositories) {
-			// TODO - Mark repository to be opened
-
-			// Open Repository
-			await this.model.openRepository(parentRepository);
-			this.model.parentRepositories.delete(parentRepository);
+			await this.model.openParentRepository(parentRepository);
 		}
 	}
 

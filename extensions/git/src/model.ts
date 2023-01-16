@@ -432,16 +432,16 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				.find(f => pathEquals(f.uri.fsPath, repositoryRoot) || isDescendant(f.uri.fsPath, repositoryRoot)) === undefined;
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
-			if (isRepositoryOutsideWorkspace && parentRepositoryConfig !== 'always' && this.parentRepositories.get(repositoryRoot) !== true) {
+			if (isRepositoryOutsideWorkspace && parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
 				this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
-				if (parentRepositoryConfig === 'prompt') {
+				if (!this._parentRepositories.has(repositoryRoot)) {
 					// Show a notification if the parent repository is opened after the initial scan
-					if (this.state === 'initialized' && !this._parentRepositories.has(repositoryRoot)) {
+					if (this.state === 'initialized' && parentRepositoryConfig === 'prompt') {
 						this.showParentRepositoryNotification();
 					}
 
-					this._parentRepositories.set(repositoryRoot, false);
+					this._parentRepositories.set(repositoryRoot);
 				}
 
 				return;
@@ -471,6 +471,14 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			// noop
 			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${err}`);
 		}
+	}
+
+	async openParentRepository(repoPath: string): Promise<void> {
+		// Mark the repository to be opened from the parent folders
+		this.globalState.update(`parentRepository:${repoPath}`, true);
+
+		await this.openRepository(repoPath);
+		this.parentRepositories.delete(repoPath);
 	}
 
 	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
@@ -805,12 +813,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 			if (choice === always) {
 				for (const parentRepository of [...this.parentRepositories.keys()]) {
-					// Mark repository to be opened
-					this.parentRepositories.set(parentRepository, true);
-
-					// Open Repository
-					await this.openRepository(parentRepository);
-					this.parentRepositories.delete(parentRepository);
+					await this.openParentRepository(parentRepository);
 				}
 			}
 		}
