@@ -118,9 +118,10 @@ export interface IUserDataProfileContentHandler {
 	readProfile(idOrUri: string | URI, token: CancellationToken): Promise<string | null>;
 }
 
-export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
+export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settingsGear, localize('defaultProfileIcon', 'Icon for Default Profile.'));
 
 export const ManageProfilesSubMenu = new MenuId('Profiles');
+export const SelectProfileSubMenu = new MenuId('SelectProfile');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
 export const PROFILES_TTILE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
 export const PROFILES_CATEGORY = { ...PROFILES_TTILE };

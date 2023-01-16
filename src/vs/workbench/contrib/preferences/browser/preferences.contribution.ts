@@ -886,8 +886,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: 'workbench.action.openGlobalKeybindings',
 				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
 			},
-			group: '2_keybindings',
-			order: 1
+			group: '2_configuration',
+			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			command: {

@@ -548,19 +548,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: [{
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
-			}, {
-				id: MenuId.MenubarPreferencesMenu,
-				group: '2_keybindings',
-				order: 2
-			}, {
-				id: MenuId.GlobalActivity,
-				group: '2_keybindings',
-				order: 2
 			}],
-			menuTitles: {
-				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miimportKeyboardShortcutsFrom', comment: ['&& denotes a mnemonic'] }, "&&Migrate Keyboard Shortcuts from..."),
-				[MenuId.GlobalActivity.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
-			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:keymaps '))
 		});
 

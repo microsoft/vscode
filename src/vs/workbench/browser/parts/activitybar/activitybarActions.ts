@@ -393,6 +393,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
@@ -403,6 +404,10 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+	}
+
+	protected override computeTitle(): string {
+		return this.userDataProfileService.currentProfile.isDefault ? super.computeTitle() : localize('manage', "Manage {0} (Profile)", this.userDataProfileService.currentProfile.name);
 	}
 }
 

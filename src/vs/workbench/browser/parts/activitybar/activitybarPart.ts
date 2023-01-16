@@ -275,6 +275,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.toggleProfilesActivityAction()));
 		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.updateProfilesActivityAction()));
+		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.updateGlobalActivityAction()));
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -541,11 +542,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			preventLoopNavigation: true
 		}));
 
-		this.globalActivityAction = this._register(new ActivityAction({
-			id: 'workbench.actions.manage',
-			name: localize('manage', "Manage"),
-			cssClass: ThemeIcon.asClassName(ActivitybarPart.GEAR_ICON)
-		}));
+		this.globalActivityAction = this._register(new ActivityAction(this.createGlobalActivity()));
 
 		if (this.accountsVisibilityPreference) {
 			this.accountsActivityAction = this._register(new ActivityAction({
@@ -561,6 +558,25 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 		if (this.profilesVisibilityPreference) {
 			this.globalActivityActionBar.push(this.profilesActivityAction = new ActivityAction(this.createProfilesActivity()));
+		}
+	}
+
+	private createGlobalActivity(): IActivity {
+		const shortName = this.userDataProfileService.getShortName(this.userDataProfileService.currentProfile);
+		const icon = ThemeIcon.fromString(shortName) ?? ActivitybarPart.GEAR_ICON;
+		return {
+			id: 'workbench.actions.manage',
+			name: localize('manage', "Manage"),
+			cssClass: ThemeIcon.asClassName(icon),
+		};
+	}
+
+	private updateGlobalActivityAction() {
+		const activity = this.createGlobalActivity();
+		// the icon has changed, so we need to recreate the action
+		if (this.globalActivityActionBar && this.globalActivityAction && this.globalActivityAction?.activity.cssClass !== activity.cssClass) {
+			this.globalActivityActionBar.pull(this.globalActivityActionBar.length() - 1);
+			this.globalActivityActionBar.push(this.globalActivityAction = new ActivityAction(activity));
 		}
 	}
 
@@ -1068,7 +1084,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private get profilesVisibilityPreference(): boolean {
-		return this.userDataProfilesService.isEnabled() && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
+		return false;
+		// return this.userDataProfilesService.isEnabled() && this.storageService.getBoolean(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, StorageScope.PROFILE, true);
 	}
 
 	private set profilesVisibilityPreference(value: boolean) {

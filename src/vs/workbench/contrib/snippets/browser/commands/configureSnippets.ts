@@ -227,8 +227,8 @@ export class ConfigureSnippets extends SnippetsAction {
 		super({
 			id: 'workbench.action.openSnippets',
 			title: {
-				value: nls.localize('openSnippet.label', "Configure User Snippets"),
-				original: 'Configure User Snippets'
+				value: nls.localize('openSnippet.label', "User Snippets"),
+				original: 'User Snippets'
 			},
 			shortTitle: {
 				value: nls.localize('userSnippets', "User Snippets"),
@@ -238,7 +238,7 @@ export class ConfigureSnippets extends SnippetsAction {
 			f1: true,
 			menu: [
 				{ id: MenuId.MenubarPreferencesMenu, group: '3_snippets', order: 1 },
-				{ id: MenuId.GlobalActivity, group: '3_snippets', order: 1 },
+				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 4 },
 			]
 		});
 	}

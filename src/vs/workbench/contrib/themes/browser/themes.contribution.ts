@@ -671,28 +671,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
+	group: '2_configuration',
 	command: {
 		id: SelectColorThemeCommandId,
 		title: localize('selectTheme.label', "Color Theme")
 	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
-	command: {
-		id: SelectFileIconThemeCommandId,
-		title: localize('themes.selectIconTheme.label', "File Icon Theme")
-	},
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '4_themes',
-	command: {
-		id: SelectProductIconThemeCommandId,
-		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
-	},
 	order: 3
 });
+

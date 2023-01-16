@@ -110,59 +110,6 @@ export class RenameProfileAction extends Action2 {
 
 registerAction2(RenameProfileAction);
 
-registerAction2(class DeleteProfileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.profiles.actions.deleteProfile',
-			title: {
-				value: localize('delete profile', "Delete Profile..."),
-				original: 'Delete Profile...'
-			},
-			category: PROFILES_CATEGORY,
-			f1: true,
-			precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
-			menu: [
-				{
-					id: ManageProfilesSubMenu,
-					group: '3_manage_profiles',
-					when: PROFILES_ENABLEMENT_CONTEXT,
-					order: 2
-				}
-			]
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfileService = accessor.get(IUserDataProfileService);
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
-		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
-		const notificationService = accessor.get(INotificationService);
-
-		const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isTransient);
-		if (profiles.length) {
-			const picks = await quickInputService.pick(
-				profiles.map(profile => ({
-					label: profile.name,
-					description: profile.id === userDataProfileService.currentProfile.id ? localize('current', "Current") : undefined,
-					profile
-				})),
-				{
-					title: localize('delete specific profile', "Delete Profile..."),
-					placeHolder: localize('pick profile to delete', "Select Profiles to Delete"),
-					canPickMany: true
-				});
-			if (picks) {
-				try {
-					await Promise.all(picks.map(pick => userDataProfileManagementService.removeProfile(pick.profile)));
-				} catch (error) {
-					notificationService.error(error);
-				}
-			}
-		}
-	}
-});
-
 registerAction2(class ManageProfilesAction extends Action2 {
 	constructor() {
 		super({
