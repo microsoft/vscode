@@ -3364,8 +3364,7 @@ export class CommandCenter {
 		}
 
 		for (const parentRepository of parentRepositories) {
-			// Mark repository to be opened
-			this.model.parentRepositories.set(parentRepository, true);
+			// TODO - Mark repository to be opened
 
 			// Open Repository
 			await this.model.openRepository(parentRepository);

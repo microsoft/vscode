@@ -34,7 +34,7 @@ class RepositoryPick implements QuickPickItem {
 	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
-abstract class RepositoryMap<T> extends Map<string, T> {
+abstract class RepositoryMap<T = void> extends Map<string, T> {
 	constructor() {
 		super();
 		this.updateContextKey();
@@ -72,7 +72,7 @@ class UnsafeRepositoryMap extends RepositoryMap<string> {
  * Key   - normalized path used in user interface
  * Value - value indicating whether the repository should be opened
  */
-class ParentRepositoryMap extends RepositoryMap<boolean> {
+class ParentRepositoryMap extends RepositoryMap {
 	updateContextKey(): void {
 		commands.executeCommand('setContext', 'git.parentRepositoryCount', this.size);
 	}
