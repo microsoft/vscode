@@ -30,6 +30,9 @@ test -d node_modules || yarn
 yarn electron
 
 # Unit Tests
+echo
+echo "### Electron Unit Tests"
+echo
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
 		ELECTRON_ENABLE_LOGGING=1 \
@@ -41,3 +44,9 @@ else
 		"$CODE" \
 		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
 fi
+
+
+echo
+echo "### Node.js Unit Tests"
+echo
+mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --runGlob **/node/**/*.test.js "$@"
