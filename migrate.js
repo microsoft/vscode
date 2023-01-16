@@ -74,14 +74,14 @@ function migrateOne(filePath, fileContents) {
 		) {
 			// Rename to .cjs
 			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
-			writeDestFile(cjsFilePath, fileContents.toString());
+			writeDestFile(cjsFilePath, fileContents);
 		} else {
-			writeDestFile(filePath, fileContents.toString());
+			writeDestFile(filePath, fileContents);
 		}
 	} else if (fileExtension === '.mjs') {
-		writeDestFile(filePath, fileContents.toString());
+		writeDestFile(filePath, fileContents);
 	} else if (fileExtension === '.css') {
-		writeDestFile(filePath, fileContents.toString());
+		writeDestFile(filePath, fileContents);
 	} else if (filePath.endsWith('tsconfig.base.json')) {
 		const opts = JSON.parse(fileContents.toString());
 		opts.compilerOptions.module = 'ESNext';
@@ -351,7 +351,7 @@ function writeDestFile(srcFilePath, fileContents) {
 	util.ensureDir(path.dirname(destFilePath));
 
 	if (/(\.ts$)|(\.js$)|(\.html$)/.test(destFilePath)) {
-		fileContents = toggleComments(fileContents.toString());
+		fileContents = toggleComments(fileContents);
 	}
 
 	/** @type {Buffer | undefined} */
@@ -364,11 +364,12 @@ function writeDestFile(srcFilePath, fileContents) {
 	}
 
 	/**
-	 * @param {string} fileContents
+	 * @param {string|Buffer} fileContents
 	 */
 	function toggleComments(fileContents) {
-		const lines = fileContents.split(/\r\n|\r|\n/);
+		const lines = String(fileContents).split(/\r\n|\r|\n/);
 		let mode = 0;
+		let didChange = false;
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i];
 			if (mode === 0) {
@@ -388,6 +389,7 @@ function writeDestFile(srcFilePath, fileContents) {
 					mode = 0;
 					continue;
 				}
+				didChange = true;
 				lines[i] = '// ' + line;
 				continue;
 			}
@@ -397,13 +399,17 @@ function writeDestFile(srcFilePath, fileContents) {
 					mode = 0;
 					continue;
 				}
+				didChange = true;
 				lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
 					return indent;
 				});
 			}
 		}
 
-		return lines.join('\n');
+		if (didChange) {
+			return lines.join('\n');
+		}
+		return fileContents;
 	}
 }
 
