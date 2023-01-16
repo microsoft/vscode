@@ -49,7 +49,7 @@ import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -90,6 +90,7 @@ import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { LogService } from 'vs/platform/log/common/logService';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
