@@ -721,7 +721,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 	}
 
 	protected async doRun(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
-		const installed = await this.extensionsScanner.scanExtensions(null, undefined);
+		const installed = await this.extensionsScanner.scanExtensions(null, this.options.profileLocation);
 		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.gallery.identifier));
 
 		if (existingExtension) {
@@ -794,7 +794,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 
 	protected async doRun(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
 		const extensionKey = new ExtensionKey(this.identifier, this.manifest.version);
-		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, undefined);
+		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, this.options.profileLocation);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
 		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
 		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);

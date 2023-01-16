@@ -254,9 +254,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			throw canceled();
 		}
 
-		// Register logger for web worker exthost log
-		this._loggerService.registerLogger({ id: 'webWorkerExtHostLog', name: localize('name', "Worker Extension Host"), resource: this._extensionHostLogFile });
-
 		return protocol;
 	}
 
@@ -322,6 +319,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
+			logName: localize('name', "Worker Extension Host"),
 			autoStart: initData.autoStart,
 			remote: {
 				authority: this._environmentService.remoteAuthority,

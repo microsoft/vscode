@@ -167,16 +167,16 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		}
 		const outputDir = await this.outputDirectoryPromise;
 		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this.namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
-		const logger = this.loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true });
-		const id = await this.proxy.$register(name, file, false, languageId, extension.identifier.value);
+		const logger = this.loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true, hidden: true });
+		const id = await this.proxy.$register(name, file, languageId, extension.identifier.value);
 		return new ExtHostOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
 	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel | undefined, extension: IExtensionDescription): Promise<ExtHostLogOutputChannel> {
 		const extensionLogDir = await this.createExtensionLogDirectory(extension);
 		const file = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDir, `${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
-		const logger = this.loggerService.createLogger(file, { name, logLevel });
-		const id = await this.proxy.$register(name, file, true, undefined, extension.identifier.value);
+		const id = file.toString();
+		const logger = this.loggerService.createLogger(file, { id, name, logLevel, extensionId: extension.identifier.value });
 		return new ExtHostLogOutputChannel(id, name, logger, this.proxy, extension);
 	}
 

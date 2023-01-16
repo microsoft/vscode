@@ -15,11 +15,12 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { CommentThreadState } from 'vs/editor/common/languages';
@@ -188,7 +189,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): Codicon {
+	private getIcon(threadState?: CommentThreadState): ThemeIcon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {

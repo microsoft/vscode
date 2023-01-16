@@ -327,17 +327,26 @@ export interface ISyncUserDataProfile {
 	readonly shortName?: string;
 }
 
-export interface ISyncExtension {
+export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
+
+export interface ILocalSyncExtension {
 	identifier: IExtensionIdentifier;
-	preRelease?: boolean;
-	version?: string;
+	pinned: boolean;
+	version: string;
+	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
 	state?: IStringDictionary<any>;
 }
 
-export interface ISyncExtensionWithVersion extends ISyncExtension {
+export interface IRemoteSyncExtension {
+	identifier: IExtensionIdentifier;
 	version: string;
+	pinned?: boolean;
+	preRelease?: boolean;
+	disabled?: boolean;
+	installed?: boolean;
+	state?: IStringDictionary<any>;
 }
 
 export interface IStorageValue {
