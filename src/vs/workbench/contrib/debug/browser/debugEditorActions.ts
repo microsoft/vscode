@@ -5,11 +5,14 @@
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorAction2, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -23,6 +26,7 @@ import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -330,7 +334,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			id: SelectionToWatchExpressionsAction.ID,
 			label: SelectionToWatchExpressionsAction.LABEL,
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1
@@ -341,13 +345,58 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const viewsService = accessor.get(IViewsService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		if (!editor.hasModel()) {
 			return;
 		}
 
-		const text = editor.getModel().getValueInRange(editor.getSelection());
+		let expression: string | undefined = undefined;
+
+		const model = editor.getModel();
+		const selection = editor.getSelection();
+
+		if (!selection.isEmpty()) {
+			expression = model.getValueInRange(selection);
+		} else {
+			const position = editor.getPosition();
+
+			if (languageFeaturesService.evaluatableExpressionProvider.has(model)) {
+				const cancellation = new CancellationTokenSource();
+				const supports = languageFeaturesService.evaluatableExpressionProvider.ordered(model);
+				const results = coalesce(await Promise.all(supports.map(async support => {
+					try {
+						return await support.provideEvaluatableExpression(model, position, cancellation.token);
+					} catch (err) {
+						return undefined;
+					}
+				})));
+				cancellation.dispose();
+
+				if (!results.length) {
+					return;
+				}
+
+				expression = results[0].expression;
+				if (!expression) {
+					const range = results[0].range;
+					const lineContent = model.getLineContent(position.lineNumber);
+					expression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+				}
+			} else { // old one-size-fits-all strategy
+				const lineContent = model.getLineContent(position.lineNumber);
+				const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
+
+				// use regex to extract the sub-expression #9821
+				expression = lineContent.substring(start - 1, end);
+			}
+		}
+
+		if (!expression) {
+			return;
+		}
+
 		await viewsService.openView(WATCH_VIEW_ID);
-		debugService.addWatchExpression(text);
+		debugService.addWatchExpression(expression);
 	}
 }
 
