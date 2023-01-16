@@ -623,7 +623,7 @@ export class CodeApplication extends Disposable {
 			return undefined;
 		}
 
-		let openables: IWindowOpenable[] | undefined = undefined;
+		const openables: IWindowOpenable[] = [];
 		const urls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
@@ -650,9 +650,6 @@ export class CodeApplication extends Disposable {
 			if (windowOpenable) {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
 
-				if (!openables) {
-					openables = [];
-				}
 				openables.push(windowOpenable);
 
 				return false; // handled as window to open
@@ -1089,7 +1086,7 @@ export class CodeApplication extends Disposable {
 		if (initialProtocolUrls) {
 
 			// Openables can open as windows directly
-			if (Array.isArray(initialProtocolUrls.openables) && initialProtocolUrls.openables.length > 0) {
+			if (initialProtocolUrls.openables.length > 0) {
 				return windowsMainService.open({
 					context,
 					cli: args,

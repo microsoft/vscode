@@ -71,5 +71,5 @@ export interface IInitialProtocolUrls {
 	 * Initial protocol URLs that result in direct
 	 * windows to open.
 	 */
-	readonly openables: IWindowOpenable[] | undefined;
+	readonly openables: IWindowOpenable[];
 }
