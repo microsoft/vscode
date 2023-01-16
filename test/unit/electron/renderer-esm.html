@@ -50,29 +50,9 @@
 		// generate import map
 		const importMap = {
 			imports: {
-				// vs: new URL(`../../../${outdir}/vs`, baseUrl).href,
 				assert: new URL('../test/unit/assert-esm.js', baseUrl).href,
 				sinon: new URL('../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
 				'sinon-test': new URL('../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
-
-				// NODE-STUFF, remove/ignore?
-				'os': new URL('vs/base/node/typings-esm/os.js', baseUrl),
-				'yauzl': new URL('vs/base/node/typings-esm/yauzl.js', baseUrl),
-				'yazl': new URL('vs/base/node/typings-esm/yazl.js', baseUrl),
-				'minimist': new URL('vs/base/node/typings-esm/minimist.js', baseUrl),
-				'child_process': new URL('vs/base/node/typings-esm/child_process.js', baseUrl),
-				'string_decoder': new URL('vs/base/node/typings-esm/string_decoder.js', baseUrl),
-				'console': new URL('vs/base/node/typings-esm/console.js', baseUrl),
-				'crypto': new URL('vs/base/node/typings-esm/crypto.js', baseUrl),
-				'fs': new URL('vs/base/node/typings-esm/fs.js', baseUrl),
-				'https': new URL('vs/base/node/typings-esm/https.js', baseUrl),
-				'events': new URL('vs/base/node/typings-esm/events.js', baseUrl),
-				'net': new URL('vs/base/node/typings-esm/net.js', baseUrl),
-				'path': new URL('vs/base/node/typings-esm/path.js', baseUrl),
-				'util': new URL('vs/base/node/typings-esm/util.js', baseUrl),
-				'cookie': new URL('vs/base/node/typings-esm/minimist.js', baseUrl),
-				// '@vscode/ripgrep': new URL('../node_modules/@vscode/ripgrep/lib/index.js', baseUrl),
-				'vscode-regexpp': new URL('../node_modules/vscode-regexpp/index.mjs', baseUrl),
 			}
 		};
 

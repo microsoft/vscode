@@ -95,7 +95,7 @@ function initLoader(opts) {
 	const baseUrl = pathToFileURL(path.join(__dirname, `../../../${outdir}/`));
 	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
-	const _excludeGlob = '**/{node,electron-sandbox,electron-main}/**/*.test';
+	const _excludeGlob = '**/{node,electron-browser,electron-main}/**/*.test';
 
 	// set loader
 	/**
