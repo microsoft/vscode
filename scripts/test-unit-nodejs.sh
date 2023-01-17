@@ -29,15 +29,17 @@ test -d node_modules || yarn
 # Get electron
 yarn electron
 
-# Unit Tests
+echo
+echo "### Node.js Unit Tests"
+echo
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
-		ELECTRON_ENABLE_LOGGING=1 \
+		ELECTRON_RUN_AS_NODE="1" \
 		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
+		node_modules/.bin/mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit --runGlob **/node/**/*.test.js "$@"
 else
 	cd $ROOT ; \
-		ELECTRON_ENABLE_LOGGING=1 \
+		ELECTRON_RUN_AS_NODE="1" \
 		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
+		node_modules/.bin/mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit --runGlob **/node/**/*.test.js $LINUX_EXTRA_ARGS "$@"
 fi
