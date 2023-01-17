@@ -333,6 +333,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
 				'default': false
 			},
+			'workbench.commandPalette.experimental.suggestCommands': {
+				'type': 'boolean',
+				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
+				'default': false
+			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
 				'description': localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
