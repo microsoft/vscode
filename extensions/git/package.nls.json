@@ -1,6 +1,8 @@
 {
 	"displayName": "Git",
 	"description": "Git SCM Integration",
+	"command.continueInLocalClone": "Clone Repository Locally and Open on Desktop...",
+	"command.continueInLocalClone.qualifiedName": "Continue Working in New Local Clone",
 	"command.clone": "Clone",
 	"command.cloneRecursive": "Clone (Recursive)",
 	"command.init": "Initialize Repository",

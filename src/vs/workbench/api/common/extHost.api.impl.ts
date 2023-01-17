@@ -1049,7 +1049,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerEditSessionIdentityProvider: (scheme: string, provider: vscode.EditSessionIdentityProvider) => {
 				checkProposedApiEnabled(extension, 'editSessionIdentityProvider');
 				return extHostWorkspace.registerEditSessionIdentityProvider(scheme, provider);
-			}
+			},
+			onWillCreateEditSessionIdentity: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'editSessionIdentityProvider');
+				return extHostWorkspace.getOnWillCreateEditSessionIdentityEvent(extension)(listener, thisArgs, disposables);
+			},
 		};
 
 		// namespace: scm

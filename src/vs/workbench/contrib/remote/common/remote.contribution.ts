@@ -9,12 +9,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -32,9 +29,7 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
-import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
-import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -71,58 +66,15 @@ export class LabelContribution implements IWorkbenchContribution {
 class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDownloadService downloadService: IDownloadService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		const updateRemoteLogLevel = () => {
-			const connection = remoteAgentService.getConnection();
-			if (!connection) {
-				return;
-			}
-			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
-		};
-		updateRemoteLogLevel();
-		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService, loggerService));
-		}
-	}
-}
-
-class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ILoggerService loggerService: ILoggerService,
-		@ILogService logService: ILogService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-	) {
-		super();
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			remoteAgentService.getEnvironment().then(remoteEnv => {
-				if (remoteEnv) {
-					const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-					const remoteExtensionHostLogFile = joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`);
-					const remotePtyLogFile = joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`);
-					const remoteServerLoggerResource = { id: remoteServerLog, name: localize('remoteExtensionLog', "Remote Server"), resource: remoteExtensionHostLogFile };
-					loggerService.registerLoggerResource(remoteServerLoggerResource);
-					outputChannelRegistry.registerChannel({ id: remoteServerLoggerResource.id, label: remoteServerLoggerResource.name, file: remoteServerLoggerResource.resource, log: true });
-					const remotePtyHostLoggerResource = { id: remotePtyHostLog, name: localize('remotePtyHostLog', "Remote Pty Host"), resource: remotePtyLogFile };
-					loggerService.registerLoggerResource(remotePtyHostLoggerResource);
-					outputChannelRegistry.registerChannel({ id: remotePtyHostLoggerResource.id, label: remotePtyHostLoggerResource.name, file: remotePtyHostLoggerResource.resource, log: true });
-					this._register(loggerService.onDidChangeLogLevel(({ resource, logLevel }) => {
-						if (uriIdentityService.extUri.isEqual(resource, remoteExtensionHostLogFile) || uriIdentityService.extUri.isEqual(resource, remotePtyLogFile)) {
-							connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logLevel ?? logService.getLevel(), resource));
-						}
-					}));
-				}
-			});
+			connection.withChannel('logger', async channel => this._register(new RemoteLoggerChannelClient(loggerService, channel)));
 		}
 	}
 }
@@ -289,9 +241,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;

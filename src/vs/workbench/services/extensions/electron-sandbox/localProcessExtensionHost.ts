@@ -28,11 +28,9 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions, localExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { CancellationError, SerializedError } from 'vs/base/common/errors';
@@ -417,11 +415,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					// stop listening for messages here
 					disposable.dispose();
 
-					// Register log channel for exthost log
-					const localExtHostLoggerResource = { id: localExtHostLog, name: nls.localize('extension host Log', "Extension Host"), resource: this._extensionHostLogFile };
-					this._loggerService.registerLoggerResource(localExtHostLoggerResource);
-					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: localExtHostLoggerResource.id, label: localExtHostLoggerResource.name, file: localExtHostLoggerResource.resource, log: true });
-
 					// release this promise
 					resolve();
 					return;
@@ -475,9 +468,10 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			loggers: [...this._loggerService.getLoggerResources()],
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			logFile: this._extensionHostLogFile,
+			logName: nls.localize('extension host Log', "Extension Host"),
 			autoStart: initData.autoStart,
 			uiKind: UIKind.Desktop
 		};

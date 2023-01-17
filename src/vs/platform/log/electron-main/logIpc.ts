@@ -17,8 +17,9 @@ export class LoggerChannel implements IServerChannel {
 
 	listen(_: unknown, event: string, windowId?: number): Event<any> {
 		switch (event) {
-			case 'onDidChangeLoggerResources': return windowId ? this.loggerService.getOnDidChangeLoggerResourcesEvent(windowId) : this.loggerService.onDidChangeLoggerResources;
+			case 'onDidChangeLoggers': return windowId ? this.loggerService.getOnDidChangeLoggersEvent(windowId) : this.loggerService.onDidChangeLoggers;
 			case 'onDidChangeLogLevel': return windowId ? this.loggerService.getOnDidChangeLogLevelEvent(windowId) : this.loggerService.onDidChangeLogLevel;
+			case 'onDidChangeVisibility': return windowId ? this.loggerService.getOnDidChangeVisibilityEvent(windowId) : this.loggerService.onDidChangeVisibility;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
@@ -29,8 +30,9 @@ export class LoggerChannel implements IServerChannel {
 			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
 			case 'setLogLevel': return this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
-			case 'registerLoggerResource': return this.loggerService.registerLoggerResource({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
-			case 'deregisterLoggerResource': return this.loggerService.deregisterLoggerResource(URI.revive(arg[0]));
+			case 'setVisibility': return this.loggerService.setVisibility(URI.revive(arg[0]), arg[1]);
+			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
+			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]));
 		}
 
 		throw new Error(`Call not found: ${command}`);

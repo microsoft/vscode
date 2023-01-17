@@ -19,7 +19,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry, IIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';

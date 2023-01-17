@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { ILogService, ILoggerService, LogLevel, getLogLevel, parseLogLevel } from 'vs/platform/log/common/log';
+import { ILoggerService, LogLevel, getLogLevel, isLogLevel, parseLogLevel } from 'vs/platform/log/common/log';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -13,17 +13,12 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { isNumber } from 'vs/base/common/types';
-import { extensionTelemetryLogChannelId, telemetryLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { extensionTelemetryLogChannelId, telemetryLogChannelId } from 'vs/platform/telemetry/common/telemetryUtils';
 
 type LogLevelQuickPickItem = IQuickPickItem & { level: LogLevel };
 type LogChannelQuickPickItem = IQuickPickItem & { id: string; resource: URI; extensionId?: string };
-
-function isLogLevel(thing: unknown): thing is LogLevel {
-	return isNumber(thing);
-}
 
 export class SetLogLevelAction extends Action {
 
@@ -32,7 +27,6 @@ export class SetLogLevelAction extends Action {
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ILogService private readonly logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -44,7 +38,7 @@ export class SetLogLevelAction extends Action {
 		const logLevelOrChannel = await this.selectLogLevelOrChannel();
 		if (logLevelOrChannel !== null) {
 			if (isLogLevel(logLevelOrChannel)) {
-				this.logService.setLevel(logLevelOrChannel);
+				this.loggerService.setLogLevel(logLevelOrChannel);
 			} else {
 				await this.setLogLevelForChannel(logLevelOrChannel);
 			}
@@ -53,7 +47,7 @@ export class SetLogLevelAction extends Action {
 
 	private async selectLogLevelOrChannel(): Promise<LogChannelQuickPickItem | LogLevel | null> {
 		const extensionLogs: LogChannelQuickPickItem[] = [], logs: LogChannelQuickPickItem[] = [];
-		const logLevel = this.logService.getLevel();
+		const logLevel = this.loggerService.getLogLevel();
 		for (const channel of this.outputService.getChannelDescriptors()) {
 			if (!channel.log || !channel.file || channel.id === telemetryLogChannelId || channel.id === extensionTelemetryLogChannelId) {
 				continue;
@@ -68,7 +62,7 @@ export class SetLogLevelAction extends Action {
 		}
 		const entries: (LogLevelQuickPickItem | LogChannelQuickPickItem | IQuickPickSeparator)[] = [];
 		entries.push({ type: 'separator', label: nls.localize('all', "All") });
-		entries.push(...this.getLogLevelEntries(this.getDefaultLogLevel(), this.logService.getLevel()));
+		entries.push(...this.getLogLevelEntries(this.getDefaultLogLevel(), this.loggerService.getLogLevel()));
 		entries.push({ type: 'separator', label: nls.localize('loggers', "Logs") });
 		entries.push(...logs.sort((a, b) => a.label.localeCompare(b.label)));
 		if (extensionLogs.length && logs.length) {
@@ -86,7 +80,7 @@ export class SetLogLevelAction extends Action {
 		const currentLogLevel = this.loggerService.getLogLevel(logChannel.resource) ?? defaultLogLevel;
 		const entries = this.getLogLevelEntries(defaultLogLevel, currentLogLevel);
 
-		const entry = await this.quickInputService.pick(entries, { placeHolder: logChannel ? nls.localize('selectLogLevelFor', " {0}: Select log level", logChannel?.label) : nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.logService.getLevel()] });
+		const entry = await this.quickInputService.pick(entries, { placeHolder: logChannel ? nls.localize('selectLogLevelFor', " {0}: Select log level", logChannel?.label) : nls.localize('selectLogLevel', "Select log level"), activeItem: entries[this.loggerService.getLogLevel()] });
 		if (entry) {
 			this.loggerService.setLogLevel(logChannel.resource, entry.level);
 		}

@@ -8,7 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import Severity from 'vs/base/common/severity';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {

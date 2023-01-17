@@ -31,7 +31,7 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 		return JSON.stringify({
 			remote: repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl ?? null,
-			ref: repository.HEAD?.name ?? null,
+			ref: repository.HEAD?.upstream?.name ?? null,
 			sha: repository.HEAD?.commit ?? null,
 		});
 	}
