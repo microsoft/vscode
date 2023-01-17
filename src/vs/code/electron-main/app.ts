@@ -589,7 +589,7 @@ export class CodeApplication extends Disposable {
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
 		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
+		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter, this.logService);
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
@@ -817,6 +817,8 @@ export class CodeApplication extends Disposable {
 
 			return urlService.open(uri, options);
 		}
+
+		this.logService.trace('app#handleProtocolUrl(): not handled', uri.toString(true), options);
 
 		return false;
 	}
