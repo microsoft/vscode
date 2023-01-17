@@ -231,11 +231,11 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		}
 		const insertedOrModified = modifiedEditor.getLineDecorations(lineNumber).find(l => l.options.className === 'line-insert');
 		if (insertedOrModified) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineModified);
+			this._audioCueService.playAudioCue(AudioCue.diffLineModified, true);
 		} else if (jumpToChange) {
 			// The modified editor does not include deleted lines, but when
 			// we are moved to the area where lines were deleted, play this cue
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted);
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
 		} else {
 			return;
 		}
