@@ -1760,7 +1760,7 @@ export class SearchView extends ViewPane {
 
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(lineMatch instanceof NotebookMatch)) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}

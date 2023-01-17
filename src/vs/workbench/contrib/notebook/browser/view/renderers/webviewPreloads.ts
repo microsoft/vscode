@@ -1002,18 +1002,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
 
 		const range = selection.getRangeAt(0);
-		const oldRange = document.createRange();
-		oldRange.setStart(range.startContainer, range.startOffset);
-		oldRange.setEnd(range.endContainer, range.endOffset);
+		const oldRange = range.cloneRange();
+		const captureLength = selection.toString().length;
 
+		// selection.collapseToStart();
+		// oldRange.setStart(range.startContainer, range.startOffset);
+		// oldRange.setEnd(range.endContainer, range.endOffset);
 		selection.modify('move', 'backward', 'lineboundary');
 		selection.modify('extend', 'forward', 'lineboundary');
 
 		const newRange = selection.getRangeAt(0);
 		const line = selection.toString();
+		const rangeStart = getStartOffset(newRange, oldRange);
+		// const rangeStart = oldRange.startOffset - newRange.startOffset;
+		// const rangeEnd = oldRange.endOffset - newRange.startOffset;
+		// console.log(getStartOffset(newRange, oldRange));
 		const lineRange = {
-			start: oldRange.startOffset - newRange.startOffset,
-			end: oldRange.endOffset - newRange.startOffset,
+			start: rangeStart,
+			end: rangeStart + captureLength,
 		};
 
 		// re-add the old range so that the selection is restored
@@ -1021,6 +1027,44 @@ async function webviewPreloads(ctx: PreloadContext) {
 		selection.addRange(oldRange);
 
 		return { line, range: lineRange };
+	}
+
+	function getStartOffset(lineRange: Range, originalRange: Range) {
+		const firstCommonAncestor = findFirstCommonAncestor(lineRange.startContainer, originalRange.startContainer);
+
+		const selectionOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, lineRange.startContainer) + lineRange.startOffset;
+		const textOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, originalRange.startContainer) + originalRange.startOffset;
+		return textOffset - selectionOffset;
+	}
+
+	// modified from https://stackoverflow.com/a/68583466/16253823
+	function findFirstCommonAncestor(nodeA: Node, nodeB: Node) {
+		const range = new Range();
+		range.setStart(nodeA, 0);
+		range.setEnd(nodeB, 0);
+		return range.commonAncestorContainer;
+	}
+
+	// modified from https://stackoverflow.com/a/48812529/16253823
+	function getSelectionOffsetRelativeTo(parentElement: Node, currentNode: Node | null): number {
+		if (!currentNode) {
+			return 0;
+		}
+		let offset = 0;
+
+		if (currentNode === parentElement || !parentElement.contains(currentNode)) {
+			return offset;
+		}
+
+		let prevSibling = currentNode.previousSibling;
+
+		while (prevSibling) {
+			const nodeContent = prevSibling.nodeValue || '';
+			offset += nodeContent.length;
+			prevSibling = prevSibling.previousSibling;
+		}
+
+		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
 	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {

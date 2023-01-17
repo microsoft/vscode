@@ -69,8 +69,10 @@ export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFi
 		const cellIndex = cellFindMatch.index;
 		cellFindMatch.contentMatches.forEach((match, index) => {
 			if (match.range.startLineNumber !== previousEndLine) {
-				currentMatches = [];
-				groupedMatches.push({ matches: currentMatches, notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: index, cell: cellFindMatch.cell } });
+				if (currentMatches.length > 0) {
+					groupedMatches.push({ matches: [...currentMatches], notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: index, cell: cellFindMatch.cell } });
+					currentMatches = [];
+				}
 				startIndexOfCurrentMatches = cellIndex + 1;
 			}
 
@@ -78,8 +80,10 @@ export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFi
 			previousEndLine = match.range.endLineNumber;
 		});
 
-		currentMatches = [];
-		groupedMatches.push({ matches: currentMatches, notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: cellFindMatch.contentMatches.length - 1, cell: cellFindMatch.cell } });
+		if (currentMatches.length > 0) {
+			groupedMatches.push({ matches: [...currentMatches], notebookMatchInfo: { cellIndex, matchStartIndex: startIndexOfCurrentMatches, matchEndIndex: cellFindMatch.contentMatches.length - 1, cell: cellFindMatch.cell } });
+			currentMatches = [];
+		}
 
 		cellFindMatch.webviewMatches.forEach((match, index) => {
 			groupedMatches.push({ matches: match, notebookMatchInfo: { cellIndex, matchStartIndex: index, matchEndIndex: index, cell: cellFindMatch.cell, webviewMatchInfo: { index: match.index } } });

@@ -36,6 +36,7 @@ import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecoratio
 // import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { notebookEditorMatchesToTextSearchResults, NotebookMatchInfo, NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 // import { addContextToNotebookEditorMatches, notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
@@ -263,6 +264,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
+	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 	private _currentMatchCellDecorations: string[] = [];
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
@@ -289,6 +291,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._matches = new Map<string, Match>();
 		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
+		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 		this.createMatches();
 	}
@@ -329,9 +332,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	bindEditorWidget(widget: NotebookEditorWidget) {
 		this._notebookEditorWidget = widget;
-		this._editorWidgetListener = this._notebookEditorWidget.viewModel?.onDidChangeViewCells(() => {
-			this._updateScheduler.schedule();
+
+		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
+			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
+				return;
+			}
+			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
+
 		this.updateHighlights();
 		console.log(`added widget ${this._notebookEditorWidget.textModel?.uri}`);
 	}
@@ -341,7 +349,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (this._notebookEditorWidget) {
 			this._updateScheduler.cancel();
 			this._model = null;
-			this._editorWidgetListener!.dispose();
+			this._editorWidgetListener?.dispose();
 		}
 		this._notebookEditorWidget = null;
 		console.log(`removed widget ${widget.textModel?.uri}`);
@@ -394,11 +402,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 				wholeWord: this._query.isWordMatch,
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
-				includeMarkupInput: false,
-				includeMarkupPreview: true,
+				includeMarkupInput: true,
+				includeMarkupPreview: false,
 				includeCodeInput: true,
-				includeOutput: true,
-			}, CancellationToken.None);
+				includeOutput: false,
+			}, CancellationToken.None, true);
 
 		this.updateNotebookMatches(allMatches, true);
 	}
@@ -419,6 +427,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
 		this.updateMatches(matches, modelChange, this._model);
+		this.updateMatchesForEditorWidget();
 	}
 
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
@@ -598,7 +607,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	public async showMatch(match: NotebookMatch) {
 		const offset = await this.highlightCurrentFindMatchDecoration(match);
-		await this.revealCellRange(match, offset);
+		// if (this._notebookEditorWidget) {
+		// 	this._notebookEditorWidget.focusNotebookCell(match.cell, 'container', {});
+		// }
+		this.revealCellRange(match, offset);
 	}
 
 	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
@@ -612,7 +624,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		// only webviewmatch:
 		//
 
-		if (!match.webviewIndex) {
+		if (match.webviewIndex === undefined) {
 			this.clearCurrentFindMatchDecoration();
 			// match is an editor FindMatch, we update find match decoration in the editor
 			// we will highlight the match in the webview
@@ -688,7 +700,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (!this._notebookEditorWidget) {
 			return;
 		}
-		if (!match.webviewIndex) {
+		if (match.webviewIndex) {
 			// reveal output range
 			this._notebookEditorWidget.focusElement(match.cell);
 			const index = this._notebookEditorWidget.getCellIndex(match.cell);
@@ -697,7 +709,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
 			}
 		} else {
-			this._notebookEditorWidget.focusElement(match.cell);
+			this._notebookEditorWidget.focusNotebookCell(match.cell, 'editor');
 			this._notebookEditorWidget.setCellEditorSelection(match.cell, match.range());
 			this._notebookEditorWidget.revealRangeInCenterIfOutsideViewportAsync(match.cell, match.range());
 		}
@@ -1757,10 +1769,10 @@ export class SearchModel extends Disposable {
 						regex: query.contentPattern.isRegExp,
 						wholeWord: query.contentPattern.isWordMatch,
 						caseSensitive: query.contentPattern.isCaseSensitive,
-						includeMarkupInput: false,
-						includeMarkupPreview: true,
+						includeMarkupInput: true,
+						includeMarkupPreview: false,
 						includeCodeInput: true,
-						includeOutput: true,
+						includeOutput: false,
 					}, CancellationToken.None);
 
 
