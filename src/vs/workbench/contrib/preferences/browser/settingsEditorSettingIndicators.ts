@@ -34,6 +34,11 @@ export interface ISettingOverrideClickEvent {
 
 interface SettingIndicator {
 	element: HTMLElement;
+	/**
+	 * The element to focus on when navigating with keyboard.
+	 * Same as {@link element} most of the time.
+	 */
+	focusElement?: HTMLElement;
 	label: SimpleIconLabel;
 	disposables: DisposableStore;
 }
@@ -64,6 +69,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly allIndicators: SettingIndicator[];
 
 	private readonly profilesEnabled: boolean;
+
+	private readonly keybindingListeners: DisposableStore = new DisposableStore();
 
 	constructor(
 		container: HTMLElement,
@@ -214,7 +221,24 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			}
 			DOM.append(this.indicatorsContainerElement, indicatorsToShow[indicatorsToShow.length - 1].element);
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
+			this.resetIndicatorNavigationKeyBindings(indicatorsToShow);
 		}
+	}
+
+	private resetIndicatorNavigationKeyBindings(indicators: SettingIndicator[]) {
+		this.keybindingListeners.clear();
+		// for (let i = 0; i < indicators.length; i++) {
+		this.indicatorsContainerElement.role = indicators.length >= 1 ? 'toolbar' : 'button';
+		this.keybindingListeners.add(DOM.addDisposableListener(this.indicatorsContainerElement, 'keydown', (e) => {
+			// Right->focusnext
+			// Left->focusprev
+			const ev = new StandardKeyboardEvent(e);
+			if (ev.equals(KeyCode.Home)) {
+				indicators[0].element.focus();
+			} else if (ev.equals(KeyCode.End)) {
+				indicators[indicators.length - 1].element.focus();
+			}
+		}));
 	}
 
 	updateWorkspaceTrust(element: SettingsTreeSettingElement) {
@@ -244,9 +268,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	dispose() {
-		const indicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator,
-		this.syncIgnoredIndicator, this.defaultOverrideIndicator];
-		for (const indicator of indicators) {
+		this.keybindingListeners.dispose();
+		for (const indicator of this.allIndicators) {
 			indicator.disposables.dispose();
 		}
 	}
