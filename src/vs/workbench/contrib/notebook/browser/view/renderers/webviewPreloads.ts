@@ -2440,14 +2440,15 @@ async function webviewImportMap(rendererData: readonly webviewMessages.RendererM
 	const scopes: Record<string, Record<string, string>> = {};
 
 	for (const renderer of rendererData) {
-		const script = ` export const abc = 'hello ' + '${renderer.id}';`;
+		const script = `export const l10n = Object.freeze({
+			t(message) { return message; }
+		});`;
 
 		const blob = new Blob([script], { type: 'application/javascript' });
 		const scriptUrl = URL.createObjectURL(blob);
 
-		// TODO: the entrypoint should likely be broader so the the import maps also works
-		// in files that the main script imports
-		scopes[renderer.entrypoint.path] = {
+		const scope = renderer.entrypoint.path.replace(/\/[^\/]+\.js$/i, '/');
+		scopes[scope] = {
 			'vscode': scriptUrl
 		};
 	}
