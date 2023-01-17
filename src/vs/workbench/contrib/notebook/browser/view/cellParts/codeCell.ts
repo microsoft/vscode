@@ -239,10 +239,6 @@ export class CodeCell extends Disposable {
 					this.onCellWidthChange();
 				}
 			}
-
-			if (e.totalHeight) {
-				this.relayoutCell();
-			}
 		}));
 	}
 
