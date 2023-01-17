@@ -13,7 +13,7 @@ import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';

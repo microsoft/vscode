@@ -186,13 +186,14 @@ export default class FileConfigurationManager extends Disposable {
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
-			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithSnippetText: true,
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			disableLineTextInReferences: true,
 			...getInlayHintsPreferences(config),
 		};
 

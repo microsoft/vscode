@@ -26,13 +26,14 @@ import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authe
 import { isWeb } from 'vs/base/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { Emitter } from 'vs/base/common/event';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
 
-const configureContinueOnPreference = { iconClass: Codicon.settingsGear.classNames, tooltip: localize('configure continue on', 'Configure this preference in settings') };
+const configureContinueOnPreference = { iconClass: ThemeIcon.asClassName(Codicon.settingsGear), tooltip: localize('configure continue on', 'Configure this preference in settings') };
 export class EditSessionsWorkbenchService extends Disposable implements IEditSessionsStorageService {
 
 	declare _serviceBrand: undefined;

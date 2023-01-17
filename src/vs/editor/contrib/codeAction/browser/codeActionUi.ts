@@ -89,7 +89,7 @@ export class CodeActionUi extends Disposable {
 			return;
 		}
 
-		this._lightBulbWidget.getValue().update(actions, newState.trigger, newState.position);
+		this._lightBulbWidget.value.update(actions, newState.trigger, newState.position);
 
 		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
@@ -98,7 +98,7 @@ export class CodeActionUi extends Disposable {
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.getValue().hide();
+						this._lightBulbWidget.value.hide();
 						await this.delegate.applyCodeAction(validActionToApply, false, false);
 					} finally {
 						actions.dispose();

@@ -803,6 +803,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
+		this.onServiceChange();
 		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
@@ -810,7 +811,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		this.badgeHandle.clear();
 
 		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !e.pinned && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {
 			let msg = '';

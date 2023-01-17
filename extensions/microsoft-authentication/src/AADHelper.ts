@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as querystring from 'querystring';
-import path = require('path');
+import * as path from 'path';
 import Logger from './logger';
 import { isSupportedEnvironment } from './utils';
 import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
@@ -586,7 +586,7 @@ export class AzureActiveDirectoryService {
 			if (token.expiresIn) {
 				this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
 			}
-			await this.setToken(token, scopeData);
+			this.setToken(token, scopeData);
 			Logger.info(`Token refresh success for scopes: ${token.scope}`);
 			return token;
 		} catch (e) {
@@ -728,7 +728,7 @@ export class AzureActiveDirectoryService {
 		if (token.expiresIn) {
 			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
 		}
-		await this.setToken(token, scopeData);
+		this.setToken(token, scopeData);
 		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
 		return await this.convertToSession(token);
 	}
@@ -777,7 +777,7 @@ export class AzureActiveDirectoryService {
 
 	//#region storage operations
 
-	private async setToken(token: IToken, scopeData: IScopeData): Promise<void> {
+	private setToken(token: IToken, scopeData: IScopeData): void {
 		Logger.info(`Setting token for scopes: ${scopeData.scopeStr}`);
 
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
@@ -787,17 +787,54 @@ export class AzureActiveDirectoryService {
 			this._tokens.push(token);
 		}
 
+		// Don't await because setting the token is only useful for any new windows that open.
+		this.storeToken(token, scopeData);
+	}
+
+	private async storeToken(token: IToken, scopeData: IScopeData): Promise<void> {
+		if (!vscode.window.state.focused) {
+			const shouldStore = await new Promise((resolve, _) => {
+				// To handle the case where the window is not focused for a long time. We want to store the token
+				// at some point so that the next time they _do_ interact with VS Code, they don't have to sign in again.
+				const timer = setTimeout(
+					() => resolve(true),
+					// 5 hours + random extra 0-30 seconds so that each window doesn't try to store at the same time
+					(18000000) + Math.floor(Math.random() * 30000)
+				);
+				const dispose = vscode.Disposable.from(
+					vscode.window.onDidChangeWindowState(e => {
+						if (e.focused) {
+							resolve(true);
+							dispose.dispose();
+							clearTimeout(timer);
+						}
+					}),
+					this._tokenStorage.onDidChangeInOtherWindow(e => {
+						if (e.updated.includes(token.sessionId)) {
+							resolve(false);
+							dispose.dispose();
+							clearTimeout(timer);
+						}
+					})
+				);
+			});
+
+			if (!shouldStore) {
+				Logger.info(`Not storing token for scopes ${scopeData.scopeStr} because it was added in another window`);
+				return;
+			}
+		}
+
 		await this._tokenStorage.store(token.sessionId, {
 			id: token.sessionId,
 			refreshToken: token.refreshToken,
 			scope: token.scope,
 			account: token.account
 		});
+		Logger.info(`Stored token for scopes: ${scopeData.scopeStr}`);
 	}
 
 	private async checkForUpdates(e: IDidChangeInOtherWindowEvent<IStoredSession>): Promise<void> {
-		const added: vscode.AuthenticationSession[] = [];
-		const removed: vscode.AuthenticationSession[] = [];
 		for (const key of e.added) {
 			const session = await this._tokenStorage.get(key);
 			if (!session) {
@@ -834,11 +871,13 @@ export class AzureActiveDirectoryService {
 
 		for (const { value } of e.removed) {
 			Logger.info(`Session removed in another window with scopes: ${value.scope}`);
-			const session = await this.removeSessionById(value.id, false);
-			if (session) {
-				removed.push(session);
-			}
+			await this.removeSessionById(value.id, false);
 		}
+
+		// NOTE: We don't need to handle changed sessions because all that really would give us is a new refresh token
+		// because access tokens are not stored in Secret Storage due to their short lifespan. This new refresh token
+		// is not useful in this window because we really only care about the lifetime of the _access_ token which we
+		// are already managing (see usages of `setSessionTimeout`).
 	}
 
 	//#endregion

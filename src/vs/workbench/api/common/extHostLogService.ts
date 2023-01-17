@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILoggerService, LogService } from 'vs/platform/log/common/log';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { LogService } from 'vs/platform/log/common/logService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostLogService extends LogService {
 
@@ -15,7 +15,7 @@ export class ExtHostLogService extends LogService {
 		@ILoggerService loggerService: ILoggerService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(loggerService.createLogger(initData.logFile, { name: ExtensionHostLogFileName }));
+		super(loggerService.createLogger(initData.logFile, { name: initData.logName }));
 	}
 
 }

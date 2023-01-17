@@ -25,7 +25,8 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
@@ -631,18 +632,14 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			for (const instance of this.instances) {
+			for (const instance of this._terminalGroupService.instances) {
 				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			}
 			return;
 		}
 
-		// Force dispose of all terminal instances
-		const shouldPersistTerminalsForEvent = this._shouldReviveProcesses(e.reason);
-		for (const instance of this.instances) {
-			if (shouldPersistTerminalsForEvent) {
-				instance.shutdownPersistentProcessId = instance.persistentProcessId;
-			}
+		// Force dispose of all pane terminal instances
+		for (const instance of this._terminalGroupService.instances) {
 			instance.dispose(TerminalExitReason.Shutdown);
 		}
 
@@ -938,7 +935,7 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 
-		const config = options?.config || this._terminalProfileService.availableProfiles?.find(p => p.profileName === this._terminalProfileService.getDefaultProfileName());
+		const config = options?.config || this._terminalProfileService.getDefaultProfile();
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
@@ -978,7 +975,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel, options?.resource);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -1054,8 +1051,7 @@ export class TerminalService implements ITerminalService {
 		let instance;
 		const editorOptions = this._getEditorOptions(options?.location);
 		if (location === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-			instance.target = TerminalLocation.Editor;
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor, options?.resource);
 			this._terminalEditorService.openEditor(instance, editorOptions);
 		} else {
 			// TODO: pass resource?

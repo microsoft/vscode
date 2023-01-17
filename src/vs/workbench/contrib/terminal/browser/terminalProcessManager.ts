@@ -25,9 +25,9 @@ import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IEnvironmentVariableCollection, IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { serializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableInfo, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { serializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IBeforeProcessDataEvent, ITerminalBackend, ITerminalConfigHelper, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -38,16 +38,20 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
-/** The amount of time to consider terminal errors to be related to the launch */
-const LAUNCHING_DURATION = 500;
+const enum ProcessConstants {
+	/**
+	 * The amount of time to consider terminal errors to be related to the launch.
+	 */
+	ErrorLaunchThresholdDuration = 500,
+	/**
+	 * The minimum amount of time between latency requests.
+	 */
+	LatencyMeasuringInterval = 1000,
+}
 
-/**
- * The minimum amount of time between latency requests.
- */
-const LATENCY_MEASURING_INTERVAL = 1000;
-
-enum ProcessType {
+const enum ProcessType {
 	Process,
 	PsuedoTerminal
 }
@@ -377,7 +381,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			if (this.processState === ProcessState.Launching) {
 				this._setProcessState(ProcessState.Running);
 			}
-		}, LAUNCHING_DURATION);
+		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
 		const result = await newProcess.start();
 		if (result) {
@@ -588,8 +592,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process?.processBinary(data);
 	}
 
-	getInitialCwd(): Promise<string> {
-		return Promise.resolve(this._initialCwd ? this._initialCwd : '');
+	get initialCwd(): string {
+		return this._initialCwd ?? '';
 	}
 
 	async getLatency(): Promise<number> {
@@ -597,7 +601,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!this._process) {
 			return Promise.resolve(0);
 		}
-		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + LATENCY_MEASURING_INTERVAL < Date.now()) {
+		if (this._latencyLastMeasured === 0 || this._latencyLastMeasured + ProcessConstants.LatencyMeasuringInterval < Date.now()) {
 			const latencyRequest = this._process.getLatency();
 			this._latency = await latencyRequest;
 			this._latencyLastMeasured = Date.now();

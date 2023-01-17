@@ -15,7 +15,7 @@ import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/brow
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import * as nls from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>({
 	'CURRENT_YEAR': true,
@@ -311,7 +311,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		const workspaceIdentifier = toWorkspaceIdentifier(this._workspaceService.getWorkspace());
-		if (!workspaceIdentifier) {
+		if (isEmptyWorkspaceIdentifier(workspaceIdentifier)) {
 			return undefined;
 		}
 

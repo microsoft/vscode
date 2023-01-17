@@ -7,7 +7,7 @@ import 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
 import 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -267,8 +267,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code in the Web"),
-		description: localize('gettingStarted.setupWeb.description', "Discover the best customizations to make VS Code in the Web yours."),
+		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code for the Web"),
+		description: localize('gettingStarted.setupWeb.description', "Discover the best customizations to make VS Code for the Web yours."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: 'isWeb',

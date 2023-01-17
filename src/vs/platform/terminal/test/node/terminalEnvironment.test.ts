@@ -11,9 +11,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 
-const enabledProcessOptions: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'> = { shellIntegration: { enabled: true }, windowsEnableConpty: true };
-const disabledProcessOptions: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'> = { shellIntegration: { enabled: false }, windowsEnableConpty: true };
-const winptyProcessOptions: Pick<ITerminalProcessOptions, 'shellIntegration' | 'windowsEnableConpty'> = { shellIntegration: { enabled: true }, windowsEnableConpty: false };
+const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true }, windowsEnableConpty: true, environmentVariableCollections: undefined };
+const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false }, windowsEnableConpty: true, environmentVariableCollections: undefined };
+const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true }, windowsEnableConpty: false, environmentVariableCollections: undefined };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();

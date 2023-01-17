@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
-import { Repository, Operation } from './repository';
+import { Repository } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
-import { Branch, RemoteSourcePublisher } from './api/git';
+import { Branch, RefType, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { CheckoutOperation, CheckoutTrackingOperation, OperationKind } from './operation';
 
 interface CheckoutStatusBarState {
+	readonly isCheckoutRunning: boolean;
 	readonly isCommitRunning: boolean;
+	readonly isSyncRunning: boolean;
 }
 
 class CheckoutStatusBar {
@@ -28,7 +31,9 @@ class CheckoutStatusBar {
 
 	constructor(private repository: Repository) {
 		this._state = {
-			isCommitRunning: false
+			isCheckoutRunning: false,
+			isCommitRunning: false,
+			isSyncRunning: false
 		};
 
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
@@ -36,22 +41,73 @@ class CheckoutStatusBar {
 	}
 
 	get command(): Command | undefined {
+		const operationData = [
+			...this.repository.operations.getOperations(OperationKind.Checkout) as CheckoutOperation[],
+			...this.repository.operations.getOperations(OperationKind.CheckoutTracking) as CheckoutTrackingOperation[]
+		];
+
 		const rebasing = !!this.repository.rebaseCommit;
-		const isBranchProtected = this.repository.isBranchProtected();
-		const label = `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
+		const label = operationData[0]?.refLabel ?? `${this.repository.headLabel}${rebasing ? ` (${l10n.t('Rebasing')})` : ''}`;
+		const command = (this.state.isCheckoutRunning || this.state.isCommitRunning || this.state.isSyncRunning) ? '' : 'git.checkout';
 
 		return {
-			command: this.state.isCommitRunning ? '' : 'git.checkout',
-			tooltip: this.state.isCommitRunning ? l10n.t('{0}, Committing changes...', label) : l10n.t('{0}, Checkout branch/tag...', label),
-			title: `${isBranchProtected ? '$(lock)' : '$(git-branch)'} ${label}`,
+			command,
+			tooltip: `${label}, ${this.getTooltip()}`,
+			title: `${this.getIcon()} ${label}`,
 			arguments: [this.repository.sourceControl]
 		};
 	}
 
-	private onDidChangeOperations(): void {
-		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
+	private getIcon(): string {
+		if (!this.repository.HEAD) {
+			return '';
+		}
 
-		this.state = { ...this.state, isCommitRunning };
+		// Checkout
+		if (this.state.isCheckoutRunning) {
+			return '$(loading~spin)';
+		}
+
+		// Branch
+		if (this.repository.HEAD.type !== RefType.Tag) {
+			return this.repository.isBranchProtected() ? '$(lock)' : '$(git-branch)';
+		}
+
+		// Tag
+		if (this.repository.HEAD.type === RefType.Tag) {
+			return '$(tag)';
+		}
+
+		// Commit
+		return '$(git-commit)';
+	}
+
+	private getTooltip(): string {
+		if (this.state.isCheckoutRunning) {
+			return l10n.t('Checking Out Branch/Tag...');
+		}
+
+		if (this.state.isCommitRunning) {
+			return l10n.t('Committing Changes...');
+
+		}
+
+		if (this.state.isSyncRunning) {
+			return l10n.t('Synchronizing Changes...');
+		}
+
+		return l10n.t('Checkout Branch/Tag...');
+	}
+
+	private onDidChangeOperations(): void {
+		const isCommitRunning = this.repository.operations.isRunning(OperationKind.Commit);
+		const isCheckoutRunning = this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+		const isSyncRunning = this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
+
+		this.state = { ...this.state, isCheckoutRunning, isCommitRunning, isSyncRunning };
 	}
 
 	dispose(): void {
@@ -61,6 +117,7 @@ class CheckoutStatusBar {
 
 interface SyncStatusBarState {
 	readonly enabled: boolean;
+	readonly isCheckoutRunning: boolean;
 	readonly isCommitRunning: boolean;
 	readonly isSyncRunning: boolean;
 	readonly hasRemotes: boolean;
@@ -84,6 +141,7 @@ class SyncStatusBar {
 	constructor(private repository: Repository, private remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
 		this._state = {
 			enabled: true,
+			isCheckoutRunning: false,
 			isCommitRunning: false,
 			isSyncRunning: false,
 			hasRemotes: false,
@@ -110,12 +168,14 @@ class SyncStatusBar {
 	}
 
 	private onDidChangeOperations(): void {
-		const isCommitRunning = this.repository.operations.isRunning(Operation.Commit);
-		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+		const isCommitRunning = this.repository.operations.isRunning(OperationKind.Commit);
+		const isCheckoutRunning = this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+		const isSyncRunning = this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
 
-		this.state = { ...this.state, isCommitRunning, isSyncRunning };
+		this.state = { ...this.state, isCheckoutRunning, isCommitRunning, isSyncRunning };
 	}
 
 	private onDidRunGitStatus(): void {
@@ -143,11 +203,13 @@ class SyncStatusBar {
 				return;
 			}
 
-			const command = this.state.isCommitRunning ? '' : 'git.publish';
-			const tooltip = this.state.isCommitRunning ? l10n.t('Committing Changes...') :
-				this.state.remoteSourcePublishers.length === 1
-					? l10n.t('Publish to {0}', this.state.remoteSourcePublishers[0].name)
-					: l10n.t('Publish to...');
+			const command = (this.state.isCheckoutRunning || this.state.isCommitRunning) ? '' : 'git.publish';
+			const tooltip =
+				this.state.isCheckoutRunning ? l10n.t('Checking Out Changes...') :
+					this.state.isCommitRunning ? l10n.t('Committing Changes...') :
+						this.state.remoteSourcePublishers.length === 1
+							? l10n.t('Publish to {0}', this.state.remoteSourcePublishers[0].name)
+							: l10n.t('Publish to...');
 
 			return {
 				command,
@@ -179,6 +241,11 @@ class SyncStatusBar {
 		} else {
 			command = '';
 			tooltip = '';
+		}
+
+		if (this.state.isCheckoutRunning) {
+			command = '';
+			tooltip = l10n.t('Checking Out Changes...');
 		}
 
 		if (this.state.isCommitRunning) {

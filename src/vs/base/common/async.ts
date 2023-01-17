@@ -875,6 +875,13 @@ export class RunOnceScheduler implements IDisposable {
 		return this.timeoutToken !== -1;
 	}
 
+	flush(): void {
+		if (this.isScheduled()) {
+			this.cancel();
+			this.doRun();
+		}
+	}
+
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
@@ -961,6 +968,7 @@ export class ProcessTimeRunOnceScheduler {
 }
 
 export class RunOnceWorker<T> extends RunOnceScheduler {
+
 	private units: T[] = [];
 
 	constructor(runner: (units: T[]) => void, timeout: number) {
@@ -1068,7 +1076,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has

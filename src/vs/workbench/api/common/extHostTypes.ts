@@ -2759,6 +2759,20 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+const breakpointIds = new WeakMap<Breakpoint, string>();
+
+/**
+ * We want to be able to construct Breakpoints internally that have a particular id, but we don't want extensions to be
+ * able to do this with the exposed Breakpoint classes in extension API.
+ * We also want "instanceof" to work with debug.breakpoints and the exposed breakpoint classes.
+ * And private members will be renamed in the built js, so casting to any and setting a private member is not safe.
+ * So, we store internal breakpoint IDs in a WeakMap. This function must be called after constructing a Breakpoint
+ * with a known id.
+ */
+export function setBreakpointId(bp: Breakpoint, id: string) {
+	breakpointIds.set(bp, id);
+}
+
 @es5ClassCompat
 export class Breakpoint {
 
@@ -2784,7 +2798,7 @@ export class Breakpoint {
 
 	get id(): string {
 		if (!this._id) {
-			this._id = generateUuid();
+			this._id = breakpointIds.get(this) ?? generateUuid();
 		}
 		return this._id;
 	}
@@ -2829,7 +2843,6 @@ export class DataBreakpoint extends Breakpoint {
 		this.canPersist = canPersist;
 	}
 }
-
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
@@ -3747,6 +3760,18 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 	) { }
+}
+
+@es5ClassCompat
+export class TestRunRequest2 extends TestRunRequest implements vscode.TestRunRequest2 {
+	constructor(
+		include: vscode.TestItem[] | undefined = undefined,
+		exclude: vscode.TestItem[] | undefined = undefined,
+		profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
+	) {
+		super(include, exclude, profile);
+	}
 }
 
 @es5ClassCompat

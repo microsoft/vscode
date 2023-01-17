@@ -8,7 +8,8 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
@@ -704,29 +705,29 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}
 
 		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
+		let resource: URI | undefined;
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+			resource = URI.parse(JSON.parse(rawResources)[0]);
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+		if (!resource && rawCodeFiles) {
+			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!resource && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+			resource = URI.file(e.dataTransfer.files[0].path);
 		}
 
-		if (!path) {
+		if (!resource) {
 			return;
 		}
 
 		this._terminalService.setActiveInstance(instance);
 
 		instance.focus();
-		await instance.sendPath(path, false);
+		await instance.sendPath(resource, false);
 	}
 }

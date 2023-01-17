@@ -143,6 +143,7 @@ export interface IExpressionContainer extends ITreeElement {
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
+	readonly memoryReference?: string;
 	readonly value: string;
 	readonly type?: string;
 	valueChanged?: boolean;
@@ -159,6 +160,7 @@ export interface IDebugger {
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	startDebugging(args: IConfig, parentSessionId: string): Promise<boolean>;
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
+	getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string>;
 }
 
 export interface IDebuggerMetadata {
@@ -896,6 +898,10 @@ export interface IAdapterManager {
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
+	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
+	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+
+	get onDidDebuggersExtPointRead(): Event<void>;
 }
 
 export interface ILaunch {

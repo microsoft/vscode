@@ -17,6 +17,7 @@ const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders 
 const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));
 const extensionEnabledApiProposals: Record<string, string[]> = product.extensionEnabledApiProposals ?? {};
 const reservedImplicitActivationEventPrefixes = ['onNotebookSerializer:'];
+const redundantImplicitActivationEventPrefixes = ['onLanguage:', 'onView:', 'onAuthenticationRequest:', 'onCommand:', 'onCustomEditor:'];
 
 function isTrustedSVGSource(uri: Uri): boolean {
 	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
@@ -31,6 +32,7 @@ const relativeIconUrlRequiresHttpsRepository = l10n.t("An icon requires a reposi
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
+const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
 
 enum Context {
 	ICON,
@@ -48,6 +50,7 @@ interface PackageJsonInfo {
 	isExtension: boolean;
 	hasHttpsRepository: boolean;
 	repository: Uri;
+	implicitActivationEvents: Set<string> | undefined;
 }
 
 export class ExtensionLinter {
@@ -147,10 +150,16 @@ export class ExtensionLinter {
 							}
 						}
 					}
-					const activationEventsNode = findNodeAtLocation(tree, ['activationEvents']);
-					if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
-						for (const activationEventNode of activationEventsNode.children) {
-							const activationEvent = getNodeValue(activationEventNode);
+				}
+				const activationEventsNode = findNodeAtLocation(tree, ['activationEvents']);
+				if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
+					for (const activationEventNode of activationEventsNode.children) {
+						const activationEvent = getNodeValue(activationEventNode);
+						if (info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
+							const start = document.positionAt(activationEventNode.offset);
+							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
+							diagnostics.push(new Diagnostic(new Range(start, end), redundantImplicitActivationEvent, DiagnosticSeverity.Warning));
+						} else {
 							for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {
 								if (activationEvent.startsWith(implicitActivationEventPrefix)) {
 									const start = document.positionAt(activationEventNode.offset);
@@ -161,7 +170,6 @@ export class ExtensionLinter {
 						}
 					}
 				}
-
 			}
 			this.diagnosticsCollection.set(document.uri, diagnostics);
 		});
@@ -293,10 +301,13 @@ export class ExtensionLinter {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
 		const uri = repo && parseUri(repo.value);
+		const activationEvents = tree && parseImplicitActivationEvents(tree);
+
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
 			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
-			repository: uri!
+			repository: uri!,
+			implicitActivationEvents: activationEvents
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -389,4 +400,58 @@ function parseUri(src: string, base?: string, retry: boolean = true): Uri | null
 			return null;
 		}
 	}
+}
+
+function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
+	const activationEvents = new Set<string>();
+
+	// commands
+	const commands = findNodeAtLocation(tree, ['contributes', 'commands']);
+	commands?.children?.forEach(child => {
+		const command = findNodeAtLocation(child, ['command']);
+		if (command && command.type === 'string') {
+			activationEvents.add(`onCommand:${command.value}`);
+		}
+	});
+
+	// authenticationProviders
+	const authenticationProviders = findNodeAtLocation(tree, ['contributes', 'authentication']);
+	authenticationProviders?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onAuthenticationRequest:${id.value}`);
+		}
+	});
+
+	// languages
+	const languageContributions = findNodeAtLocation(tree, ['contributes', 'languages']);
+	languageContributions?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onLanguage:${id.value}`);
+		}
+	});
+
+	// customEditors
+	const customEditors = findNodeAtLocation(tree, ['contributes', 'customEditors']);
+	customEditors?.children?.forEach(child => {
+		const viewType = findNodeAtLocation(child, ['viewType']);
+		if (viewType && viewType.type === 'string') {
+			activationEvents.add(`onCustomEditor:${viewType.value}`);
+		}
+	});
+
+	// views
+	const viewContributions = findNodeAtLocation(tree, ['contributes', 'views']);
+	viewContributions?.children?.forEach(viewContribution => {
+		const views = viewContribution.children?.find((node) => node.type === 'array');
+		views?.children?.forEach(view => {
+			const id = findNodeAtLocation(view, ['id']);
+			if (id && id.type === 'string') {
+				activationEvents.add(`onView:${id.value}`);
+			}
+		});
+	});
+
+	return activationEvents;
 }

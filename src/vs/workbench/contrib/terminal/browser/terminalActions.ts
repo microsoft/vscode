@@ -116,8 +116,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	});
 };
 
-const terminalIndexRe = /^([0-9]+): /;
-
 export class TerminalLaunchHelpAction extends Action {
 
 	constructor(
@@ -327,7 +325,21 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."), original: 'Run Recent Command...' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				keybinding: [
+					{
+						primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+						mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+						weight: KeybindingWeight.WorkbenchContrib
+					},
+					{
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
+						mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
+						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+						weight: KeybindingWeight.WorkbenchContrib
+					}
+				]
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
@@ -347,8 +359,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.CopyLastCommand,
-				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+				id: TerminalCommandId.CopyLastCommandOutput,
+				title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
@@ -377,7 +389,12 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.goToRecentDirectory', "Go to Recent Directory..."), original: 'Go to Recent Directory...' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+					when: TerminalContextKeys.focus,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
@@ -589,12 +606,8 @@ export function registerTerminalActions() {
 				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
-			instance.sendText(text, true);
-			if (instance.target === TerminalLocation.Editor) {
-				await terminalEditorService.revealActiveEditor();
-			} else {
-				await terminalGroupService.showPanel();
-			}
+			instance.sendText(text, true, true);
+			await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -609,6 +622,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
@@ -620,9 +634,17 @@ export function registerTerminalActions() {
 			}
 
 			let instance = terminalService.activeInstance;
+
+			// Don't use task terminals or other terminals that don't accept input
+			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
+				instance = await terminalService.createTerminal();
+				terminalService.setActiveInstance(instance);
+				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
+			}
+
 			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
 			const uri = editor.getModel().uri;
-			if ((!isRemote && uri.scheme !== Schemas.file) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
+			if ((!isRemote && uri.scheme !== Schemas.file && uri.scheme !== Schemas.vscodeUserData) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 				return;
 			}
@@ -632,7 +654,7 @@ export function registerTerminalActions() {
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-			await instance.sendPath(uri.fsPath, true);
+			await instance.sendPath(uri, true);
 			return terminalGroupService.showPanel();
 		}
 	});
@@ -1088,7 +1110,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.getValue().reveal();
+			accessor.get(ITerminalService).activeInstance?.findWidget.value.reveal();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1108,7 +1130,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.getValue().hide();
+			accessor.get(ITerminalService).activeInstance?.findWidget.value.hide();
 		}
 	});
 
@@ -1143,6 +1165,7 @@ export function registerTerminalActions() {
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 
 			const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority ?? undefined;
@@ -1176,11 +1199,7 @@ export function registerTerminalActions() {
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					terminalGroupService.showPanel(true);
-				}
+				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
 			}
 		}
 	});
@@ -1215,7 +1234,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.xterm?.markTracker.scrollToPreviousMark();
+				t.xterm?.markTracker.scrollToPreviousMark(undefined, undefined, t.capabilities.has(TerminalCapability.CommandDetection));
 			});
 		}
 	});
@@ -1389,21 +1408,17 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal(
-					{
-						cwd: args?.cwd
-					});
+				const instance = await terminalService.createTerminal({
+					cwd: args?.cwd
+				});
 				if (!instance) {
 					return;
 				}
 				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					return terminalGroupService.showPanel(true);
-				}
+				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
 			}
 		}
 	});
@@ -1461,7 +1476,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.getValue().findState;
+			const state = terminalService.activeInstance?.findWidget.value.findState;
 			state?.change({ isRegex: !state.isRegex }, false);
 		}
 	});
@@ -1483,7 +1498,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.getValue().findState;
+			const state = terminalService.activeInstance?.findWidget.value.findState;
 			state?.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
@@ -1505,7 +1520,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.getValue().findState;
+			const state = terminalService.activeInstance?.findWidget.value.findState;
 			state?.change({ matchCase: !state.matchCase }, false);
 		}
 	});
@@ -1534,7 +1549,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const findWidget = terminalService.activeInstance?.findWidget.getValue();
+			const findWidget = terminalService.activeInstance?.findWidget.value;
 			if (findWidget) {
 				findWidget.show();
 				findWidget.find(false);
@@ -1566,7 +1581,7 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const findWidget = terminalService.activeInstance?.findWidget.getValue();
+			const findWidget = terminalService.activeInstance?.findWidget.value;
 			if (findWidget) {
 				findWidget.show();
 				findWidget.find(true);
@@ -1654,6 +1669,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile) {
 			const commandService = accessor.get(ICommandService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -1664,16 +1680,10 @@ export function registerTerminalActions() {
 			}
 			const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance, workspaceContextService.getWorkspace().folders, commandService);
 			if (cwd === undefined) {
-				return undefined;
+				return;
 			}
 			const instance = await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
-			if (instance) {
-				if (instance.target === TerminalLocation.Editor) {
-					instance.focusWhenReady();
-				} else {
-					return terminalGroupService.showPanel(true);
-				}
-			}
+			await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1889,6 +1899,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, eventOrOptions: MouseEvent | ICreateTerminalOptions | undefined) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
@@ -1916,11 +1927,7 @@ export function registerTerminalActions() {
 					instance = await terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					await terminalGroupService.showPanel(true);
-				}
+				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
 			} else if (TerminalContextKeys.webExtensionContributedProfile) {
 				commandService.executeCommand(TerminalCommandId.NewWithProfile);
 			}
@@ -2061,6 +2068,11 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					when: TerminalContextKeys.focus,
+				}
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -2435,6 +2447,8 @@ export function registerTerminalActions() {
 				accessor.get(IConfigurationService).updateValue(TerminalSettingId.TabsEnabled, true);
 				return;
 			}
+
+			const terminalIndexRe = /^([0-9]+): /;
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
 				terminalGroupService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);
@@ -2546,7 +2560,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalProfileService = accessor.get(ITerminalProfileService);
-
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
@@ -2601,11 +2615,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 
 			if (instance) {
 				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					await terminalGroupService.showPanel(true);
-				}
+				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
 			}
 		}
 	});
@@ -2687,4 +2697,13 @@ export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): 
 	const selectedPairs = new Set(map.values());
 	const selectedPairsInOrder = pairs.filter(x => selectedPairs.has(x));
 	return selectedPairsInOrder;
+}
+
+async function focusActiveTerminal(instance: ITerminalInstance, terminalEditorService: ITerminalEditorService, terminalGroupService: ITerminalGroupService): Promise<void> {
+	if (instance.target === TerminalLocation.Editor) {
+		await terminalEditorService.revealActiveEditor();
+		await instance.focusWhenReady(true);
+	} else {
+		await terminalGroupService.showPanel(true);
+	}
 }

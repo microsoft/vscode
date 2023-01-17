@@ -22,7 +22,6 @@ import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceReco
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -41,7 +40,7 @@ import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions
 import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -56,6 +55,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isOfflineError } from 'vs/base/parts/request/common/request';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
@@ -170,8 +170,7 @@ export class ExtensionsListView extends ViewPane {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
-			this._register(attachBadgeStyler(this.badge, this.themeService));
+			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles);
 		}
 	}
 
@@ -222,6 +221,10 @@ export class ExtensionsListView extends ViewPane {
 			messageContainer,
 			messageSeverityIcon
 		};
+
+		if (this.queryResult) {
+			this.setModel(this.queryResult.model);
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -285,7 +288,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	count(): number {
-		return this.list ? this.list.length : 0;
+		return this.queryResult?.model.length ?? 0;
 	}
 
 	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
@@ -552,7 +555,7 @@ export class ExtensionsListView extends ViewPane {
 			const reloadRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
-				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+				if (e.outdated && !e.pinned) {
 					outdated.push(e);
 				}
 				else if (e.reloadRequiredStatus) {
@@ -987,21 +990,35 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(result, options));
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any) {
+	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
-			this.list.scrollTop = 0;
+			if (!donotResetScrollTop) {
+				this.list.scrollTop = 0;
+			}
 			this.updateBody(error);
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
+		}
+	}
+
+	private updateModel(model: IPagedModel<IExtension>) {
+		if (this.list) {
+			this.list.model = new DelayedPagedModel(model);
+			this.updateBody();
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
 		}
 	}
 
 	private updateBody(error?: any): void {
-		const count = this.count();
-		if (this.bodyTemplate && this.badge) {
+		if (this.bodyTemplate) {
 
+			const count = this.count();
 			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
 			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
-			this.badge.setCount(count);
 
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
@@ -1019,6 +1036,7 @@ export class ExtensionsListView extends ViewPane {
 				alert(this.bodyTemplate.messageBox.textContent);
 			}
 		}
+
 		this.updateSize();
 	}
 
@@ -1026,13 +1044,6 @@ export class ExtensionsListView extends ViewPane {
 		if (this.options.flexibleHeight) {
 			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
 			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
-	private updateModel(model: IPagedModel<IExtension>) {
-		if (this.list) {
-			this.list.model = new DelayedPagedModel(model);
-			this.updateBody();
 		}
 	}
 

@@ -12,7 +12,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -32,7 +32,7 @@ import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { ILoggerOptions, LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerOptions, ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
@@ -40,7 +40,7 @@ import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/com
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon, ThemeColor } from 'vs/base/common/themables';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
@@ -55,8 +55,8 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, IStartControllerTests, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
@@ -71,6 +71,7 @@ import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/qu
 import * as search from 'vs/workbench/services/search/common/search';
 import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
+import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export type TerminalQuickFix = TerminalQuickFixCommand | TerminalQuickFixOpener;
 
@@ -426,7 +427,7 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, file: UriComponents, log: boolean, languageId: string | undefined, extensionId: string): Promise<string>;
+	$register(label: string, file: UriComponents, languageId: string | undefined, extensionId: string): Promise<string>;
 	$update(channelId: string, mode: OutputChannelUpdateMode, till?: number): Promise<void>;
 	$reveal(channelId: string, preserveFocus: boolean): Promise<void>;
 	$close(channelId: string): Promise<void>;
@@ -1086,13 +1087,13 @@ export interface ExtHostUriOpenersShape {
 }
 
 export interface MainThreadProfileContentHandlersShape {
-	$registerProfileContentHandler(id: string, name: string, extensionId: string): Promise<void>;
+	$registerProfileContentHandler(id: string, name: string, description: string | undefined, extensionId: string): Promise<void>;
 	$unregisterProfileContentHandler(id: string): Promise<void>;
 }
 
 export interface ExtHostProfileContentHandlersShape {
-	$saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<UriComponents | null>;
-	$readProfile(id: string, uri: UriComponents, token: CancellationToken): Promise<string | null>;
+	$saveProfile(id: string, name: string, content: string, token: CancellationToken): Promise<UriDto<ISaveProfileResult> | null>;
+	$readProfile(id: string, idOrUri: string | UriComponents, token: CancellationToken): Promise<string | null>;
 }
 
 export interface ITextSearchComplete {
@@ -1234,6 +1235,11 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
+}
+
+export interface MainThreadQuickDiffShape extends IDisposable {
+	$registerQuickDiffProvider(handle: number, label: string, rootUri: UriComponents | undefined): Promise<void>;
+	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 
 export type DebugSessionUUID = string;
@@ -1448,6 +1454,7 @@ export interface ExtHostWorkspaceShape {
 	$onDidGrantWorkspaceTrust(): void;
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
+	$onWillCreateEditSessionIdentity(folder: UriComponents, token: CancellationToken, timeout: number): Promise<void>;
 }
 
 export interface ExtHostFileSystemInfoShape {
@@ -1868,6 +1875,10 @@ export interface ExtHostSCMShape {
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 }
 
+export interface ExtHostQuickDiffShape {
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
+}
+
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
@@ -1977,12 +1988,14 @@ export interface ExtHostWindowShape {
 }
 
 export interface ExtHostLogLevelServiceShape {
-	$setLevel(level: LogLevel, resource?: UriComponents): void;
+	$setLogLevel(level: LogLevel, resource?: UriComponents): void;
 }
 
 export interface MainThreadLoggerShape {
 	$log(file: UriComponents, messages: [LogLevel, string][]): void;
 	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
+	$registerLogger(logger: UriDto<ILoggerResource>): Promise<void>;
+	$deregisterLogger(resource: UriComponents): Promise<void>;
 }
 
 export interface ExtHostOutputServiceShape {
@@ -2208,7 +2221,8 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runControllerTests(req: RunTestForControllerRequest[], token: CancellationToken): Promise<{ error?: string }[]>;
+	$runControllerTests(req: IStartControllerTests[], token: CancellationToken): Promise<{ error?: string }[]>;
+	$startContinuousRun(req: ICallProfileRunHandler[], token: CancellationToken): Promise<{ error?: string }[]>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;
@@ -2331,6 +2345,7 @@ export const MainContext = {
 	MainThreadMessageService: createProxyIdentifier<MainThreadMessageServiceShape>('MainThreadMessageService'),
 	MainThreadOutputService: createProxyIdentifier<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createProxyIdentifier<MainThreadProgressShape>('MainThreadProgress'),
+	MainThreadQuickDiff: createProxyIdentifier<MainThreadQuickDiffShape>('MainThreadQuickDiff'),
 	MainThreadQuickOpen: createProxyIdentifier<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createProxyIdentifier<MainThreadStatusBarShape>('MainThreadStatusBar'),
 	MainThreadSecretState: createProxyIdentifier<MainThreadSecretStateShape>('MainThreadSecretState'),
@@ -2383,6 +2398,7 @@ export const ExtHostContext = {
 	ExtHostLanguages: createProxyIdentifier<ExtHostLanguagesShape>('ExtHostLanguages'),
 	ExtHostLanguageFeatures: createProxyIdentifier<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createProxyIdentifier<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
+	ExtHostQuickDiff: createProxyIdentifier<ExtHostQuickDiffShape>('ExtHostQuickDiff'),
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostLogLevelServiceShape: createProxyIdentifier<ExtHostLogLevelServiceShape>('ExtHostLogLevelServiceShape'),
 	ExtHostTerminalService: createProxyIdentifier<ExtHostTerminalServiceShape>('ExtHostTerminalService'),

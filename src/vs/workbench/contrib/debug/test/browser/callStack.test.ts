@@ -17,7 +17,7 @@ import { getContext, getContextForContributedActions, getSpecificSourceName } fr
 import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
