@@ -13,6 +13,7 @@
     "telemetryLogger",
     "diffCommand",
     "contribEditorContentMenu",
+    "contribEditSessions",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "scmActionButton",
@@ -50,6 +51,13 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "git.continueInLocalClone",
+        "title": "%command.continueInLocalClone%",
+        "category": "Git",
+        "icon": "$(repo-clone)",
+        "enablement": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
+      },
       {
         "command": "git.clone",
         "title": "%command.clone%",
@@ -706,6 +714,13 @@
         "category": "Git"
       }
     ],
+    "continueEditSession": [
+      {
+        "command": "git.continueInLocalClone",
+        "qualifiedName": "%command.continueInLocalClone.qualifiedName%",
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
+      }
+    ],
     "keybindings": [
       {
         "command": "git.stageSelectedRanges",
@@ -728,6 +743,10 @@
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "git.continueInLocalClone",
+          "when": "false"
+        },
         {
           "command": "git.clone",
           "when": "config.git.enabled && !git.missing"

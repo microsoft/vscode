@@ -65,6 +65,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onUninstallExtension: new Emitter<UninstallExtensionEvent>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 					onDidChangeProfile: new Emitter<DidChangeProfileEvent>().event,
+					onDidUpdateExtensionMetadata: new Emitter<ILocalExtension>().event,
 				},
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);

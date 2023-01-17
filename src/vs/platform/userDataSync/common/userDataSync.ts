@@ -327,17 +327,26 @@ export interface ISyncUserDataProfile {
 	readonly shortName?: string;
 }
 
-export interface ISyncExtension {
+export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
+
+export interface ILocalSyncExtension {
 	identifier: IExtensionIdentifier;
-	preRelease?: boolean;
-	version?: string;
+	pinned: boolean;
+	version: string;
+	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
 	state?: IStringDictionary<any>;
 }
 
-export interface ISyncExtensionWithVersion extends ISyncExtension {
+export interface IRemoteSyncExtension {
+	identifier: IExtensionIdentifier;
 	version: string;
+	pinned?: boolean;
+	preRelease?: boolean;
+	disabled?: boolean;
+	installed?: boolean;
+	state?: IStringDictionary<any>;
 }
 
 export interface IStorageValue {
@@ -564,6 +573,7 @@ export interface IConflictSetting {
 
 //#endregion
 
+export const USER_DATA_SYNC_LOG_ID = 'userDataSyncLog';
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_DIR_NAME = 'preview';
 export const EXTENSIONS_SYNC_CONTEXT_KEY = 'extensionsSync';

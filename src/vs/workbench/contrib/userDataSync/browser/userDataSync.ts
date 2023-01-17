@@ -27,11 +27,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
-	IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataSyncResourceConflicts, IUserDataSyncResource, IUserDataSyncResourceError
+	IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataSyncResourceConflicts, IUserDataSyncResource, IUserDataSyncResourceError, USER_DATA_SYNC_LOG_ID
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -569,11 +568,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {
-			id: SyncResource.Extensions,
-			label: getSyncAreaLabel(SyncResource.Extensions)
-		}, {
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
+		}, {
+			id: SyncResource.Extensions,
+			label: getSyncAreaLabel(SyncResource.Extensions)
 		}];
 		if (this.userDataProfilesService.isEnabled()) {
 			result.push({
@@ -649,7 +648,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private showSyncActivity(): Promise<void> {
-		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
+		return this.outputService.showChannel(USER_DATA_SYNC_LOG_ID);
 	}
 
 	private async selectSettingsSyncService(userDataSyncStore: IUserDataSyncStore): Promise<void> {

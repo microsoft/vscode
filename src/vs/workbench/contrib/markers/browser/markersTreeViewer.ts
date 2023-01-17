@@ -13,7 +13,7 @@ import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ResourceMarkers, Marker, RelatedInformation, MarkerElement, MarkerTableItem } from 'vs/workbench/contrib/markers/browser/markersModel';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';

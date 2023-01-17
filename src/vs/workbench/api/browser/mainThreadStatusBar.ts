@@ -5,7 +5,7 @@
 
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { MainThreadStatusBarShape, MainContext } from '../common/extHost.protocol';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';

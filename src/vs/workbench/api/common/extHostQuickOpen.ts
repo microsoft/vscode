@@ -16,7 +16,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
-import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 
 export type Item = string | QuickPickItem;
 

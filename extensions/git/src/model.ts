@@ -738,6 +738,13 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async showUnsafeRepositoryNotification(): Promise<void> {
+		// If no repositories are open, we will use a welcome view to inform the user
+		// that a potentially unsafe repository was found so we do not have to show
+		// the notification
+		if (this.repositories.length === 0) {
+			return;
+		}
+
 		const message = this._unsafeRepositories.size === 1 ?
 			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
 			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');

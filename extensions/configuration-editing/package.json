@@ -140,11 +140,11 @@
       },
       {
         "fileMatch": "devcontainer.json",
-        "url": "./schemas/devContainer.schema.generated.json"
+        "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
       },
       {
         "fileMatch": ".devcontainer.json",
-        "url": "./schemas/devContainer.schema.generated.json"
+        "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/nameConfigs/*.json",

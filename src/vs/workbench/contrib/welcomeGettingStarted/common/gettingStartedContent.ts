@@ -7,7 +7,7 @@ import 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
 import 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 

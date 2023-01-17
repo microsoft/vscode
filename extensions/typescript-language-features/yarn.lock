@@ -206,6 +206,27 @@
     "@microsoft/applicationinsights-web-basic" "^2.8.9"
     applicationinsights "2.3.6"
 
+"@vscode/sync-api-client@^0.7.2":
+  version "0.7.2"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-client/-/sync-api-client-0.7.2.tgz#0644bff66a5eff636bcd8eb483d34796b9f90d2d"
+  integrity sha512-HQHz57RVKmR8sTEen1Y/T3r6mzDX7IaUJz/O2RJkn0Qu9ThvCsakLP0N+1iiwPnPfUfmNSwQXbSw8bEQFPcpYQ==
+  dependencies:
+    "@vscode/sync-api-common" "0.7.2"
+    vscode-uri "3.0.3"
+
+"@vscode/sync-api-common@0.7.2", "@vscode/sync-api-common@^0.7.2":
+  version "0.7.2"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-common/-/sync-api-common-0.7.2.tgz#705060ee6a0108c24e145e687613becdb4292b33"
+  integrity sha512-ne1XEeDIYA3mp4oo1QoF1fqFedd0Vf4ybMmLb9HixbTyXy/qwMNL2p6OjXjOsmx6w2q9eqzGA5W/OPRSJxTTIQ==
+
+"@vscode/sync-api-service@^0.7.3":
+  version "0.7.3"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-service/-/sync-api-service-0.7.3.tgz#6cb7bd23c4a7378e4b92ca3638501a9be1937152"
+  integrity sha512-m2AmmfG4uzfjLMgWRHQ3xnBkdwCiUTO68vdw1XuzMsOb39Jwm9xr5bVVxwOFR9lPC0FfO1H6FUxBhZQvg7itPA==
+  dependencies:
+    "@vscode/sync-api-common" "0.7.2"
+    vscode-uri "3.0.3"
+
 applicationinsights@2.3.6:
   version "2.3.6"
   resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-2.3.6.tgz#91277ce44e5f6d2f85336922c05d90f8699c2e70"
@@ -451,7 +472,7 @@ vscode-tas-client@^0.1.63:
   dependencies:
     tas-client "0.1.58"
 
-vscode-uri@^3.0.3:
+vscode-uri@3.0.3, vscode-uri@^3.0.3:
   version "3.0.3"
   resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
   integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
