@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { SimpleCompletionItem } from 'vs/base/browser/ui/suggest/simpleCompletionItem';
-import { LineContext, SimpleCompletionModel } from 'vs/base/browser/ui/suggest/simpleCompletionModel';
-import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/base/browser/ui/suggest/simpleSuggestWidget';
+import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
+import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
+import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
@@ -316,8 +316,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
 		this._terminalSuggestWidgetVisibleContextKey.set(true);
 		if (!this._suggestWidget) {
-			// TODO: Layer breaker
-			this._suggestWidget = this._register(new SimpleSuggestWidget(
+			this._suggestWidget = this._register(this._instantiationService.createInstance(
+				SimpleSuggestWidget,
 				dom.findParentWithClass(this._container!, 'panel')!,
 				this._instantiationService.createInstance(PersistedWidgetSize)
 			));

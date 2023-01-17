@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * This file is mostly a mirror of the editor's suggest but scoped to .monaco-workbench to avoid
+ * layer breakers and shipping with the standalone monaco editor.
+ */
+
+.monaco-workbench .workbench-suggest-widget.with-status-bar .suggest-status-bar {
+	display: flex;
+}
+
+.monaco-workbench .workbench-suggest-widget .suggest-status-bar .left {
+	padding-right: 8px;
+}
+
+.monaco-workbench .workbench-suggest-widget.with-status-bar .suggest-status-bar .action-label {
+	color: var(--vscode-editorSuggestWidgetStatus-foreground);
+}
+
+.monaco-workbench .workbench-suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label {
+	margin-right: 0;
+}
+
+.monaco-workbench .workbench-suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label::after {
+	content: ', ';
+	margin-right: 0.3em;
+}
+
+.monaco-workbench .workbench-suggest-widget.with-status-bar .monaco-list .monaco-list-row>.contents>.main>.right>.readMore,
+.monaco-workbench .workbench-suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label>.contents>.main>.right>.readMore {
+	display: none;
+}

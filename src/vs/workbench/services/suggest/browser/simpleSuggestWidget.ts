@@ -7,15 +7,19 @@ import * as dom from 'vs/base/browser/dom';
 import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { SimpleCompletionItem } from 'vs/base/browser/ui/suggest/simpleCompletionItem';
-import { LineContext, SimpleCompletionModel } from 'vs/base/browser/ui/suggest/simpleCompletionModel';
-import { SimpleSuggestWidgetItemRenderer } from 'vs/base/browser/ui/suggest/simpleSuggestWidgetRenderer';
+import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
+import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
+import { SimpleSuggestWidgetItemRenderer } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import 'vs/css!./suggest';
+import 'vs/css!./media/suggest';
+import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
 
 const $ = dom.$;
 
@@ -48,9 +52,6 @@ const enum WidgetPositionPreference {
 export class SimpleSuggestWidget implements IDisposable {
 
 	private _state: State = State.Hidden;
-	readonly element: ResizableHTMLElement;
-	private readonly _listElement: HTMLElement;
-	private readonly _list: List<SimpleCompletionItem>;
 	private _completionModel?: SimpleCompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
@@ -58,6 +59,11 @@ export class SimpleSuggestWidget implements IDisposable {
 	private _preferenceLocked = false;
 	private readonly _pendingLayout = new MutableDisposable();
 	private _focusedItem?: SimpleCompletionItem;
+
+	readonly element: ResizableHTMLElement;
+	private readonly _listElement: HTMLElement;
+	private readonly _list: List<SimpleCompletionItem>;
+	private readonly _status: SuggestWidgetStatus;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
@@ -73,10 +79,11 @@ export class SimpleSuggestWidget implements IDisposable {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _persistedSize: IPersistedWidgetSizeDelegate
+		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.element = new ResizableHTMLElement();
-		this.element.domNode.classList.add('simple-suggest-widget');
+		this.element.domNode.classList.add('workbench-suggest-widget');
 		this._container.appendChild(this.element.domNode);
 
 		class ResizeState {
@@ -174,6 +181,12 @@ export class SimpleSuggestWidget implements IDisposable {
 			}
 		});
 
+		// TODO: Use real menu
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
+		// TODO: Setting?
+		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', true);
+		applyStatusBarStyle();
+
 		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
 		this._disposables.add(this._list.onTap(e => this._onListMouseDownOrTap(e)));
 		this._disposables.add(this._list.onDidChangeSelection(e => this._onListSelection(e)));
@@ -181,6 +194,7 @@ export class SimpleSuggestWidget implements IDisposable {
 
 	dispose(): void {
 		this._disposables.dispose();
+		this._status.dispose();
 		this.element.dispose();
 	}
 
@@ -260,9 +274,9 @@ export class SimpleSuggestWidget implements IDisposable {
 		switch (state) {
 			case State.Hidden:
 				// dom.hide(this._messageElement, this._listElement, this._status.element);
-				dom.hide(this._listElement);
+				dom.hide(this._listElement, this._status.element);
 				// this._details.hide(true);
-				// this._status.hide();
+				this._status.hide();
 				// this._contentWidget.hide();
 				// this._ctxSuggestWidgetVisible.reset();
 				// this._ctxSuggestWidgetMultipleSuggestions.reset();
@@ -277,8 +291,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			case State.Loading:
 				this.element.domNode.classList.add('message');
 				// this._messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
-				dom.hide(this._listElement);
-				// dom.hide(this._listElement, this._status.element);
+				dom.hide(this._listElement, this._status.element);
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
@@ -287,8 +300,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			case State.Empty:
 				this.element.domNode.classList.add('message');
 				// this._messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				// dom.hide(this._listElement, this._status.element);
-				dom.hide(this._listElement);
+				dom.hide(this._listElement, this._status.element);
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
@@ -296,20 +308,17 @@ export class SimpleSuggestWidget implements IDisposable {
 				break;
 			case State.Open:
 				// dom.hide(this._messageElement);
-				// dom.show(this._listElement, this._status.element);
-				dom.show(this._listElement);
+				dom.show(this._listElement, this._status.element);
 				this._show();
 				break;
 			case State.Frozen:
 				// dom.hide(this._messageElement);
-				// dom.show(this._listElement, this._status.element);
-				dom.show(this._listElement);
+				dom.show(this._listElement, this._status.element);
 				this._show();
 				break;
 			case State.Details:
 				// dom.hide(this._messageElement);
-				// dom.show(this._listElement, this._status.element);
-				dom.show(this._listElement);
+				dom.show(this._listElement, this._status.element);
 				// this._details.show();
 				this._show();
 				break;
@@ -322,7 +331,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		// this._onDidShow.fire();
 
 
-		// this._status.show();
+		this._status.show();
 		// this._contentWidget.show();
 		dom.show(this.element.domNode);
 		this._layout(this._persistedSize.restore());
@@ -375,7 +384,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		let width = size.width;
 
 		// status bar
-		// this._status.element.style.lineHeight = `${info.itemHeight}px`;
+		this._status.element.style.lineHeight = `${info.itemHeight}px`;
 
 		// if (this._state === State.Empty || this._state === State.Loading) {
 		// 	// showing a message only
