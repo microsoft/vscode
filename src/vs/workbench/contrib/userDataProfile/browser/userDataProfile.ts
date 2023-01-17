@@ -19,11 +19,10 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, defaultUserDataProfileIcon, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getAllCodicons, getCodiconFontCharacters } from 'vs/base/common/codicons';
 import { IFileService } from 'vs/platform/files/common/files';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -32,8 +31,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { distinct } from 'vs/base/common/arrays';
 
 const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
 const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
@@ -184,45 +181,10 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private readonly currentprofileActionsDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private registerCurrentProfilesActions(): void {
 		this.currentprofileActionsDisposable.value = new DisposableStore();
-		this.currentprofileActionsDisposable.value.add(this.registerChangeIconForCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerShowCurrentProfileContentsAction());
 		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
-	}
-
-	private registerChangeIconForCurrentProfileAction(): IDisposable {
-		const that = this;
-		return registerAction2(class ChangeIconForCurrentProfileAction extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.profiles.actions.changeIconForCurrentProfile`,
-					title: {
-						value: localize('change icon', "Change Icon..."),
-						original: `Change Icon...`
-					},
-					menu: [
-						{
-							id: ProfilesMenu,
-							group: '2_manage_current',
-							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
-							order: 1
-						}
-					]
-				});
-			}
-			async run(accessor: ServicesAccessor) {
-				const profile = that.userDataProfileService.currentProfile;
-				const shortName = await that.pickIcon(profile);
-				if (shortName && shortName !== profile.shortName) {
-					try {
-						await that.userDataProfileManagementService.updateProfile(profile, { shortName });
-					} catch (error) {
-						that.notificationService.error(error);
-					}
-				}
-			}
-		});
 	}
 
 	private registerRenameCurrentProfileAction(): IDisposable {
@@ -514,22 +476,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		} catch (error) {
 			this.notificationService.error(error);
 		}
-	}
-
-	private async pickIcon(profile?: IUserDataProfile): Promise<string | undefined> {
-		const codiconQuickPicks: Array<IQuickPickItem | IQuickPickSeparator> = [];
-		codiconQuickPicks.push({ label: `$(${defaultUserDataProfileIcon.id})`, description: localize('default', "Default") });
-		codiconQuickPicks.push({ label: '', type: 'separator' });
-		const currentIcon = profile?.shortName ? ThemeIcon.fromString(profile.shortName) : undefined;
-		const fontCharacters = getCodiconFontCharacters();
-		for (const codicon of distinct(getAllCodicons(), c => fontCharacters[c.id])) {
-			codiconQuickPicks.push({ label: `$(${codicon.id})`, description: `${codicon.id}${currentIcon?.id === codicon.id ? ` (${localize('current', "Current")})` : ''}` });
-		}
-		const result = await this.quickInputService.pick(codiconQuickPicks, {
-			title: profile ? localize('change icon title', "Change icon for {0} Profile", profile.name) : localize('pick icon', "Pick icon..."),
-			matchOnDescription: true,
-		});
-		return result?.label;
 	}
 
 	private registerCreateProfileAction(): void {
