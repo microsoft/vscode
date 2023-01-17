@@ -8,8 +8,8 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkspaceContextService, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -65,14 +65,14 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	async createAndEnterProfile(name: string, options?: IUserDataProfileOptions, fromExisting?: boolean): Promise<IUserDataProfile> {
-		const profile = await this.userDataProfilesService.createNamedProfile(name, options, this.getWorkspaceIdentifier());
+		const profile = await this.userDataProfilesService.createNamedProfile(name, options, toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 		await this.enterProfile(profile, !!fromExisting);
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'createAndEnterProfile' });
 		return profile;
 	}
 
 	async createAndEnterTransientProfile(): Promise<IUserDataProfile> {
-		const profile = await this.userDataProfilesService.createTransientProfile(this.getWorkspaceIdentifier());
+		const profile = await this.userDataProfilesService.createTransientProfile(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 		await this.enterProfile(profile, false);
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'createAndEnterTransientProfile' });
 		return profile;
@@ -101,7 +101,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 
 	async switchProfile(profile: IUserDataProfile): Promise<void> {
-		const workspaceIdentifier = this.getWorkspaceIdentifier();
+		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Profile ${profile.name} does not exist`);
 		}
@@ -111,17 +111,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		await this.userDataProfilesService.setProfileForWorkspace(workspaceIdentifier, profile);
 		await this.enterProfile(profile, false);
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'switchProfile' });
-	}
-
-	private getWorkspaceIdentifier(): WorkspaceIdentifier {
-		const workspace = this.workspaceContextService.getWorkspace();
-		switch (this.workspaceContextService.getWorkbenchState()) {
-			case WorkbenchState.FOLDER:
-				return { uri: workspace.folders[0].uri, id: workspace.id };
-			case WorkbenchState.WORKSPACE:
-				return { configPath: workspace.configuration!, id: workspace.id };
-		}
-		return 'empty-window';
 	}
 
 	private async enterProfile(profile: IUserDataProfile, preserveData: boolean, reloadMessage?: string): Promise<void> {

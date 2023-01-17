@@ -57,6 +57,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
+import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -292,8 +293,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		this.onConfigurationUpdated(undefined);
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -301,7 +301,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		// Also handle configuration updates
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
@@ -526,8 +526,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	// React on events
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration?.explorer?.autoReveal;
+	private onConfigurationUpdated(event: IConfigurationChangeEvent | undefined): void {
+		if (!event || event.affectsConfiguration('explorer.autoReveal')) {
+			const configuration = this.configurationService.getValue<IFilesConfiguration>();
+			this.autoReveal = configuration?.explorer?.autoReveal;
+		}
 
 		// Push down config updates to components of viewer
 		if (event && (event.affectsConfiguration('explorer.decorations.colors') || event.affectsConfiguration('explorer.decorations.badges'))) {
@@ -553,6 +556,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		const stat = e.element;
 		let anchor = e.anchor;
 

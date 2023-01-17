@@ -12,7 +12,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
-import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -627,7 +626,7 @@ export interface ITerminalInstance {
 	/**
 	 * The shell type of the terminal.
 	 */
-	readonly shellType: TerminalShellType;
+	readonly shellType: TerminalShellType | undefined;
 
 	/**
 	 * The focus state of the terminal before exiting.
@@ -788,7 +787,7 @@ export interface ITerminalInstance {
 	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
 	 * platform. This defaults to `true`.
 	 */
-	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
+	sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void>;
 
 	runCommand(command: string, addNewLine?: boolean): void;
 
@@ -932,11 +931,6 @@ export interface ITerminalInstance {
 	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
 
 	/**
-	 * Registers quick fix providers
-	 */
-	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void;
-
-	/**
 	 * Attempts to detect and kill the process listening on specified port.
 	 * If successful, places commandToRun on the command line
 	 */
@@ -962,6 +956,11 @@ export interface IXtermTerminal {
 	 * Gets a view of the current texture atlas used by the renderers.
 	 */
 	readonly textureAtlas: Promise<ImageBitmap> | undefined;
+
+	/**
+	 * Whether the `disableStdin` option in xterm.js is set.
+	 */
+	readonly isStdinDisabled: boolean;
 
 	/**
 	 * The position of the terminal.

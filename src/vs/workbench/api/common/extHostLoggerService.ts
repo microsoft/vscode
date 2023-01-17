@@ -8,27 +8,26 @@ import { MainThreadLoggerShape, MainContext, ExtHostLogLevelServiceShape as ExtH
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { isUndefined } from 'vs/base/common/types';
+import { revive } from 'vs/base/common/marshalling';
 
 export class ExtHostLoggerService extends AbstractLoggerService implements ExtHostLogLevelServiceShape {
 
 	declare readonly _serviceBrand: undefined;
-	private readonly _proxy: MainThreadLoggerShape;
+	protected readonly _proxy: MainThreadLoggerShape;
 
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(initData.logLevel, Event.None);
+		super(initData.logLevel, initData.loggers.map(logger => revive(logger)));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
 	}
 
-	$setLevel(level: LogLevel, resource?: UriComponents): void {
+	$setLogLevel(logLevel: LogLevel, resource?: UriComponents): void {
 		if (resource) {
-			this.setLevel(URI.revive(resource), level);
-		} else if (!isUndefined(level)) {
-			this.setLevel(level);
+			this.setLogLevel(URI.revive(resource), logLevel);
+		} else {
+			this.setLogLevel(logLevel);
 		}
 	}
 
@@ -48,7 +47,7 @@ class Logger extends AbstractMessageLogger {
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
 	) {
-		super(loggerOptions?.always);
+		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
 		this.proxy.$createLogger(file, loggerOptions)
 			.then(() => {

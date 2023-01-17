@@ -29,6 +29,7 @@ import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,12 +49,12 @@ const fileCategory = { value: localize('file', "File"), original: 'File' };
 abstract class BaseOpenRecentAction extends Action2 {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
+		iconClass: ThemeIcon.asClassName(Codicon.removeClose),
 		tooltip: localize('remove', "Remove from Recently Opened")
 	};
 
 	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
-		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
+		iconClass: 'dirty-workspace ' + ThemeIcon.asClassName(Codicon.closeDirty),
 		tooltip: localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
 		alwaysVisible: true
 	};

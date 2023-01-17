@@ -6,14 +6,14 @@
 import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Dimension, size, clearNode, $, EventHelper } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,13 +22,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Link } from 'vs/platform/opener/browser/link';
+import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Codicon } from 'vs/base/common/codicons';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { truncate } from 'vs/base/common/strings';
 
@@ -59,8 +57,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
 	}
@@ -115,15 +112,26 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// ARIA label
 		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${truncatedLabel}`);
 
-		// Actions
-		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
-		for (const action of actions) {
-			disposables.add(this.instantiationService.createInstance(Link, actionsContainer, {
-				label: action.label,
-				href: ''
-			}, {
-				opener: () => action.run()
-			}));
+		// Buttons
+		if (actions.length) {
+			const actionsContainer = container.appendChild($('.editor-placeholder-buttons-container'));
+			const buttons = disposables.add(new ButtonBar(actionsContainer));
+
+			for (let i = 0; i < actions.length; i++) {
+				const button = disposables.add(buttons.addButton({
+					...defaultButtonStyles,
+					secondary: i !== 0
+				}));
+
+				button.label = actions[i].label;
+				disposables.add(button.onDidClick(e => {
+					if (e) {
+						EventHelper.stop(e, true);
+					}
+
+					actions[i].run();
+				}));
+			}
 		}
 
 		// Adjust scrollbar
@@ -182,10 +190,9 @@ export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 		@IThemeService themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IStorageService storageService: IStorageService
 	) {
-		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	override getTitle(): string {
@@ -219,11 +226,10 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
-		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService);
 	}
 
 	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
@@ -236,15 +242,27 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		let label: string;
 		if (isFileNotFound) {
 			label = localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
+		} else if (isEditorOpenError(error) && error.forceMessage) {
+			label = error.message;
 		} else if (error) {
 			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
 
+		// Error Icon
+		let icon = '$(error)';
+		if (isEditorOpenError(error)) {
+			if (error.forceSeverity === Severity.Info) {
+				icon = '$(info)';
+			} else if (error.forceSeverity === Severity.Warning) {
+				icon = '$(warning)';
+			}
+		}
+
 		// Actions
 		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
-		if (isErrorWithActions(error) && error.actions.length > 0) {
+		if (isEditorOpenError(error) && error.actions.length > 0) {
 			actions = error.actions.map(action => {
 				return {
 					label: action.label,
@@ -274,37 +292,6 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 			}));
 		}
 
-		return { icon: '$(error)', label, actions: actions ?? [] };
+		return { icon, label, actions: actions ?? [] };
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Editor Placeholder Error Icon
-	const editorErrorIconForegroundColor = theme.getColor(editorErrorForeground);
-	if (editorErrorIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.error.cssSelector} {
-			color: ${editorErrorIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Warning Icon
-	const editorWarningIconForegroundColor = theme.getColor(editorWarningForeground);
-	if (editorWarningIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.warning.cssSelector} {
-			color: ${editorWarningIconForegroundColor};
-		}`);
-	}
-
-	// Editor Placeholder Info/Trust Icon
-	const editorInfoIconForegroundColor = theme.getColor(editorInfoForeground);
-	if (editorInfoIconForegroundColor) {
-		collector.addRule(`
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.info.cssSelector},
-		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.workspaceUntrusted.cssSelector} {
-			color: ${editorInfoIconForegroundColor};
-		}`);
-	}
-});

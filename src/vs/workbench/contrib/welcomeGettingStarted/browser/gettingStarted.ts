@@ -14,7 +14,8 @@ import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'v
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -609,14 +610,16 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
-					postTrueKeysMessage();
-				}
-			}));
+			if (rawHTML.indexOf('<code>') >= 0) {
+				// Render again when Theme changes since syntax highlighting of code blocks may have changed
+				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+					const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
+					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+						webview.html = body;
+						postTrueKeysMessage();
+					}
+				}));
+			}
 
 			const layoutDelayer = new Delayer(50);
 
@@ -702,7 +705,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('getStarted', "Get Started")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});

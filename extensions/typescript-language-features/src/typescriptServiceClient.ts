@@ -19,16 +19,16 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { areServiceConfigurationsEqual, ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
-import { isWeb } from './utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 import { PluginManager, TypeScriptServerPlugin } from './utils/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { inferredProjectCompilerOptions, ProjectType } from './utils/tsconfig';
+import { ProjectType, inferredProjectCompilerOptions } from './utils/tsconfig';
 
 
 export interface TsDiagnostics {
@@ -214,7 +214,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return this.apiVersion.fullVersionString;
 		});
 
-		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
+		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory, context.extensionUri);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
 			this.configurePlugin(update.pluginId, update.config);
@@ -233,9 +233,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (isWeb()) {
-			return new ClientCapabilities(
-				ClientCapability.Syntax,
-				ClientCapability.EnhancedSyntax);
+			if (this.isProjectWideIntellisenseOnWebEnabled()) {
+				return new ClientCapabilities(
+					ClientCapability.Syntax,
+					ClientCapability.EnhancedSyntax,
+					ClientCapability.Semantic);
+			} else {
+				return new ClientCapabilities(
+					ClientCapability.Syntax,
+					ClientCapability.EnhancedSyntax);
+			}
 		}
 
 		if (this.apiVersion.gte(API.v400)) {
@@ -252,6 +259,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private readonly _onDidChangeCapabilities = this._register(new vscode.EventEmitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+
+	private isProjectWideIntellisenseOnWebEnabled(): boolean {
+		return isWebAndHasSharedArrayBuffers() && this._configuration.enableProjectWideIntellisenseOnWeb;
+	}
 
 	private cancelInflightRequestsForResource(resource: vscode.Uri): void {
 		if (this.serverState.type !== ServerState.Type.Running) {
@@ -678,7 +689,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix
+					return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)
 						+ '/' + resource.scheme
 						+ '/' + (resource.authority || this.emptyAuthority)
 						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
@@ -722,8 +733,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public toResource(filepath: string): vscode.Uri {
 		if (isWeb()) {
 			// On web, the stdlib paths that TS return look like: '/lib.es2015.collection.d.ts'
+			// TODO: Find out what extensionUri is when testing (should be http://localhost:8080/static/sources/extensions/typescript-language-features/)
+			// TODO:  make sure that this code path is getting hit
 			if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
 				return vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'browser', 'typescript', filepath.slice(1));
+			}
+			const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)\/(.+)$/);
+			if (parts) {
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
+				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}
 

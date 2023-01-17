@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -142,7 +141,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb);
 
 				if (!keybinding) {
 					return unassigned;
