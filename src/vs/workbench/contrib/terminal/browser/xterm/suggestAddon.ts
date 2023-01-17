@@ -319,7 +319,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
 				dom.findParentWithClass(this._container!, 'panel')!,
-				this._instantiationService.createInstance(PersistedWidgetSize)
+				this._instantiationService.createInstance(PersistedWidgetSize),
+				{}
 			));
 			this._register(attachListStyler(this._suggestWidget.list, this._themeService, {
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,

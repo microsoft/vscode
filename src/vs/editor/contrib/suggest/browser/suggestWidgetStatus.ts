@@ -80,6 +80,7 @@ export class SuggestWidgetStatus {
 			this._rightActions.clear();
 			this._rightActions.push(right);
 		};
+		renderMenu();
 		this._menuDisposables.add(menu.onDidChange(() => renderMenu()));
 		this._menuDisposables.add(menu);
 	}

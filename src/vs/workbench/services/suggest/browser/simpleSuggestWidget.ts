@@ -19,6 +19,7 @@ import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/browser/su
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const $ = dom.$;
 
@@ -48,6 +49,14 @@ const enum WidgetPositionPreference {
 	Below
 }
 
+export interface IWorkbenchSuggestWidgetOptions {
+	/**
+	 * The {@link MenuId} to use for the status bar. Items on the menu must use the groups `'left'`
+	 * and `'right'`.
+	 */
+	statusBarMenuId?: MenuId;
+}
+
 export class SimpleSuggestWidget implements IDisposable {
 
 	private _state: State = State.Hidden;
@@ -62,7 +71,7 @@ export class SimpleSuggestWidget implements IDisposable {
 	readonly element: ResizableHTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
-	private readonly _status: SuggestWidgetStatus;
+	private readonly _status?: SuggestWidgetStatus;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
@@ -79,6 +88,7 @@ export class SimpleSuggestWidget implements IDisposable {
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
+		options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.element = new ResizableHTMLElement();
@@ -181,10 +191,12 @@ export class SimpleSuggestWidget implements IDisposable {
 		});
 
 		// TODO: Use real menu
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
-		// TODO: Setting?
-		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', true);
-		applyStatusBarStyle();
+		if (options.statusBarMenuId) {
+			this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId);
+			// TODO: Setting?
+			const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', true);
+			applyStatusBarStyle();
+		}
 
 		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
 		this._disposables.add(this._list.onTap(e => this._onListMouseDownOrTap(e)));
@@ -193,7 +205,7 @@ export class SimpleSuggestWidget implements IDisposable {
 
 	dispose(): void {
 		this._disposables.dispose();
-		this._status.dispose();
+		this._status?.dispose();
 		this.element.dispose();
 	}
 
@@ -273,9 +285,12 @@ export class SimpleSuggestWidget implements IDisposable {
 		switch (state) {
 			case State.Hidden:
 				// dom.hide(this._messageElement, this._listElement, this._status.element);
-				dom.hide(this._listElement, this._status.element);
+				dom.hide(this._listElement);
+				if (this._status) {
+					dom.hide(this._status?.element);
+				}
 				// this._details.hide(true);
-				this._status.hide();
+				this._status?.hide();
 				// this._contentWidget.hide();
 				// this._ctxSuggestWidgetVisible.reset();
 				// this._ctxSuggestWidgetMultipleSuggestions.reset();
@@ -290,7 +305,10 @@ export class SimpleSuggestWidget implements IDisposable {
 			case State.Loading:
 				this.element.domNode.classList.add('message');
 				// this._messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
-				dom.hide(this._listElement, this._status.element);
+				dom.hide(this._listElement);
+				if (this._status) {
+					dom.hide(this._status?.element);
+				}
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
@@ -299,7 +317,10 @@ export class SimpleSuggestWidget implements IDisposable {
 			case State.Empty:
 				this.element.domNode.classList.add('message');
 				// this._messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				dom.hide(this._listElement, this._status.element);
+				dom.hide(this._listElement);
+				if (this._status) {
+					dom.hide(this._status?.element);
+				}
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
@@ -307,17 +328,26 @@ export class SimpleSuggestWidget implements IDisposable {
 				break;
 			case State.Open:
 				// dom.hide(this._messageElement);
-				dom.show(this._listElement, this._status.element);
+				dom.show(this._listElement);
+				if (this._status) {
+					dom.show(this._status?.element);
+				}
 				this._show();
 				break;
 			case State.Frozen:
 				// dom.hide(this._messageElement);
-				dom.show(this._listElement, this._status.element);
+				dom.show(this._listElement);
+				if (this._status) {
+					dom.show(this._status?.element);
+				}
 				this._show();
 				break;
 			case State.Details:
 				// dom.hide(this._messageElement);
-				dom.show(this._listElement, this._status.element);
+				dom.show(this._listElement);
+				if (this._status) {
+					dom.show(this._status?.element);
+				}
 				// this._details.show();
 				this._show();
 				break;
@@ -330,7 +360,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		// this._onDidShow.fire();
 
 
-		this._status.show();
+		this._status?.show();
 		// this._contentWidget.show();
 		dom.show(this.element.domNode);
 		this._layout(this._persistedSize.restore());
@@ -383,7 +413,9 @@ export class SimpleSuggestWidget implements IDisposable {
 		let width = size.width;
 
 		// status bar
-		this._status.element.style.lineHeight = `${info.itemHeight}px`;
+		if (this._status) {
+			this._status.element.style.lineHeight = `${info.itemHeight}px`;
+		}
 
 		// if (this._state === State.Empty || this._state === State.Loading) {
 		// 	// showing a message only
