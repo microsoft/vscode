@@ -1099,33 +1099,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	renderAccessibilityElement(): void {
-		const elements = this.xterm!.getBufferElements(0);
 		if (!this.xterm?.raw.element) {
 			return;
 		}
-
-		if (this._accessibilityElement) {
-			for (const element of elements.bufferElements) {
-				if (element.textContent) {
-					element.textContent = element.textContent.replaceAll(' ', '\xA0');
-				}
-			}
-			this._accessibilityElement.replaceChildren(...elements.bufferElements);
-		} else {
-			const contentEditable = this._configurationService.getValue(TerminalSettingId.AccessibilityElementContentEditable);
-			this._accessibilityElement = document.createElement(contentEditable ? 'section' : 'div');
-			this._accessibilityElement.contentEditable = contentEditable ? 'true' : 'false';
-			this._accessibilityElement.tabIndex = 0;
-			this._accessibilityElement.role = 'document';
-			this._accessibilityElement.spellcheck = false;
-			this._accessibilityElement.classList.add('xterm-accessibility');
-			this.xterm.raw.element.insertAdjacentElement('afterbegin', this._accessibilityElement);
-			for (const element of elements.bufferElements) {
-				if (element.textContent) {
-					element.textContent = element.textContent.replaceAll(' ', '\xA0');
-				}
-				this._accessibilityElement.appendChild(element);
-			}
+		this._accessibilityElement = document.querySelector('.xterm-accessibility-full-output') as HTMLElement || undefined;
+		if (!this._accessibilityElement) {
+			return;
 		}
 		const fontFamily = this._configurationService.getValue(TerminalSettingId.FontFamily) || 'Monospace';
 		const fontSize = this._configurationService.getValue(TerminalSettingId.FontSize);
@@ -1135,16 +1114,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
 		this._accessibilityElement.style.backgroundColor = backgroundColor ? backgroundColor.toString() : 'black';
 		this._accessibilityElement.style.color = backgroundColor ? backgroundColor.opposite().toString() : 'white';
-		this._accessibilityElement.scrollTop = this._accessibilityElement.scrollHeight;
-		const selection = document.getSelection();
-		if (selection && elements.cursorElement) {
-			selection.removeAllRanges();
-			const range = document.createRange();
-			range.selectNode(elements.bufferElements[elements.bufferElements.length - 1]);
-			range.setStart(elements.cursorElement, 0);
-			range.setEnd(elements.cursorElement, 0);
-			selection.addRange(range);
-		}
 		this._accessibilityElement.focus();
 	}
 
