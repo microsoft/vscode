@@ -568,11 +568,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {
-			id: SyncResource.Extensions,
-			label: getSyncAreaLabel(SyncResource.Extensions)
-		}, {
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
+		}, {
+			id: SyncResource.Extensions,
+			label: getSyncAreaLabel(SyncResource.Extensions)
 		}];
 		if (this.userDataProfilesService.isEnabled()) {
 			result.push({

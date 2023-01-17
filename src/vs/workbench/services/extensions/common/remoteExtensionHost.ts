@@ -148,14 +148,11 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 						reject('The remote extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
-					let logFile: URI;
-
 					const disposable = protocol.onMessage(msg => {
 
 						if (isMessageOfType(msg, MessageType.Ready)) {
 							// 1) Extension Host is ready to receive messages, initialize it
 							this._createExtHostInitData(isExtensionDevelopmentDebug).then(data => {
-								logFile = data.logFile;
 								protocol.send(VSBuffer.fromString(JSON.stringify(data)));
 							});
 							return;
@@ -168,9 +165,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 							// stop listening for messages here
 							disposable.dispose();
-
-							// Register logger for remote exthost log
-							this._loggerService.registerLogger({ id: 'remoteExtHostLog', name: localize('remote extension host Log', "Remote Extension Host"), resource: logFile });
 
 							// release this promise
 							this._protocol = protocol;
@@ -250,6 +244,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: remoteInitData.extensionHostLogsPath,
 			logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
+			logName: localize('remote extension host Log', "Remote Extension Host"),
 			autoStart: true,
 			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 		};

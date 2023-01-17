@@ -210,7 +210,7 @@ export enum TerminalIpcChannels {
 	/**
 	 * Deals with logging from the pty host process.
 	 */
-	Log = 'log',
+	Logger = 'logger',
 	/**
 	 * Enables the detection of unresponsive pty hosts.
 	 */

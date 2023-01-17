@@ -120,7 +120,7 @@ export interface IUserDataProfileContentHandler {
 
 export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
 
-export const ManageProfilesSubMenu = new MenuId('Profiles');
+export const ProfilesMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
 export const PROFILES_TTILE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
 export const PROFILES_CATEGORY = { ...PROFILES_TTILE };

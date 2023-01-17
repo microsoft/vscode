@@ -6,14 +6,12 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -21,23 +19,25 @@ import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { StartupTimings } from 'vs/workbench/contrib/performance/browser/startupTimings';
 
-export class StartupTimings implements IWorkbenchContribution {
+export class NativeStartupTimings extends StartupTimings implements IWorkbenchContribution {
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
+		@IEditorService editorService: IEditorService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IUpdateService private readonly _updateService: IUpdateService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IUpdateService updateService: IUpdateService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustManagementService workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
+		super(editorService, paneCompositeService, lifecycleService, updateService, workspaceTrustService);
+
 		this._report().catch(onUnexpectedError);
 	}
 
@@ -102,43 +102,12 @@ export class StartupTimings implements IWorkbenchContribution {
 		}
 	}
 
-	private async _isStandardStartup(): Promise<string | undefined> {
-		// check for standard startup:
-		// * new window (no reload)
-		// * workspace is trusted
-		// * just one window
-		// * explorer viewlet visible
-		// * one text editor (not multiple, not webview, welcome etc...)
-		// * cached data present (not rejected, not created)
-		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
-			return StartupKindToString(this._lifecycleService.startupKind);
-		}
-		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
-			return 'Workspace not trusted';
-		}
+	protected override async _isStandardStartup(): Promise<string | undefined> {
 		const windowCount = await this._nativeHostService.getWindowCount();
 		if (windowCount !== 1) {
-			return 'Expected window count : 1, Actual : ' + windowCount;
+			return `Expected window count : 1, Actual : ${windowCount}`;
 		}
-		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		if (!activeViewlet || activeViewlet.getId() !== files.VIEWLET_ID) {
-			return 'Explorer viewlet not visible';
-		}
-		const visibleEditorPanes = this._editorService.visibleEditorPanes;
-		if (visibleEditorPanes.length !== 1) {
-			return 'Expected text editor count : 1, Actual : ' + visibleEditorPanes.length;
-		}
-		if (!isCodeEditor(visibleEditorPanes[0].getControl())) {
-			return 'Active editor is not a text editor';
-		}
-		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (activePanel) {
-			return 'Current active panel : ' + this._paneCompositeService.getPaneComposite(activePanel.getId(), ViewContainerLocation.Panel)?.name;
-		}
-		if (!await this._updateService.isLatestVersion()) {
-			return 'Not on latest version, updates available';
-		}
-		return undefined;
+		return super._isStandardStartup();
 	}
 
 	private async appendContent(file: URI, content: string): Promise<void> {
