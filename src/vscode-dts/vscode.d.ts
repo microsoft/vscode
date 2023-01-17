@@ -14232,6 +14232,11 @@ declare module 'vscode' {
 		 * Controls whether the input box is visible (default is `true`).
 		 */
 		visible: boolean;
+
+		/**
+		 * The {@link TextDocument text} of the input box.
+		 */
+		readonly document: TextDocument;
 	}
 
 	interface QuickDiffProvider {

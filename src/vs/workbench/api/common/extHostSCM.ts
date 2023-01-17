@@ -22,6 +22,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { Schemas } from 'vs/base/common/network';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -283,8 +285,24 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
-	constructor(private _extension: IExtensionDescription, proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
+	private _documentUri: URI;
+
+	get document(): vscode.TextDocument {
+		const data = this._extHostDocument.getDocument(this._documentUri);
+		if (!data) {
+			throw new Error(`MISSING extHostDocument for source control input box: ${this._documentUri}`);
+		}
+
+		return data.document;
+	}
+
+	constructor(private _extension: IExtensionDescription, private _extHostDocument: ExtHostDocumentsAndEditors, proxy: MainThreadSCMShape, private _sourceControlHandle: number, _id: string, _rootUri?: vscode.Uri) {
 		this.#proxy = proxy;
+		this._documentUri = URI.from({
+			scheme: Schemas.vscodeSourceControl,
+			path: `${_id}/scm${this._sourceControlHandle}/input`,
+			query: _rootUri ? `rootUri=${encodeURIComponent(_rootUri.toString())}` : undefined
+		});
 	}
 
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
@@ -580,6 +598,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
+		_extHostDocument: ExtHostDocumentsAndEditors,
 		proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
 		private _id: string,
@@ -588,7 +607,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	) {
 		this.#proxy = proxy;
 
-		this._inputBox = new ExtHostSCMInputBox(_extension, this.#proxy, this.handle);
+		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocument, this.#proxy, this.handle, this._id, this._rootUri);
 		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
 	}
 
@@ -695,6 +714,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	constructor(
 		mainContext: IMainContext,
 		private _commands: ExtHostCommands,
+		private _extHostDocument: ExtHostDocumentsAndEditors,
 		@ILogService private readonly logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
@@ -753,7 +773,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocument, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
