@@ -271,7 +271,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			lineLimit: this.options.outputLineLimit,
 			outputScrolling: this.options.outputScrolling
 		};
-		const preloadScript = preloadsScriptStr(
+		const preloadScripts = preloadsScriptStr(
 			this.options,
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
 			renderOptions,
@@ -445,7 +445,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
-				<script type="module">${preloadScript}</script>
+				${Array.from(preloadScripts, script => {
+					return `<script type="${script.module ? 'module' : ''}">${script.source}</script>`;
+				}).join('\n')}
 			</body>
 		</html>`;
 	}

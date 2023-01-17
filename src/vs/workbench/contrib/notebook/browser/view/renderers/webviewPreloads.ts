@@ -2429,7 +2429,38 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}();
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderOptions: RenderOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
+/**
+ * Script that builds an import map inside the webview.
+ *
+ * This is responsible for creating the api that renderers can load with `import 'vscode'`.
+ *
+ * The script must be executed before the main webview script is loaded.
+ */
+async function webviewImportMap(rendererData: readonly webviewMessages.RendererMetadata[]) {
+	const scopes: Record<string, Record<string, string>> = {};
+
+	for (const renderer of rendererData) {
+		const script = ` export const abc = 'hello ' + '${renderer.id}';`;
+
+		const blob = new Blob([script], { type: 'application/javascript' });
+		const scriptUrl = URL.createObjectURL(blob);
+
+		// TODO: the entrypoint should likely be broader so the the import maps also works
+		// in files that the main script imports
+		scopes[renderer.entrypoint.path] = {
+			'vscode': scriptUrl
+		};
+	}
+
+	if (Object.keys(scopes).length) {
+		const importMapScript = document.createElement('script');
+		importMapScript.type = 'importmap';
+		(importMapScript as any).textContent = JSON.stringify({ scopes }, undefined, 2);
+		document.body.append(importMapScript);
+	}
+}
+
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderOptions: RenderOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, nonce: string): Iterable<{ module?: boolean; source: string }> {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
@@ -2439,11 +2470,21 @@ export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOp
 		isWorkspaceTrusted,
 		nonce,
 	};
-	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead
-	// of using `import(...)` directly
-	return `
-		const __import = (x) => import(x);
-		(${webviewPreloads})(
-			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(ctx))}"))
-		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
+
+	return [
+		{
+			source: `(${webviewImportMap})(
+				JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(ctx.rendererData))}"))
+			)`,
+		},
+		{
+			module: true,
+			// TS will try compiling `import()` in webviewPreloads, so use a helper function instead
+			// of using `import(...)` directly
+			source: `const __import = (x) => import(x);
+				(${webviewPreloads})(
+					JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(ctx))}"))
+				)\n//# sourceURL=notebookWebviewPreloads.js\n`
+		}
+	];
 }
