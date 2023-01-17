@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/userDataProfileView';
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -683,7 +684,7 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 	}
 
 	private createButtons(container: HTMLElement): void {
-		this.buttonsContainer = DOM.append(container, DOM.$('.manual-sync-buttons-container'));
+		this.buttonsContainer = DOM.append(container, DOM.$('.profile-view-buttons-container'));
 
 		this.confirmButton = this._register(new Button(this.buttonsContainer, { ...defaultButtonStyles }));
 		this.confirmButton.label = this.confirmLabel;
@@ -698,7 +699,7 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 
 	protected override layoutTreeView(height: number, width: number): void {
 		this.dimension = new DOM.Dimension(width, height);
-		const buttonContainerHeight = 78;
+		const buttonContainerHeight = 108;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
 
