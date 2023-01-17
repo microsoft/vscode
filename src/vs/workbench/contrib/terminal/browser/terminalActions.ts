@@ -385,8 +385,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.RenderAccessibilityElement,
-				title: { value: localize('workbench.action.terminal.renderAccessibilityElement', 'Render Accessibility Element'), original: 'Render Accessibility Element' },
+				id: TerminalCommandId.FocusAccessibilityElement,
+				title: { value: localize('workbench.action.terminal.focusAccessibilityElement', 'Render Accessibility Element'), original: 'Render Accessibility Element' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
@@ -398,7 +398,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			accessor.get(ITerminalService).activeInstance?.renderAccessibilityElement();
+			accessor.get(ITerminalService).activeInstance?.focusAccessibilityElement();
 		}
 	});
 	registerAction2(class extends Action2 {

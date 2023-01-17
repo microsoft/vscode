@@ -1098,7 +1098,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	renderAccessibilityElement(): void {
+	focusAccessibilityElement(): void {
 		if (!this.xterm?.raw.element) {
 			return;
 		}
