@@ -39,7 +39,7 @@ import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/pl
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
-import { sortedDiff } from 'vs/base/common/arrays';
+import { equals, sortedDiff } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
@@ -192,7 +192,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		if (this.model.original && (this.model.original.length > 0)) {
+		if (this.model.original.length > 0) {
 			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
 		}
 
@@ -226,7 +226,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		// non-side-by-side diff still hasn't created the view zones
 		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
 
-		const diffEditorModel = this.model.diffEditorModel(labeledChange.uri.toString());
+		const diffEditorModel = this.model.getDiffEditorModel(labeledChange.uri.toString());
+		if (!diffEditorModel) {
+			return;
+		}
 		this.diffEditor.setModel(diffEditorModel);
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
@@ -1089,10 +1092,11 @@ type LabeledChange = { change: IChange; labels: string[]; uri: URI };
 
 export class DirtyDiffModel extends Disposable {
 
-	private _quickDiffs: QuickDiff[] | null = null;
+	private _quickDiffs: QuickDiff[] = [];
 	private _originalModels: Map<string, IResolvedTextEditorModel> = new Map(); // key is uri.toString()
+	private _originalTextModels: ITextModel[] = [];
 	private _model: ITextFileEditorModel;
-	get original(): ITextModel[] { return Array.from(this._originalModels.values()).map(original => original.textEditorModel); }
+	get original(): ITextModel[] { return this._originalTextModels; }
 
 	private diffDelayer = new ThrottledDelayer<LabeledChange[] | null>(200);
 	private _quickDiffsPromise?: Promise<QuickDiff[]>;
@@ -1131,8 +1135,9 @@ export class DirtyDiffModel extends Disposable {
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
-			this._quickDiffs = null;
+			this._quickDiffs = [];
 			this._originalModels.clear();
+			this._originalTextModels = [];
 			this._quickDiffsPromise = undefined;
 			this.setChanges([]);
 			this.triggerDiff();
@@ -1141,10 +1146,15 @@ export class DirtyDiffModel extends Disposable {
 		this.triggerDiff();
 	}
 
-	public diffEditorModel(originalUri: string): IDiffEditorModel {
+	public getDiffEditorModel(originalUri: string): IDiffEditorModel | undefined {
+		if (!this._originalModels.has(originalUri)) {
+			return;
+		}
+		const original = this._originalModels.get(originalUri)!;
+
 		return {
 			modified: this._model.textEditorModel!,
-			original: this._originalModels.get(originalUri)?.textEditorModel!
+			original: original.textEditorModel
 		};
 	}
 
@@ -1201,8 +1211,9 @@ export class DirtyDiffModel extends Disposable {
 				return Promise.resolve([]); // disposed
 			}
 
-			if (originalURIs.some(quickDiff => !this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource))) {
-				return Promise.resolve([]); // Files too large
+			const filteredToDiffable = originalURIs.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource));
+			if (filteredToDiffable.length === 0) {
+				return Promise.resolve([]); // All files are too large
 			}
 
 			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
@@ -1211,7 +1222,7 @@ export class DirtyDiffModel extends Disposable {
 				: ignoreTrimWhitespaceSetting !== 'false';
 
 			const allDiffs: { change: IChange; labels: string[]; uri: URI }[] = [];
-			for (const quickDiff of originalURIs) {
+			for (const quickDiff of filteredToDiffable) {
 				const dirtyDiff = await this.editorWorkerService.computeDirtyDiff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
 				if (dirtyDiff) {
 					for (const diff of dirtyDiff) {
@@ -1250,17 +1261,19 @@ export class DirtyDiffModel extends Disposable {
 			}
 
 			if (quickDiffs.length === 0) {
-				this._quickDiffs = null;
+				this._quickDiffs = [];
 				this._originalModels.clear();
+				this._originalTextModels = [];
 				return [];
 			}
 
-			if (this._quickDiffs?.toString() === quickDiffs.toString()) {
+			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.label === b.label)) {
 				return quickDiffs;
 			}
 
 			this.originalModelDisposables.clear();
 			this._originalModels.clear();
+			this._originalTextModels = [];
 			this._quickDiffs = quickDiffs;
 			return (await Promise.all(quickDiffs.map(async (quickDiff) => {
 				try {
@@ -1271,6 +1284,7 @@ export class DirtyDiffModel extends Disposable {
 					}
 
 					this._originalModels.set(quickDiff.originalResource.toString(), ref.object);
+					this._originalTextModels.push(ref.object.textEditorModel);
 
 					if (isTextFileEditorModel(ref.object)) {
 						const encoding = this._model.getEncoding();
@@ -1344,8 +1358,9 @@ export class DirtyDiffModel extends Disposable {
 		super.dispose();
 
 		this._disposed = true;
-		this._quickDiffs = null;
+		this._quickDiffs = [];
 		this._originalModels.clear();
+		this._originalTextModels = [];
 		this.diffDelayer.cancel();
 		this.repositoryDisposables.forEach(d => dispose(d));
 		this.repositoryDisposables.clear();
