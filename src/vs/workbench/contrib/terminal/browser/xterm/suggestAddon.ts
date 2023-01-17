@@ -11,6 +11,7 @@ import { timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { editorSuggestWidgetSelectedBackground } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -55,7 +56,7 @@ const enum VSCodeOscPt {
  *
  * @see https://docs.microsoft.com/en-us/dotnet/api/system.management.automation.completionresulttype?view=powershellsdk-7.0.0
  */
-const pwshTypeToIconMap: { [type: string]: Codicon | undefined } = {
+const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	0: Codicon.symbolText,
 	1: Codicon.history,
 	2: Codicon.symbolMethod,

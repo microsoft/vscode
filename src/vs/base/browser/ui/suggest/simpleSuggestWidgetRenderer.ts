@@ -7,10 +7,11 @@ import { $, append, show } from 'vs/base/browser/dom';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { SimpleCompletionItem } from 'vs/base/browser/ui/suggest/simpleCompletionItem';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export function getAriaId(index: number): string {
 	return `simple-suggest-aria-id:${index}`;
@@ -153,7 +154,7 @@ export class SimpleSuggestWidgetItemRenderer implements IListRenderer<SimpleComp
 		// normal icon
 		data.icon.className = 'icon hide';
 		data.iconContainer.className = '';
-		data.iconContainer.classList.add('suggest-icon', ...CSSIcon.asClassNameArray(completion.icon || Codicon.symbolText));
+		data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(completion.icon || Codicon.symbolText));
 		// }
 
 		// if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {

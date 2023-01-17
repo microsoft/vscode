@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface ISimpleCompletion {
 	/**
@@ -14,7 +14,7 @@ export interface ISimpleCompletion {
 	/**
 	 * The completion's icon to show on the left of the suggest widget.
 	 */
-	icon?: Codicon;
+	icon?: ThemeIcon;
 	/**
 	 * The completion's detail which appears on the right of the list.
 	 */
