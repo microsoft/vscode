@@ -12,6 +12,7 @@ async function setupMain() {
 	const i10lLocation = process.env['VSCODE_L10N_BUNDLE_LOCATION'];
 	if (i10lLocation) {
 		try {
+			// WORKAROUND for https://github.com/microsoft/vscode-l10n/issues/84. DO NOT COPY.
 			const uri = URI.parse(i10lLocation);
 			if (uri.scheme === 'file') {
 				const contents = await (await fs.readFile(uri.fsPath)).toString();

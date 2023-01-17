@@ -14,6 +14,7 @@ async function setupMain() {
 		try {
 			const uri = URI.parse(i10lLocation);
 			if (uri.scheme === 'file') {
+				// WORKAROUND for https://github.com/microsoft/vscode-l10n/issues/84. DO NOT COPY.
 				const contents = await (await fs.readFile(uri.fsPath)).toString();
 				const bundle = JSON.parse(contents).contents.bundle;
 				l10n.config({ contents: bundle });
