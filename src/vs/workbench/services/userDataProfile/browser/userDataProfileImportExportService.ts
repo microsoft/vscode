@@ -59,6 +59,7 @@ import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isUndefined } from 'vs/base/common/types';
 import { Action } from 'vs/base/common/actions';
+import { Emitter } from 'vs/base/common/event';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -586,20 +587,24 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 			this.treeView.refresh(this.userDataProfileData.onDidChangeCheckboxState(items));
 			this.updateConfirmButtonEnablement();
 		}));
-		this.userDataProfileData.getRoots().then(async roots => {
-			const children = await Promise.all(roots.map(async root => {
-				if (root.collapsibleState === TreeItemCollapsibleState.Expanded) {
-					const children = await root.getChildren();
-					return children ?? [];
-				}
-				return [];
-			}));
-			this.totalTreeItemsCount = roots.length + children.flat().length;
-			this.updateConfirmButtonEnablement();
-			if (this.dimension) {
-				this.layoutTreeView(this.dimension.height, this.dimension.width);
+		this.computeAndLayout();
+		this._register(this.userDataProfileData.onDidChangeRoots(() => this.computeAndLayout()));
+	}
+
+	private async computeAndLayout() {
+		const roots = await this.userDataProfileData.getRoots();
+		const children = await Promise.all(roots.map(async (root) => {
+			if (root.collapsibleState === TreeItemCollapsibleState.Expanded) {
+				const children = await root.getChildren();
+				return children ?? [];
 			}
-		});
+			return [];
+		}));
+		this.totalTreeItemsCount = roots.length + children.flat().length;
+		this.updateConfirmButtonEnablement();
+		if (this.dimension) {
+			this.layoutTreeView(this.dimension.height, this.dimension.width);
+		}
 	}
 
 	private createButtons(container: HTMLElement): void {
@@ -637,6 +642,9 @@ const USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME = 'userdataprofileimportpreview';
 
 abstract class UserDataProfileImportExportState extends Disposable implements ITreeViewDataProvider {
 
+	private readonly _onDidChangeRoots = this._register(new Emitter<void>());
+	readonly onDidChangeRoots = this._onDidChangeRoots.event;
+
 	constructor(
 		@IQuickInputService protected readonly quickInputService: IQuickInputService,
 	) {
@@ -669,6 +677,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			return (<IProfileResourceTreeItem>element).getChildren();
 		} else {
 			this.rootsPromise = undefined;
+			this._onDidChangeRoots.fire();
 			return this.getRoots();
 		}
 	}
