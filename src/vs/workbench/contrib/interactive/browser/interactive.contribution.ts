@@ -46,7 +46,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 // import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { DummyFileSystem } from 'vs/workbench/contrib/interactive/browser/dummyFileSystemProvider';
+import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/InteractiveWindowFileSystem';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
@@ -95,8 +95,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			cellContentMetadata: {}
 		};
 
-		const interactiveWindowFS = new DummyFileSystem();
-		this._register(fileService.registerProvider('vscode-interactive', interactiveWindowFS));
+		const interactiveWindowFS = new InteractiveWindowFileSystem();
+		this._register(fileService.registerProvider(Schemas.vscodeInteractive, interactiveWindowFS));
 
 		const serializer: INotebookSerializer = {
 			options: contentOptions,
