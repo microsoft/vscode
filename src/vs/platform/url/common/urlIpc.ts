@@ -48,8 +48,8 @@ export class URLHandlerRouter implements IClientRouter<string> {
 			throw new Error(`Call not found: ${command}`);
 		}
 
-		if (arg) {
-			const uri = URI.revive(arg);
+		if (Array.isArray(arg) && arg.length > 0) {
+			const uri = URI.revive(arg[0]);
 
 			this.logService.trace('URLHandlerRouter#routeCall() with URI argument', uri.toString(true));
 
