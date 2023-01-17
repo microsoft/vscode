@@ -184,19 +184,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const disposables = new DisposableStore();
 		try {
 			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
-
-			const title = localize('export profile preview', "Export");
-			const exportProfile = await this.selectProfileResources(
-				userDataProfilesExportState,
-				localize('export title', "{0}: {1} ({2})", PROFILES_CATEGORY.value, title, this.userDataProfileService.currentProfile.name),
-				localize('export description', "Choose what to export")
-			);
-
-			if (exportProfile === undefined) {
-				return;
-			}
-
-			await this.doExportProfile(userDataProfilesExportState, !exportProfile, localize('cancel', "Cancel"));
+			await this.doExportProfile(userDataProfilesExportState, true, localize('cancel', "Cancel"));
 		} finally {
 			disposables.dispose();
 		}
@@ -231,20 +219,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				const title = localize('import profile preview', "Import");
 
 				if (!userDataProfileImportState.isEmpty()) {
-					let importProfile = await this.selectProfileResources(
-						userDataProfileImportState,
-						localize('import title', "{0}: {1} ({2})", PROFILES_CATEGORY.value, title, profileTemplate.name),
-						localize('import description', "Choose what to import")
-					);
-
-					if (importProfile === undefined) {
-						return;
-					}
-
-					if (!importProfile) {
-						importProfile = await this.showProfilePreviewView(`workbench.views.profiles.import.preview`, title, title, localize('cancel', "Cancel"), userDataProfileImportState);
-					}
-
+					const importProfile = await this.showProfilePreviewView(`workbench.views.profiles.import.preview`, title, title, localize('cancel', "Cancel"), userDataProfileImportState);
 					if (!importProfile) {
 						return;
 					}
@@ -463,62 +438,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		} else {
 			return this.userDataProfilesService.createNamedProfile(profileTemplate.name, { shortName: profileTemplate.shortName });
 		}
-	}
-
-	private async selectProfileResources(profileImportExportState: UserDataProfileImportExportState, title: string, description: string): Promise<boolean | undefined> {
-		type ProfileResourceQuickItem = { item: IProfileResourceTreeItem; label: string };
-		const disposables: DisposableStore = new DisposableStore();
-		const quickPick = this.quickInputService.createQuickPick<ProfileResourceQuickItem>();
-		disposables.add(quickPick);
-		quickPick.title = title;
-		quickPick.ok = 'default';
-		quickPick.customButton = true;
-		quickPick.customLabel = localize('show contents', "Show Contents");
-		quickPick.description = description;
-		quickPick.canSelectMany = true;
-		quickPick.hideInput = true;
-		quickPick.hideCheckAll = true;
-		quickPick.busy = true;
-
-		let accepted: boolean = false;
-		let preview: boolean = false;
-		disposables.add(quickPick.onDidAccept(() => {
-			accepted = true;
-			quickPick.hide();
-		}));
-		disposables.add(quickPick.onDidCustom(() => {
-			preview = true;
-			quickPick.hide();
-		}));
-
-		const promise = new Promise<boolean | undefined>((c, e) => {
-			disposables.add(quickPick.onDidHide(() => {
-				try {
-					if (accepted || preview) {
-						for (const root of roots) {
-							root.checkbox.isChecked = quickPick.selectedItems.some(({ item }) => item === root);
-						}
-						c(accepted);
-					} else {
-						c(undefined);
-					}
-				} catch (error) {
-					e(error);
-				} finally {
-					disposables.dispose();
-				}
-			}));
-		});
-		quickPick.show();
-
-		const roots = await profileImportExportState.getRoots();
-		quickPick.busy = false;
-
-		const items = roots.map<ProfileResourceQuickItem>(item => ({ item, label: item.label?.label ?? item.type }));
-		quickPick.items = items;
-		quickPick.selectedItems = items.filter(({ item }) => item.checkbox?.isChecked);
-
-		return promise;
 	}
 
 	private async showProfilePreviewView(id: string, name: string, confirmLabel: string, cancelLabel: string, userDataProfilesData: UserDataProfileImportExportState): Promise<boolean> {
