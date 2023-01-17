@@ -32,6 +32,9 @@ import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess'
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
+import { IProductService } from 'vs/platform/product/common/productService';
+
+const SUGGEST_COMMANDS_ID = 'workbench.commandPalette.experimental.suggestCommands';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -66,20 +69,30 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IProductService productService: IProductService
 	) {
+		const suggestCommands = configurationService.getValue<boolean>('workbench.commandPalette.experimental.suggestCommands');
+		const suggestedCommandIds = suggestCommands && productService.commandPaletteSuggestedCommandIds?.length
+			? new Set(productService.commandPaletteSuggestedCommandIds)
+			: undefined;
 		super({
+			suggestedCommandIds,
 			showAlias: !Language.isDefaultVariant(),
 			noResultsPick: {
 				label: localize('noCommandResults', "No matching commands"),
 				commandId: ''
-			},
-			suggestedCommandIds: new Set([
-				'workbench.action.tasks.runTask',
-				'workbench.action.files.openFolder',
-				'remoteHub.openRepository',
-				'workbench.action.remote.showMenu'
-			])
+			}
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(SUGGEST_COMMANDS_ID)) {
+				const suggestCommands = configurationService.getValue<boolean>('workbench.commandPalette.experimental.suggestCommands');
+				const suggestedCommandIds = suggestCommands && productService.commandPaletteSuggestedCommandIds?.length
+					? new Set(productService.commandPaletteSuggestedCommandIds)
+					: undefined;
+				this.options.suggestedCommandIds = suggestedCommandIds;
+			}
+		}));
 	}
 
 	private get configuration() {
