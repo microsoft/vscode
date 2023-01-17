@@ -344,11 +344,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
-	hasDynamicHeight() {
-		// CodeCellVM always measures itself and controls its cell's height
-		return false;
-	}
-
 	getDynamicHeight() {
 		this._onLayoutInfoRead.fire();
 		return this._layoutInfo.totalHeight;
