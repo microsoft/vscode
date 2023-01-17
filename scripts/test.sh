@@ -49,4 +49,14 @@ fi
 echo
 echo "### Node.js Unit Tests"
 echo
-mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --runGlob **/node/**/*.test.js "$@"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+	cd $ROOT ; ulimit -n 4096 ; \
+		ELECTRON_RUN_AS_NODE="1" \
+		"$CODE" \
+		node_modules/.bin/mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit --runGlob **/node/**/*.test.js "$@"
+else
+	cd $ROOT ; \
+		ELECTRON_RUN_AS_NODE="1" \
+		"$CODE" \
+		node_modules/.bin/mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit --runGlob **/node/**/*.test.js $LINUX_EXTRA_ARGS "$@"
+fi

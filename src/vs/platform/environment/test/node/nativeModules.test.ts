@@ -57,7 +57,12 @@ flakySuite('Native Modules (all platforms)', () => {
 	});
 
 	test('@vscode/sqlite3', async () => {
+		// ESM-comment-begin
 		const sqlite3 = await import('@vscode/sqlite3');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: sqlite3 } = await import('@vscode/sqlite3');
+		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
@@ -93,7 +98,13 @@ flakySuite('Native Modules (all platforms)', () => {
 (isLinux ? suite.skip : suite)('Native Modules (Windows, macOS)', () => {
 
 	test('keytar', async () => {
+		// ESM-comment-begin
 		const keytar = await import('keytar');
+		// ESM-comment-end
+		// ESM-uncomment-begin
+		// const { default: keytar } = await import('keytar');
+		// ESM-uncomment-end
+
 		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
 		try {
 			await keytar.setPassword(name, 'foo', 'bar');
