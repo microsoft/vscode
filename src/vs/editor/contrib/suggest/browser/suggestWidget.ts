@@ -19,7 +19,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { SuggestWidgetStatus } from 'vs/platform/suggest/browser/suggestWidgetStatus';
+import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
