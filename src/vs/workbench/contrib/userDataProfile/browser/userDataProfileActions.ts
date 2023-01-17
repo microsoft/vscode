@@ -8,7 +8,7 @@ import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/comm
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUserDataProfileManagementService, PROFILES_CATEGORY, ManageProfilesSubMenu, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileManagementService, PROFILES_CATEGORY, IUserDataProfileService, PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT, MANAGE_PROFILES_ACTION_ID, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -129,7 +129,7 @@ registerAction2(class ManageProfilesAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 
-		const menu = menuService.createMenu(ManageProfilesSubMenu, contextKeyService);
+		const menu = menuService.createMenu(ProfilesMenu, contextKeyService);
 		const actions: IAction[] = [];
 		createAndFillInActionBarActions(menu, undefined, actions);
 		menu.dispose();

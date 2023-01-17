@@ -19,7 +19,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, ManageProfilesSubMenu, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TTILE, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, defaultUserDataProfileIcon, SelectProfileSubMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, defaultUserDataProfileIcon, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -112,8 +112,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerActions(): void {
-		this.registerManageProfilesSubMenu();
-		this.registerSelectProfileSubMenu();
+		this.registerProfileSubMenu();
 
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
@@ -127,42 +126,24 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerDeleteProfileAction();
 	}
 
-	private registerManageProfilesSubMenu(): void {
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
-			title: PROFILES_TTILE,
-			submenu: ManageProfilesSubMenu,
-			group: '5_settings',
-			when: PROFILES_ENABLEMENT_CONTEXT,
-			order: 1
-		});
-	}
-
-	private registerSelectProfileSubMenu(): void {
+	private registerProfileSubMenu(): void {
 		const that = this;
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() {
-				// const syncLabel = that.userDataSyncEnablementService.isEnabled() ? localize('sync', "Sync is on") : localize('sync off', "Sync is off");
 				return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name);
 			},
-			submenu: SelectProfileSubMenu,
+			submenu: ProfilesMenu,
 			group: '1_profiles',
 			order: 1,
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
-
-		MenuRegistry.appendMenuItem(ManageProfilesSubMenu, {
-			group: '1_settings',
-			command: {
-				id: 'workbench.userDataSync.actions.turnOn',
-				title: localize('global activity turn on sync', "Turn on Settings Sync...")
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+			get title() {
+				return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name);
 			},
-			// when: turnOnSyncWhenContext,
-			order: 2
-		});
-		MenuRegistry.appendMenuItem(ManageProfilesSubMenu, <ISubmenuItem>{
-			get title() { return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name); },
-			submenu: SelectProfileSubMenu,
-			group: '0_profiles',
+			submenu: ProfilesMenu,
+			group: '1_profiles',
+			order: 1,
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 	}
@@ -185,7 +166,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '0_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 						}
@@ -222,17 +203,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					},
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '2_manage_current',
-							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
-							order: 1
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '2_manage_current',
 							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
 							order: 1
 						}
-
 					]
 				});
 			}
@@ -262,12 +237,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					},
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '2_manage_current',
-							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
-							order: 2
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '2_manage_current',
 							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
 							order: 2
@@ -294,12 +264,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					category: PROFILES_CATEGORY,
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '2_manage_current',
-							when: PROFILES_ENABLEMENT_CONTEXT,
-							order: 3
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '2_manage_current',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 3
@@ -333,12 +298,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					precondition: IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '4_import_export_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
-							order: 1
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '4_import_export_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 1
@@ -383,12 +343,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					precondition: IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '4_import_export_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
-							order: 2
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '4_import_export_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 2
@@ -590,12 +545,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					precondition: PROFILES_ENABLEMENT_CONTEXT,
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '3_manage_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
-							order: 1
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '3_manage_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 1
@@ -636,12 +586,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
 					menu: [
 						{
-							id: ManageProfilesSubMenu,
-							group: '3_manage_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
-							order: 2
-						}, {
-							id: SelectProfileSubMenu,
+							id: ProfilesMenu,
 							group: '3_manage_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 2

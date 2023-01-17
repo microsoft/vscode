@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -643,38 +643,40 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
+const ThemesSubMenu = new MenuId('ThemesSubMenu');
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
+	title: localize('theme', "Theme"),
+	submenu: ThemesSubMenu,
+	group: '2_configuration',
+	order: 6
+});
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
+	submenu: ThemesSubMenu,
+	group: '2_configuration',
+	order: 6
+});
+
+MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectColorThemeCommandId,
-		title: localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
+		title: localize('selectTheme.label', "Color Theme")
 	},
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
+MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectFileIconThemeCommandId,
-		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
+		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '4_themes',
+MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {
 		id: SelectProductIconThemeCommandId,
-		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
-	},
-	order: 3
-});
-
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '2_configuration',
-	command: {
-		id: SelectColorThemeCommandId,
-		title: localize('selectTheme.label', "Color Theme")
+		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
 	},
 	order: 3
 });

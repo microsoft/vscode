@@ -76,6 +76,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -513,8 +514,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					id: VIEWLET_ID,
 					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 				},
-				group: '1_settings',
-				order: 4
+				group: '2_configuration',
+				order: 3
 			}
 		}, {
 			id: MenuId.GlobalActivity,
@@ -548,7 +549,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: [{
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
+			}, {
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_HAS_GALLERY),
+				group: '2_keyboard_discover_actions'
 			}],
+			menuTitles: {
+				[MenuId.EditorTitle.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
+			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:keymaps '))
 		});
 
