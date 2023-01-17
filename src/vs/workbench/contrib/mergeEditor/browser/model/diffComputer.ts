@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { IReader, observableFromEvent } from 'vs/base/common/observable';
+import { IReader } from 'vs/base/common/observable';
 import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
@@ -21,10 +22,7 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableFromEvent(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description config: mergeAlgorithm.diffAlgorithm */ this.configurationService.getValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm')
-	);
+	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm', 'experimental', this.configurationService);
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,

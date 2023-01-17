@@ -15,6 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { InputNumber, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
+import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { CodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView';
 import { InputCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView';
@@ -85,9 +86,10 @@ export class MergeEditorViewModel extends Disposable {
 		}));
 	}
 
-	public readonly shouldUseAppendInsteadOfAccept = observableFromEvent<boolean>(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description appendVsAccept */ this.configurationService.getValue('mergeEditor.shouldUseAppendInsteadOfAccept') ?? false
+	public readonly shouldUseAppendInsteadOfAccept = observableConfigValue<boolean>(
+		'mergeEditor.shouldUseAppendInsteadOfAccept',
+		false,
+		this.configurationService,
 	);
 
 	private counter = 0;
