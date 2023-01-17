@@ -68,18 +68,18 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 	private async _onWillCreateEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, cancellationToken: vscode.CancellationToken): Promise<void> {
 		const cancellationPromise = createCancellationPromise(cancellationToken);
-		await Promise.race([this._doSync(workspaceFolder), cancellationPromise]);
+		await Promise.race([this._doPublish(workspaceFolder), cancellationPromise]);
 	}
 
-	private async _doSync(workspaceFolder: vscode.WorkspaceFolder) {
+	private async _doPublish(workspaceFolder: vscode.WorkspaceFolder) {
 		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
 
 		const repository = this.model.getRepository(workspaceFolder.uri);
-		await repository?.status();
-
 		if (!repository) {
 			return;
 		}
+
+		await repository.status();
 
 		// If this branch hasn't been published to the remote yet,
 		// ensure that it is published before Continue On is invoked
