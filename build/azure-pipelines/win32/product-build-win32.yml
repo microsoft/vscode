@@ -240,7 +240,8 @@ steps:
           Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
           $AppProductJson = Get-Content -Raw -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)\resources\app\product.json" | ConvertFrom-Json
           $CliAppName = $AppProductJson.tunnelApplicationName
-          Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/code.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
+          $AppName = $AppProductJson.applicationName
+          Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
         displayName: Move VS Code CLI
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:

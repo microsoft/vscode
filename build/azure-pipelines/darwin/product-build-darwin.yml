@@ -214,7 +214,8 @@ steps:
           ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
           unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
           CLI_APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").tunnelApplicationName")
-          mv "$(Build.ArtifactStagingDirectory)/cli/code" "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
+          APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").applicationName")
+          mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
           chmod +x "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
         displayName: Make CLI executable
 
