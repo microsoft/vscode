@@ -12,7 +12,7 @@ import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
@@ -671,6 +671,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	// Set the unexpected error handler after the services have been initialized, to avoid having
 	// the telemetry service overwrite our handler
+	let didLogAboutSIGPIPE = false;
 	instantiationService.invokeFunction((accessor) => {
 		const logService = accessor.get(ILogService);
 		setUnexpectedErrorHandler(err => {
@@ -678,7 +679,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			// In some circumstances, console.error will throw an asynchronous error. This asynchronous error
 			// will end up here, and then it will be logged again, thus creating an endless asynchronous loop.
 			// Here we try to break the loop by ignoring EPIPE errors that include our own unexpected error handler in the stack.
-			if (err && err.code === 'EPIPE' && err.syscall === 'write' && err.stack && /unexpectedErrorHandler/.test(err.stack)) {
+			if (isSigPipeError(err) && err.stack && /unexpectedErrorHandler/.test(err.stack)) {
 				return;
 			}
 			logService.error(err);
@@ -688,7 +689,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			// We would normally install a SIGPIPE listener in bootstrap.js
 			// But in certain situations, the console itself can be in a broken pipe state
 			// so logging SIGPIPE to the console will cause an infinite async loop
-			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+			if (!didLogAboutSIGPIPE) {
+				didLogAboutSIGPIPE = true;
+				onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+			}
 		});
 	});
 
