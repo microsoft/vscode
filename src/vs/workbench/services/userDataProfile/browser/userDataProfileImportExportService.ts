@@ -852,20 +852,20 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			roots.push(keybindingsResourceTreeItem);
 		}
 
-		const tasksResource = this.instantiationService.createInstance(TasksResource);
-		const tasksContent = await tasksResource.getContent(this.profile);
-		await tasksResource.apply(tasksContent, exportPreviewProfle);
-		const tasksResourceTreeItem = this.instantiationService.createInstance(TasksResourceTreeItem, exportPreviewProfle);
-		if (await tasksResourceTreeItem.hasContent()) {
-			roots.push(tasksResourceTreeItem);
-		}
-
 		const snippetsResource = this.instantiationService.createInstance(SnippetsResource);
 		const snippetsContent = await snippetsResource.getContent(this.profile);
 		await snippetsResource.apply(snippetsContent, exportPreviewProfle);
 		const snippetsResourceTreeItem = this.instantiationService.createInstance(SnippetsResourceTreeItem, exportPreviewProfle);
 		if (await snippetsResourceTreeItem.hasContent()) {
 			roots.push(snippetsResourceTreeItem);
+		}
+
+		const tasksResource = this.instantiationService.createInstance(TasksResource);
+		const tasksContent = await tasksResource.getContent(this.profile);
+		await tasksResource.apply(tasksContent, exportPreviewProfle);
+		const tasksResourceTreeItem = this.instantiationService.createInstance(TasksResourceTreeItem, exportPreviewProfle);
+		if (await tasksResourceTreeItem.hasContent()) {
+			roots.push(tasksResourceTreeItem);
 		}
 
 		const globalStateResource = joinPath(exportPreviewProfle.globalStorageHome, 'globalState.json').with({ scheme: USER_DATA_PROFILE_EXPORT_PREVIEW_SCHEME });
@@ -960,21 +960,21 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 			}
 		}
 
-		if (this.profile.tasks) {
-			const tasksResource = this.instantiationService.createInstance(TasksResource);
-			await tasksResource.apply(this.profile.tasks, importPreviewProfle);
-			const tasksResourceTreeItem = this.instantiationService.createInstance(TasksResourceTreeItem, importPreviewProfle);
-			if (await tasksResourceTreeItem.hasContent()) {
-				roots.push(tasksResourceTreeItem);
-			}
-		}
-
 		if (this.profile.snippets) {
 			const snippetsResource = this.instantiationService.createInstance(SnippetsResource);
 			await snippetsResource.apply(this.profile.snippets, importPreviewProfle);
 			const snippetsResourceTreeItem = this.instantiationService.createInstance(SnippetsResourceTreeItem, importPreviewProfle);
 			if (await snippetsResourceTreeItem.hasContent()) {
 				roots.push(snippetsResourceTreeItem);
+			}
+		}
+
+		if (this.profile.tasks) {
+			const tasksResource = this.instantiationService.createInstance(TasksResource);
+			await tasksResource.apply(this.profile.tasks, importPreviewProfle);
+			const tasksResourceTreeItem = this.instantiationService.createInstance(TasksResourceTreeItem, importPreviewProfle);
+			if (await tasksResourceTreeItem.hasContent()) {
+				roots.push(tasksResourceTreeItem);
 			}
 		}
 
