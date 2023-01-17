@@ -472,7 +472,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._altCommand = `alt-command`;
 				label.classList.add(this._altCommand);
 			}
-			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
+			this._action.tooltip = getSingleTabTooltip(instance, this._terminalService.configHelper.config.tabs.separator);
 			this.updateTooltip();
 		}
 	}
