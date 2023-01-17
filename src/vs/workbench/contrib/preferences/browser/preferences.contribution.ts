@@ -524,7 +524,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
 					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings"),
 					menu: {
-						id: MenuId.CommandPalette,
+						id: MenuId.MenubarPreferencesMenu,
+						group: '3_settings',
+						order: 1,
 					}
 				});
 			}
@@ -544,7 +546,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY,
 					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
 					menu: {
-						id: MenuId.CommandPalette,
+						id: MenuId.MenubarPreferencesMenu,
+						group: '3_settings',
+						order: 2,
 					}
 				});
 			}
