@@ -2110,26 +2110,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		const relayout = (cell: ICellViewModel, height: number) => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			if (!this.hasEditorFocus()) {
-				const cellIndex = this.viewModel?.getCellIndex(cell);
-				const visibleRanges = this.visibleRanges;
-				if (cellIndex !== undefined
-					&& visibleRanges && visibleRanges.length && visibleRanges[0].start === cellIndex
-					// cell is partially visible
-					&& this._list.scrollTop > this.getAbsoluteTopOfElement(cell)
-				) {
-					return this._list.updateElementHeight2(cell, height, Math.min(cellIndex + 1, this.getLength() - 1));
-				}
-			}
-
-			this._list.updateElementHeight2(cell, height);
-		};
-
 		if (this._pendingLayouts?.has(cell)) {
 			this._pendingLayouts?.get(cell)!.dispose();
 		}
@@ -2151,7 +2131,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._pendingLayouts?.delete(cell);
 
-			relayout(cell, height);
+			if (!this.hasEditorFocus()) {
+				// Do not scroll inactive notebook
+				// https://github.com/microsoft/vscode/issues/145340
+				const cellIndex = this.viewModel?.getCellIndex(cell);
+				const visibleRanges = this.visibleRanges;
+				if (cellIndex !== undefined
+					&& visibleRanges && visibleRanges.length && visibleRanges[0].start === cellIndex
+					// cell is partially visible
+					&& this._list.scrollTop > this.getAbsoluteTopOfElement(cell)
+				) {
+					return this._list.updateElementHeight2(cell, height, Math.min(cellIndex + 1, this.getLength() - 1));
+				}
+			}
+
+			this._list.updateElementHeight2(cell, height);
 			deferred.complete(undefined);
 		};
 
