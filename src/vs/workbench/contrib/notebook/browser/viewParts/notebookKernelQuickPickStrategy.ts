@@ -15,7 +15,6 @@ import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings'
 import 'vs/css!./notebookKernelActionViewItem';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -796,13 +795,11 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			if (group.length > 1) {
 				quickPickItems.push({
 					label: source,
-					detail: localize('selectKernelFromExtensionDetail', "Kernels: {0}", group.map(kernel => kernel.label).join(', ')),
 					kernels: group
 				});
 			} else {
 				quickPickItems.push({
 					label: group[0].label,
-					detail: source,
 					kernel: group[0]
 				});
 			}
@@ -818,7 +815,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			return {
 				id: typeof action.command! === 'string' ? action.command! : action.command!.id,
 				label: action.label,
-				detail: action.detail,
 				description: action.description,
 				command: action.command,
 				documentation: action.documentation,
@@ -830,8 +826,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			const res: SourcePick = {
 				action: sourceAction,
 				picked: false,
-				label: sourceAction.action.label,
-				detail: (sourceAction.action as MenuItemAction)?.item?.source?.title
+				label: sourceAction.action.label
 			};
 
 			quickPickItems.push(res);
