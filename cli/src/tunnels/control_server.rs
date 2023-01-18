@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use crate::commands::tunnels::ShutdownSignal;
 use crate::constants::{
 	CONTROL_PORT, EDITOR_WEB_URL, PROTOCOL_VERSION, QUALITYLESS_SERVER_NAME, VSCODE_CLI_VERSION,
 };
@@ -49,6 +48,7 @@ use super::protocol::{
 	VersionParams,
 };
 use super::server_bridge::{get_socket_rw_stream, ServerBridge};
+use super::shutdown_signal::ShutdownSignal;
 use super::socket_signal::{ClientMessageDecoder, ServerMessageSink, SocketSignal};
 
 type ServerBridgeListLock = Arc<std::sync::Mutex<Option<Vec<ServerBridgeRec>>>>;
@@ -297,22 +297,19 @@ async fn process_socket(
 	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 	let server_bridges = Arc::new(std::sync::Mutex::new(Some(vec![])));
 	let (http_delegated, mut http_rx) = DelegatedSimpleHttp::new(log.clone());
-	let mut rpc = RpcBuilder::new(
-		MsgPackSerializer {},
-		HandlerContext {
-			did_update: Arc::new(AtomicBool::new(false)),
-			socket_tx: socket_tx.clone(),
-			log: log.clone(),
-			launcher_paths,
-			code_server_args,
-			code_server: Arc::new(Mutex::new(None)),
-			server_bridges: server_bridges.clone(),
-			port_forwarding,
-			platform,
-			http: FallbackSimpleHttp::new(ReqwestSimpleHttp::new(), http_delegated),
-			http_requests: http_requests.clone(),
-		},
-	);
+	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
+		did_update: Arc::new(AtomicBool::new(false)),
+		socket_tx: socket_tx.clone(),
+		log: log.clone(),
+		launcher_paths,
+		code_server_args,
+		code_server: Arc::new(Mutex::new(None)),
+		server_bridges: server_bridges.clone(),
+		port_forwarding,
+		platform,
+		http: FallbackSimpleHttp::new(ReqwestSimpleHttp::new(), http_delegated),
+		http_requests: http_requests.clone(),
+	});
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
 	rpc.register_sync("gethostname", |_: EmptyObject, _| handle_get_hostname());
@@ -363,7 +360,7 @@ async fn process_socket(
 		let rx_counter = rx_counter.clone();
 		let socket_tx = socket_tx.clone();
 		let exit_barrier = exit_barrier.clone();
-		let rpc = rpc.build();
+		let rpc = rpc.build(log.clone());
 		tokio::spawn(async move {
 			send_version(&socket_tx).await;
 
@@ -579,7 +576,7 @@ async fn handle_serve(
 						Some(AnyCodeServer::Socket(s)) => s,
 						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
 						None => {
-							$sb.setup().await?;
+							$sb.setup(None).await?;
 							$sb.listen_on_default_socket().await?
 						}
 					}
