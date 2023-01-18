@@ -111,58 +111,75 @@ function Set-MappedKeyHandlers {
 		Remove-Item Env:VSCODE_SUGGEST
 
 		# VS Code send completions request (may override Ctrl+Spacebar)
-		$script:EnableCompletions = 1
 		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
-			if ($script:EnableCompletions -eq 1) {
-				Send-Completions
-			}
-		}
-		Set-PSReadLineKeyHandler -Chord 'F12,f' -ScriptBlock {
-			$script:EnableCompletions = 0
-		}
-		Set-PSReadLineKeyHandler -Chord 'F12,g' -ScriptBlock {
-			$script:EnableCompletions = 1
+			Send-Completions
 		}
 
 		# Suggest trigger characters
 		Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
 			[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
-			if ($script:EnableCompletions -eq 1) {
-				Send-Completions
-			}
+			Send-Completions
 		}
 	}
 }
 
-function Send-Completions {	# Get current command line
+
+function Send-Completions {
 	$commandLine = ""
-	# TODO: Take cursor into account
 	$cursorIndex = 0
 	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
 	#       last space and then filter on the client side? That would let you trigger ctrl+space
 	#       anywhere on a word and have full completions available
 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
-	# Get and send completions
 	$completionPrefix = $commandLine
-	if ($completionPrefix.Length -eq 0) {# TODO: Send bell instead?
-		$result = "`e]633;Completions`a"
-		Write-Host -NoNewLine $result
-		return
+
+	# Get completions
+	$result = "`e]633;Completions"
+	if ($completionPrefix.Length -gt 0) {# TODO: Send bell instead?
+		# Get and send completions
+		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		if ($null -ne $completions.CompletionMatches) {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			# $serialized = $completions.CompletionMatches.ForEach({ $_.CompletionText + '<SP>' + $_.ToolTip })
+			$serialized = $completions.CompletionMatches | ConvertTo-Json -Compress
+			# $result += $([system.String]::Join("<CL>", $serialized))
+			$result += $serialized
+		}
 	}
-	$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-	if ($null -eq $completions.CompletionMatches) {
-		# TODO: Refine completion sequence
-		# TODO: Send bell instead?
-		$result = "`e]633;Completions`a"
-	} else {
-		$result = "`e]633;Completions;$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-		# $serialized = $completions.CompletionMatches.ForEach({ $_.CompletionText + '<SP>' + $_.ToolTip })
-		$serialized = $completions.CompletionMatches | ConvertTo-Json -Compress
-		# $result += $([system.String]::Join("<CL>", $serialized))
-		$result += $serialized
-		$result += "`a"
-	}
+	$result += "`a"
+
 	Write-Host -NoNewLine $result
 }
+
+# function Send-Completions {	# Get current command line
+# 	$commandLine = ""
+# 	# TODO: Take cursor into account
+# 	$cursorIndex = 0
+# 	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
+# 	#       last space and then filter on the client side? That would let you trigger ctrl+space
+# 	#       anywhere on a word and have full completions available
+# 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
+# 	# Get and send completions
+# 	$completionPrefix = $commandLine
+# 	if ($completionPrefix.Length -eq 0) {# TODO: Send bell instead?
+# 		$result = "`e]633;Completions`a"
+# 		Write-Host -NoNewLine $result
+# 		return
+# 	}
+# 	$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+# 	if ($null -eq $completions.CompletionMatches) {
+# 		# TODO: Refine completion sequence
+# 		# TODO: Send bell instead?
+# 		$result = "`e]633;Completions`a"
+# 	} else {
+# 		$result = "`e]633;Completions;$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+# 		# $serialized = $completions.CompletionMatches.ForEach({ $_.CompletionText + '<SP>' + $_.ToolTip })
+# 		$serialized = $completions.CompletionMatches | ConvertTo-Json -Compress
+# 		# $result += $([system.String]::Join("<CL>", $serialized))
+# 		$result += $serialized
+# 		$result += "`a"
+# 	}
+# 	Write-Host -NoNewLine $result
+# }
 
 Set-MappedKeyHandlers

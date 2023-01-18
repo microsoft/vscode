@@ -420,7 +420,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			handled = true;
 			this._cursorIndexDelta += 1;
 		}
-		console.log(`data ${data}`);
 		if (data.match(/^[a-z0-9]$/i)) {
 
 			// TODO: There is a race here where the completions may come through after new character presses because of conpty's rendering!
@@ -430,7 +429,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._additionalInput = '';
 			}
 			this._additionalInput += data;
-			console.log('match', data);
 			this._cursorIndexDelta++;
 		}
 		if (handled) {
