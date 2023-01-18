@@ -49,8 +49,3 @@ export function attachStyler<T extends IColorMapping>(themeService: IThemeServic
 
 	return themeService.onDidColorThemeChange(applyStyles);
 }
-
-export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
-	return attachStyler(themeService, colors, callback);
-}
-
