@@ -1173,7 +1173,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change.
 
-		if (this.view.elementTop(index) >= this.view.scrollTop) {
+		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
 			return this.view.updateElementHeight(index, size, index);
 		}
 

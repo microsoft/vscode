@@ -16,6 +16,7 @@ declare module 'vscode' {
 		readonly description?: string;
 		readonly detail?: string;
 		readonly command: string | Command;
+		readonly documentation?: Uri;
 
 		constructor(label: string);
 	}

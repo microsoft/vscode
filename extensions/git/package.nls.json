@@ -247,6 +247,7 @@
 	"config.openRepositoryInParentFolders.always": "Always open a repository in the parent folders of the workspace, open file(s).",
 	"config.openRepositoryInParentFolders.never": "Never open a repository in the parent folders of the workspace, open file(s).",
 	"config.openRepositoryInParentFolders.prompt": "Prompt before opening a repository in the parent folders of the workspace, open file(s).",
+	"config.publishBeforeContinueOn": "Controls whether to publish unpublished git state when using Continue Working On from a git repository.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

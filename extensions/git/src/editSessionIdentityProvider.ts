@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { RefType } from './api/git';
 import { Model } from './model';
 
 export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentityProvider, vscode.Disposable {
@@ -13,6 +14,12 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 	constructor(private model: Model) {
 		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
+
+		vscode.workspace.onWillCreateEditSessionIdentity((e) => {
+			if (vscode.workspace.getConfiguration('git').get('publishBeforeContinueOn')) {
+				e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder, e.token));
+			}
+		});
 	}
 
 	dispose() {
@@ -58,6 +65,33 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 			return vscode.EditSessionIdentityMatch.Partial;
 		}
 	}
+
+	private async _onWillCreateEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, cancellationToken: vscode.CancellationToken): Promise<void> {
+		const cancellationPromise = createCancellationPromise(cancellationToken);
+		await Promise.race([this._doPublish(workspaceFolder), cancellationPromise]);
+	}
+
+	private async _doPublish(workspaceFolder: vscode.WorkspaceFolder) {
+		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
+
+		const repository = this.model.getRepository(workspaceFolder.uri);
+		if (!repository) {
+			return;
+		}
+
+		await repository.status();
+
+		// If this branch hasn't been published to the remote yet,
+		// ensure that it is published before Continue On is invoked
+		if (!repository.HEAD?.upstream && repository.HEAD?.type === RefType.Head) {
+			await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: vscode.l10n.t('Publishing branch...')
+			}, async () => {
+				await vscode.commands.executeCommand('git.publish');
+			});
+		}
+	}
 }
 
 function normalizeEditSessionIdentity(identity: string) {
@@ -72,4 +106,15 @@ function normalizeEditSessionIdentity(identity: string) {
 		ref,
 		sha
 	};
+}
+
+function createCancellationPromise(cancellationToken: vscode.CancellationToken) {
+	return new Promise((resolve, _) => {
+		if (cancellationToken.isCancellationRequested) {
+			resolve(undefined);
+		}
+		cancellationToken.onCancellationRequested(() => {
+			resolve(undefined);
+		});
+	});
 }

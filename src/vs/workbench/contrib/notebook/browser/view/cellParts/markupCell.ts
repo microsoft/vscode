@@ -170,8 +170,6 @@ export class MarkupCell extends Disposable {
 			const layoutInfo = this.editor?.getLayoutInfo();
 			if (e.outerWidth && this.viewCell.getEditState() === CellEditState.Editing && layoutInfo && layoutInfo.width !== this.viewCell.layoutInfo.editorWidth) {
 				this.onCellEditorWidthChange();
-			} else if (e.totalHeight || e.outerWidth) {
-				this.relayoutCell();
 			}
 		}));
 

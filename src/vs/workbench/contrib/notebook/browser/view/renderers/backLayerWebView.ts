@@ -260,7 +260,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
-			}, "No renderer found for '$0' a"),
+			}, "No renderer found for '$0'"),
+			'notebook-cell-renderer-fallbacks-exhausted': nls.localize({
+				key: 'notebook.error.rendererFallbacksExhausted',
+				comment: ['$0 is a placeholder for the mime type']
+			}, "Could not render content for '$0'"),
 		};
 	}
 

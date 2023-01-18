@@ -2698,6 +2698,15 @@
           "default": "prompt",
           "markdownDescription": "%config.openRepositoryInParentFolders%",
           "scope": "resource"
+        },
+        "git.publishBeforeContinueOn": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.publishBeforeContinueOn%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
