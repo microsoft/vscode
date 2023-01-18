@@ -170,7 +170,11 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(INativeWorkbenchEnvironmentService, environmentService);
 
 		// Logger
-		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, this.configuration.loggers, mainProcessService.getChannel('logger'));
+		const loggers = [
+			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
+			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
+		];
+		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log

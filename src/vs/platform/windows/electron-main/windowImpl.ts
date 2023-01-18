@@ -1089,7 +1089,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
+		configuration.loggers = {
+			window: this.loggerMainService.getRegisteredLoggers(this.id),
+			global: this.loggerMainService.getRegisteredLoggers()
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
