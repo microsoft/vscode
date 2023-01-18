@@ -910,10 +910,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
-		const newMenuBarVisibility = this.getMenuBarVisibility();
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.setMenuBarVisibility(newMenuBarVisibility);
+		if (!e || e.affectsConfiguration('window.menuBarVisibility')) {
+			const newMenuBarVisibility = this.getMenuBarVisibility();
+			if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+				this.currentMenuBarVisibility = newMenuBarVisibility;
+				this.setMenuBarVisibility(newMenuBarVisibility);
+			}
 		}
 
 		// Proxy
