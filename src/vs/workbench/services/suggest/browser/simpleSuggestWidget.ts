@@ -460,13 +460,11 @@ export class SimpleSuggestWidget implements IDisposable {
 
 		const forceRenderingAboveRequiredSpace = 150;
 		if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
-			console.log('above');
-			// this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
+			this._preference = WidgetPositionPreference.Above;
 			this.element.enableSashes(true, true, false, false);
 			maxHeight = maxHeightAbove;
 		} else {
-			console.log('below');
-			// this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
+			this._preference = WidgetPositionPreference.Below;
 			this.element.enableSashes(false, true, true, false);
 			maxHeight = maxHeightBelow;
 		}
