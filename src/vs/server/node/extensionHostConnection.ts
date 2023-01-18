@@ -255,6 +255,10 @@ export class ExtensionHostConnection {
 				silent: true
 			};
 
+			// ESM-uncomment-begin
+			// execArgv.push('--experimental-loader', FileAccess.asFileUri('server-loader.mjs').fsPath);
+			// ESM-uncomment-end
+
 			// Run Extension Host as fork of current process
 			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
