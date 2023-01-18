@@ -38,7 +38,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
-import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
@@ -574,14 +574,13 @@ export class SettingsEditor2 extends EditorPane {
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 			placeholderText: searchBoxLabel,
 			focusContextKey: this.searchFocusContextKey,
+			styleOverrides: {
+				inputBorder: settingsTextInputBorder
+			}
 			// TODO: Aria-live
 		}));
 		this._register(this.searchWidget.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.Search;
-		}));
-
-		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
-			inputBorder: settingsTextInputBorder
 		}));
 
 		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
