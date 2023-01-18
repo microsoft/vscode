@@ -9,6 +9,7 @@ import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
+import { ImageAddon } from 'xterm-addon-image';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -129,6 +130,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	private _decorationAddon: DecorationAddon;
+	private _imageAddon: ImageAddon;
 
 	// Optional addons
 	private _canvasAddon?: CanvasAddonType;
@@ -255,6 +257,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
+		this._imageAddon = this._instantiationService.createInstance(ImageAddon);
+		this.raw.loadAddon(this._imageAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
