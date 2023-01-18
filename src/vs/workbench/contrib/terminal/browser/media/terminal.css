@@ -538,7 +538,7 @@
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-.xterm .xterm-accessibility-full-output {
+.xterm .xterm-accessibility-buffer {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -550,7 +550,7 @@
 	overflow-x: hidden;
 }
 
-.xterm .xterm-accessibility-full-output:focus {
+.xterm .xterm-accessibility-buffer:focus {
 	opacity: 1;
 	z-index: 33 !important;
 	top: -5px !important;
@@ -558,7 +558,7 @@
 	pointer-events: none;
 }
 
-.xterm .xterm-accessibility-full-output:focus div {
+.xterm .xterm-accessibility-buffer:focus div {
 	font-family: inherit;
 	font-size: inherit;
 }

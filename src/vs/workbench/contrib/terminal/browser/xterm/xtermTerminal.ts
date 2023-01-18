@@ -221,8 +221,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10,
-			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0,
-			accessibilityElementContentEditable: config.accessibilityElementContentEditable
+			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -317,7 +316,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		this.raw.options.accessibilityElementContentEditable = config.accessibilityElementContentEditable;
 		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -454,10 +452,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			line = buffer.getLine(currentIndex);
 		}
 		return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
-	}
-
-	getBufferElements(startLine: number, endLine?: number): { bufferElements: HTMLElement[]; cursorElement?: HTMLElement } {
-		return this.raw.getBufferElements(startLine, endLine);
 	}
 
 	scrollDownLine(): void {
