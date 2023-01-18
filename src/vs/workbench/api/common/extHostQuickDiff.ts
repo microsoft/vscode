@@ -9,6 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
 import { asPromise } from 'vs/base/common/async';
 import { DocumentSelector } from 'vs/workbench/api/common/extHostTypeConverters';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	private static handlePool: number = 0;
@@ -17,7 +18,8 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	private providers: Map<number, vscode.QuickDiffProvider> = new Map();
 
 	constructor(
-		mainContext: IMainContext
+		mainContext: IMainContext,
+		private readonly uriTransformer: IURITransformer | undefined
 	) {
 		this.proxy = mainContext.getProxy(MainContext.MainThreadQuickDiff);
 	}
@@ -37,7 +39,7 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	registerQuickDiffProvider(selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 		const handle = ExtHostQuickDiff.handlePool++;
 		this.providers.set(handle, quickDiffProvider);
-		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector), label, rootUri);
+		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), label, rootUri);
 		return {
 			dispose: () => this.providers.delete(handle)
 		};
