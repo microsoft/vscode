@@ -47,7 +47,7 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 	override getRegisteredLoggers(windowId?: number): ILoggerResource[] {
 		const resources: ILoggerResource[] = [];
 		for (const resource of super.getRegisteredLoggers()) {
-			if (this.isInterestedLoggerResource(resource.resource, windowId)) {
+			if (windowId === this.loggerResourcesByWindow.get(resource.resource)) {
 				resources.push(resource);
 			}
 		}

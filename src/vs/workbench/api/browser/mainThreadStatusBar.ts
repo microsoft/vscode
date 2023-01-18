@@ -10,8 +10,8 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { dispose } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {

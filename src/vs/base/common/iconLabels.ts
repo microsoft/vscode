@@ -23,12 +23,28 @@ export function markdownEscapeEscapedIcons(text: string): string {
 }
 
 const stripIconsRegex = new RegExp(`(\\s)?(\\\\)?${iconsRegex.source}(\\s)?`, 'g');
+
+/**
+ * Takes a label with icons (`$(iconId)xyz`)  and strips the icons out (`xyz`)
+ */
 export function stripIcons(text: string): string {
 	if (text.indexOf(iconStartMarker) === -1) {
 		return text;
 	}
 
 	return text.replace(stripIconsRegex, (match, preWhitespace, escaped, postWhitespace) => escaped ? match : preWhitespace || postWhitespace || '');
+}
+
+
+/**
+ * Takes a label with icons (`$(iconId)xyz`), removes the icon syntax adds whitespace so that screen readers can read the text better.
+ */
+export function getCodiconAriaLabel(text: string | undefined) {
+	if (!text) {
+		return '';
+	}
+
+	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
 }
 
 
@@ -39,6 +55,9 @@ export interface IParsedLabelWithIcons {
 
 const _parseIconsRegex = new RegExp(`\\$\\(${ThemeIcon.iconNameCharacter}+\\)`, 'g');
 
+/**
+ * Takes a label with icons (`abc $(iconId)xyz`) and returns the text (`abc xyz`) and the offsets of the icons (`[3]`)
+ */
 export function parseLabelWithIcons(input: string): IParsedLabelWithIcons {
 
 	_parseIconsRegex.lastIndex = 0;

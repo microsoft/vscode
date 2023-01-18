@@ -29,10 +29,10 @@ function Global:__VSCode-Escape-Value([string]$value) {
 }
 
 function Global:Prompt() {
+	$FakeCode = [int]!$global:?
 	# NOTE: We disable strict mode for the scope of this function because it unhelpfully throws an
 	# error when $LastHistoryEntry is null, and is not otherwise useful.
 	Set-StrictMode -Off
-	$FakeCode = [int]!$global:?
 	$LastHistoryEntry = Get-History -Count 1
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {

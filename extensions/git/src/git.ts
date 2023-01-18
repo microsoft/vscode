@@ -2092,7 +2092,7 @@ export class Repository {
 				HEAD = await this.getBranch(HEAD.name);
 			} else if (HEAD.commit) {
 				// Tag || Commit
-				const tags = await this.getRefs({ pattern: 'refs/tags/*' });
+				const tags = await this.getRefs({ pattern: 'refs/tags' });
 				const tag = tags.find(tag => tag.commit === HEAD!.commit);
 
 				if (tag) {

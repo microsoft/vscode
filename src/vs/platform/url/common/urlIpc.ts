@@ -48,8 +48,8 @@ export class URLHandlerRouter implements IClientRouter<string> {
 			throw new Error(`Call not found: ${command}`);
 		}
 
-		if (arg) {
-			const uri = URI.revive(arg);
+		if (Array.isArray(arg) && arg.length > 0) {
+			const uri = URI.revive(arg[0]);
 
 			this.logService.trace('URLHandlerRouter#routeCall() with URI argument', uri.toString(true));
 
@@ -62,7 +62,11 @@ export class URLHandlerRouter implements IClientRouter<string> {
 					this.logService.trace(`URLHandlerRouter#routeCall(): found windowId query parameter with value "${windowId}"`, uri.toString(true));
 
 					const regex = new RegExp(`window:${windowId}`);
-					const connection = hub.connections.find(c => regex.test(c.ctx));
+					const connection = hub.connections.find(c => {
+						this.logService.trace('URLHandlerRouter#routeCall(): testing connection', c.ctx);
+
+						return regex.test(c.ctx);
+					});
 					if (connection) {
 						this.logService.trace('URLHandlerRouter#routeCall(): found a connection to route', uri.toString(true));
 

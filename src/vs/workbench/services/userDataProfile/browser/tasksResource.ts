@@ -38,7 +38,7 @@ export class TasksResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const tasksContent: ITasksResourceContent = JSON.parse(content);
 		if (!tasksContent.tasks) {
-			this.logService.info(`Profile: No tasks to apply...`);
+			this.logService.info(`Importing Profile (${profile.name}): No tasks to apply...`);
 			return;
 		}
 		await this.fileService.writeFile(profile.tasksResource, VSBuffer.fromString(tasksContent.tasks));
