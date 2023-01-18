@@ -15,7 +15,6 @@ import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings'
 import 'vs/css!./notebookKernelActionViewItem';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILabelService } from 'vs/platform/label/common/label';
