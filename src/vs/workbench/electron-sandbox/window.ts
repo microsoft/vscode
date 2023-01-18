@@ -728,7 +728,7 @@ export class NativeWindow extends Disposable {
 			]);
 			// Refs https://en.wikipedia.org/wiki/Darwin_%28operating_system%29#Release_history
 			if (eolReleases.has(majorVersion)) {
-				const message = localize('macoseolmessage', "{0} on {1} will stop receiving updates soon", this.productService.nameLong, eolReleases.get(majorVersion));
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
 				const actions = [{
 					label: localize('macoseolBannerLearnMore', "Learn More"),
 					href: 'https://aka.ms/vscode-faq-win7'
