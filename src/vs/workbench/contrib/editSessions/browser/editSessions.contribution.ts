@@ -10,7 +10,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -50,9 +50,8 @@ import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workben
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -63,7 +62,6 @@ import { CancellationError } from 'vs/base/common/errors';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -272,7 +270,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			run(accessor: ServicesAccessor, ...args: any[]) {
 				const outputChannel = accessor.get(IOutputService);
-				void outputChannel.showChannel(Constants.editSessionsLogChannelId);
+				void outputChannel.showChannel(editSessionsLogId);
 			}
 		}));
 	}
@@ -652,6 +650,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 					continue;
 				}
+
+				await this.editSessionIdentityService.onWillCreateEditSessionIdentity(workspaceFolder, cancellationToken);
 
 				name = name ?? workspaceFolder.name;
 				const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;

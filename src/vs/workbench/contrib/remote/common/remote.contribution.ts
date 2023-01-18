@@ -9,12 +9,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -32,8 +29,7 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
-import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
-import { remotePtyHostLog, remoteServerLog } from 'vs/workbench/contrib/logs/common/logConstants';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -70,41 +66,16 @@ export class LabelContribution implements IWorkbenchContribution {
 class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDownloadService downloadService: IDownloadService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		const updateRemoteLogLevel = () => {
-			const connection = remoteAgentService.getConnection();
-			if (!connection) {
-				return;
-			}
-			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
-		};
-		updateRemoteLogLevel();
-		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService, loggerService));
+			connection.withChannel('logger', async channel => this._register(new RemoteLoggerChannelClient(loggerService, channel)));
 		}
-	}
-}
-
-class RemoteLogOutputChannels implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
-	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: remoteServerLog, label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: remotePtyHostLog, label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
-			}
-		});
 	}
 }
 
@@ -270,9 +241,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
@@ -31,8 +31,10 @@ export interface IExtensionHostInitData {
 	nlsBaseUrl?: URI;
 	telemetryInfo: ITelemetryInfo;
 	logLevel: LogLevel;
+	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
 	logFile: URI;
+	logName: string;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
 	consoleForward: { includeStack: boolean; logNative: boolean };

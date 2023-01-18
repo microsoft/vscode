@@ -18,6 +18,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { isWeb } from 'vs/base/common/platform';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -619,7 +620,12 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 		const initialStartup = this._isInitialStartup();
-		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		let startMark: string;
+		if (isWeb) {
+			startMark = 'code/timeOrigin';
+		} else {
+			startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		}
 
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);

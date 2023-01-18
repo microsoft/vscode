@@ -10,17 +10,30 @@ use clap::{ArgEnum, Args, Parser, Subcommand};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const TEMPLATE: &str = concatcp!(
+const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+
+const STANDALONE_TEMPLATE: &str = concatcp!(
+	CLI_NAME,
+	" Standalone - {version}
+
+",
+	HELP_COMMANDS,
+	"
+Running editor commands requires installing ",
+	constants::QUALITYLESS_PRODUCT_NAME,
+	", and may differ slightly.
+
+{all-args}"
+);
+const INTEGRATED_TEMPLATE: &str = concatcp!(
 	CLI_NAME,
 	" - {version}
 
-Usage: ",
-	constants::APPLICATION_NAME,
-	" [options][paths...]
-
-To read output from another program, append '-' (e.g. 'echo Hello World | ",
-	constants::APPLICATION_NAME,
-	" -')
+",
+	HELP_COMMANDS,
+	"
 
 {all-args}"
 );
@@ -37,9 +50,8 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 
 #[derive(Parser, Debug, Default)]
 #[clap(
-   help_template = TEMPLATE,
+   help_template = INTEGRATED_TEMPLATE,
    long_about = None,
-   name = CLI_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -69,9 +81,8 @@ pub struct CliCore {
 
 #[derive(Parser, Debug, Default)]
 #[clap(
-   help_template = TEMPLATE,
+   help_template = STANDALONE_TEMPLATE,
    long_about = None,
-   name = CLI_NAME,
    version = VERSION,
  )]
 pub struct StandaloneCli {

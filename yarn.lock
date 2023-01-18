@@ -665,6 +665,13 @@
   dependencies:
     "@sinonjs/commons" "^1.7.0"
 
+"@sinonjs/fake-timers@^8.1.0":
+  version "8.1.0"
+  resolved "https://registry.yarnpkg.com/@sinonjs/fake-timers/-/fake-timers-8.1.0.tgz#3fdc2b6cb58935b21bfb8d1625eb1300484316e7"
+  integrity sha512-OAPJUAtgeINhh/TAlUID4QTs53Njm7xzddaVlEs/SXwgtiD1tW22zAB/W1wdqfrpmikgaWQ9Fw6Ws+hsiRm5Vg==
+  dependencies:
+    "@sinonjs/commons" "^1.7.0"
+
 "@sinonjs/samsam@^6.0.2":
   version "6.0.2"
   resolved "https://registry.yarnpkg.com/@sinonjs/samsam/-/samsam-6.0.2.tgz#a0117d823260f282c04bff5f8704bdc2ac6910bb"
@@ -1321,10 +1328,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
   integrity sha512-zSUH9HYCw5qsCtd7b31yqkpaCU6jhtkKLkvOOA8yTrIRfBSOFb8PPhgmMicD7B/m+t4PwOJXzU1XDtrM9Fd3/g==
 
-"@vscode/vscode-perf@^0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@vscode/vscode-perf/-/vscode-perf-0.0.2.tgz#d5a1c506c5ff57ab2b9cb74d349f66c5e5e98fdf"
-  integrity sha512-C8RrB+aRGXE5iSjm69zLRpLMMsoti+MonciR9xjzSj4lW9/NWNmQY2kH3Ktkoyci2zhUrTN+0OSmmuyDhhFDVg==
+"@vscode/vscode-perf@^0.0.5":
+  version "0.0.5"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-perf/-/vscode-perf-0.0.5.tgz#08e1308d744c977305d04e4f8230f58695f71c1f"
+  integrity sha512-MA03bCrycSQ8VM9Ln/56+zTGIUMMer3eZAX1Aj4h2APkrQFyKcVGX7539pKhabt0BXvsftJA0SuhbPYfnzLz0w==
   dependencies:
     chalk "^4.x"
     commander "^9.4.0"
@@ -9756,13 +9763,13 @@ sinon-test@^3.1.3:
   resolved "https://registry.yarnpkg.com/sinon-test/-/sinon-test-3.1.3.tgz#b261e0efd0b479891a243201387f957d7ca61daa"
   integrity sha512-jBDvPVW2z8uAoiud3Nqc6+e8+WX6UTB1gPQuYXK00mSnp9m/JYyeLdBjLlqbnk1DVmsgRCAHSoXYPNLHp0t56Q==
 
-sinon@^11.1.1:
-  version "11.1.1"
-  resolved "https://registry.yarnpkg.com/sinon/-/sinon-11.1.1.tgz#99a295a8b6f0fadbbb7e004076f3ae54fc6eab91"
-  integrity sha512-ZSSmlkSyhUWbkF01Z9tEbxZLF/5tRC9eojCdFh33gtQaP7ITQVaMWQHGuFM7Cuf/KEfihuh1tTl3/ABju3AQMg==
+sinon@^12.0.1:
+  version "12.0.1"
+  resolved "https://registry.yarnpkg.com/sinon/-/sinon-12.0.1.tgz#331eef87298752e1b88a662b699f98e403c859e9"
+  integrity sha512-iGu29Xhym33ydkAT+aNQFBINakjq69kKO6ByPvTsm3yyIACfyQttRTP03aBP/I8GfhFmLzrnKwNNkr0ORb1udg==
   dependencies:
     "@sinonjs/commons" "^1.8.3"
-    "@sinonjs/fake-timers" "^7.1.0"
+    "@sinonjs/fake-timers" "^8.1.0"
     "@sinonjs/samsam" "^6.0.2"
     diff "^5.0.0"
     nise "^5.1.0"
@@ -10889,10 +10896,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.0.0-dev.20230109:
-  version "5.0.0-dev.20230109"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230109.tgz#318e60a058a81329bc3e332d279cd3b117101aa1"
-  integrity sha512-tS4gkJVPBUVHIc8+LtfSv3TuaJR/mpvJ9XpLTKSRlPJlhM3rCizt5jCBZLsmNdyuT5LnfsKpswMYtEGUHMdGQA==
+typescript@^5.0.0-dev.20230117:
+  version "5.0.0-dev.20230117"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230117.tgz#e7748dd2e5b2306d28cb879372c1b12253fd111e"
+  integrity sha512-t4oWIiyz6CecNWyma3JrWhQttymyjEjU22fblThjweyNJHzgScOrKO6TYWZmJT4vbi486mTLLu5ologS69czow==
 
 typical@^4.0.0:
   version "4.0.0"

@@ -38,8 +38,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -75,9 +74,11 @@ import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { URI } from 'vs/base/common/uri';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { ServerUserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { localize } from 'vs/nls';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -92,13 +93,14 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IEnvironmentService, environmentService);
 	services.set(INativeEnvironmentService, environmentService);
 
-	const bufferLogService = new BufferLogService();
-	const logService = new MultiplexLogService([new ServerLogService(getLogLevel(environmentService)), bufferLogService]);
+	const loggerService = new LoggerService(getLogLevel(environmentService));
+	services.set(ILoggerService, loggerService);
+	socketServer.registerChannel('logger', new LoggerChannel(loggerService));
+
+	const logger = loggerService.createLogger(URI.file(path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`)), { id: 'remoteServerLog', name: localize('remoteExtensionLog', "Remote Server") });
+	const logService = new LogService(logger, [new ServerLogger(getLogLevel(environmentService))]);
 	services.set(ILogService, logService);
 	setTimeout(() => cleanupOlderLogs(environmentService.logsPath).then(null, err => logService.error(err)), 10000);
-
-	const loggerService = new LoggerService(logService);
-	bufferLogService.logger = loggerService.createLogger(URI.file(path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`)), { name: RemoteExtensionLogFileName });
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	logService.trace('process arguments:', environmentService.args);
@@ -111,7 +113,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	// TODO: @Sandy @Joao need dynamic context based router
 	const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
-	socketServer.registerChannel('logger', new LogLevelChannel(logService, loggerService));
 
 	// Files
 	const fileService = disposables.add(new FileService(logService));
@@ -187,7 +188,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			graceTime: ProtocolConstants.ReconnectionGraceTime,
 			shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		}
+		},
+		localize('ptyHost', "Remote Pty Host")
 	);
 	services.set(IPtyService, ptyService);
 
@@ -257,8 +259,7 @@ export class SocketServer<TContext = string> extends IPCServer<TContext> {
 	}
 }
 
-class ServerLogService extends AbstractLogger implements ILogService {
-	_serviceBrand: undefined;
+class ServerLogger extends AbstractLogger {
 	private useColors: boolean;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {

@@ -38,6 +38,9 @@
     "jsonc-parser": "^3.2.0",
     "semver": "5.5.1",
     "vscode-tas-client": "^0.1.63",
+    "@vscode/sync-api-client": "^0.7.2",
+    "@vscode/sync-api-common": "^0.7.2",
+    "@vscode/sync-api-service": "^0.7.3",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -398,12 +401,6 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.includeCompletionsForImportStatements%",
-          "scope": "resource"
-        },
-        "typescript.suggest.includeCompletionsWithSnippetText": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.includeCompletionsWithSnippetText%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -1223,6 +1220,15 @@
           "default": true,
           "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
+        },
+        "typescript.experimental.tsserver.web.enableProjectWideIntellisense": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.tsserver.web.enableProjectWideIntellisense%",
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },

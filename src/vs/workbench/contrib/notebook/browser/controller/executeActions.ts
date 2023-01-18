@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';

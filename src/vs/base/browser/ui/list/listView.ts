@@ -212,6 +212,52 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	}
 }
 
+export interface IListView<T> extends ISpliceable<T>, IDisposable {
+	readonly domId: string;
+	readonly domNode: HTMLElement;
+	readonly containerDomNode: HTMLElement;
+	readonly scrollableElementDomNode: HTMLElement;
+	readonly length: number;
+	readonly contentHeight: number;
+	readonly onDidChangeContentHeight: Event<number>;
+	readonly renderHeight: number;
+	readonly scrollHeight: number;
+	readonly firstVisibleIndex: number;
+	readonly lastVisibleIndex: number;
+	onDidScroll: Event<ScrollEvent>;
+	onWillScroll: Event<ScrollEvent>;
+	onMouseClick: Event<IListMouseEvent<T>>;
+	onMouseDblClick: Event<IListMouseEvent<T>>;
+	onMouseMiddleClick: Event<IListMouseEvent<T>>;
+	onMouseUp: Event<IListMouseEvent<T>>;
+	onMouseDown: Event<IListMouseEvent<T>>;
+	onMouseOver: Event<IListMouseEvent<T>>;
+	onMouseMove: Event<IListMouseEvent<T>>;
+	onMouseOut: Event<IListMouseEvent<T>>;
+	onContextMenu: Event<IListMouseEvent<T>>;
+	onTouchStart: Event<IListTouchEvent<T>>;
+	onTap: Event<IListGestureEvent<T>>;
+	element(index: number): T;
+	domElement(index: number): HTMLElement | null;
+	getElementDomId(index: number): string;
+	elementHeight(index: number): number;
+	elementTop(index: number): number;
+	indexOf(element: T): number;
+	indexAt(position: number): number;
+	indexAfter(position: number): number;
+	updateOptions(options: IListViewOptionsUpdate): void;
+	getScrollTop(): number;
+	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void;
+	getScrollLeft(): number;
+	setScrollLeft(scrollLeft: number): void;
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
+	updateWidth(index: number): void;
+	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
+	rerender(): void;
+	layout(height?: number, width?: number): void;
+}
+
 /**
  * The {@link ListView} is a virtual scrolling engine.
  *
@@ -222,7 +268,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
  * @remarks It is a low-level widget, not meant to be used directly. Refer to the
  * List widget instead.
  */
-export class ListView<T> implements ISpliceable<T>, IDisposable {
+export class ListView<T> implements IListView<T> {
 
 	private static InstanceCount = 0;
 	readonly domId = `list_id_${++ListView.InstanceCount}`;

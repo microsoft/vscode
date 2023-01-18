@@ -48,7 +48,6 @@ import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/w
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -174,8 +173,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		super(themeService);
 
 		const logsPath = joinPath(environmentService.windowLogsPath, 'notebook.rendering.log');
-		this._renderLogger = this._register(loggerService.createLogger(logsPath, { name: 'notebook.rendering' }));
-		registerLogChannel(logChannelId, nls.localize('renderChannelName', "Notebook rendering"), logsPath, fileService, logService);
+		this._renderLogger = this._register(loggerService.createLogger(logsPath, { id: logChannelId, name: nls.localize('renderChannelName', "Notebook rendering") }));
 
 		this._logRendererDebugMessage('Creating backlayer webview for notebook');
 
@@ -262,7 +260,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
-			}, "No renderer found for '$0' a"),
+			}, "No renderer found for '$0'"),
+			'notebook-cell-renderer-fallbacks-exhausted': nls.localize({
+				key: 'notebook.error.rendererFallbacksExhausted',
+				comment: ['$0 is a placeholder for the mime type']
+			}, "Could not render content for '$0'"),
 		};
 	}
 
