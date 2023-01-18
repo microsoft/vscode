@@ -589,7 +589,7 @@ export class CodeApplication extends Disposable {
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
 		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
-		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
+		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter, this.logService);
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
@@ -817,6 +817,8 @@ export class CodeApplication extends Disposable {
 
 			return urlService.open(uri, options);
 		}
+
+		this.logService.trace('app#handleProtocolUrl(): not handled', uri.toString(true), options);
 
 		return false;
 	}
@@ -1255,9 +1257,9 @@ export class CodeApplication extends Disposable {
 			// Telemetry
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
-				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
-				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
-				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether shared process window was visible or not.' };
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the shared process crash to understand the nature of the crash better.' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the shared process crash to understand the nature of the crash better.' };
+				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the shared process window was visible or not.' };
 				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the application is shutting down when the crash happens.' };
 				owner: 'bpasero';
 				comment: 'Event which fires whenever an error occurs in the shared process';

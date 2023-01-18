@@ -488,10 +488,18 @@ export class CellOutputContainer extends CellContentPart {
 	}
 
 	render() {
+		try {
+			this._doRender();
+		} finally {
+			// TODO@rebornix, this is probably not necessary at all as cell layout change would send the update request.
+			this._relayoutCell();
+		}
+	}
+
+	private _doRender() {
 		if (this.viewCell.outputsViewModels.length > 0) {
 			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
 				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
-				this._relayoutCell();
 			}
 
 			DOM.show(this.templateData.outputContainer.domNode);
@@ -507,11 +515,9 @@ export class CellOutputContainer extends CellContentPart {
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
 
-			this._relayoutCell();
 			this._validateFinalOutputHeight(false);
 		} else {
 			// noop
-			this._relayoutCell();
 			DOM.hide(this.templateData.outputContainer.domNode);
 		}
 

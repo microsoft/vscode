@@ -28,7 +28,7 @@ import { IThemable } from 'vs/base/common/styler';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
-import { IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -222,7 +222,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 
 	constructor(
 		private trait: Trait<T>,
-		private view: ListView<T>,
+		private view: IListView<T>,
 		private identityProvider?: IIdentityProvider<T>
 	) { }
 
@@ -289,7 +289,7 @@ class KeyboardController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>,
+		private view: IListView<T>,
 		options: IListOptions<T>
 	) {
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
@@ -421,7 +421,7 @@ class TypeNavigationController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>,
+		private view: IListView<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
 		private keyboardNavigationEventFilter: IKeyboardNavigationEventFilter,
 		private delegate: IKeyboardNavigationDelegate
@@ -535,7 +535,7 @@ class DOMFocusController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>
+		private view: IListView<T>
 	) {
 		const onKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
@@ -1247,7 +1247,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	private selection: Trait<T>;
 	private anchor = new Trait<T>('anchor');
 	private eventBufferer = new EventBufferer();
-	protected view: ListView<T>;
+	protected view: IListView<T>;
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeNavigationController?: TypeNavigationController<T>;
@@ -1358,7 +1358,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			dnd: _options.dnd && new ListViewDragAndDrop(this, _options.dnd)
 		};
 
-		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
+		this.view = this.createListView(container, virtualDelegate, renderers, viewOptions);
 		this.view.domNode.setAttribute('role', role);
 
 		if (_options.styleController) {
@@ -1407,6 +1407,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
+	}
+
+	protected createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<T>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<T>): IListView<T> {
+		return new ListView(container, virtualDelegate, renderers, viewOptions);
 	}
 
 	protected createMouseController(options: IListOptions<T>): MouseController<T> {

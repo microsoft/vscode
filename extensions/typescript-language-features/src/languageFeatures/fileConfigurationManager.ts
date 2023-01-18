@@ -193,6 +193,7 @@ export default class FileConfigurationManager extends Disposable {
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			disableLineTextInReferences: true,
 			...getInlayHintsPreferences(config),
 		};
 

@@ -200,7 +200,6 @@ export abstract class BaseCellViewModel extends Disposable {
 
 
 	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
-	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: any): void;

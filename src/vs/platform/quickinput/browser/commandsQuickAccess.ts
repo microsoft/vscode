@@ -30,6 +30,7 @@ export interface ICommandQuickPick extends IPickerQuickAccessItem {
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
 	showAlias: boolean;
+	suggestedCommandIds?: Set<string>;
 }
 
 export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
@@ -115,13 +116,30 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				return 1; // other command was used so it wins over the command
 			}
 
+			if (this.options.suggestedCommandIds) {
+				const commandASuggestion = this.options.suggestedCommandIds.has(commandPickA.commandId);
+				const commandBSuggestion = this.options.suggestedCommandIds.has(commandPickB.commandId);
+				if (commandASuggestion && commandBSuggestion) {
+					return 0; // honor the order of the array
+				}
+
+				if (commandASuggestion) {
+					return -1; // first command was suggested, so it wins over the non suggested one
+				}
+
+				if (commandBSuggestion) {
+					return 1; // other command was suggested so it wins over the command
+				}
+			}
+
 			// both commands were never used, so we sort by name
 			return commandPickA.label.localeCompare(commandPickB.label);
 		});
 
 		const commandPicks: Array<ICommandQuickPick | IQuickPickSeparator> = [];
 
-		let addSeparator = false;
+		let addOtherSeparator = false;
+		let addCommonlyUsedSeparator = !!this.options.suggestedCommandIds;
 		for (let i = 0; i < filteredCommandPicks.length; i++) {
 			const commandPick = filteredCommandPicks[i];
 			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
@@ -132,13 +150,20 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			// Separator: recently used
 			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
-				addSeparator = true;
+				addOtherSeparator = true;
+			}
+
+			// Separator: commonly used
+			if (addCommonlyUsedSeparator && !this.commandsHistory.peek(commandPick.commandId) && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+				commandPicks.push({ type: 'separator', label: localize('commonlyUsed', "commonly used") });
+				addOtherSeparator = true;
+				addCommonlyUsedSeparator = false;
 			}
 
 			// Separator: other commands
-			if (i !== 0 && addSeparator && !this.commandsHistory.peek(commandPick.commandId)) {
+			if (addOtherSeparator && !this.commandsHistory.peek(commandPick.commandId) && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
-				addSeparator = false; // only once
+				addOtherSeparator = false;
 			}
 
 			// Command

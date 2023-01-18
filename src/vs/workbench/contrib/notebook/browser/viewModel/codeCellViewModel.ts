@@ -50,8 +50,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private _editorHeight = 0;
 	set editorHeight(height: number) {
-		this._editorHeight = height;
+		if (this._editorHeight === height) {
+			return;
+		}
 
+		this._editorHeight = height;
 		this.layoutChange({ editorHeight: true }, 'CodeCellViewModel#editorHeight');
 	}
 
@@ -339,11 +342,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
-	}
-
-	hasDynamicHeight() {
-		// CodeCellVM always measures itself and controls its cell's height
-		return false;
 	}
 
 	getDynamicHeight() {
