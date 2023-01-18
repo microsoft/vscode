@@ -256,15 +256,18 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private focusIndicatorAt(indicators: SettingIndicator[], index: number) {
+		if (index === this.focusedIndex) {
+			return;
+		}
 		const indicator = indicators[index];
 		const elementToFocus = indicator.focusElement ?? indicator.element;
 		elementToFocus.tabIndex = 0;
 		elementToFocus.focus();
-		if (index !== this.focusedIndex) {
-			const currentlyFocusedIndicator = indicators[this.focusedIndex];
-			const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
-			previousFocusedElement.removeAttribute('tabIndex');
-		}
+
+		const currentlyFocusedIndicator = indicators[this.focusedIndex];
+		const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
+		previousFocusedElement.removeAttribute('tabIndex');
+
 		this.focusedIndex = index;
 	}
 
