@@ -336,7 +336,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.commandPalette.experimental.suggestCommands': {
 				'type': 'boolean',
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
-				'default': false
+				'default': false,
+				tags: ['experimental']
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
