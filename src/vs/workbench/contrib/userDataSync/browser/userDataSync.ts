@@ -718,26 +718,26 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
 		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_settings',
+			group: '1_profiles',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: ContextKeyExpr.and(turnOnSyncWhenContext),
-			order: 3
+			order: 2
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: turnOnSyncCommand,
 			when: turnOnSyncWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_settings',
+			group: '1_profiles',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: turnOnSyncWhenContext,
-			order: 3
+			order: 2
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			group: '1_settings',
@@ -759,10 +759,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '5_settings',
+						group: '1_profiles',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 3
+						order: 2
 					}, {
 						group: '1_settings',
 						id: MenuId.AccountsContext,
@@ -806,10 +806,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '5_settings',
+						group: '1_profiles',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 3
+						order: 2
 					}
 				});
 			}
@@ -835,7 +835,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		CommandsRegistry.registerCommand(showConflictsCommand.id, () => this.userDataSyncWorkbenchService.showConflicts());
 		const getTitle = () => localize('resolveConflicts_global', "{0}: Show Conflicts ({1})", SYNC_TITLE, this.getConflictsCount());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_settings',
+			group: '1_profiles',
 			command: {
 				id: showConflictsCommand.id,
 				get title() { return getTitle(); }
@@ -870,15 +870,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '5_settings',
+							group: '1_profiles',
 							when,
-							order: 3
+							order: 2
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '5_settings',
+							group: '1_profiles',
 							when,
-							order: 3,
+							order: 2,
 						},
 						{
 							id: MenuId.AccountsContext,
