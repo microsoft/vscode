@@ -795,11 +795,7 @@ export class DefaultStyleController implements IStyleController {
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			//if (styles.listBackground.isOpaque()) {
 			content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
-			// } else if (!platform.isMacintosh) { // subpixel AA doesn't exist in macOS
-			// 	console.warn(`List with id '${this.selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			// }
 		}
 
 		if (styles.listFocusBackground) {

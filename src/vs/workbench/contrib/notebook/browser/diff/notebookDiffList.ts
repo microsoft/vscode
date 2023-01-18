@@ -365,11 +365,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			//if (styles.listBackground.isOpaque()) {
 			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			//} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-			//	console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			//}
 		}
 
 		if (styles.listFocusBackground) {
