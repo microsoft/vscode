@@ -781,13 +781,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async showParentRepositoryNotification(): Promise<void> {
-		// If no repositories are open, we will use a welcome view to inform the user
-		// that a repository was found in one of the parent folders so we do not have
-		// to show the notification
-		if (this.repositories.length === 0) {
-			return;
-		}
-
 		const message = this.parentRepositories.size === 1 ?
 			workspace.workspaceFolders !== undefined ?
 				l10n.t('We found a git repository in one of the parent folders of this workspace.') :
