@@ -556,6 +556,7 @@
 	top: -5px !important;
 	left: 5px !important;
 	pointer-events: none;
+	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }
 
 .xterm .xterm-accessibility-buffer:focus div {

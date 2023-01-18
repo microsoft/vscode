@@ -92,8 +92,6 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 const enum Constants {
 	/**
@@ -1110,10 +1108,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const fontSize = this._configurationService.getValue(TerminalSettingId.FontSize);
 		this._accessibilityElement.style.fontFamily = fontFamily ? fontFamily.toString() : '';
 		this._accessibilityElement.style.fontSize = fontSize ? fontSize + 'px' : '';
-		const theme = this._themeService.getColorTheme();
-		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-		this._accessibilityElement.style.backgroundColor = backgroundColor ? backgroundColor.toString() : 'black';
-		this._accessibilityElement.style.color = backgroundColor ? backgroundColor.opposite().toString() : 'white';
 		this._accessibilityElement.focus();
 	}
 
