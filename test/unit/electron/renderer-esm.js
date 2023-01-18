@@ -68,7 +68,6 @@ const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
 const { pathToFileURL } = require('url');
-const minimatch = require('minimatch');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -84,8 +83,10 @@ globalThis._VSCODE_PACKAGE_JSON = require('../../../package.json');
 
 const _tests_glob = '**/test/**/*.test.js';
 
+
 let loader;
 let _out;
+const _loaderErrors = [];
 
 function initLoader(opts) {
 	// debugger;
@@ -95,27 +96,12 @@ function initLoader(opts) {
 	const baseUrl = pathToFileURL(path.join(__dirname, `../../../${outdir}/`));
 	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
-	const _excludeGlob = '**/{node,electron-browser,electron-main}/**/*.{test,integrationTest}';
-
 	// set loader
 	/**
 	 * @param {string[]} modules
 	 * @param {(...args:any[]) => void} callback
 	 */
 	function esmRequire(modules, callback, errorback) {
-
-		modules = modules.filter(file => {
-
-			if (!minimatch(file, _excludeGlob)) {
-				return true;
-			}
-
-			// filtered out -> warn when not default config
-			if (opts.runGlob || opts.run) {
-				console.warn(`[EXCLUDED] ${file}`);
-				return false;
-			}
-		});
 
 
 		const tasks = modules.map(mod => {
@@ -124,6 +110,7 @@ function initLoader(opts) {
 			return import(url).catch(err => {
 				console.log(mod, url);
 				console.log(err);
+				_loaderErrors.push(err);
 				throw err;
 			});
 		});
@@ -183,15 +170,6 @@ function loadTestModules(opts) {
 function loadTests(opts) {
 
 	const _unexpectedErrors = [];
-	const _loaderErrors = [];
-
-	// // collect loader errors
-	// loader.require.config({
-	// 	onError(err) {
-	// 		_loaderErrors.push(err);
-	// 		console.error(err);
-	// 	}
-	// });
 
 	// collect unexpected errors
 	loader.require(['vs/base/common/errors'], function (errors) {

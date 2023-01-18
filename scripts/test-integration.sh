@@ -37,14 +37,10 @@ echo "Storing log files into '$VSCODELOGSDIR'."
 # Tests standalone (AMD)
 
 echo
-echo "### electron integration tests"
-echo
-./scripts/test.sh --runGlob **/{browser,electron-sandbox,common}/**/*.integrationTest.js "$@"
-
-echo
 echo "### node.js integration tests"
 echo
-mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --runGlob **/node/**/*.integrationTest.js "$@"
+./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
+
 
 # Tests in the extension host
 

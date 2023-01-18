@@ -98,13 +98,7 @@ flakySuite('Native Modules (all platforms)', () => {
 (isLinux ? suite.skip : suite)('Native Modules (Windows, macOS)', () => {
 
 	test('keytar', async () => {
-		// ESM-comment-begin
 		const keytar = await import('keytar');
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const { default: keytar } = await import('keytar');
-		// ESM-uncomment-end
-
 		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
 		try {
 			await keytar.setPassword(name, 'foo', 'bar');
