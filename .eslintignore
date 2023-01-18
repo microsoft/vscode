@@ -32,3 +32,4 @@
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
+playground/**

@@ -1,0 +1,10 @@
+{
+  "name": "playground",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "strip-bom": "4",
+    "xdiff": "^0.2.11"
+  }
+}
