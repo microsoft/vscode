@@ -2673,6 +2673,15 @@
           "tags": [
             "experimental"
           ]
+        },
+        "git.publishBeforeContinueOn": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.publishBeforeContinueOn%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
