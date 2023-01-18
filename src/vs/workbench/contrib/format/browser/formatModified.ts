@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { formatDocumentRangesWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
@@ -54,7 +54,7 @@ export async function getModifiedRanges(accessor: ServicesAccessor, modified: IT
 	const workerService = accessor.get(IEditorWorkerService);
 	const modelService = accessor.get(ITextModelService);
 
-	const original = await getOriginalResource(quickDiffService, modified.uri);
+	const original = await getOriginalResource(quickDiffService, modified.uri, modified.getLanguageId(), shouldSynchronizeModel(modified));
 	if (!original) {
 		return null; // let undefined signify no changes, null represents no source control (there's probably a better way, but I can't think of one rn)
 	}

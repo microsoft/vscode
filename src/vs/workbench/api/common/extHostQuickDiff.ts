@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
 import { asPromise } from 'vs/base/common/async';
+import { DocumentSelector } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	private static handlePool: number = 0;
@@ -33,10 +34,10 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 			.then<UriComponents | null>(r => r || null);
 	}
 
-	async registerQuickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): Promise<vscode.Disposable> {
+	registerQuickDiffProvider(selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 		const handle = ExtHostQuickDiff.handlePool++;
 		this.providers.set(handle, quickDiffProvider);
-		await this.proxy.$registerQuickDiffProvider(handle, label, rootUri);
+		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector), label, rootUri);
 		return {
 			dispose: () => this.providers.delete(handle)
 		};
