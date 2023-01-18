@@ -17,6 +17,7 @@ import { localize } from 'vs/nls';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { asCssValue } from 'vs/platform/theme/common/colorRegistry';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
@@ -210,6 +211,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getWidgetRole: () => 'listbox'
 			},
 		}));
+		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));

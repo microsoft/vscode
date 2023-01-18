@@ -39,6 +39,10 @@ export function asCssValue(color: ColorIdentifier): string {
 	return `var(${asCssVariableName(color)})`;
 }
 
+export function asCssValueWithDefault(color: ColorIdentifier, defaultValue: string): string {
+	return `var(${asCssVariableName(color)}, ${defaultValue})`;
+}
+
 export const enum ColorTransformType {
 	Darken,
 	Lighten,
@@ -455,6 +459,7 @@ export const listFilterWidgetShadow = registerColor('listFilterWidget.shadow', {
 export const listFilterMatchHighlight = registerColor('list.filterMatchBackground', { dark: editorFindMatchHighlight, light: editorFindMatchHighlight, hcDark: null, hcLight: null }, nls.localize('listFilterMatchHighlight', 'Background color of the filtered match.'));
 export const listFilterMatchHighlightBorder = registerColor('list.filterMatchBorder', { dark: editorFindMatchHighlightBorder, light: editorFindMatchHighlightBorder, hcDark: contrastBorder, hcLight: activeContrastBorder }, nls.localize('listFilterMatchHighlightBorder', 'Border color of the filtered match.'));
 export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke', { dark: '#585858', light: '#a9a9a9', hcDark: '#a9a9a9', hcLight: '#a5a5a5' }, nls.localize('treeIndentGuidesStroke', "Tree stroke color for the indentation guides."));
+export const treeInactiveIndentGuidesStroke = registerColor('tree.inactiveIndentGuidesStroke', { dark: transparent(treeIndentGuidesStroke, 0.4), light: transparent(treeIndentGuidesStroke, 0.4), hcDark: transparent(treeIndentGuidesStroke, 0.4), hcLight: transparent(treeIndentGuidesStroke, 0.4) }, nls.localize('treeInactiveIndentGuidesStroke', "Tree stroke color for the indentation guides that are not active."));
 export const tableColumnsBorder = registerColor('tree.tableColumnsBorder', { dark: '#CCCCCC20', light: '#61616120', hcDark: null, hcLight: null }, nls.localize('tableColumnsBorder', "Table border color between columns."));
 export const tableOddRowsBackgroundColor = registerColor('tree.tableOddRowsBackground', { dark: transparent(foreground, 0.04), light: transparent(foreground, 0.04), hcDark: null, hcLight: null }, nls.localize('tableOddRowsBackgroundColor', "Background color for odd table rows."));
 export const listDeemphasizedForeground = registerColor('list.deemphasizedForeground', { dark: '#8C8C8C', light: '#8E8E90', hcDark: '#A7A8A9', hcLight: '#666666' }, nls.localize('listDeemphasizedForeground', "List/Tree foreground color for items that are deemphasized. "));
