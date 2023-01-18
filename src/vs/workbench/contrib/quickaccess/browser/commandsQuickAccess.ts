@@ -21,7 +21,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -31,6 +32,9 @@ import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess'
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
+import { IProductService } from 'vs/platform/product/common/productService';
+
+const SUGGEST_COMMANDS_ID = 'workbench.commandPalette.experimental.suggestCommands';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -65,14 +69,30 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IProductService productService: IProductService
 	) {
+		const suggestCommands = configurationService.getValue<boolean>('workbench.commandPalette.experimental.suggestCommands');
+		const suggestedCommandIds = suggestCommands && productService.commandPaletteSuggestedCommandIds?.length
+			? new Set(productService.commandPaletteSuggestedCommandIds)
+			: undefined;
 		super({
+			suggestedCommandIds,
 			showAlias: !Language.isDefaultVariant(),
 			noResultsPick: {
 				label: localize('noCommandResults', "No matching commands"),
 				commandId: ''
 			}
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(SUGGEST_COMMANDS_ID)) {
+				const suggestCommands = configurationService.getValue<boolean>('workbench.commandPalette.experimental.suggestCommands');
+				const suggestedCommandIds = suggestCommands && productService.commandPaletteSuggestedCommandIds?.length
+					? new Set(productService.commandPaletteSuggestedCommandIds)
+					: undefined;
+				this.options.suggestedCommandIds = suggestedCommandIds;
+			}
+		}));
 	}
 
 	private get configuration() {
@@ -98,7 +118,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		].map(c => ({
 			...c,
 			buttons: [{
-				iconClass: CSSIcon.asClassName(Codicon.gear),
+				iconClass: ThemeIcon.asClassName(Codicon.gear),
 				tooltip: localize('configure keybinding', "Configure Keybinding"),
 			}],
 			trigger: (): TriggerAction => {

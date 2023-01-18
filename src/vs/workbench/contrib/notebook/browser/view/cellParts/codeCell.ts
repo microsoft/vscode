@@ -6,7 +6,8 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -60,6 +61,7 @@ export class CodeCell extends Disposable {
 		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
+		this._renderedInputCollapseState = false; // editor is always expanded initially
 
 		this.registerViewCellLayoutChange();
 		this.registerCellEditorEventListeners();
@@ -115,6 +117,7 @@ export class CodeCell extends Disposable {
 		// Render Outputs
 		this.viewCell.editorHeight = editorHeight;
 		this._outputContainerRenderer.render();
+		this._renderedOutputCollapseState = false; // the output is always rendered initially
 		// Need to do this after the intial renderOutput
 		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
 			this.initialViewUpdateExpanded();
@@ -237,10 +240,6 @@ export class CodeCell extends Disposable {
 				if (layoutInfo.width !== this.viewCell.layoutInfo.editorWidth) {
 					this.onCellWidthChange();
 				}
-			}
-
-			if (e.totalHeight) {
-				this.relayoutCell();
 			}
 		}));
 	}
@@ -406,7 +405,7 @@ export class CodeCell extends Disposable {
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		element.appendChild(expandIcon);
 	}
 

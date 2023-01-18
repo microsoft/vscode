@@ -20,7 +20,8 @@ import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -61,7 +62,8 @@ export interface IQuickInputStyles {
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
 	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color };
+	list: IListStyles;
+	pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
 }
 
 export interface IQuickInputWidgetStyles {
@@ -77,7 +79,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
-	iconClass: CSSIcon.asClassName(Codicon.quickInputBack),
+	iconClass: ThemeIcon.asClassName(Codicon.quickInputBack),
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -1842,14 +1844,14 @@ export class QuickInputController extends Disposable {
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];
-			if (this.styles.list.pickerGroupBorder) {
-				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.list.pickerGroupBorder}; }`);
+			if (this.styles.pickerGroup.pickerGroupBorder) {
+				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.pickerGroup.pickerGroupBorder}; }`);
 			}
-			if (this.styles.list.pickerGroupForeground) {
-				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			if (this.styles.pickerGroup.pickerGroupForeground) {
+				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.pickerGroup.pickerGroupForeground}; }`);
 			}
-			if (this.styles.list.pickerGroupForeground) {
-				content.push(`.quick-input-list .quick-input-list-separator-as-item { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			if (this.styles.pickerGroup.pickerGroupForeground) {
+				content.push(`.quick-input-list .quick-input-list-separator-as-item { color:  ${this.styles.pickerGroup.pickerGroupForeground}; }`);
 			}
 
 			if (

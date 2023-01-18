@@ -753,6 +753,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (this.workspace) {
 			const previousData = this._configuration.toData();
 			const change = this._configuration.compareAndUpdateDefaultConfiguration(configurationModel, properties);
+			if (this.applicationConfiguration) {
+				this._configuration.updateApplicationConfiguration(this.applicationConfiguration.reparse());
+			}
 			if (this.remoteUserConfiguration) {
 				this._configuration.updateLocalUserConfiguration(this.localUserConfiguration.reparse());
 				this._configuration.updateRemoteUserConfiguration(this.remoteUserConfiguration.reparse());

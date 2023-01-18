@@ -40,8 +40,8 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 		const allAvailableKernels = this._notebookKernelService.getMatchingKernel(notebook);
 		const allKernels = allAvailableKernels.all;
 		const selectedKernel = allAvailableKernels.selected;
-		const suggested = (allAvailableKernels.suggestions.length === 1 ? allAvailableKernels.suggestions[0] : undefined)
-			?? (allAvailableKernels.all.length === 1) ? allAvailableKernels.all[0] : undefined;
+		// We will suggest the only kernel
+		const suggested = allAvailableKernels.all.length === 1 ? allAvailableKernels.all[0] : undefined;
 
 		const mostRecentKernelIds = this._mostRecentKernelsMap[notebook.viewType] ? [...this._mostRecentKernelsMap[notebook.viewType].values()] : [];
 

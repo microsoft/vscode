@@ -6,12 +6,14 @@
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
 
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
 
 export interface QuickDiffProvider {
 	label: string;
 	rootUri: URI | undefined;
+	selector?: LanguageSelector;
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
@@ -24,5 +26,5 @@ export interface IQuickDiffService {
 	readonly _serviceBrand: undefined;
 
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable;
-	getQuickDiffs(uri: URI): Promise<QuickDiff[]>;
+	getQuickDiffs(uri: URI, language?: string, isSynchronized?: boolean): Promise<QuickDiff[]>;
 }

@@ -26,7 +26,8 @@ import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDIN
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
@@ -51,7 +52,7 @@ import { defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyle
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { isString } from 'vs/base/common/types';
-import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { CompletionItemKind } from 'vs/editor/common/languages';
 
 const $ = DOM.$;
@@ -1055,7 +1056,6 @@ class WhenInputWidget extends Disposable {
 		parent: HTMLElement,
 		keybindingsEditor: KeybindingsEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -1071,7 +1071,6 @@ class WhenInputWidget extends Disposable {
 			triggerCharacters: ['!'],
 		}, '', `keyboardshortcutseditor#wheninput`, { focusContextKey, overflowWidgetsDomNode: keybindingsEditor.overflowWidgetsDomNode }));
 
-		this._register(attachSuggestEnabledInputBoxStyler(this.input, themeService, {}));
 		this._register((DOM.addDisposableListener(this.input.element, DOM.EventType.DBLCLICK, e => DOM.EventHelper.stop(e))));
 		this._register(toDisposable(() => focusContextKey.reset()));
 

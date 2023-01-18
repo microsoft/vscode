@@ -31,7 +31,7 @@ import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protoco
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
@@ -668,7 +668,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
@@ -809,7 +809,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const telemetryService = new TelemetryService(config, this.configurationService, this.productService);
 
 			type WindowAdminErrorClassification = {
-				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 				owner: 'bpasero';
 				comment: 'Provides insight into reasons the vscode window had an error when running as admin.';
@@ -1089,7 +1089,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
+		configuration.loggers = {
+			window: this.loggerMainService.getRegisteredLoggers(this.id),
+			global: this.loggerMainService.getRegisteredLoggers()
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

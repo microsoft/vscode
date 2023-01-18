@@ -673,7 +673,7 @@ export class Git {
 		}
 
 		try {
-			const result = await this.exec('', args);
+			const result = await this.exec(os.homedir(), args);
 			return result.stdout;
 		} catch (err) {
 			if (typeof err.stdout === 'string') {
@@ -686,7 +686,7 @@ export class Git {
 	}
 
 	async addSafeDirectory(repositoryPath: string): Promise<void> {
-		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
+		await this.exec(os.homedir(), ['config', '--global', '--add', 'safe.directory', repositoryPath]);
 		return;
 	}
 }
@@ -2092,7 +2092,7 @@ export class Repository {
 				HEAD = await this.getBranch(HEAD.name);
 			} else if (HEAD.commit) {
 				// Tag || Commit
-				const tags = await this.getRefs({ pattern: 'refs/tags/*' });
+				const tags = await this.getRefs({ pattern: 'refs/tags' });
 				const tag = tags.find(tag => tag.commit === HEAD!.commit);
 
 				if (tag) {

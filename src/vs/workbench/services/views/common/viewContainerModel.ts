@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { coalesce, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual, joinPath } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';

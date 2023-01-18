@@ -95,8 +95,8 @@ suite('NotebookKernelHistoryService', () => {
 
 		info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
 		assert.equal(info.all.length, 0);
-		// suggested kernel should be visible
-		assert.deepStrictEqual(info.selected, k2);
+		// MRU only auto selects kernel if there is only one
+		assert.deepStrictEqual(info.selected, undefined);
 	});
 
 	test('notebook kernel history restore', function () {

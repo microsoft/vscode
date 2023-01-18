@@ -15,11 +15,11 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { CommentThreadState } from 'vs/editor/common/languages';
@@ -28,6 +28,8 @@ import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { basename } from 'vs/base/common/resources';
 import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -188,7 +190,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): CSSIcon {
+	private getIcon(threadState?: CommentThreadState): ThemeIcon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {
@@ -251,7 +253,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 }
 
 export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
-	overrideStyles?: IColorMapping;
+	overrideStyles?: IStyleOverride<IListStyles>;
 }
 
 const enum FilterDataType {
@@ -397,7 +399,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 			instantiationService,
 			contextKeyService,
 			listService,
-			themeService,
 			configurationService
 		);
 	}
