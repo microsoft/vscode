@@ -17,19 +17,16 @@
 	scrollbar-width: thin;
 }
 
-.xterm .xterm-accessibility::-webkit-scrollbar,
 .monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar {
 	width: 10px;
 }
 
-.xterm .xterm-accessibility::-webkit-scrollbar-track,
 .monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar-track,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar-track {
 	opacity: 0;
 }
 
-.xterm .xterm-accessibility::-webkit-scrollbar-thumb,
 .monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar-thumb,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar-thumb {
 	min-height: 20px;
@@ -48,13 +45,11 @@
 	cursor: default;
 }
 
-.xterm .xterm-accessibility::-webkit-scrollbar-thumb:hover,
 .monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
 	transition: opacity 0ms linear;
 }
 
-.xterm .xterm-accessibility::-webkit-scrollbar-thumb:window-inactive,
 .monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive,
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive {
 	background-color: inherit;

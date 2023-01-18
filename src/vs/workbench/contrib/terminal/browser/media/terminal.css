@@ -115,6 +115,10 @@
 	z-index: 33 !important;
 }
 
+.xterm .xterm-accessibility {
+	z-index: 32 !important;
+	pointer-events: none;
+}
 /* Apply cursor styles to xterm-screen as well due to how .xterm-viewport/.xterm are positioned */
 .xterm.enable-mouse-events .xterm-screen  { cursor: default; }
 .xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
@@ -559,7 +563,3 @@
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }
 
-.xterm .xterm-accessibility-buffer:focus div {
-	font-family: inherit;
-	font-size: inherit;
-}
