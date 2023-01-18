@@ -33,10 +33,10 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 			.then<UriComponents | null>(r => r || null);
 	}
 
-	async registerQuickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): Promise<vscode.Disposable> {
+	registerQuickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 		const handle = ExtHostQuickDiff.handlePool++;
 		this.providers.set(handle, quickDiffProvider);
-		await this.proxy.$registerQuickDiffProvider(handle, label, rootUri);
+		this.proxy.$registerQuickDiffProvider(handle, label, rootUri);
 		return {
 			dispose: () => this.providers.delete(handle)
 		};

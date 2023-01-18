@@ -804,7 +804,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'profileContentHandlers');
 				return extHostProfileContentHandlers.registrProfileContentHandler(extension, id, handler);
 			},
-			async registerQuickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): Promise<vscode.Disposable> {
+			registerQuickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
 				return extHostQuickDiff.registerQuickDiffProvider(quickDiffProvider, label, rootUri);
 			},
