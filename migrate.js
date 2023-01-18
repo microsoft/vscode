@@ -162,8 +162,6 @@ function migrateTS(filePath, fileContents) {
 		// to some guess for what files endup in the shared process
 		if (!filePath.includes('vs/workbench/') && !filePath.includes('vs/editor/')) {
 			const monacoNodeModules = new Set([
-				'graceful-fs',
-				'xterm-headless',
 				'child_process', // inside worker of shared process
 				'console', // inside worker of shared process
 			]);

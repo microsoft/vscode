@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { Barrier, retry } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -27,6 +26,14 @@ import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from '
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
 import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
+
+// ESM-comment-begin
+import { gracefulify } from 'graceful-fs';
+// ESM-comment-end
+// ESM-uncomment-begin
+// import pkg from 'graceful-fs';
+// const { gracefulify } = pkg;
+// ESM-uncomment-end
 
 /**
  * Enable graceful-fs very early from here to have it enabled

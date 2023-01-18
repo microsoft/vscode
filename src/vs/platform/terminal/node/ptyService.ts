@@ -15,7 +15,6 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
@@ -30,6 +29,14 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
+// ESM-comment-begin
+import { Terminal as XtermTerminal } from 'xterm-headless';
+// ESM-comment-end
+// ESM-uncomment-begin
+// import pkg from 'xterm-headless';
+// type XtermTerminal = pkg.Terminal;
+// const { Terminal: XtermTerminal } = pkg;
+// ESM-uncomment-end
 
 type WorkspaceId = string;
 

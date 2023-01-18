@@ -5,7 +5,7 @@
 		<meta charset="utf-8" />
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
-			script-src 'self' node: 'sha256-dIi31KrQLN+HT34lXCM9yk0b9Ia7HUTNfaU1sWMEkMc=';
+			script-src 'self' node: blob: 'sha256-dIi31KrQLN+HT34lXCM9yk0b9Ia7HUTNfaU1sWMEkMc=' 'sha256-RsVIeg4GZpwQFU06L6rjHmAPb1uf3nIAiIKfadQb7wc=' 'nonce-imp0rt-ma9';
 			connect-src 'self' https:;" />
 	</head>
 
@@ -14,25 +14,47 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
+	<script>
 
-	<script type="importmap">
-		{
-			"imports":{
-				"os": "../../../../vs/base/node/typings-esm/os.js",
-				"yauzl": "../../../../vs/base/node/typings-esm/yauzl.js",
-				"yazl": "../../../../vs/base/node/typings-esm/yazl.js",
-				"minimist": "../../../../vs/base/node/typings-esm/minimist.js",
-				"child_process": "../../../../vs/base/node/typings-esm/child_process.js",
-				"console": "../../../../vs/base/node/typings-esm/console.js",
-				"crypto": "../../../../vs/base/node/typings-esm/crypto.js",
-				"fs": "../../../../vs/base/node/typings-esm/fs.js",
-				"https": "../../../../vs/base/node/typings-esm/https.js",
-				"net": "../../../../vs/base/node/typings-esm/net.js",
-				"path": "../../../../vs/base/node/typings-esm/path.js",
-				"util": "../../../../vs/base/node/typings-esm/util.js"
+		// The shared process IS node-enabled. So we will encounter imports for node-modules which isn't
+		// supported by blink/chromium. To work around this, we generate an import map that maps all node modules
+		// to a blob that exports all properties of the module as named exports and the module itself as default.
+		const importMap = { imports: {} };
+		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_')).sort();
+		const extra = ['graceful-fs', 'xterm', 'xterm-headless', 'yauzl', 'yazl', 'minimist'].sort(); // subset of node_modules that are used in the shared process
+
+		for (const name of new Set([].concat(builtin, extra))) {
+
+			let _mod;
+			try {
+				_mod = require(name);
+
+			} catch(err) {
+				console.error(`[ESM] Failed to require ${name}`);
+				console.error(err);
+				continue;
 			}
+
+			// export all properties and the module itself as default
+			let jsSrc = `const _mod = require('${name}')\n`;
+			for(const name of Object.keys(_mod)) {
+				jsSrc += `export const ${name} = _mod['${name}'];\n`;
+			}
+			jsSrc += `export default _mod;\n`;
+
+			const blob = new Blob([jsSrc], { type: 'application/javascript' });
+			const url = URL.createObjectURL(blob);
+			importMap.imports[name] = url;
 		}
+
+		const rawImportMap = JSON.stringify(importMap, undefined, 2);
+		const importMapScript = document.createElement('script');
+		importMapScript.nonce = 'imp0rt-ma9';
+		importMapScript.type = 'importmap';
+		importMapScript.textContent = rawImportMap;
+		document.currentScript?.after(importMapScript);
 	</script>
+
 	<script src="../../../../bootstrap.js"></script>
 	<script src="../../../../bootstrap-window.js"></script>
 	<script src="sharedProcess.js"></script>
