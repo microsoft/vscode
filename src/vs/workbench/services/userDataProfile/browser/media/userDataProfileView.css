@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .pane > .pane-body > .manual-sync-buttons-container {
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container {
 	display: flex;
 	flex-direction: column;
-	padding: 13px 20px 0 20px;
+	padding: 13px 20px;
 	box-sizing: border-box;
 }
 
-.monaco-workbench .pane > .pane-body > .manual-sync-buttons-container .monaco-button {
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container .monaco-button {
 	margin-block-start: 13px;
 	margin-inline-start: 0px;
 	margin-inline-end: 0px;

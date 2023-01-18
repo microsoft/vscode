@@ -69,7 +69,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 
 		this.playingSounds.add(sound);
-
 		const url = FileAccess.asBrowserUri(
 			`vs/platform/audioCues/browser/media/${sound.fileName}`
 		).toString();

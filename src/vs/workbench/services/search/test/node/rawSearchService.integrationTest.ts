@@ -7,9 +7,10 @@ import * as assert from 'assert';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isSerializedSearchComplete, isSerializedSearchSuccess, QueryType } from 'vs/workbench/services/search/common/search';
 import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 
@@ -17,7 +18,7 @@ const TEST_FOLDER_QUERIES = [
 	{ folder: URI.file(path.normalize('/some/where')) }
 ];
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, '../node/fixtures'));
+const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(path.join(TEST_FIXTURES, 'examples')) },
 	{ folder: URI.file(path.join(TEST_FIXTURES, 'more')) }

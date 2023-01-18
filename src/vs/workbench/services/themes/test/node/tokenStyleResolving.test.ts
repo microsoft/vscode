@@ -13,7 +13,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
+import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -99,7 +99,7 @@ suite('Themes - TokenStyleResolving', () => {
 
 	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/electron-browser/color-theme.json');
+		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme.json');
 		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.strictEqual(themeData.isLoaded, true);

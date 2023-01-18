@@ -67,10 +67,6 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 		return element.getHeight(this.lineHeight);
 	}
 
-	hasDynamicHeight(element: CellViewModel): boolean {
-		return element.hasDynamicHeight();
-	}
-
 	getDynamicHeight(element: CellViewModel): number | null {
 		return element.getDynamicHeight();
 	}

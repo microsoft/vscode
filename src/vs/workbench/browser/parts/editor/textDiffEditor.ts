@@ -134,7 +134,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			}
 
 			// Diff navigator
-			this.diffNavigator = new DiffNavigator(control, {
+			this.diffNavigator = this.instantiationService.createInstance(DiffNavigator, control, {
 				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState, // only reveal first change if we had no options or viewstate
 				findResultLoop: this.getMainControl()?.getOption(EditorOption.find).loop
 			});
@@ -233,8 +233,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		}
 	}
 
-	protected override shouldComputeConfiguration(e: ITextResourceConfigurationChangeEvent, resource: URI): boolean {
-		if (super.shouldComputeConfiguration(e, resource)) {
+	protected override shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI): boolean {
+		if (super.shouldHandleConfigurationChangeEvent(e, resource)) {
 			return true;
 		}
 

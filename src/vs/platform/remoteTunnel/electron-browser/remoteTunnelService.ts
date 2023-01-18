@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_FILE_NAME, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_CHANNEL_ID, LOG_FILE_NAME, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -68,7 +68,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	) {
 		super();
 		const remoteTunnelLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
-		this._logger = this._register(loggerService.createLogger(remoteTunnelLogResource, { name: LOGGER_NAME }));
+		this._logger = this._register(loggerService.createLogger(remoteTunnelLogResource, { name: LOGGER_NAME, id: LOG_CHANNEL_ID }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));

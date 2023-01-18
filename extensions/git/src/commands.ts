@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -658,6 +658,44 @@ export class CommandCenter {
 			}
 
 			throw err;
+		}
+	}
+
+	@command('git.continueInLocalClone')
+	async continueInLocalClone(): Promise<Uri | void> {
+		if (this.model.repositories.length === 0) { return; }
+
+		// Pick a single repository to continue working on in a local clone if there's more than one
+		const items = this.model.repositories.reduce<(QuickPickItem & { repository: Repository })[]>((items, repository) => {
+			const remote = repository.remotes.find((r) => r.name === repository.HEAD?.upstream?.remote);
+			if (remote?.pushUrl) {
+				items.push({ repository: repository, label: remote.pushUrl });
+			}
+			return items;
+		}, []);
+
+		let selection = items[0];
+		if (items.length > 1) {
+			const pick = await window.showQuickPick(items, { canPickMany: false, placeHolder: l10n.t('Choose which repository to clone') });
+			if (pick === undefined) { return; }
+			selection = pick;
+		}
+
+		const uri = selection.label;
+		const ref = selection.repository.HEAD?.upstream?.name;
+
+		if (uri !== undefined) {
+			// Launch desktop client if currently in web
+			if (env.uiKind === UIKind.Web) {
+				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+				if (ref !== undefined) {
+					target += `&ref=${encodeURIComponent(ref)}`;
+				}
+				return Uri.parse(target);
+			}
+
+			// If already in desktop client, directly clone
+			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
 
@@ -2070,11 +2108,12 @@ export class CommandCenter {
 					await this.cleanAll(repository);
 					await item.run(opts);
 				} else if (choice === stash || choice === migrate) {
-					await this.stash(repository);
-					await item.run(opts);
+					if (await this._stash(repository)) {
+						await item.run(opts);
 
-					if (choice === migrate) {
-						await this.stashPopLatest(repository);
+						if (choice === migrate) {
+							await this.stashPopLatest(repository);
+						}
 					}
 				}
 			}
@@ -2189,12 +2228,6 @@ export class CommandCenter {
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(repository, defaultName);
-
-		if (!branchName) {
-			return;
-		}
-
 		let target = 'HEAD';
 
 		if (from) {
@@ -2202,7 +2235,7 @@ export class CommandCenter {
 				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
 			};
 
-			const placeHolder = l10n.t('Select a ref to create the "{0}" branch from', branchName);
+			const placeHolder = l10n.t('Select a ref to create the branch from');
 			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
@@ -2212,6 +2245,12 @@ export class CommandCenter {
 			if (choice.refName) {
 				target = choice.refName;
 			}
+		}
+
+		const branchName = await this.promptForBranchName(repository, defaultName);
+
+		if (!branchName) {
+			return;
 		}
 
 		await repository.branch(branchName, true, target);
@@ -2224,11 +2263,10 @@ export class CommandCenter {
 			run = force => repository.deleteBranch(name, force);
 		} else {
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({ pattern: 'refs/heads/*' });
+				const refs = await repository.getRefs({ pattern: 'refs/heads' });
 				const currentHead = repository.HEAD && repository.HEAD.name;
 
-				return refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
-					.map(ref => new BranchDeleteItem(ref));
+				return refs.filter(ref => ref.name !== currentHead).map(ref => new BranchDeleteItem(ref));
 			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
@@ -2386,7 +2424,7 @@ export class CommandCenter {
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
 		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags' });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
 		};
 
@@ -2982,7 +3020,7 @@ export class CommandCenter {
 		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -2990,12 +3028,12 @@ export class CommandCenter {
 		if (staged) {
 			if (noStagedChanges) {
 				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
-				return;
+				return false;
 			}
 		} else {
 			if (noUnstagedChanges && noStagedChanges) {
 				window.showInformationMessage(l10n.t('There are no changes to stash.'));
-				return;
+				return false;
 			}
 		}
 
@@ -3022,7 +3060,7 @@ export class CommandCenter {
 				if (pick === saveAndStash) {
 					await Promise.all(documents.map(d => d.save()));
 				} else if (pick !== stash) {
-					return; // do not stash on cancel
+					return false; // do not stash on cancel
 				}
 			}
 		}
@@ -3040,15 +3078,16 @@ export class CommandCenter {
 		});
 
 		if (typeof message === 'undefined') {
-			return;
+			return false;
 		}
 
 		try {
 			await repository.createStash(message, includeUntracked, staged);
+			return true;
 		} catch (err) {
 			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
 				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
-				return;
+				return false;
 			}
 
 			throw err;
@@ -3056,18 +3095,18 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	stash(repository: Repository): Promise<void> {
-		return this._stash(repository);
+	async stash(repository: Repository): Promise<void> {
+		await this._stash(repository);
 	}
 
 	@command('git.stashStaged', { repository: true })
-	stashStaged(repository: Repository): Promise<void> {
-		return this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<void> {
+		await this._stash(repository, false, true);
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	stashIncludeUntracked(repository: Repository): Promise<void> {
-		return this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<void> {
+		await this._stash(repository, true);
 	}
 
 	@command('git.stashPop', { repository: true })

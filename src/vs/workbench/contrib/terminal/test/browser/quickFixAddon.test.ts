@@ -16,7 +16,7 @@ import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/commo
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
@@ -46,7 +46,7 @@ suite('QuickFixAddon', () => {
 			rows: 30
 		});
 		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(ITerminalContributionService, { quickFixes: [] } as Partial<ITerminalContributionService>);
+		instantiationService.stub(ITerminalContributionService, { quickFixes: new Promise((r) => { r([]); }) } as Partial<ITerminalContributionService>);
 		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event, onDidRegisterCommandSelector: new Emitter().event } as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
@@ -333,6 +333,102 @@ suite('QuickFixAddon', () => {
 			});
 		});
 	});
+	suite('pwsh feedback providers', () => {
+		suite('General', () => {
+			const expectedMap = new Map();
+			const command = `not important`;
+			const output = [
+				`...`,
+				``,
+				`Suggestion [General]:`,
+				`  The most similar commands are: python3, python3m, pamon, python3.6, rtmon, echo, pushd, etsn, pwsh, pwconv.`,
+				``,
+				`Suggestion [cmd-not-found]:`,
+				`  Command 'python' not found, but can be installed with:`,
+				`  sudo apt install python3`,
+				`  sudo apt install python`,
+				`  sudo apt install python-minimal`,
+				`  You also have python3 installed, you can run 'python3' instead.'`,
+				``,
+			].join('\n');
+			const exitCode = 128;
+			const actions = [
+				'python3',
+				'python3m',
+				'pamon',
+				'python3.6',
+				'rtmon',
+				'echo',
+				'pushd',
+				'etsn',
+				'pwsh',
+				'pwconv',
+			].map(command => {
+				return {
+					id: 'Pwsh General Error',
+					enabled: true,
+					label: `Run: ${command}`,
+					tooltip: `Run: ${command}`,
+					command: command
+				};
+			});
+			setup(() => {
+				const pushCommand = pwshGeneralError();
+				quickFixAddon.registerCommandFinishedListener(pushCommand);
+				expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand]);
+			});
+			test('returns undefined when output does not match', async () => {
+				strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, PwshGeneralErrorOutputRegex, exitCode), expectedMap, openerService, labelService)), undefined);
+			});
+			test('returns actions when output matches', async () => {
+				assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, PwshGeneralErrorOutputRegex, exitCode), expectedMap, openerService, labelService)), actions);
+			});
+		});
+		suite('Unix cmd-not-found', () => {
+			const expectedMap = new Map();
+			const command = `not important`;
+			const output = [
+				`...`,
+				``,
+				`Suggestion [General]`,
+				`  The most similar commands are: python3, python3m, pamon, python3.6, rtmon, echo, pushd, etsn, pwsh, pwconv.`,
+				``,
+				`Suggestion [cmd-not-found]:`,
+				`  Command 'python' not found, but can be installed with:`,
+				`  sudo apt install python3`,
+				`  sudo apt install python`,
+				`  sudo apt install python-minimal`,
+				`  You also have python3 installed, you can run 'python3' instead.'`,
+				``,
+			].join('\n');
+			const exitCode = 128;
+			const actions = [
+				'sudo apt install python3',
+				'sudo apt install python',
+				'sudo apt install python-minimal',
+				'python3',
+			].map(command => {
+				return {
+					id: 'Pwsh Unix Command Not Found Error',
+					enabled: true,
+					label: `Run: ${command}`,
+					tooltip: `Run: ${command}`,
+					command: command
+				};
+			});
+			setup(() => {
+				const pushCommand = pwshUnixCommandNotFoundError();
+				quickFixAddon.registerCommandFinishedListener(pushCommand);
+				expectedMap.set(pushCommand.commandLineMatcher.toString(), [pushCommand]);
+			});
+			test('returns undefined when output does not match', async () => {
+				strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, PwshUnixCommandNotFoundErrorOutputRegex, exitCode), expectedMap, openerService, labelService)), undefined);
+			});
+			test('returns actions when output matches', async () => {
+				assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, PwshUnixCommandNotFoundErrorOutputRegex, exitCode), expectedMap, openerService, labelService)), actions);
+			});
+		});
+	});
 });
 
 function createCommand(command: string, output: string, outputMatcher?: RegExp | string, exitCode?: number): ITerminalCommand {
@@ -357,19 +453,18 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 type TestAction = Pick<IAction, 'id' | 'label' | 'tooltip' | 'enabled'> & { command?: string; uri?: URI };
 function assertMatchOptions(actual: TestAction[] | undefined, expected: TestAction[]): void {
 	strictEqual(actual?.length, expected.length);
-	let index = 0;
-	for (const i of actual) {
-		const j = expected[index];
-		strictEqual(i.id, j.id, `ID`);
-		strictEqual(i.enabled, j.enabled, `enabled`);
-		strictEqual(i.label, j.label, `label`);
-		strictEqual(i.tooltip, j.tooltip, `tooltip`);
-		if (j.command) {
-			strictEqual(i.command, j.command);
+	for (let i = 0; i < expected.length; i++) {
+		const expectedItem = expected[i];
+		const actualItem: any = actual[i];
+		strictEqual(actualItem.id, expectedItem.id, `ID`);
+		strictEqual(actualItem.enabled, expectedItem.enabled, `enabled`);
+		strictEqual(actualItem.label, expectedItem.label, `label`);
+		strictEqual(actualItem.tooltip, expectedItem.tooltip, `tooltip`);
+		if (expectedItem.command) {
+			strictEqual(actualItem.command, expectedItem.command);
 		}
-		if (j.uri) {
-			strictEqual(i.uri!.toString(), j.uri.toString());
+		if (expectedItem.uri) {
+			strictEqual(actualItem.uri!.toString(), expectedItem.uri.toString());
 		}
-		index++;
 	}
 }

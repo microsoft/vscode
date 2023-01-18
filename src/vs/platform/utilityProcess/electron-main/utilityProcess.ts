@@ -245,8 +245,8 @@ export class UtilityProcess extends Disposable {
 
 				// Telemetry
 				type UtilityProcessCrashClassification = {
-					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of utility process to understand the origin of the crash better.' };
-					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
+					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
+					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
 					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
