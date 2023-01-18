@@ -11717,6 +11717,11 @@ xterm-addon-canvas@0.4.0-beta.6:
   resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.4.0-beta.6.tgz#f8cb09ef980f1fa9d73f067e00f7a879c374ad68"
   integrity sha512-x5OY0VOJxqvXdyXpW9aug3vaeQX/+r7TZk13MujReuJRLRAjCHaH6ep6g9ZOVlqa8VCBWPwmm/eXH05SGUbnQQ==
 
+xterm-addon-image@0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.3.1.tgz#970b4003d1239b541ace7643f4f7e72a7f90a07d"
+  integrity sha512-7wLkYAoMCMwcvOhzqVlMK1wRHPQa1ZiFRdJ82oQVdnkp0ktV2LNmNu0JPu6H0Fr0eUfxUmcrqwhI9BMiZuPyrw==
+
 xterm-addon-search@0.11.0:
   version "0.11.0"
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.11.0.tgz#2a00ff7f9848f6140e7c4d1782486b0b18b06e0d"
