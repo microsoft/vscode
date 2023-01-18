@@ -5,6 +5,7 @@
 
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { language } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -272,7 +273,7 @@ class TimerCellStatusBarItem extends Disposable {
 			text: formatCellDuration(duration),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1,
-			tooltip: isDone ? new Date(endTime).toLocaleString() : undefined
+			tooltip: isDone ? new Date(endTime).toLocaleString(language) : undefined
 		};
 	}
 
