@@ -1059,4 +1059,5 @@ export interface INotebookKernelSourceAction {
 	readonly description?: string;
 	readonly detail?: string;
 	readonly command?: string | Command;
+	readonly documentation?: UriComponents | string;
 }
