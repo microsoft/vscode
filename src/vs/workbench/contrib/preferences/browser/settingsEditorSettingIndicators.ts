@@ -233,32 +233,38 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		firstElement.tabIndex = 0;
 		this.keybindingListeners.add(DOM.addDisposableListener(this.indicatorsContainerElement, 'keydown', (e) => {
 			const ev = new StandardKeyboardEvent(e);
+			let handled = true;
 			if (ev.equals(KeyCode.Home)) {
-				ev.stopPropagation();
 				this.focusIndicatorAt(indicators, 0);
 			} else if (ev.equals(KeyCode.End)) {
-				ev.stopPropagation();
 				this.focusIndicatorAt(indicators, indicators.length - 1);
 			} else if (ev.equals(KeyCode.RightArrow)) {
-				ev.stopPropagation();
 				const indexToFocus = (this.focusedIndex + 1) % indicators.length;
 				this.focusIndicatorAt(indicators, indexToFocus);
 			} else if (ev.equals(KeyCode.LeftArrow)) {
-				ev.stopPropagation();
 				const indexToFocus = this.focusedIndex ? this.focusedIndex - 1 : indicators.length - 1;
 				this.focusIndicatorAt(indicators, indexToFocus);
+			} else {
+				handled = false;
+			}
+
+			if (handled) {
+				e.preventDefault();
+				e.stopPropagation();
 			}
 		}));
 	}
 
 	private focusIndicatorAt(indicators: SettingIndicator[], index: number) {
-		const currentlyFocusedIndicator = indicators[this.focusedIndex];
-		const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
 		const indicator = indicators[index];
 		const elementToFocus = indicator.focusElement ?? indicator.element;
 		elementToFocus.tabIndex = 0;
 		elementToFocus.focus();
-		previousFocusedElement.removeAttribute('tabIndex');
+		if (index !== this.focusedIndex) {
+			const currentlyFocusedIndicator = indicators[this.focusedIndex];
+			const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
+			previousFocusedElement.removeAttribute('tabIndex');
+		}
 		this.focusedIndex = index;
 	}
 
