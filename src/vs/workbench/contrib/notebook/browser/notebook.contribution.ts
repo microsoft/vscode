@@ -923,6 +923,13 @@ configurationRegistry.registerConfiguration({
 			],
 			tags: ['notebookLayout'],
 			default: 'all'
+		},
+		[NotebookSetting.outputScrolling]: {
+			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
+			type: 'boolean',
+			default: false
 		}
 	}
 });
+
+
