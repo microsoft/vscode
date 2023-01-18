@@ -10,6 +10,7 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { once } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -157,7 +158,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
-		lazyButton.classList.add(...Codicon.eye.classNamesArray);
+		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
 		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
 		const value = dom.append(expression, $('span.value'));
 

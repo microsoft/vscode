@@ -221,6 +221,10 @@ export class ExtensionsListView extends ViewPane {
 			messageContainer,
 			messageSeverityIcon
 		};
+
+		if (this.queryResult) {
+			this.setModel(this.queryResult.model);
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -284,7 +288,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	count(): number {
-		return this.list ? this.list.length : 0;
+		return this.queryResult?.model.length ?? 0;
 	}
 
 	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
@@ -551,7 +555,7 @@ export class ExtensionsListView extends ViewPane {
 			const reloadRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
-				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+				if (e.outdated && !e.pinned) {
 					outdated.push(e);
 				}
 				else if (e.reloadRequiredStatus) {
@@ -986,21 +990,35 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(result, options));
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any) {
+	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
-			this.list.scrollTop = 0;
+			if (!donotResetScrollTop) {
+				this.list.scrollTop = 0;
+			}
 			this.updateBody(error);
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
+		}
+	}
+
+	private updateModel(model: IPagedModel<IExtension>) {
+		if (this.list) {
+			this.list.model = new DelayedPagedModel(model);
+			this.updateBody();
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
 		}
 	}
 
 	private updateBody(error?: any): void {
-		const count = this.count();
-		if (this.bodyTemplate && this.badge) {
+		if (this.bodyTemplate) {
 
+			const count = this.count();
 			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
 			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
-			this.badge.setCount(count);
 
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
@@ -1018,6 +1036,7 @@ export class ExtensionsListView extends ViewPane {
 				alert(this.bodyTemplate.messageBox.textContent);
 			}
 		}
+
 		this.updateSize();
 	}
 
@@ -1025,13 +1044,6 @@ export class ExtensionsListView extends ViewPane {
 		if (this.options.flexibleHeight) {
 			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
 			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
-	private updateModel(model: IPagedModel<IExtension>) {
-		if (this.list) {
-			this.list.model = new DelayedPagedModel(model);
-			this.updateBody();
 		}
 	}
 

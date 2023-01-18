@@ -4,13 +4,15 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-css",
-					"repositoryUrl": "https://github.com/atom/language-css",
-					"commitHash": "4a6dc90f332bfa72c88192513435a64013d9aad4"
+					"name": "microsoft/vscode-css",
+					"repositoryUrl": "https://github.com/microsoft/vscode-css",
+					"commitHash": "f9433d2d5f65d2c97ce59eba7c15d3b95960b128"
 				}
 			},
 			"licenseDetail": [
-				"Copyright (c) 2014 GitHub Inc.",
+				"MIT License",
+				"",
+				"Copyright (c) Microsoft Corporation.",
 				"",
 				"Permission is hereby granted, free of charge, to any person obtaining",
 				"a copy of this software and associated documentation files (the",
@@ -42,9 +44,9 @@
 				"express or implied warranty, and with no claim as to its",
 				"suitability for any purpose."
 			],
-			"license": "GitHub License",
+			"license": "MIT License",
 			"description": "The file syntaxes/css.tmLanguage.json was derived from https://github.com/atom/language-css which was originally converted from the TextMate bundle https://github.com/textmate/css.tmbundle.",
-			"version": "0.45.1"
+			"version": "0.0.0"
 		}
 	],
 	"version": 1

@@ -41,6 +41,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -74,6 +75,9 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {
 			override onDidSignIn = Event.None;
 			override onDidSignOut = Event.None;
+		});
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override onDidChangeExtensions = Event.None;
 		});
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);

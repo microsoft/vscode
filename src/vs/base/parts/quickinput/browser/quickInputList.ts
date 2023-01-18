@@ -13,12 +13,11 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
-import { IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
+import { getCodiconAriaLabel, IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -120,11 +119,6 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Checkbox
 		const label = dom.append(data.entry, $('label.quick-input-list-label'));
-		data.toDisposeTemplate.push(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
-			if (!data.checkbox.offsetParent) { // If checkbox not visible:
-				e.preventDefault(); // Prevent toggle of checkbox when it is immediately shown afterwards. #91740
-			}
-		}));
 		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
 		data.checkbox.type = 'checkbox';
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
@@ -355,12 +349,6 @@ export class QuickInputList {
 			}
 
 			this._onKeyDown.fire(event);
-		}));
-		this.disposables.push(this.list.onMouseDown(e => {
-			if (e.browserEvent.button !== 2) {
-				// Works around / fixes #64350.
-				e.browserEvent.preventDefault();
-			}
 		}));
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.

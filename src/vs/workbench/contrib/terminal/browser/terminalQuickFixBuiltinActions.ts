@@ -5,18 +5,20 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IInternalOptions, ITerminalCommandMatchResult, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { IInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
 export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))((\n\s*(?<fixedCommand>[^\s]+))+)/m;
-export const FreePortOutputRegex = /address already in use (0\.0\.0\.0|127\.0\.0\.1|localhost|::):(?<portNumber>\d{4,5})|Unable to bind [^ ]*:(\d{4,5})|can't listen on port (\d{4,5})|listen EADDRINUSE [^ ]*:(\d{4,5})/;
+export const FreePortOutputRegex = /(?:address already in use (?:0\.0\.0\.0|127\.0\.0\.1|localhost|::):|Unable to bind [^ ]*:|can't listen on port |listen EADDRINUSE [^ ]*:)(?<portNumber>\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>[^\s]+)/;
 // The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
 // it's safe to assume it's a github pull request if the URL includes `/pull/`
 export const GitCreatePrOutputRegex = /remote:\s*(?<link>https:\/\/github\.com\/.+\/.+\/pull\/new\/.+)/;
+export const PwshGeneralErrorOutputRegex = /Suggestion \[General\]:/;
+export const PwshUnixCommandNotFoundErrorOutputRegex = /Suggestion \[cmd-not-found\]:/;
 
 export const enum QuickFixSource {
 	Builtin = 'builtin'
@@ -190,6 +192,123 @@ export function gitCreatePr(): IInternalOptions {
 				uri: URI.parse(link),
 				source: QuickFixSource.Builtin
 			};
+		}
+	};
+}
+
+export function pwshGeneralError(): IInternalOptions {
+	return {
+		id: 'Pwsh General Error',
+		type: 'internal',
+		commandLineMatcher: /.+/,
+		outputMatcher: {
+			lineMatcher: PwshGeneralErrorOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 10
+		},
+		commandExitResult: 'error',
+		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
+			const lines = matchResult.outputMatch?.regexMatch.input?.split('\n');
+			if (!lines) {
+				return;
+			}
+
+			// Find the start
+			let i = 0;
+			let inFeedbackProvider = false;
+			for (; i < lines.length; i++) {
+				if (lines[i].match(PwshGeneralErrorOutputRegex)) {
+					inFeedbackProvider = true;
+					break;
+				}
+			}
+			if (!inFeedbackProvider) {
+				return;
+			}
+
+			const suggestions = lines[i + 1].match(/The most similar commands are: (?<values>.+)./)?.groups?.values?.split(', ');
+			if (!suggestions) {
+				return;
+			}
+			const result: ITerminalQuickFixCommandAction[] = [];
+			for (const suggestion of suggestions) {
+				result.push({
+					id: 'Pwsh General Error',
+					type: TerminalQuickFixType.Command,
+					terminalCommand: suggestion,
+					source: QuickFixSource.Builtin
+				});
+			}
+			return result;
+		}
+	};
+}
+
+export function pwshUnixCommandNotFoundError(): IInternalOptions {
+	return {
+		id: 'Unix Command Not Found',
+		type: 'internal',
+		commandLineMatcher: /.+/,
+		outputMatcher: {
+			lineMatcher: PwshUnixCommandNotFoundErrorOutputRegex,
+			anchor: 'bottom',
+			offset: 0,
+			length: 10
+		},
+		commandExitResult: 'error',
+		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
+			const lines = matchResult.outputMatch?.regexMatch.input?.split('\n');
+			if (!lines) {
+				return;
+			}
+
+			// Find the start
+			let i = 0;
+			let inFeedbackProvider = false;
+			for (; i < lines.length; i++) {
+				if (lines[i].match(PwshUnixCommandNotFoundErrorOutputRegex)) {
+					inFeedbackProvider = true;
+					break;
+				}
+			}
+			if (!inFeedbackProvider) {
+				return;
+			}
+
+			// Always remove the first element as it's the "Suggestion [cmd-not-found]"" line
+			const result: ITerminalQuickFixCommandAction[] = [];
+			let inSuggestions = false;
+			for (; i < lines.length; i++) {
+				const line = lines[i].trim();
+				if (line.length === 0) {
+					break;
+				}
+				const installCommand = line.match(/You also have .+ installed, you can run '(?<command>.+)' instead./)?.groups?.command;
+				if (installCommand) {
+					result.push({
+						id: 'Pwsh Unix Command Not Found Error',
+						type: TerminalQuickFixType.Command,
+						terminalCommand: installCommand,
+						source: QuickFixSource.Builtin
+					});
+					inSuggestions = false;
+					continue;
+				}
+				if (line.match(/Command '.+' not found, but can be installed with:/)) {
+					inSuggestions = true;
+					continue;
+				}
+				if (inSuggestions) {
+					result.push({
+						id: 'Pwsh Unix Command Not Found Error',
+						type: TerminalQuickFixType.Command,
+						terminalCommand: line.trim(),
+						source: QuickFixSource.Builtin
+					});
+				}
+			}
+			return result;
 		}
 	};
 }

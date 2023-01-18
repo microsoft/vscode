@@ -16,8 +16,8 @@ import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -47,7 +47,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
-		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService,
 	) {
@@ -100,7 +99,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 			},
 			history: history.values
 		}));
-		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
 		this._register(this.state.text.onDidChange(newValue => {
 			if (input.getValue() !== newValue) {
@@ -243,7 +241,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }

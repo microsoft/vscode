@@ -75,6 +75,7 @@ export interface IUserDataProfileImportExportService {
 
 	exportProfile(): Promise<void>;
 	importProfile(uri: URI): Promise<void>;
+	showProfileContents(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
@@ -104,16 +105,22 @@ export interface IProfileResourceChildTreeItem extends ITreeItem {
 	parent: IProfileResourceTreeItem;
 }
 
+export interface ISaveProfileResult {
+	readonly id: string;
+	readonly link: URI;
+}
+
 export interface IUserDataProfileContentHandler {
 	readonly name: string;
+	readonly description?: string;
 	readonly extensionId?: string;
-	saveProfile(name: string, content: string, token: CancellationToken): Promise<URI | null>;
-	readProfile(uri: URI, token: CancellationToken): Promise<string | null>;
+	saveProfile(name: string, content: string, token: CancellationToken): Promise<ISaveProfileResult | null>;
+	readProfile(idOrUri: string | URI, token: CancellationToken): Promise<string | null>;
 }
 
 export const defaultUserDataProfileIcon = registerIcon('defaultProfile-icon', Codicon.settings, localize('defaultProfileIcon', 'Icon for Default Profile.'));
 
-export const ManageProfilesSubMenu = new MenuId('Profiles');
+export const ProfilesMenu = new MenuId('Profiles');
 export const MANAGE_PROFILES_ACTION_ID = 'workbench.profiles.actions.manage';
 export const PROFILES_TTILE = { value: localize('profiles', "Profiles"), original: 'Profiles' };
 export const PROFILES_CATEGORY = { ...PROFILES_TTILE };
@@ -123,4 +130,5 @@ export const PROFILES_ENABLEMENT_CONTEXT = new RawContextKey<boolean>('profiles.
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
-export const IS_PROFILE_IMPORT_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportExportInProgress', false);
+export const IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileExportInProgress', false);
+export const IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT = new RawContextKey<boolean>('isProfileImportInProgress', false);

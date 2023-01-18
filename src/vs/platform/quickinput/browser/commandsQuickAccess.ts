@@ -14,7 +14,7 @@ import Severity from 'vs/base/common/severity';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -30,6 +30,7 @@ export interface ICommandQuickPick extends IPickerQuickAccessItem {
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
 	showAlias: boolean;
+	suggestedCommandIds?: Set<string>;
 }
 
 export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
@@ -115,13 +116,30 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				return 1; // other command was used so it wins over the command
 			}
 
+			if (this.options.suggestedCommandIds) {
+				const commandASuggestion = this.options.suggestedCommandIds.has(commandPickA.commandId);
+				const commandBSuggestion = this.options.suggestedCommandIds.has(commandPickB.commandId);
+				if (commandASuggestion && commandBSuggestion) {
+					return 0; // honor the order of the array
+				}
+
+				if (commandASuggestion) {
+					return -1; // first command was suggested, so it wins over the non suggested one
+				}
+
+				if (commandBSuggestion) {
+					return 1; // other command was suggested so it wins over the command
+				}
+			}
+
 			// both commands were never used, so we sort by name
 			return commandPickA.label.localeCompare(commandPickB.label);
 		});
 
 		const commandPicks: Array<ICommandQuickPick | IQuickPickSeparator> = [];
 
-		let addSeparator = false;
+		let addOtherSeparator = false;
+		let addCommonlyUsedSeparator = !!this.options.suggestedCommandIds;
 		for (let i = 0; i < filteredCommandPicks.length; i++) {
 			const commandPick = filteredCommandPicks[i];
 			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
@@ -132,13 +150,20 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			// Separator: recently used
 			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
-				addSeparator = true;
+				addOtherSeparator = true;
+			}
+
+			// Separator: commonly used
+			if (addCommonlyUsedSeparator && !this.commandsHistory.peek(commandPick.commandId) && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+				commandPicks.push({ type: 'separator', label: localize('commonlyUsed', "commonly used") });
+				addOtherSeparator = true;
+				addCommonlyUsedSeparator = false;
 			}
 
 			// Separator: other commands
-			if (i !== 0 && addSeparator && !this.commandsHistory.peek(commandPick.commandId)) {
+			if (addOtherSeparator && !this.commandsHistory.peek(commandPick.commandId) && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
-				addSeparator = false; // only once
+				addOtherSeparator = false;
 			}
 
 			// Command
@@ -218,10 +243,14 @@ export class CommandsHistory extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(e)));
 	}
 
-	private updateConfiguration(): void {
+	private updateConfiguration(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.commandPalette.history')) {
+			return;
+		}
+
 		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 
 		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {

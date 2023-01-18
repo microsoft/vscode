@@ -30,20 +30,20 @@ export class ModifierLabelProvider {
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel<T extends Modifiers>(OS: OperatingSystem, parts: readonly T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
-		if (parts.length === 0) {
+	public toLabel<T extends Modifiers>(OS: OperatingSystem, chords: readonly T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
+		if (chords.length === 0) {
 			return null;
 		}
 
 		const result: string[] = [];
-		for (let i = 0, len = parts.length; i < len; i++) {
-			const part = parts[i];
-			const keyLabel = keyLabelProvider(part);
+		for (let i = 0, len = chords.length; i < len; i++) {
+			const chord = chords[i];
+			const keyLabel = keyLabelProvider(chord);
 			if (keyLabel === null) {
 				// this keybinding cannot be expressed...
 				return null;
 			}
-			result[i] = _simpleAsString(part, keyLabel, this.modifierLabels[OS]);
+			result[i] = _simpleAsString(chord, keyLabel, this.modifierLabels[OS]);
 		}
 		return result.join(' ');
 	}
