@@ -5,14 +5,13 @@
 
 import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./table';
 
 // TODO@joao
@@ -140,7 +139,7 @@ export interface ITableOptions<TRow> extends IListOptions<TRow> { }
 export interface ITableOptionsUpdate extends IListOptionsUpdate { }
 export interface ITableStyles extends IListStyles { }
 
-export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
+export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 	private static InstanceCount = 0;
 	readonly domId = `table_id_${++Table.InstanceCount}`;
@@ -221,7 +220,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		}, null, this.disposables);
 
 		this.styleElement = createStyleSheet(this.domNode);
-		this.style({});
+		this.style(unthemedListStyles);
 	}
 
 	updateOptions(options: ITableOptionsUpdate): void {

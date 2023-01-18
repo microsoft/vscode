@@ -10,7 +10,7 @@ import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -66,7 +66,6 @@ export class LabelContribution implements IWorkbenchContribution {
 class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDownloadService downloadService: IDownloadService,
 		@ILoggerService loggerService: ILoggerService,
@@ -75,19 +74,6 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-		}
-	}
-}
-
-class RemoteLogOutputChannels extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ILoggerService loggerService: ILoggerService,
-	) {
-		super();
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
 			connection.withChannel('logger', async channel => this._register(new RemoteLoggerChannelClient(loggerService, channel)));
 		}
 	}
@@ -255,9 +241,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;

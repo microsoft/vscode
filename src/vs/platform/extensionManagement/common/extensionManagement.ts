@@ -230,6 +230,7 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData?: any;
+	queryContext?: IStringDictionary<any>;
 }
 
 export interface IGalleryMetadata {

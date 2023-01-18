@@ -191,7 +191,7 @@ class FetchAllRemotesItem implements QuickPickItem {
 	}
 }
 
-class UnsafeRepositoryItem implements QuickPickItem {
+class RepositoryItem implements QuickPickItem {
 	get label(): string {
 		return `$(repo) ${this.path}`;
 	}
@@ -2263,11 +2263,10 @@ export class CommandCenter {
 			run = force => repository.deleteBranch(name, force);
 		} else {
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({ pattern: 'refs/heads/*' });
+				const refs = await repository.getRefs({ pattern: 'refs/heads' });
 				const currentHead = repository.HEAD && repository.HEAD.name;
 
-				return refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
-					.map(ref => new BranchDeleteItem(ref));
+				return refs.filter(ref => ref.name !== currentHead).map(ref => new BranchDeleteItem(ref));
 			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
@@ -2425,7 +2424,7 @@ export class CommandCenter {
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
 		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags' });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
 		};
 
@@ -3336,6 +3335,38 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.openRepositoriesInParentFolders')
+	async openRepositoriesInParentFolders(): Promise<void> {
+		const parentRepositories: string[] = [];
+
+		const title = l10n.t('Open Repositories In Parent Folders');
+		const placeHolder = l10n.t('Pick a repository to open');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys()).sort().map(r => new RepositoryItem(r));
+
+		const items = this.model.parentRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem === allRepositoriesQuickPickItem) {
+			// All Repositories
+			parentRepositories.push(...this.model.parentRepositories.keys());
+		} else {
+			// One Repository
+			parentRepositories.push((repositoryItem as RepositoryItem).path);
+		}
+
+		for (const parentRepository of parentRepositories) {
+			await this.model.openParentRepository(parentRepository);
+		}
+	}
+
 	@command('git.manageUnsafeRepositories')
 	async manageUnsafeRepositories(): Promise<void> {
 		const unsafeRepositories: string[] = [];
@@ -3346,13 +3377,13 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new UnsafeRepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new RepositoryItem(r));
 
 		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		quickpick.show();
-		const repositoryItem = await new Promise<UnsafeRepositoryItem | QuickPickItem | undefined>(
+		const repositoryItem = await new Promise<RepositoryItem | QuickPickItem | undefined>(
 			resolve => {
 				quickpick.onDidAccept(() => resolve(quickpick.activeItems[0]));
 				quickpick.onDidHide(() => resolve(undefined));
@@ -3368,7 +3399,7 @@ export class CommandCenter {
 			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
 		} else {
 			// One Repository
-			unsafeRepositories.push((repositoryItem as UnsafeRepositoryItem).path);
+			unsafeRepositories.push((repositoryItem as RepositoryItem).path);
 		}
 
 		for (const unsafeRepository of unsafeRepositories) {

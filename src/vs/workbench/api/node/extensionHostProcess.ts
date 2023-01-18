@@ -7,7 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
@@ -364,7 +364,9 @@ async function startExtensionHostProcess(): Promise<void> {
 
 	// Print a console message when an exception isn't handled.
 	process.on('uncaughtException', function (err: Error) {
-		onUnexpectedError(err);
+		if (!isSigPipeError(err)) {
+			onUnexpectedError(err);
+		}
 	});
 
 	performance.mark(`code/extHost/willConnectToRenderer`);

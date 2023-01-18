@@ -7,7 +7,7 @@ import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -242,7 +242,11 @@ class CliMain extends Disposable {
 		});
 
 		// Handle unhandled errors that can occur
-		process.on('uncaughtException', err => onUnexpectedError(err));
+		process.on('uncaughtException', err => {
+			if (!isSigPipeError(err)) {
+				onUnexpectedError(err);
+			}
+		});
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 	}
 

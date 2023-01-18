@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { posix, win32 } from 'vs/base/common/path';
+import { posix, sep, win32 } from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -89,7 +89,20 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
-			delta.added.forEach(added => added.value.forEach(formatter => {
+			delta.added.forEach(added => added.value.forEach(untrustedFormatter => {
+
+				// We cannot trust that the formatter as it comes from an extension
+				// adheres to our interface, so for the required properties we fill
+				// in some defaults if missing.
+
+				const formatter = { ...untrustedFormatter };
+				if (typeof formatter.formatting.label !== 'string') {
+					formatter.formatting.label = '${authority}${path}';
+				}
+				if (typeof formatter.formatting.separator !== `string`) {
+					formatter.formatting.separator = sep;
+				}
+
 				if (!isProposedApiEnabled(added.description, 'contribLabelFormatterWorkspaceTooltip') && formatter.formatting.workspaceTooltip) {
 					formatter.formatting.workspaceTooltip = undefined; // workspaceTooltip is only proposed
 				}
