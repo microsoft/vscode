@@ -18,7 +18,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -92,6 +92,9 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const enum Constants {
 	/**
@@ -1121,6 +1124,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
+	showAccessibilityHelp(): void {
+		if (!this.xterm?.raw.buffer || !this._container) {
+			return;
+		}
+		const cursorPosition = this._getCursorPosition();
+		if (!cursorPosition) {
+			return;
+		}
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, cursorPosition, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
+	}
+
+	private _getCursorPosition(): { x: number; y: number } | undefined {
+		const buffer = this.xterm?.raw.buffer.active;
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+		if (!buffer || !font.charWidth || !font.charHeight) {
+			return;
+		}
+		const cursorPosition = {
+			x: buffer.cursorX * font.charWidth,
+			y: buffer.cursorY * font.charHeight
+		};
+		return cursorPosition;
+	}
+
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 		if (this.hasSelection() || (asHtml && command)) {
@@ -1956,7 +1983,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		if (xterm && xterm.textarea) {
-			let label: string;
+			let label: string = this._accessibilityService.isScreenReaderOptimized() ? nls.localize('terminalTextBoxAriaLabelNumberAndTitleAccessibility', "Press alt+f1 for terminal accessibility help") : '';
 			if (title && title.length > 0) {
 				label = nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title);
 			} else {
@@ -2626,4 +2653,49 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+class AccessibilityHelpWidget extends DisposableStore implements ITerminalWidget {
+	readonly id = 'help';
+
+	constructor(
+		private readonly _cursorPosition: { x: number; y: number },
+		private readonly _hasShellIntegration: boolean,
+		@IHoverService private readonly _hoverService: IHoverService
+	) {
+		super();
+	}
+
+	attach(container: HTMLElement): void {
+		const target = document.createElement('div');
+		target.textContent = 'Help with the terminal';
+		target.style.visibility = 'hidden';
+		target.style.left = `${this._cursorPosition.x}px`;
+		target.style.top = `${this._cursorPosition.y}px`;
+		target.classList.add('terminal-accessibility-help');
+		const content = new MarkdownString(`Welcome to Terminal Accessibility Help\n\n`);
+		if (this._hasShellIntegration) {
+			content.appendMarkdown(`Some helpful commands include: Run Recent Command and Go to Recent Directory\n\n`);
+		}
+		container.parentElement?.parentElement?.parentElement?.appendChild(target);
+		this._hoverService.showHover({
+			content,
+			target,
+			hideOnHover: false,
+			hideOnKeyDown: false,
+			skipFadeInAnimation: true,
+			trapFocus: true
+		});
+
+		target.focus();
+		this.add(toDisposable(() => target.remove()));
+		this.add(dom.addDisposableListener(target, 'keypress', e => {
+			switch (e.key) {
+				case 'Escape':
+					this.dispose();
+					break;
+			}
+		}));
+		this.add(toDisposable(() => target.remove()));
+	}
 }

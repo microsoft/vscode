@@ -542,3 +542,11 @@
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
+
+.monaco-workbench .terminal-accessibility-help {
+	z-index: 33;
+	position: absolute;
+	transform: translateY(-10px);
+	transform: translateX(-30px);
+	/* top border + padding */
+}

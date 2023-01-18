@@ -594,6 +594,7 @@ export const enum TerminalCommandId {
 	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
 	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
+	ShowTerminalAccessibilityHelp = 'workbench.action.terminal.showAccessibilityHelp'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
