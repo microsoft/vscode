@@ -731,7 +731,7 @@ export class NativeWindow extends Disposable {
 				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
 				const actions = [{
 					label: localize('macoseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-win7'
+					href: 'https://aka.ms/vscode-faq-old-macOS'
 				}];
 
 				this.bannerService.show({
@@ -747,7 +747,7 @@ export class NativeWindow extends Disposable {
 					message,
 					[{
 						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
 						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
