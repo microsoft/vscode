@@ -29,6 +29,8 @@ import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
+import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
 
 const enum CellEditorRevealType {
 	Line,
@@ -75,6 +77,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
+	override readonly view!: NotebookCellListView<CellViewModel>;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -137,6 +140,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	get webviewElement() {
 		return this._webviewElement;
+	}
+
+	get inRenderingTransaction() {
+		return this.view.inRenderingTransaction;
 	}
 
 	constructor(
@@ -272,6 +279,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 			updateVisibleRanges();
 		}));
+	}
+
+	protected override createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<CellViewModel>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<CellViewModel>): IListView<CellViewModel> {
+		return new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
 	}
 
 	attachWebview(element: HTMLElement) {
