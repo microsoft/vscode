@@ -61,7 +61,7 @@ export class GlobalStateResource implements IProfileResource {
 			];
 			for (const key of storageKeys) {
 				if (nonProfileKeys.includes(key)) {
-					this.logService.info(`Profile: Ignoring global state key '${key}' because it is not a profile key.`);
+					this.logService.info(`Importing Profile (${profile.name}): Ignoring global state key '${key}' because it is not a profile key.`);
 				} else {
 					updatedStorage.set(key, globalState.storage[key]);
 				}
