@@ -2150,15 +2150,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			deferred.complete(undefined);
 		};
 
-		if (context === CellLayoutContext.Fold) {
-			doLayout();
-		} else {
+		if (this._list.inRenderingTransaction) {
 			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout);
 
 			this._pendingLayouts?.set(cell, toDisposable(() => {
 				layoutDisposable.dispose();
 				deferred.complete(undefined);
 			}));
+		} else {
+			doLayout();
 		}
 
 		return deferred.p;

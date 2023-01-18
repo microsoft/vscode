@@ -22,6 +22,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
+	inRenderingTransaction: boolean;
 	viewModel: NotebookViewModel | null;
 	webviewElement: FastDomNode<HTMLElement> | null;
 	readonly contextKeyService: IContextKeyService;
