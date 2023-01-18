@@ -14,9 +14,9 @@
 
 	// SHARED-PROCESS: worker with node integration but with blink's import
 	if (isESM && 'require' in globalThis) {
-		const nodeRequire = require;
+		const nodeRequire = require as any as (mode: string) => any;
 		// VSCODE_GLOBALS: node_modules
-		globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
+		(<any>globalThis)._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 	}
 
 	const MonacoEnvironment = (<any>self).MonacoEnvironment;
