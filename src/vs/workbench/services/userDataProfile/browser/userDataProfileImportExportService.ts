@@ -60,6 +60,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { isUndefined } from 'vs/base/common/types';
 import { Action } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
+import { showWindowLogActionId } from 'vs/workbench/common/logConstants';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -204,8 +205,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				title: localize('profiles.importing', "{0}: Importing...", PROFILES_CATEGORY.value),
+				command: showWindowLogActionId,
 			}, async progress => {
+				progress.report({ message: localize('importing profile', "Importing Profile...") });
 				const profileContent = await this.resolveProfileContent(uri);
 				if (profileContent === null) {
 					return;
@@ -215,11 +217,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (!isUserDataProfileTemplate(profileTemplate)) {
 					throw new Error('Invalid profile content.');
 				}
+
 				const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 
-				const title = localize('import profile preview', "Import");
-
 				if (!userDataProfileImportState.isEmpty()) {
+					const title = localize('import profile preview', "Import");
 					const importProfile = await this.showProfilePreviewView(`workbench.views.profiles.import.preview`, title, title, localize('cancel', "Cancel"), userDataProfileImportState);
 					if (!importProfile) {
 						return;
@@ -227,27 +229,34 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				}
 
 				profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
+				progress.report({ message: localize('Importing profile', "Importing Profile ({0})...", profileTemplate.name) });
 				const profile = await this.getProfileToImport(profileTemplate);
 				if (!profile) {
 					return;
 				}
 
 				if (profileTemplate.settings) {
+					progress.report({ message: localize('Importing settings', "Importing Profile ({0}): Settings...", profileTemplate.name) });
 					await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
 				}
 				if (profileTemplate.keybindings) {
+					progress.report({ message: localize('importing keybindings', "Importing Profile ({0}): Keyboard Shortcuts...", profileTemplate.name) });
 					await this.instantiationService.createInstance(KeybindingsResource).apply(profileTemplate.keybindings, profile);
 				}
 				if (profileTemplate.tasks) {
+					progress.report({ message: localize('importing tasks', "Importing Profile ({0}): Tasks...", profileTemplate.name) });
 					await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
 				}
 				if (profileTemplate.snippets) {
+					progress.report({ message: localize('importing snippets', "Importing Profile ({0}): Snippets...", profileTemplate.name) });
 					await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
 				}
 				if (profileTemplate.globalState) {
+					progress.report({ message: localize('importing global state', "Importing Profile ({0}): State...", profileTemplate.name) });
 					await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
 				}
 				if (profileTemplate.extensions) {
+					progress.report({ message: localize('importing extensions', "Importing Profile ({0}): Extensions...", profileTemplate.name) });
 					await this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile);
 				}
 				await this.userDataProfileManagementService.switchProfile(profile);
