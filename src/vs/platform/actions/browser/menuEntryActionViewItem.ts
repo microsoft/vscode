@@ -28,8 +28,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { assertType } from 'vs/base/common/types';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssValue, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
@@ -469,7 +468,6 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 
 	constructor(
 		action: SubmenuItemAction,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, action.actions.map(a => ({
@@ -481,9 +479,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
-		}));
+		container.style.borderColor = asCssValue(selectBorder);
 	}
 
 	protected override runAction(option: string, index: number): void {
