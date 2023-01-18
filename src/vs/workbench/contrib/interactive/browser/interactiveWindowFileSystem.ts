@@ -16,50 +16,42 @@ export class InteractiveWindowFileSystem implements IFileSystemProvider {
 
 	public constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
 
-	public readFile(_resource: URI): Promise<Uint8Array> {
-		return Promise.resolve(new Uint8Array);
+	public async readFile(_resource: URI): Promise<Uint8Array> {
+		return new Uint8Array();
 	}
 
-	public open(_resource: URI, _opts: IFileOpenOptions): Promise<number> {
-		return Promise.resolve(this.fdCounter++);
+	public async open(_resource: URI, _opts: IFileOpenOptions): Promise<number> {
+		return this.fdCounter++;
 	}
 
-	public stat(_resource: URI): Promise<IStat> {
-		return Promise.resolve({
+	public async stat(_resource: URI): Promise<IStat> {
+		return {
 			type: FileType.File,
 			ctime: 0,
 			mtime: 0,
 			size: 0,
-		});
+		};
 	}
-	public mkdir(_resource: URI): Promise<void> {
-		return Promise.resolve();
+	public async mkdir(_resource: URI): Promise<void> { }
+
+	public async readdir(_resource: URI): Promise<[string, FileType][]> {
+		return [['', FileType.Unknown]];
 	}
 
-	public readdir(_resource: URI): Promise<[string, FileType][]> {
-		return Promise.resolve([['', FileType.Unknown]]);
-	}
+	public async delete(_resource: URI, _opts: IFileDeleteOptions): Promise<void> { }
 
-	public delete(_resource: URI, _opts: IFileDeleteOptions): Promise<void> {
-		return Promise.resolve();
-	}
+	public async rename(_from: URI, _to: URI, _opts: IFileOverwriteOptions): Promise<void> { }
 
-	public rename(_from: URI, _to: URI, _opts: IFileOverwriteOptions): Promise<void> {
-		return Promise.resolve();
-	}
+	public async close?(_fd: number): Promise<void> { }
 
-	public close?(_fd: number): Promise<void> {
-		return Promise.resolve();
-	}
-
-	public read?(_fd: number, _pos: number, data: Uint8Array, _offset: number, _length: number): Promise<number> {
+	public async read?(_fd: number, _pos: number, data: Uint8Array, _offset: number, _length: number): Promise<number> {
 		// claim no more bytes to read
-		return Promise.resolve(0);
+		return 0;
 	}
 
-	public write?(_fd: number, _pos: number, data: Uint8Array, _offset: number, _length: number): Promise<number> {
+	public async write?(_fd: number, _pos: number, data: Uint8Array, _offset: number, _length: number): Promise<number> {
 		// claim all bytes written
-		return Promise.resolve(data.byteLength);
+		return data.byteLength;
 	}
 
 	private readonly _onDidChangeCapabilities = new Emitter<void>();
@@ -67,7 +59,6 @@ export class InteractiveWindowFileSystem implements IFileSystemProvider {
 
 	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
-
 
 	onDidWatchError?: Event<string> | undefined;
 

@@ -36,6 +36,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { LogService } from 'vs/platform/log/common/logService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -46,12 +47,12 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 // import { Color } from 'vs/base/common/color';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/InteractiveWindowFileSystem';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/interactiveWindowFileSystem';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -84,7 +85,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService
 	) {
 		super();
 
@@ -104,7 +106,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				if (data.byteLength > 0) {
 					try {
 						const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
-						return Promise.resolve({
+						return {
 							cells: document.cells.map(cell => ({
 								source: cell.content,
 								language: cell.language,
@@ -122,19 +124,19 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 								metadata: cell.metadata
 							})),
 							metadata: {}
-						});
+						};
 					} catch (e) {
-						console.log(e);
+						logService.error(`error when converting data to notebook data object: ${e}`);
 					}
 				}
 
-				return Promise.resolve({
+				return {
 					metadata: {},
 					cells: []
-				});
+				};
 
 			},
-			notebookToData(data: NotebookData): Promise<VSBuffer> {
+			notebookToData: async (data: NotebookData): Promise<VSBuffer> => {
 				const cells = data.cells.map(cell => ({
 					kind: cell.cellKind,
 					language: cell.language,
@@ -152,11 +154,9 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 					content: cell.source
 				}));
 
-				const buffer = VSBuffer.fromString(JSON.stringify({
+				return VSBuffer.fromString(JSON.stringify({
 					cells: cells
 				}));
-
-				return Promise.resolve(buffer);
 			}
 		};
 
