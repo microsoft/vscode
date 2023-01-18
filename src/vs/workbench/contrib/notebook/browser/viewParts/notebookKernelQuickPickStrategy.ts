@@ -33,6 +33,8 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { URI } from 'vs/base/common/uri';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -55,7 +57,7 @@ function isSearchMarketplacePick(item: QuickPickInput<IQuickPickItem>): item is 
 	return item.id === 'install';
 }
 
-type KernelSourceQuickPickItem = IQuickPickItem & { command: Command };
+type KernelSourceQuickPickItem = IQuickPickItem & { command: Command; documentation?: string };
 function isKernelSourceQuickPickItem(item: IQuickPickItem): item is KernelSourceQuickPickItem {
 	return 'command' in item;
 }
@@ -580,7 +582,8 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		@IExtensionsWorkbenchService _extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService _extensionService: IExtensionService,
 		@ICommandService _commandService: ICommandService,
-		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService
+		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
+		@IOpenerService private readonly _openerService: IOpenerService
 
 	) {
 		super(
@@ -685,6 +688,13 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 					resolve(this.showQuickPick(editor, undefined, true));
 				}
 			}));
+			quickPick.onDidTriggerItemButton(async (e) => {
+
+				if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
+					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand(e.item.documentation);
+					void this._openerService.open(uri, { openExternal: true });
+				}
+			});
 			disposables.add(quickPick.onDidAccept(async () => {
 				quickPick.hide();
 				quickPick.dispose();
@@ -801,12 +811,18 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		const validActions = actions.filter(action => action.command);
 
 		quickPickItems.push(...validActions.map(action => {
+			const buttons = action.documentation ? [{
+				iconClass: ThemeIcon.asClassName(Codicon.info),
+				tooltip: localize('learnMoreTooltip', 'Learn More'),
+			}] : [];
 			return {
 				id: typeof action.command! === 'string' ? action.command! : action.command!.id,
 				label: action.label,
 				detail: action.detail,
 				description: action.description,
-				command: action.command
+				command: action.command,
+				documentation: action.documentation,
+				buttons
 			};
 		}));
 
