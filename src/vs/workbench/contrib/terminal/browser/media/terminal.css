@@ -544,9 +544,17 @@
 }
 
 .monaco-workbench .terminal-accessibility-help {
-	z-index: 33;
+	z-index: 35;
 	position: absolute;
-	transform: translateY(-10px);
-	transform: translateX(-30px);
-	/* top border + padding */
+	left: 0;
+	bottom: 0;
+	right: 0;
+	top: 0;
+	margin: auto;
+	text-align: center;
+	background-color: var(--vscode-menu-background);
+	width:50%;
+	vertical-align: middle;
+	border: 2px solid var(--vscode-contrastBorder);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }

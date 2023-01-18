@@ -18,7 +18,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -55,6 +55,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import * as strings from 'vs/base/common/strings';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -93,8 +94,9 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 const enum Constants {
 	/**
@@ -1128,24 +1130,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.buffer || !this._container) {
 			return;
 		}
-		const cursorPosition = this._getCursorPosition();
-		if (!cursorPosition) {
-			return;
-		}
-		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, cursorPosition, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
-	}
-
-	private _getCursorPosition(): { x: number; y: number } | undefined {
-		const buffer = this.xterm?.raw.buffer.active;
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
-		if (!buffer || !font.charWidth || !font.charHeight) {
-			return;
-		}
-		const cursorPosition = {
-			x: buffer.cursorX * font.charWidth,
-			y: buffer.cursorY * font.charHeight
-		};
-		return cursorPosition;
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
 	}
 
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
@@ -2655,47 +2640,62 @@ export function parseExitResult(
 	return { code, message };
 }
 
-class AccessibilityHelpWidget extends DisposableStore implements ITerminalWidget {
+class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	readonly id = 'help';
-
+	private _container: HTMLElement | undefined;
+	private _domNode: FastDomNode<HTMLElement>;
+	private _contentDomNode: FastDomNode<HTMLElement>;
 	constructor(
-		private readonly _cursorPosition: { x: number; y: number },
 		private readonly _hasShellIntegration: boolean,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode.setClassName('terminal-accessibility-help');
+		this._contentDomNode.setAttribute('role', 'document');
+		this._domNode.setDisplay('none');
+		this._domNode.setAttribute('role', 'dialog');
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.appendChild(this._contentDomNode);
+		this.onblur(this._contentDomNode.domNode, () => this.hide());
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Escape) {
+				this.hide();
+			}
+		}));
+	}
+
+	public hide(): void {
+		if (!this._container) {
+			return;
+		}
+		this._domNode.setDisplay('none');
+		this._contentDomNode.setDisplay('none');
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._contentDomNode.domNode.tabIndex = -1;
 	}
 
 	attach(container: HTMLElement): void {
-		const target = document.createElement('div');
-		target.textContent = 'Help with the terminal';
-		target.style.visibility = 'hidden';
-		target.style.left = `${this._cursorPosition.x}px`;
-		target.style.top = `${this._cursorPosition.y}px`;
-		target.classList.add('terminal-accessibility-help');
-		const content = new MarkdownString(`Welcome to Terminal Accessibility Help\n\n`);
-		if (this._hasShellIntegration) {
-			content.appendMarkdown(`Some helpful commands include: Run Recent Command and Go to Recent Directory\n\n`);
-		}
-		container.parentElement?.parentElement?.parentElement?.appendChild(target);
-		this._hoverService.showHover({
-			content,
-			target,
-			hideOnHover: false,
-			hideOnKeyDown: false,
-			skipFadeInAnimation: true,
-			trapFocus: true
-		});
+		this._container = container;
+		this._domNode.setDisplay('block');
+		this._domNode.setAttribute('aria-hidden', 'false');
+		this._contentDomNode.domNode.tabIndex = 0;
+		this._buildContent();
+		container.appendChild(this._contentDomNode.domNode);
+		this._contentDomNode.domNode.focus();
+	}
 
-		target.focus();
-		this.add(toDisposable(() => target.remove()));
-		this.add(dom.addDisposableListener(target, 'keypress', e => {
-			switch (e.key) {
-				case 'Escape':
-					this.dispose();
-					break;
-			}
-		}));
-		this.add(toDisposable(() => target.remove()));
+	private _buildContent(): void {
+		const runRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.runRecentCommand')?.getAriaLabel();
+		const goToRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.goToRecentDirectory')?.getAriaLabel();
+		let content = nls.localize('introMsg', "Welcome to Terminal Accessibility Help\n\n");
+		if (this._hasShellIntegration) {
+			content += nls.localize('commands', "Some useful commands include:\n");
+			content += strings.format(nls.localize('runRecentCommand', 'Run Recent Command'), runRecentKbLabel);
+			content += strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory'), goToRecentKbLabel);
+		}
+		this._contentDomNode.domNode.appendChild(renderFormattedText(content));
+		this._contentDomNode.domNode.setAttribute('aria-label', content);
 	}
 }
