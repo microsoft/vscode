@@ -706,7 +706,7 @@ export interface ITerminalInstance {
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
-	 * Renders the terminal buffer as an accessible element
+	 * Focuses the terminal buffer accessibility element
 	 */
 	focusAccessibilityElement(): void;
 

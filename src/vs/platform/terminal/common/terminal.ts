@@ -47,7 +47,6 @@ export const enum TerminalSettingId {
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
-	AccessibilityElementContentEditable = 'terminal.integrated.accessibilityElementContentEditable',
 	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
 	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
