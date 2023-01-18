@@ -1100,7 +1100,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.element) {
 			return;
 		}
-		this._accessibilityElement = document.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
+		this._accessibilityElement = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
 		if (!this._accessibilityElement) {
 			return;
 		}
