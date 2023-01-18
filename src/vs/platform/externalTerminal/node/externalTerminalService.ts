@@ -213,9 +213,13 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+		const termArgs: string[] = [];
 		let execPromise: Promise<string>;
 		if (process.env.WSL_DISTRO_NAME) {
+			// For WSL terminals on Windows, run in a local terminal a shell that executes wsl
+			// using the correct distro
 			execPromise = Promise.resolve(settings.windowsExec || 'cmd.exe');
+			termArgs.push('wsl.exe', '-d', process.env.WSL_DISTRO_NAME);
 		} else if (settings.linuxExec) {
 			execPromise = Promise.resolve(settings.linuxExec);
 		} else {
@@ -223,8 +227,6 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		}
 
 		return new Promise<number | undefined>((resolve, reject) => {
-
-			const termArgs: string[] = [];
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			execPromise.then(exec => {
