@@ -63,9 +63,7 @@ export class SimpleSuggestWidget implements IDisposable {
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
 	private _preference?: WidgetPositionPreference;
-	private _preferenceLocked = false;
 	private readonly _pendingLayout = new MutableDisposable();
-	private _focusedItem?: SimpleCompletionItem;
 
 	readonly element: ResizableHTMLElement;
 	private readonly _listElement: HTMLElement;
@@ -105,7 +103,7 @@ export class SimpleSuggestWidget implements IDisposable {
 
 		let state: ResizeState | undefined;
 		this._disposables.add(this.element.onDidWillResize(() => {
-			this._preferenceLocked = true;
+			// this._preferenceLocked = true;
 			state = new ResizeState(this._persistedSize.restore(), this.element.size);
 		}));
 		this._disposables.add(this.element.onDidResize(e => {
@@ -137,7 +135,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			}
 
 			// reset working state
-			this._preferenceLocked = false;
+			// this._preferenceLocked = false;
 			state = undefined;
 		}));
 
@@ -311,7 +309,7 @@ export class SimpleSuggestWidget implements IDisposable {
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
-				this._focusedItem = undefined;
+				// this._focusedItem = undefined;
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -323,7 +321,7 @@ export class SimpleSuggestWidget implements IDisposable {
 				// dom.show(this._messageElement);
 				// this._details.hide();
 				this._show();
-				this._focusedItem = undefined;
+				// this._focusedItem = undefined;
 				break;
 			case State.Open:
 				// dom.hide(this._messageElement);
