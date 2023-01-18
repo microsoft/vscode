@@ -36,7 +36,7 @@ interface SettingIndicator {
 	element: HTMLElement;
 	/**
 	 * The element to focus on when navigating with keyboard.
-	 * Same as {@link element} most of the time.
+	 * When undefined, use {@link element} instead.
 	 */
 	focusElement?: HTMLElement;
 	label: SimpleIconLabel;
@@ -71,6 +71,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly profilesEnabled: boolean;
 
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
+	private focusedIndex = 0;
 
 	constructor(
 		container: HTMLElement,
@@ -129,7 +130,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createWorkspaceTrustIndicator(): SettingIndicator {
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
-		workspaceTrustElement.tabIndex = 0;
 		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
 		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
 
@@ -170,7 +170,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createSyncIgnoredIndicator(): SettingIndicator {
 		const syncIgnoredElement = $('span.setting-indicator.setting-item-ignored');
-		syncIgnoredElement.tabIndex = 0;
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 
@@ -194,7 +193,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createDefaultOverrideIndicator(): SettingIndicator {
 		const defaultOverrideIndicator = $('span.setting-indicator.setting-item-default-overridden');
-		defaultOverrideIndicator.tabIndex = 0;
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
 		defaultOverrideLabel.text = localize('defaultOverriddenLabel', "Default value changed");
 
@@ -227,18 +225,41 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private resetIndicatorNavigationKeyBindings(indicators: SettingIndicator[]) {
 		this.keybindingListeners.clear();
-		// for (let i = 0; i < indicators.length; i++) {
 		this.indicatorsContainerElement.role = indicators.length >= 1 ? 'toolbar' : 'button';
+		if (!indicators.length) {
+			return;
+		}
+		const firstElement = indicators[0].focusElement ?? indicators[0].element;
+		firstElement.tabIndex = 0;
 		this.keybindingListeners.add(DOM.addDisposableListener(this.indicatorsContainerElement, 'keydown', (e) => {
-			// Right->focusnext
-			// Left->focusprev
 			const ev = new StandardKeyboardEvent(e);
 			if (ev.equals(KeyCode.Home)) {
-				indicators[0].element.focus();
+				ev.stopPropagation();
+				this.focusIndicatorAt(indicators, 0);
 			} else if (ev.equals(KeyCode.End)) {
-				indicators[indicators.length - 1].element.focus();
+				ev.stopPropagation();
+				this.focusIndicatorAt(indicators, indicators.length - 1);
+			} else if (ev.equals(KeyCode.RightArrow)) {
+				ev.stopPropagation();
+				const indexToFocus = (this.focusedIndex + 1) % indicators.length;
+				this.focusIndicatorAt(indicators, indexToFocus);
+			} else if (ev.equals(KeyCode.LeftArrow)) {
+				ev.stopPropagation();
+				const indexToFocus = this.focusedIndex ? this.focusedIndex - 1 : indicators.length - 1;
+				this.focusIndicatorAt(indicators, indexToFocus);
 			}
 		}));
+	}
+
+	private focusIndicatorAt(indicators: SettingIndicator[], index: number) {
+		const currentlyFocusedIndicator = indicators[this.focusedIndex];
+		const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
+		const indicator = indicators[index];
+		const elementToFocus = indicator.focusElement ?? indicator.element;
+		elementToFocus.tabIndex = 0;
+		elementToFocus.focus();
+		previousFocusedElement.removeAttribute('tabIndex');
+		this.focusedIndex = index;
 	}
 
 	updateWorkspaceTrust(element: SettingsTreeSettingElement) {
@@ -277,7 +298,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
-		this.scopeOverridesIndicator.element.tabIndex = 0;
+		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
@@ -325,7 +346,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
-				this.scopeOverridesIndicator.element.removeAttribute('tabIndex');
 				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
@@ -335,6 +355,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+				this.scopeOverridesIndicator.focusElement = view;
 				const onClickOrKeydown = (e: UIEvent) => {
 					const [scope, language] = overriddenScope.split(':');
 					onDidClickOverrideElement.fire({
