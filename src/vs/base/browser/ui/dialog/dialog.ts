@@ -42,6 +42,7 @@ export interface IDialogOptions {
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
 	readonly dialogStyles: IDialogStyles;
+	readonly reorderButtons?: 'off' | 'auto';
 }
 
 export interface IDialogResult {
@@ -204,7 +205,7 @@ export class Dialog extends Disposable {
 			clearNode(this.buttonsContainer);
 
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
-			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
+			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId, this.options.reorderButtons ?? 'auto');
 
 			// Handle button clicks
 			buttonMap.forEach((entry, index) => {
@@ -476,7 +477,7 @@ export class Dialog extends Disposable {
 		}
 	}
 
-	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
+	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined, reorder: 'off' | 'auto'): ButtonMapEntry[] {
 		const buttonMap: ButtonMapEntry[] = [];
 		if (buttons.length === 0) {
 			return buttonMap;
@@ -487,12 +488,17 @@ export class Dialog extends Disposable {
 			buttonMap.push({ label: button, index });
 		});
 
-		// macOS/linux: reverse button order if `cancelId` is defined
+		// macOS/linux: reverse button order if `reorder='auto'`
 		if (isMacintosh || isLinux) {
-			if (cancelId !== undefined && cancelId < buttons.length) {
-				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+			if (reorder === 'auto') {
 				buttonMap.reverse();
-				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+				// If `cancelId` is set, also move the cancel button to the second last position
+				if (cancelId !== undefined && cancelId < buttons.length) {
+					// after the reverse, we now have to look from the back - except for negative numbers, which already start from the back.
+					const cancelIndex = cancelId >= 0 ? buttons.length - 1 - cancelId : -cancelId - 1;
+					const cancelButton = buttonMap.splice(cancelIndex, 1)[0];
+					buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+				}
 			}
 		}
 
