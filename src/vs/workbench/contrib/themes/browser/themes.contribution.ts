@@ -645,7 +645,7 @@ registerAction2(class extends Action2 {
 
 const ThemesSubMenu = new MenuId('ThemesSubMenu');
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
-	title: localize('theme', "Theme"),
+	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 6
