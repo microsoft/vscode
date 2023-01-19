@@ -81,7 +81,7 @@ export function removeLinkSuffix(link: string): string {
  * @param link The link to parse.
  */
 export function getLinkSuffix(link: string): { row: number | undefined; col: number | undefined; suffix: { index: number; text: string } } | null {
-	const matches = linkSuffixRegex.getValue().exec(link);
+	const matches = linkSuffixRegex.value.exec(link);
 	const groups = matches?.groups;
 	if (!groups || matches.length < 1) {
 		return null;

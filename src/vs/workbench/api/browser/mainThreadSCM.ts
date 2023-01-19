@@ -13,8 +13,9 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -89,7 +90,7 @@ class MainThreadSCMResource implements ISCMResource {
 	}
 }
 
-class MainThreadSCMProvider implements ISCMProvider {
+class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
@@ -133,12 +134,15 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private _quickDiff: IDisposable | undefined;
+
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
 		private readonly _contextValue: string,
 		private readonly _label: string,
-		private readonly _rootUri: URI | undefined
+		private readonly _rootUri: URI | undefined,
+		private readonly _quickDiffService: IQuickDiffService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
@@ -151,6 +155,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.statusBarCommands !== 'undefined') {
 			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
+		}
+
+		if (features.hasQuickDiffProvider && !this._quickDiff) {
+			this._quickDiff = this._quickDiffService.addQuickDiffProvider(this);
+		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {
+			this._quickDiff.dispose();
+			this._quickDiff = undefined;
 		}
 	}
 
@@ -284,7 +295,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISCMService private readonly scmService: ISCMService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -300,7 +312,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, this.quickDiffService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

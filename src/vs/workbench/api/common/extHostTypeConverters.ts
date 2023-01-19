@@ -1713,7 +1713,8 @@ export namespace NotebookKernelSourceAction {
 			command: commandsConverter.toInternal(command, disposables),
 			label: item.label,
 			description: item.description,
-			detail: item.detail
+			detail: item.detail,
+			documentation: item.documentation
 		};
 	}
 }

@@ -7,6 +7,7 @@ import * as cp from 'child_process';
 import { Codicon } from 'vs/base/common/codicons';
 import { basename, delimiter, normalize } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
@@ -14,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 let logIfWslNotInstalled: boolean = true;
@@ -124,6 +125,14 @@ async function detectAvailableWindowsProfiles(
 			icon: Codicon.terminalBash,
 			isAutoDetected: true
 		});
+		const cmderPath = `${process.env['CMDER_ROOT'] || `${process.env['HOMEDRIVE']}\\cmder`}\\vendor\\bin\\vscode_init.cmd`;
+		detectedProfiles.set('Cmder', {
+			path: `${system32Path}\\cmd.exe`,
+			args: ['/K', cmderPath],
+			// The path is safe if it was derived from CMDER_ROOT
+			requiresPath: process.env['CMDER_ROOT'] ? cmderPath : { path: cmderPath, isUnsafe: true },
+			isAutoDetected: true
+		});
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
@@ -192,7 +201,7 @@ async function transformToTerminalProfiles(
 			paths = new Array(originalPaths.length);
 			for (let i = 0; i < originalPaths.length; i++) {
 				if (typeof originalPaths[i] === 'string') {
-					paths[i] = originalPaths[i];
+					paths[i] = resolved[i];
 				} else {
 					paths[i] = {
 						path: resolved[i],
@@ -203,7 +212,26 @@ async function transformToTerminalProfiles(
 		} else {
 			paths = originalPaths.slice();
 		}
-		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
+
+		let requiresUnsafePath: string | undefined;
+		if (profile.requiresPath) {
+			// Validate requiresPath exists
+			let actualRequiredPath: string;
+			if (isString(profile.requiresPath)) {
+				actualRequiredPath = profile.requiresPath;
+			} else {
+				actualRequiredPath = profile.requiresPath.path;
+				if (profile.requiresPath.isUnsafe) {
+					requiresUnsafePath = actualRequiredPath;
+				}
+			}
+			const result = await fsProvider.existsFile(actualRequiredPath);
+			if (!result) {
+				continue;
+			}
+		}
+
+		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, requiresUnsafePath);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
@@ -248,7 +276,7 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: testPwshSourcePaths || await getPowershellPaths(),
-		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
+		icon: Codicon.terminalPowershell
 	});
 }
 
@@ -307,11 +335,11 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 
 function getWslIcon(distroName: string): ThemeIcon {
 	if (distroName.includes('Ubuntu')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
+		return Codicon.terminalUbuntu;
 	} else if (distroName.includes('Debian')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
+		return Codicon.terminalDebian;
 	} else {
-		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+		return Codicon.terminalLinux;
 	}
 }
 
@@ -363,7 +391,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 	}
 }
 
-async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: (string | ITerminalUnsafePath)[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, defaultProfileName: string | undefined, potentialPaths: (string | ITerminalUnsafePath)[], fsProvider: IFsProvider, shellEnv: typeof process.env, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, requiresUnsafePath?: string): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -382,7 +410,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		overrideName,
 		isAutoDetected,
 		isDefault: profileName === defaultProfileName,
-		isUnsafePath
+		isUnsafePath,
+		requiresUnsafePath
 	};
 
 	// For non-absolute paths, check if it's available on $PATH

@@ -19,7 +19,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_PROFILE_BACKGROUND, ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -37,7 +37,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { IUserDataProfileService, ManageProfilesSubMenu, PROFILES_CATEGORY } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class ViewContainerActivityAction extends ActivityAction {
@@ -211,7 +211,8 @@ class MenuActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
 			anchorAlignment: this.configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
 			getActions: () => actions,
-			onHide: () => disposables.dispose()
+			onHide: () => disposables.dispose(),
+			menuActionOptions: { renderShortTitle: true },
 		});
 
 	}
@@ -341,51 +342,6 @@ export interface IProfileActivity extends IActivity {
 	readonly icon: boolean;
 }
 
-export class ProfilesActivityActionViewItem extends MenuActivityActionViewItem {
-
-	static readonly PROFILES_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showProfiles';
-
-	constructor(
-		action: ActivityAction,
-		contextMenuActionsProvider: () => IAction[],
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		hoverOptions: IActivityHoverOptions,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IKeybindingService keybindingService: IKeybindingService,
-	) {
-		super(ManageProfilesSubMenu, action, contextMenuActionsProvider, (<IProfileActivity>action.activity).icon, colors, hoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		this.container.classList.add('profile-activity-item');
-	}
-
-	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
-		const actions = await super.resolveContextMenuActions(disposables);
-
-		actions.unshift(...[
-			toAction({ id: 'hideprofiles', label: localize('hideprofiles', "Hide {0}", PROFILES_CATEGORY.value), run: () => this.storageService.store(ProfilesActivityActionViewItem.PROFILES_VISIBILITY_PREFERENCE_KEY, false, StorageScope.PROFILE, StorageTarget.USER) }),
-			new Separator()
-		]);
-
-		return actions;
-	}
-
-	protected override computeTitle(): string {
-		return localize('profiles', "{0} (Profile)", this.userDataProfileService.currentProfile.name);
-	}
-
-}
-
 export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
@@ -393,6 +349,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
@@ -403,6 +360,10 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+	}
+
+	protected override computeTitle(): string {
+		return this.userDataProfileService.currentProfile.isDefault ? super.computeTitle() : localize('manage', "Manage {0} (Profile)", this.userDataProfileService.currentProfile.name);
 	}
 }
 
@@ -508,37 +469,10 @@ registerThemingParticipant((theme, collector) => {
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label:not(.codicon):not(.profile-activity-item),
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label:not(.codicon):not(.profile-activity-item),
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon):not(.profile-activity-item) {
-				background-color: ${activityBarForegroundColor} !important;
-			}
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
 				color: ${activityBarForegroundColor} !important;
-			}
-		`);
-	}
-
-	const activityBarProfileBgColor = theme.getColor(ACTIVITY_BAR_PROFILE_BACKGROUND);
-	if (activityBarProfileBgColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item .action-label.profile-activity-item {
-				background-color: ${activityBarProfileBgColor} !important;
-			}
-		`);
-	}
-
-	const activityBarProfileHoverFgColor = theme.getColor(ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND);
-	if (activityBarProfileHoverFgColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.profile-activity-item,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.profile-activity-item {
-				color: ${activityBarProfileHoverFgColor} !important;
 			}
 		`);
 	}

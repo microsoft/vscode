@@ -1134,7 +1134,7 @@ export class AmbiguousCharacters {
 			return result;
 		}
 
-		const data = this.ambiguousCharacterData.getValue();
+		const data = this.ambiguousCharacterData.value;
 
 		let filteredLocales = locales.filter(
 			(l) => !l.startsWith('_') && l in data
@@ -1160,12 +1160,12 @@ export class AmbiguousCharacters {
 	}
 
 	private static _locales = new Lazy<string[]>(() =>
-		Object.keys(AmbiguousCharacters.ambiguousCharacterData.getValue()).filter(
+		Object.keys(AmbiguousCharacters.ambiguousCharacterData.value).filter(
 			(k) => !k.startsWith('_')
 		)
 	);
 	public static getLocales(): string[] {
-		return AmbiguousCharacters._locales.getValue();
+		return AmbiguousCharacters._locales.value;
 	}
 
 	private constructor(

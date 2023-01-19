@@ -318,7 +318,22 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const kernelSourceActionProvider: IKernelSourceActionProvider = {
 			viewType: notebookType,
 			provideKernelSourceActions: async () => {
-				return this._proxy.$provideKernelSourceActions(handle, CancellationToken.None);
+				const actions = await this._proxy.$provideKernelSourceActions(handle, CancellationToken.None);
+
+				return actions.map(action => {
+					let documentation = action.documentation;
+					if (action.documentation && typeof action.documentation !== 'string') {
+						documentation = URI.revive(action.documentation);
+					}
+
+					return {
+						label: action.label,
+						command: action.command,
+						description: action.description,
+						detail: action.detail,
+						documentation,
+					};
+				});
 			}
 		};
 		const registration = this._notebookKernelService.registerKernelSourceActionProvider(notebookType, kernelSourceActionProvider);

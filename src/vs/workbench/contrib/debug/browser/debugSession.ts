@@ -317,7 +317,7 @@ export class DebugSession implements IDebugSession {
 				supportsVariableType: true, // #8858
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true, // #10574
-				locale: platform.locale,
+				locale: platform.language, // #169114
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
 				supportsMemoryReferences: true, //#129684

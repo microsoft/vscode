@@ -653,8 +653,11 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
-	const startLine = executedMarker.line;
 	const endLine = endMarker.line;
+	if (endLine === -1) {
+		return undefined;
+	}
+	const startLine = Math.max(executedMarker.line, 0);
 
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
@@ -669,8 +672,8 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			}
 			i = wrappedLineStart;
 			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
-			if (lines.length > linesToCheck) {
-				lines.pop();
+			if (lines.length >= linesToCheck) {
+				break;
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
@@ -685,8 +688,8 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			}
 			i = wrappedLineEnd;
 			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
-			if (lines.length === linesToCheck) {
-				lines.shift();
+			if (lines.length >= linesToCheck) {
+				break;
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
@@ -703,7 +706,7 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	const executedMarker = command.executedMarker;
 	const endMarker = command.endMarker;
 	if (!executedMarker || !endMarker) {
-		throw new Error('No marker for command');
+		return undefined;
 	}
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;

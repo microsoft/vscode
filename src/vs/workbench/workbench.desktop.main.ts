@@ -61,7 +61,7 @@ import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
-import 'vs/platform/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
+import 'vs/platform/extensionResourceLoader/common/extensionResourceLoaderService';
 import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
@@ -85,7 +85,7 @@ import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
-import 'vs/workbench/services/extensions/electron-sandbox/sandboxExtensionService';
+import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
