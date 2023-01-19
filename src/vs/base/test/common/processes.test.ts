@@ -31,6 +31,6 @@ suite('Processes', () => {
 		assert.strictEqual(env['FOO'], 'bar');
 		assert.strictEqual(env['VSCODE_SHELL_LOGIN'], '1');
 		assert.strictEqual(env['VSCODE_PORTABLE'], '3');
-		assert.strictEqual(Object.keys(env).length, 2);
+		assert.strictEqual(Object.keys(env).length, 3);
 	});
 });
