@@ -63,6 +63,11 @@ if (isESM) {
 		}
 	};
 
+	/**
+	 * @param {string} entrypoint
+	 * @param {(value: any) => void} onLoad
+	 * @param {(err: Error) => void} onError
+	 */
 	exports.load = function (entrypoint, onLoad, onError) {
 		if (!entrypoint) {
 			return;
