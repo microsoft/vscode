@@ -5,10 +5,8 @@
 
 import { Octokit } from '@octokit/rest';
 import * as vscode from 'vscode';
-import { httpsOverHttp } from 'tunnel';
-import { Agent, globalAgent } from 'https';
 import { basename } from 'path';
-import { URL } from 'url';
+import { agent } from './node/net';
 
 class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 
@@ -21,7 +19,6 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 			this._octokit = (async () => {
 				const session = await vscode.authentication.getSession('github', ['gist', 'user:email'], { createIfNone: true });
 				const token = session.accessToken;
-				const agent = this.getAgent();
 
 				const { Octokit } = await import('@octokit/rest');
 
@@ -33,20 +30,6 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 			})();
 		}
 		return this._octokit;
-	}
-
-	private getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
-		if (!url) {
-			return globalAgent;
-		}
-		try {
-			const { hostname, port, username, password } = new URL(url);
-			const auth = username && password && `${username}:${password}`;
-			return httpsOverHttp({ proxy: { host: hostname, port, proxyAuth: auth } });
-		} catch (e) {
-			vscode.window.showErrorMessage(`HTTPS_PROXY environment variable ignored: ${e.message}`);
-			return globalAgent;
-		}
 	}
 
 	async saveProfile(name: string, content: string): Promise<{ readonly id: string; readonly link: vscode.Uri } | null> {
@@ -71,7 +54,7 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 		if (!this._public_octokit) {
 			this._public_octokit = (async () => {
 				const { Octokit } = await import('@octokit/rest');
-				return new Octokit({ request: { agent: this.getAgent() }, userAgent: 'GitHub VSCode' });
+				return new Octokit({ request: { agent }, userAgent: 'GitHub VSCode' });
 			})();
 		}
 		return this._public_octokit;
