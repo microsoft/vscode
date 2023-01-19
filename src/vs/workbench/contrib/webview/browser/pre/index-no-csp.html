@@ -1115,7 +1115,7 @@
 				}
 			});
 
-			hostMessaging.onMessage('title', async (_event, data) => {
+			hostMessaging.onMessage('set-title', async (_event, data) => {
 				const target = getActiveFrame();
 				if (target) {
 					target.title = data;
