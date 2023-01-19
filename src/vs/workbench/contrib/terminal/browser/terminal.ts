@@ -154,12 +154,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * Creates a terminal.
 	 * @param options The options to create the terminal with, when not specified the default
 	 * profile will be used at the default target.
-	*/
+	 */
 	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
-	*/
+	 */
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 
