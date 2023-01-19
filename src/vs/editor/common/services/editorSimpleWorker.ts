@@ -26,6 +26,8 @@ import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { isESM } from 'vs/base/common/amd';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -657,20 +659,22 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			// static foreing module
 			return Promise.resolve(getAllMethodNames(this._foreignModule));
 		}
-		// ESM-comment-begin
+
 		return new Promise<any>((resolve, reject) => {
-			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
+
+			const onModuleCallback = (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
-
 				resolve(getAllMethodNames(this._foreignModule));
+			};
 
-			}, reject);
+			if (!isESM) {
+				require([moduleId], onModuleCallback, reject);
+
+			} else {
+				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
+				import(url).then(onModuleCallback).catch(reject);
+			}
 		});
-		// ESM-comment-end
-
-		// ESM-uncomment-begin
-		// return Promise.reject(new Error(`Unexpected usage`));
-		// ESM-uncomment-end
 	}
 
 	// foreign method request
