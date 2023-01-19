@@ -553,7 +553,7 @@
 	margin: auto;
 	text-align: center;
 	background-color: var(--vscode-menu-background);
-	width:50%;
+	width: 50%;
 	vertical-align: middle;
 	border: 2px solid var(--vscode-contrastBorder);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
