@@ -2704,12 +2704,18 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _buildContent(): void {
 		const runRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.runRecentCommand')?.getAriaLabel();
 		const goToRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.goToRecentDirectory')?.getAriaLabel();
+		const enterAccessibilityMode = this._keybindingService.lookupKeybinding('workbench.action.terminal.enterAccessibilityMode')?.getAriaLabel();
 		let content = nls.localize('introMsg', "Welcome to Terminal Accessibility Help\n\n");
+		content += strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the terminal buffer'), enterAccessibilityMode);
+		content += '\n';
 		if (this._hasShellIntegration) {
-			content += nls.localize('commands', "Some useful commands include:\n");
-			content += strings.format(nls.localize('runRecentCommand', 'Run Recent Command'), runRecentKbLabel);
-			content += strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory'), goToRecentKbLabel);
+			content += nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience. \nIt provides some useful commands for screen readers such as  ");
+			content += strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel);
+			content += ' and ';
+			content += strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel);
+			content += '\n';
 		}
+		content += nls.localize('minContrastRatio', "The setting terminal.integrated.minimumContrastRatio takes a number between 1 and 21 and will adjust the text color luminance to meet this.\n");
 		this._contentDomNode.domNode.appendChild(renderFormattedText(content));
 		this._contentDomNode.domNode.setAttribute('aria-label', content);
 	}
