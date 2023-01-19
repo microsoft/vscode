@@ -40,7 +40,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -563,8 +563,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		if (this.searchBox.getValue()) {
 			this.triggerSearch();
 		}
-
-		this._register(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
 		this._register(this.searchBox.onInputDidChange(() => {
 			this.sortByContextKey.set(Query.parse(this.searchBox!.getValue() || '').sortBy);

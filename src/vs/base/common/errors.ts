@@ -78,6 +78,16 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
+/**
+ * Returns if the error is a SIGPIPE error. SIGPIPE errors should generally be
+ * logged at most once, to avoid a loop.
+ *
+ * @see https://github.com/microsoft/vscode-remote-release/issues/6481
+ */
+export function isSigPipeError(e: unknown): e is Error {
+	return !!e && typeof e === 'object' && (<any>e).code === 'EPIPE' && (<any>e).syscall === 'WRITE';
+}
+
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isCancellationError(e)) {

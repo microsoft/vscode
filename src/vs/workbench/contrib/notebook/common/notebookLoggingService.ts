@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export type styleFn = (colors: { [name: string]: Color | undefined }) => void;
+export const INotebookLoggingService = createDecorator<INotebookLoggingService>('INotebookLoggingService');
 
-export interface IThemable {
-	style: styleFn;
+export interface INotebookLoggingService {
+	readonly _serviceBrand: undefined;
+	log(category: string, output: string): void;
 }

@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickDiffService, QuickDiff, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { score } from 'vs/editor/common/languageSelector';
 
 function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffProvider) => number {
 	return (a, b) => {
@@ -51,12 +52,13 @@ export class QuickDiffService implements IQuickDiffService {
 		return !!diff.originalResource;
 	}
 
-	async getQuickDiffs(uri: URI): Promise<QuickDiff[]> {
+	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
 		const sorted = Array.from(this.quickDiffProviders).sort(createProviderComparer(uri));
 
 		const diffs = await Promise.all(Array.from(sorted.values()).map(async (provider) => {
+			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const diff = {
-				originalResource: await provider.getOriginalResource(uri),
+				originalResource: scoreValue > 0 ? await provider.getOriginalResource(uri) : null,
 				label: provider.label
 			};
 			return diff;

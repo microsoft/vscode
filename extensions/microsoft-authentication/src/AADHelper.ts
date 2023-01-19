@@ -634,7 +634,6 @@ export class AzureActiveDirectoryService {
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
 				try {
-					console.log(uri.query);
 					const query = querystring.parse(uri.query);
 					let { code, nonce } = query;
 					if (Array.isArray(code)) {

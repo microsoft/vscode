@@ -15,6 +15,7 @@ import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { language } from 'vs/base/common/platform';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -286,7 +287,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly tasks: ITestRunTaskResults[] = [];
-	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
+	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString(language));
 
 	/**
 	 * @inheritdoc

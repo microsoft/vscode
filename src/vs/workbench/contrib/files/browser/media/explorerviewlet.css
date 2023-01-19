@@ -83,6 +83,10 @@
 	text-decoration: underline;
 }
 
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target > .monaco-highlighted-label {
+	background-color: var(--vscode-list-dropBackground);
+}
+
 .explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon {
 	margin-left: var(--vscode-explorer-align-offset-margin-left);
 }

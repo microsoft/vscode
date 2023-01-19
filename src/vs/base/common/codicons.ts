@@ -2,19 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isString } from 'vs/base/common/types';
-
-// Selects all codicon names encapsulated in the `$()` syntax and wraps the
-// results with spaces so that screen readers can read the text better.
-export function getCodiconAriaLabel(text: string | undefined) {
-	if (!text) {
-		return '';
-	}
-
-	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
-}
 
 const _codiconFontCharacters: { [id: string]: number } = Object.create(null);
 
@@ -307,6 +296,7 @@ export const Codicon = {
 	italic: register('italic', 0xeb0d),
 	jersey: register('jersey', 0xeb0e),
 	json: register('json', 0xeb0f),
+	bracket: register('bracket', 0xeb0f),
 	kebabVertical: register('kebab-vertical', 0xeb10),
 	key: register('key', 0xeb11),
 	law: register('law', 0xeb12),
@@ -529,7 +519,6 @@ export const Codicon = {
 	graphLine: register('graph-line', 0xebe2),
 	graphScatter: register('graph-scatter', 0xebe3),
 	pieChart: register('pie-chart', 0xebe4),
-	bracket: register('bracket', 0xebe4),
 	bracketDot: register('bracket-dot', 0xebe5),
 	bracketError: register('bracket-error', 0xebe6),
 	lockSmall: register('lock-small', 0xebe7),
