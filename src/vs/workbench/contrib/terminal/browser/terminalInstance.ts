@@ -55,6 +55,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import * as strings from 'vs/base/common/strings';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -92,6 +93,10 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 
 const enum Constants {
@@ -1142,6 +1147,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
+	showAccessibilityHelp(): void {
+		if (!this.xterm?.raw.buffer || !this._container) {
+			return;
+		}
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
+	}
+
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 		if (this.hasSelection() || (asHtml && command)) {
@@ -1978,12 +1990,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		if (xterm && xterm.textarea) {
-			let label: string;
+			let label: string = '';
 			if (title && title.length > 0) {
 				label = nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title);
 			} else {
 				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
 			}
+			label += this._accessibilityService.isScreenReaderOptimized() ? nls.localize('terminalTextBoxAriaLabelNumberAndTitleAccessibility', "Press alt+f1 for terminal accessibility help") : '';
 			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
 			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
 			if (navigateUpKeybinding && navigateDownKeybinding) {
@@ -2672,4 +2685,71 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
+	readonly id = 'help';
+	private _container: HTMLElement | undefined;
+	private _domNode: FastDomNode<HTMLElement>;
+	private _contentDomNode: FastDomNode<HTMLElement>;
+	constructor(
+		private readonly _hasShellIntegration: boolean,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
+		super();
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode.setClassName('terminal-accessibility-help');
+		this._contentDomNode.setAttribute('role', 'document');
+		this._domNode.setDisplay('none');
+		this._domNode.setAttribute('role', 'dialog');
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.appendChild(this._contentDomNode);
+		this.onblur(this._contentDomNode.domNode, () => this.hide());
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Escape) {
+				this.hide();
+			}
+		}));
+	}
+
+	public hide(): void {
+		if (!this._container) {
+			return;
+		}
+		this._domNode.setDisplay('none');
+		this._contentDomNode.setDisplay('none');
+		this._domNode.setAttribute('aria-hidden', 'true');
+	}
+
+	attach(container: HTMLElement): void {
+		this._container = container;
+		this._domNode.setDisplay('block');
+		this._domNode.setAttribute('aria-hidden', 'false');
+		this._contentDomNode.domNode.tabIndex = 0;
+		this._buildContent();
+		container.appendChild(this._contentDomNode.domNode);
+		this._contentDomNode.domNode.focus();
+	}
+
+	private _buildContent(): void {
+		const runRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.runRecentCommand')?.getAriaLabel();
+		const goToRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.goToRecentDirectory')?.getAriaLabel();
+		const enterAccessibilityModeLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.enterAccessibilityMode')?.getAriaLabel();
+		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
+		const content = [];
+		content.push(nls.localize('introMsg', "Welcome to Terminal Accessibility Help"));
+		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.'), enterAccessibilityModeLabel));
+		if (this._hasShellIntegration) {
+			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
+			content.push('- ' + strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel));
+			content.push('- ' + strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel));
+		}
+		content.push(strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), openDetectedLinkLabel));
+		content.push(strings.format(nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.')));
+		content.push(nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere."));
+		const joinedContent = content.join('\n\n');
+		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
+		this._contentDomNode.domNode.setAttribute('aria-label', joinedContent);
+	}
 }

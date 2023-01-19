@@ -595,6 +595,7 @@ export const enum TerminalCommandId {
 	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
 	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
+	ShowTerminalAccessibilityHelp = 'workbench.action.terminal.showAccessibilityHelp',
 	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',
 	SelectPrevPageSuggestion = 'workbench.action.terminal.selectPrevPageSuggestion',
 	SelectNextSuggestion = 'workbench.action.terminal.selectNextSuggestion',

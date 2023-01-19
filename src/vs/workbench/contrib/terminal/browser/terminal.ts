@@ -219,6 +219,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getEditingTerminal(): ITerminalInstance | undefined;
 	setEditingTerminal(instance: ITerminalInstance | undefined): void;
+
+	showTerminalAccessibilityHelp(): void;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
@@ -941,6 +943,11 @@ export interface ITerminalInstance {
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
+
+	/**
+	 * Shows the accessibility help widget
+	 */
+	showAccessibilityHelp(): void;
 
 	/**
 	 * Selects the previous suggestion if the suggest widget is visible.
