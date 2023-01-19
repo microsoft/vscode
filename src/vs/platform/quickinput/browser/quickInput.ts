@@ -18,7 +18,6 @@ import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAcces
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { activeContrastBorder, asCssValue, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 
 export interface IQuickInputControllerHost extends ILayoutService { }
@@ -186,13 +185,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	private computeStyles(): IQuickInputStyles {
 		return {
 			widget: {
-				...computeStyles(this.theme, {
-					quickInputBackground,
-					quickInputForeground,
-					quickInputTitleBackground,
-					widgetBorder,
-					widgetShadow
-				}),
+				quickInputBackground: asCssValue(quickInputBackground),
+				quickInputForeground: asCssValue(quickInputForeground),
+				quickInputTitleBackground: asCssValue(quickInputTitleBackground),
+				widgetBorder: asCssValue(widgetBorder),
+				widgetShadow: asCssValue(widgetShadow),
 			},
 			inputBox: defaultInputBoxStyles,
 			toggle: defaultToggleStyles,

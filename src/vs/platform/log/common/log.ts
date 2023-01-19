@@ -560,16 +560,14 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		return this._loggers.get(resource);
 	}
 
-	createLogger(resource: URI, options?: ILoggerOptions, donotRegister?: boolean): ILogger {
+	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
 		let logger = this._loggers.get(resource);
+		const logLevel = options?.logLevel === 'always' ? LogLevel.Trace : options?.logLevel;
 		if (!logger) {
-			const logLevel = options?.logLevel === 'always' ? LogLevel.Trace : options?.logLevel;
 			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, options);
 			this._loggers.set(resource, logger);
-			if (!donotRegister) {
-				this.registerLogger({ resource, id: options?.id ?? resource.toString(), logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId });
-			}
 		}
+		this.registerLogger({ resource, id: options?.id ?? resource.toString(), logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId });
 		return logger;
 	}
 

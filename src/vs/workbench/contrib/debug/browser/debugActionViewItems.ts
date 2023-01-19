@@ -12,10 +12,8 @@ import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selec
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
+import { selectBorder, selectBackground, asCssValue } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -43,7 +41,6 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		private context: unknown,
 		action: IAction,
 		@IDebugService private readonly debugService: IDebugService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -128,12 +125,10 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder, selectBackground }, colors => {
-			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
-			this.container.style.backgroundColor = selectBackgroundColor;
-		}));
+		this.container.style.border = `1px solid ${asCssValue(selectBorder)}`;
+		selectBoxContainer.style.borderLeft = `1px solid ${asCssValue(selectBorder)}`;
+		this.container.style.backgroundColor = asCssValue(selectBackground);
+
 		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
 			this.providers = providers;
 			if (this.providers.length > 0) {

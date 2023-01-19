@@ -34,6 +34,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -568,6 +570,65 @@ export class KernelPickerFlatStrategy extends KernelPickerStrategyBase {
 			action.tooltip = '';
 		}
 	}
+
+	static async resolveKernel(notebook: INotebookTextModel, notebookKernelService: INotebookKernelService, commandService: ICommandService, contextKeyService: IContextKeyService): Promise<INotebookKernel | undefined> {
+		let kernel = notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+		const noPendingKernelDetections = notebookKernelService.getKernelDetectionTasks(notebook).length === 0;
+		// do not auto run source action when there is pending kernel detections
+		if (!kernel && noPendingKernelDetections) {
+			kernel = await KernelPickerFlatStrategy.resolveSourceActions(notebook, notebookKernelService, contextKeyService);
+		}
+
+		if (!kernel) {
+			kernel = await this.resolveKernelFromKernelPicker(notebook, commandService, notebookKernelService);
+		}
+
+		return kernel;
+	}
+
+	private static async resolveSourceActions(notebook: INotebookTextModel, notebookKernelService: INotebookKernelService, contextKeyService: IContextKeyService): Promise<INotebookKernel | undefined> {
+		let kernel: INotebookKernel | undefined;
+		const info = notebookKernelService.getMatchingKernel(notebook);
+		if (info.all.length === 0) {
+			// no kernel at all
+			const sourceActions = notebookKernelService.getSourceActions(notebook, contextKeyService);
+			const primaryActions = sourceActions.filter(action => action.isPrimary);
+			const action = sourceActions.length === 1
+				? sourceActions[0]
+				: (primaryActions.length === 1 ? primaryActions[0] : undefined);
+
+			if (action) {
+				await action.runAction();
+				kernel = notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+			}
+		}
+
+		return kernel;
+	}
+
+	private static async resolveKernelFromKernelPicker(notebook: INotebookTextModel, commandService: ICommandService, notebookKernelService: INotebookKernelService, attempt: number = 1): Promise<INotebookKernel | undefined> {
+		if (attempt > 3) {
+			// we couldnt resolve kernels through kernel picker multiple times, skip
+			return;
+		}
+
+		await commandService.executeCommand(SELECT_KERNEL_ID);
+		const runningSourceActions = notebookKernelService.getRunningSourceActions(notebook);
+
+		if (runningSourceActions.length) {
+			await Promise.all(runningSourceActions.map(action => action.runAction()));
+
+			const kernel = notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+			if (kernel) {
+				return kernel;
+			}
+
+			attempt += 1;
+			return KernelPickerFlatStrategy.resolveKernelFromKernelPicker(notebook, commandService, notebookKernelService, attempt);
+		} else {
+			return notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+		}
+	}
 }
 
 export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
@@ -877,7 +938,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		}
 	}
 
-	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService) {
+	static updateKernelStatusAction(notebook: NotebookTextModel, action: IAction, notebookKernelService: INotebookKernelService, notebookKernelHistoryService: INotebookKernelHistoryService) {
 		const detectionTasks = notebookKernelService.getKernelDetectionTasks(notebook);
 		if (detectionTasks.length) {
 			const info = notebookKernelService.getMatchingKernel(notebook);
@@ -909,20 +970,28 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			return updateActionFromSourceAction(runningActions[0] /** TODO handle multiple actions state */, true);
 		}
 
-		const info = notebookKernelService.getMatchingKernel(notebook);
-		const suggested = (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
-			?? (info.all.length === 1) ? info.all[0] : undefined;
+		const { selected } = notebookKernelHistoryService.getKernels(notebook);
 
-		const selectedOrSuggested = info.selected ?? suggested;
-
-		if (selectedOrSuggested) {
-			action.label = selectedOrSuggested.label;
+		if (selected) {
+			action.label = selected.label;
 			action.class = ThemeIcon.asClassName(selectKernelIcon);
-			action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
+			action.tooltip = selected.description ?? selected.detail ?? '';
 		} else {
 			action.label = localize('select', "Select Kernel");
 			action.class = ThemeIcon.asClassName(selectKernelIcon);
 			action.tooltip = '';
 		}
+	}
+
+	static async resolveKernel(notebook: INotebookTextModel, notebookKernelService: INotebookKernelService, notebookKernelHistoryService: INotebookKernelHistoryService, commandService: ICommandService): Promise<INotebookKernel | undefined> {
+		const { selected } = notebookKernelHistoryService.getKernels(notebook);
+
+		if (selected) {
+			return selected;
+		}
+
+		await commandService.executeCommand(SELECT_KERNEL_ID);
+		const kernel = notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+		return kernel;
 	}
 }

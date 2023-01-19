@@ -22,7 +22,6 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -55,23 +54,23 @@ export interface IQuickInputOptions {
 }
 
 export interface IQuickInputStyles {
-	widget: IQuickInputWidgetStyles;
-	inputBox: IInputBoxStyles;
-	toggle: IToggleStyles;
-	countBadge: ICountBadgeStyles;
-	button: IButtonStyles;
-	progressBar: IProgressBarStyles;
-	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles;
-	pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
+	readonly widget: IQuickInputWidgetStyles;
+	readonly inputBox: IInputBoxStyles;
+	readonly toggle: IToggleStyles;
+	readonly countBadge: ICountBadgeStyles;
+	readonly button: IButtonStyles;
+	readonly progressBar: IProgressBarStyles;
+	readonly keybindingLabel: IKeybindingLabelStyles;
+	readonly list: IListStyles;
+	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
 }
 
 export interface IQuickInputWidgetStyles {
-	quickInputBackground?: Color;
-	quickInputForeground?: Color;
-	quickInputTitleBackground?: Color;
-	widgetBorder?: Color;
-	widgetShadow?: Color;
+	readonly quickInputBackground: string | undefined;
+	readonly quickInputForeground: string | undefined;
+	readonly quickInputTitleBackground: string | undefined;
+	readonly widgetBorder: string | undefined;
+	readonly widgetShadow: string | undefined;
 }
 
 const $ = dom.$;

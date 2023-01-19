@@ -30,13 +30,12 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor, asCssValue } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
@@ -398,17 +397,11 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
 		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.monaco-count-badge.long.disabled'));
 		recordingBadge.textContent = localize('recording', "Recording Keys");
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			const color = colors.badgeForeground ? colors.badgeForeground.toString() : '';
 
-			recordingBadge.style.backgroundColor = background;
-			recordingBadge.style.borderWidth = border ? '1px' : '';
-			recordingBadge.style.borderStyle = border ? 'solid' : '';
-			recordingBadge.style.borderColor = border;
-			recordingBadge.style.color = color ? color.toString() : '';
-		}));
+		recordingBadge.style.backgroundColor = asCssValue(badgeBackground);
+		recordingBadge.style.color = asCssValue(badgeForeground);
+		recordingBadge.style.border = `1px solid ${asCssValue(contrastBorder)}`;
+
 		return recordingBadge;
 	}
 
