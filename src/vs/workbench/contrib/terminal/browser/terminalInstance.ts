@@ -2717,8 +2717,9 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 			content += '\n';
 		}
 		content += strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal'), openDetectedLinkLabel);
-		content += nls.localize('minContrastRatio', "The setting terminal.integrated.minimumContrastRatio takes a number between 1 and 21 and will adjust the text color luminance to meet this.\n");
-		content += nls.localize('dismiss', "You can dismiss this by pressing Escape or focusing elsewhere.\n");
+		content += '\n';
+		content += nls.localize('minContrastRatio', "The setting terminal.integrated.minimumContrastRatio takes a number between 1 and 21 and will adjust the text color luminance to meet this\n");
+		content += nls.localize('dismiss', "You can dismiss this by pressing Escape or focusing elsewhere\n");
 		this._contentDomNode.domNode.appendChild(renderFormattedText(content));
 		this._contentDomNode.domNode.setAttribute('aria-label', content);
 	}
