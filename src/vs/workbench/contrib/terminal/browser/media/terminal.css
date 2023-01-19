@@ -580,7 +580,7 @@
 	right: 0;
 	top: 0;
 	margin: auto;
-	text-align: center;
+	text-align: left;
 	background-color: var(--vscode-menu-background);
 	min-width: 10%;
 	width: fit-content;
