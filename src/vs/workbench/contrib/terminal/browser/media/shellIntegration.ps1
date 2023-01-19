@@ -124,7 +124,6 @@ function Set-MappedKeyHandlers {
 	}
 }
 
-
 function Send-Completions {
 	$commandLine = ""
 	$cursorIndex = 0

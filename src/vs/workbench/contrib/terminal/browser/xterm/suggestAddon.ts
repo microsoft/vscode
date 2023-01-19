@@ -357,7 +357,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._onAcceptedCompletion.fire([
 				// TODO: Right arrow to end of the replacement
 				// Left arrow to end of the replacement
-				'\x1b[D'.repeat(suggestion.model.replacementLength - this._cursorIndexStart + this._cursorIndexDelta),
+				'\x1b[D'.repeat(Math.max(suggestion.model.replacementLength - this._cursorIndexStart + this._cursorIndexDelta, 0)),
 				// Delete to remove additional input
 				'\x1b[3~'.repeat(this._additionalInput?.length ?? 0),
 				// Backspace to remove the replacement
