@@ -100,11 +100,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
-			console.log('osc', data);
 			return this._handleVSCodeSequence(data);
 		}));
 		this._register(xterm.onData(e => {
-			console.log('data', e);
 			this._handleTerminalInput(e);
 		}));
 	}
@@ -303,7 +301,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 
 		// Flush the input queue if any characters were typed after a trigger character
-		console.log('flush input queue');
 		if (this._inputQueue) {
 			const inputQueue = this._inputQueue;
 			this._inputQueue = undefined;
