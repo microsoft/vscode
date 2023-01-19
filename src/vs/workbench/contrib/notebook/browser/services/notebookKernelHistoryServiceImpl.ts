@@ -11,6 +11,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 interface ISerializedKernelsListPerType {
 	entries: string[];
@@ -29,7 +30,8 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 	private _mostRecentKernelsMap: { [key: string]: LinkedMap<string, string> } = {};
 
 	constructor(@IStorageService private readonly _storageService: IStorageService,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService) {
+		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@INotebookLoggingService private readonly _notebookLoggingService: INotebookLoggingService) {
 		super();
 
 		this._loadState();
@@ -42,8 +44,11 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 		const selectedKernel = allAvailableKernels.selected;
 		// We will suggest the only kernel
 		const suggested = allAvailableKernels.all.length === 1 ? allAvailableKernels.all[0] : undefined;
-
+		this._notebookLoggingService.log('History', `getMatchingKernels: ${allAvailableKernels.all.length} kernels available for ${notebook.uri.path}. `);
+		this._notebookLoggingService.log('History', `Selected: ${allAvailableKernels.selected?.label}`);
+		this._notebookLoggingService.log('History', `Suggested: ${suggested?.label}`);
 		const mostRecentKernelIds = this._mostRecentKernelsMap[notebook.viewType] ? [...this._mostRecentKernelsMap[notebook.viewType].values()] : [];
+		this._notebookLoggingService.log('History', `mru: ${this._mostRecentKernelsMap[notebook.viewType]?.size ?? 0} kernels in history for ${notebook.uri.path}`);
 
 		const all = mostRecentKernelIds.map(kernelId => allKernels.find(kernel => kernel.id === kernelId)).filter(kernel => !!kernel) as INotebookKernel[];
 
