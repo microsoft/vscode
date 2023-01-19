@@ -1769,16 +1769,17 @@ export class SearchView extends ViewPane {
 		this.currentSelectedFileMatch = undefined;
 	}
 
-	private shouldOpenInNotebookEditor(uri: URI): boolean {
-		//
-		return uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0;
+	private shouldOpenInNotebookEditor(match: Match, uri: URI): boolean {
+		// Untitled files will return a false positive for getContributedNotebookTypes.
+		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
+		return match instanceof NotebookMatch || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
 		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<FileMatch>lineMatch).resource;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(lineMatch instanceof NotebookMatch) && !(this.shouldOpenInNotebookEditor(resource))) ?
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
 	}
@@ -1787,7 +1788,6 @@ export class SearchView extends ViewPane {
 		const selection = this.getSelectionFrom(element);
 		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
 		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
-		this.shouldOpenInNotebookEditor(resource);
 		let editor: IEditorPane | undefined;
 		try {
 			editor = await this.editorService.openEditor({
