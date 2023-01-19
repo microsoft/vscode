@@ -1984,12 +1984,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		if (xterm && xterm.textarea) {
-			let label: string = this._accessibilityService.isScreenReaderOptimized() ? nls.localize('terminalTextBoxAriaLabelNumberAndTitleAccessibility', "Press alt+f1 for terminal accessibility help") : '';
+			let label: string = '';
 			if (title && title.length > 0) {
 				label = nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title);
 			} else {
 				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
 			}
+			label += this._accessibilityService.isScreenReaderOptimized() ? nls.localize('terminalTextBoxAriaLabelNumberAndTitleAccessibility', "Press alt+f1 for terminal accessibility help") : '';
 			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
 			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
 			if (navigateUpKeybinding && navigateDownKeybinding) {
@@ -2689,7 +2690,6 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._domNode.setDisplay('none');
 		this._contentDomNode.setDisplay('none');
 		this._domNode.setAttribute('aria-hidden', 'true');
-		this._contentDomNode.domNode.tabIndex = -1;
 	}
 
 	attach(container: HTMLElement): void {
