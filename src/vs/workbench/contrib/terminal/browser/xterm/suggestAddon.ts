@@ -17,11 +17,11 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { ITerminalAddon, Terminal } from 'xterm';
+import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const enum ShellIntegrationOscPs {
 	// TODO: Pull from elsewhere
@@ -319,7 +319,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				{}
 			));
-			this._register(attachListStyler(this._suggestWidget.list, this._themeService, {
+			this._suggestWidget.list.style(getListStyles({
 				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 				listInactiveFocusOutline: activeContrastBorder
 			}));
