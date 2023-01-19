@@ -23,7 +23,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: StickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
+
 	private _widgetState: StickyScrollWidgetState;
+	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	constructor(
 		_editor: ICodeEditor,
@@ -103,8 +105,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private onDidResize() {
-		const width = this._editor.getLayoutInfo().width - this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth - this._editor.getLayoutInfo().verticalScrollbarWidth;
+		const layoutInfo = this._editor.getLayoutInfo();
+		const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
 		this._stickyScrollWidget.getDomNode().style.width = `${width}px`;
+
+		// make sure sticky scroll doesn't take up more than 25% of the editor
+		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
+		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
 	private renderStickyScroll() {
@@ -121,7 +128,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
-		const maxNumberStickyLines = this._editor.getOption(EditorOption.stickyScroll).maxLineCount;
+		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
 		const lineNumbers: number[] = [];
