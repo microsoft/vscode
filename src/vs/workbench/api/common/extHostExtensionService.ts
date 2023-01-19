@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
+import { asPromise, Barrier, IntervalTimer, runWhenIdle, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -598,15 +598,22 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		// startup is considered finished
 		this._mainThreadExtensionsProxy.$setPerformanceMarks(performance.getMarks());
 
-		for (const desc of this._myRegistry.getAllExtensionDescriptions()) {
-			if (desc.activationEvents) {
-				for (const activationEvent of desc.activationEvents) {
-					if (activationEvent === 'onStartupFinished') {
-						this._activateOneStartupFinished(desc, activationEvent);
+		this._extHostConfiguration.getConfigProvider().then((configProvider) => {
+			const shouldDeferActivation = configProvider.getConfiguration('extensions.experimental').get<boolean>('deferredStartupFinishedActivation');
+			for (const desc of this._myRegistry.getAllExtensionDescriptions()) {
+				if (desc.activationEvents) {
+					for (const activationEvent of desc.activationEvents) {
+						if (activationEvent === 'onStartupFinished') {
+							if (shouldDeferActivation) {
+								this._register(runWhenIdle(() => this._activateOneStartupFinished(desc, activationEvent)));
+							} else {
+								this._activateOneStartupFinished(desc, activationEvent);
+							}
+						}
 					}
 				}
 			}
-		}
+		});
 	}
 
 	// Handle "eager" activation extensions
