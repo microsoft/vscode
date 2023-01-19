@@ -186,7 +186,7 @@ export function registerTerminalActions() {
 				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.EditorContrib,
+					weight: KeybindingWeight.WorkbenchContrib,
 					linux: {
 						primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
 						secondary: [KeyMod.Alt | KeyCode.F1]
