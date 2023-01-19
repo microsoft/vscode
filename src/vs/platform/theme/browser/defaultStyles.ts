@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, activeContrastBorder, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground, listFocusAndSelectionOutline, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground, tableColumnsBorder, tableOddRowsBackgroundColor, treeIndentGuidesStroke, asCssValueWithDefault, editorWidgetBorder, focusBorder, pickerGroupForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, selectBackground, selectBorder, selectForeground, selectListBackground, treeInactiveIndentGuidesStroke } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, activeContrastBorder, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground, listFocusAndSelectionOutline, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground, tableColumnsBorder, tableOddRowsBackgroundColor, treeIndentGuidesStroke, asCssValueWithDefault, editorWidgetBorder, focusBorder, pickerGroupForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, selectBackground, selectBorder, selectForeground, selectListBackground, treeInactiveIndentGuidesStroke, menuBorder, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuSeparatorBackground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ICheckboxStyles, IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IDialogStyles } from 'vs/base/browser/ui/dialog/dialog';
@@ -15,6 +15,7 @@ import { IBreadcrumbsWidgetStyles } from 'vs/base/browser/ui/breadcrumbs/breadcr
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectBoxStyles } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Color } from 'vs/base/common/color';
+import { IMenuStyles } from 'vs/base/browser/ui/menu/menu';
 
 export type IStyleOverride<T> = {
 	[P in keyof T]?: ColorIdentifier;
@@ -207,5 +208,25 @@ export function getSelectBoxStyles(override: IStyleOverride<ISelectBoxStyles>): 
 		tableOddRowsBackgroundColor: undefined,
 		treeIndentGuidesStroke: undefined,
 		treeInactiveIndentGuidesStroke: undefined,
+	};
+}
+
+
+export const defaultMenuStyles = getMenuStyles({});
+
+export function getMenuStyles(override: IStyleOverride<IMenuStyles>): IMenuStyles {
+	return {
+		shadowColor: asCssValue(override.shadowColor ?? widgetShadow),
+		borderColor: asCssValue(override.borderColor ?? menuBorder),
+		foregroundColor: asCssValue(override.foregroundColor ?? menuForeground),
+		backgroundColor: asCssValue(override.backgroundColor ?? menuBackground),
+		selectionForegroundColor: asCssValue(override.selectionForegroundColor ?? menuSelectionForeground),
+		selectionBackgroundColor: asCssValue(override.selectionBackgroundColor ?? menuSelectionBackground),
+		selectionBorderColor: asCssValue(override.selectionBorderColor ?? menuSelectionBorder),
+		separatorColor: asCssValue(override.separatorColor ?? menuSeparatorBackground),
+		scrollbarShadow: asCssValue(override.scrollbarShadow ?? scrollbarShadow),
+		scrollbarSliderBackground: asCssValue(override.scrollbarSliderBackground ?? scrollbarSliderBackground),
+		scrollbarSliderHoverBackground: asCssValue(override.scrollbarSliderHoverBackground ?? scrollbarSliderHoverBackground),
+		scrollbarSliderActiveBackground: asCssValue(override.scrollbarSliderActiveBackground ?? scrollbarSliderActiveBackground)
 	};
 }

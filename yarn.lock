@@ -7602,7 +7602,7 @@ mute-stream@0.0.7:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
   integrity sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=
 
-nan@^2.12.1, nan@^2.13.2:
+nan@^2.12.1:
   version "2.14.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
@@ -7611,6 +7611,11 @@ nan@^2.14.0:
   version "2.15.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.15.0.tgz#3f34a473ff18e15c1b5626b62903b5ad6e665fee"
   integrity sha512-8ZtvEnA2c5aYCZYd1cvgdnU6cqwixRoYg70xPLWUws5ORTa/lnw+u4amixRS/Ac5U5mQVgp9pnlSUnbNWFaWZQ==
+
+nan@^2.17.0:
+  version "2.17.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
+  integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
 
 nanoid@3.3.1:
   version "3.3.1"
@@ -7768,12 +7773,12 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.11.0-beta11:
-  version "0.11.0-beta11"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta11.tgz#10843516868129c26a97253903c46fe0e4520eb0"
-  integrity sha512-Gw58duqHle4k/BunssCE1CUKKWipRQZTUFhaTegkKC19fw3IXsvillblLUuD2bQL42+3mQCAFSgTDo+OsJzYCQ==
+node-pty@0.11.0-beta27:
+  version "0.11.0-beta27"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta27.tgz#13ebfb687aff23af3b38991e676ac0fb92accb82"
+  integrity sha512-HkP1lHsgOgXroEMuFt/2hNkyI+roSSKIMKkyaW3g/NVNY3j5gpYD2YM05EbYlJbjaUFAWqbJzoLIVs2g+A+B8A==
   dependencies:
-    nan "^2.14.0"
+    nan "^2.17.0"
 
 node-releases@^1.1.71:
   version "1.1.72"
@@ -11583,12 +11588,12 @@ windows-mutex@0.4.1:
     bindings "^1.2.1"
     nan "^2.14.0"
 
-windows-process-tree@0.3.4:
-  version "0.3.4"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.4.tgz#6bc4b8010129c30ff95bcd333b9f94744dd3c4fb"
-  integrity sha512-rtSX73i9OnkDxSdBP9c1YBunEwheZdO/hjRwNk9uSoWqO92x0zDRGfIIK0MtUn8gZZD+2kPEVpj5MmfNl7JpJA==
+windows-process-tree@0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.4.0.tgz#31ac49c5da557e628ce7e37a5800972173d3349a"
+  integrity sha512-9LunDnc1WwuhyLeTAXMFX8wbActGJtDCBaiapQXFYk/nO4W4X9YxOKV5g/lQL3XX69QYxveDbjVVrdnTt1qqCQ==
   dependencies:
-    nan "^2.13.2"
+    nan "^2.17.0"
 
 word-wrap@^1.2.3, word-wrap@~1.2.3:
   version "1.2.3"

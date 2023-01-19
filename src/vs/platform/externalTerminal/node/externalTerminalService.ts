@@ -46,8 +46,8 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 
 		// cmder ignores the environment cwd and instead opts to always open in %USERPROFILE%
 		// unless otherwise specified
-		const basename = path.basename(exec).toLowerCase();
-		if (basename === 'cmder' || basename === 'cmder.exe') {
+		const basename = path.basename(exec, '.exe').toLowerCase();
+		if (basename === 'cmder') {
 			spawner.spawn(exec, cwd ? [cwd] : undefined);
 			return Promise.resolve(undefined);
 		}
@@ -60,7 +60,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 		}
 		cmdArgs.push(exec);
 		// Add starting directory parameter for Windows Terminal (see #90734)
-		if (basename === 'wt' || basename === 'wt.exe') {
+		if (basename === 'wt') {
 			cmdArgs.push('-d .');
 		}
 
@@ -80,9 +80,6 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
 
-			const cmdArgs = [
-				'/c', 'start', title, '/wait', exec, '/c', command
-			];
 
 			// merge environment variables into a copy of the process.env
 			const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
@@ -96,7 +93,21 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				windowsVerbatimArguments: true
 			};
 
-			const cmd = cp.spawn(WindowsExternalTerminalService.CMD, cmdArgs, options);
+			let spawnExec: string;
+			let cmdArgs: string[];
+
+			if (path.basename(exec, '.exe') === 'wt') {
+				// Handle Windows Terminal specially; -d to set the cwd and run a cmd.exe instance
+				// inside it
+				spawnExec = exec;
+				cmdArgs = ['-d', '.', WindowsExternalTerminalService.CMD, '/c', command];
+			} else {
+				spawnExec = WindowsExternalTerminalService.CMD;
+				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
+			}
+
+			const cmd = cp.spawn(spawnExec, cmdArgs, options);
+
 			cmd.on('error', err => {
 				reject(improveError(err));
 			});
