@@ -19,7 +19,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
-	private readonly _editor: ICodeEditor;
+
 	private readonly _stickyScrollWidget: StickyScrollWidget;
 	private readonly _stickyLineCandidateProvider: StickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
@@ -28,46 +28,46 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	constructor(
-		_editor: ICodeEditor,
-		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
-		@IInstantiationService _instaService: IInstantiationService,
+		private readonly _editor: ICodeEditor,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super();
-		this._editor = _editor;
-		this._stickyScrollWidget = new StickyScrollWidget(this._editor, _languageFeaturesService, _instaService);
-		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService);
+
+		this._stickyScrollWidget = new StickyScrollWidget(this._editor, languageFeaturesService, instaService);
+		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
 		this._register(this._stickyScrollWidget);
 		this._register(this._stickyLineCandidateProvider);
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
-				this.readConfiguration();
+				this._readConfiguration();
 			}
 		}));
-		this.readConfiguration();
+		this._readConfiguration();
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
-			this.onContextMenu(event);
+			this._onContextMenu(event);
 		}));
 	}
 
-	public get stickyScrollCandidateProvider() {
+	get stickyScrollCandidateProvider() {
 		return this._stickyLineCandidateProvider;
 	}
 
-	public get stickyScrollWidgetState() {
+	get stickyScrollWidgetState() {
 		return this._widgetState;
 	}
 
-	private onContextMenu(event: MouseEvent) {
+	private _onContextMenu(event: MouseEvent) {
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,
 			getAnchor: () => event,
 		});
 	}
 
-	private readConfiguration() {
+	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
@@ -75,18 +75,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		} else {
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
-			this._sessionStore.add(this._editor.onDidScrollChange(() => this.renderStickyScroll()));
-			this._sessionStore.add(this._editor.onDidLayoutChange(() => this.onDidResize()));
-			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this.onTokensChange(e)));
-			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this.renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
+			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
+			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this._renderStickyScroll()));
 			const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 			if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
-				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this.renderStickyScroll()));
+				this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._renderStickyScroll()));
 			}
 		}
 	}
 
-	private needsUpdate(event: IModelTokensChangedEvent) {
+	private _needsUpdate(event: IModelTokensChangedEvent) {
 		const stickyLineNumbers = this._stickyScrollWidget.getCurrentLines();
 		for (const stickyLineNumber of stickyLineNumbers) {
 			for (const range of event.ranges) {
@@ -98,13 +98,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		return false;
 	}
 
-	private onTokensChange(event: IModelTokensChangedEvent) {
-		if (this.needsUpdate(event)) {
-			this.renderStickyScroll();
+	private _onTokensChange(event: IModelTokensChangedEvent) {
+		if (this._needsUpdate(event)) {
+			this._renderStickyScroll();
 		}
 	}
 
-	private onDidResize() {
+	private _onDidResize() {
 		const layoutInfo = this._editor.getLayoutInfo();
 		const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
 		this._stickyScrollWidget.getDomNode().style.width = `${width}px`;
@@ -114,7 +114,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
-	private renderStickyScroll() {
+	private _renderStickyScroll() {
 		if (!(this._editor.hasModel())) {
 			return;
 		}
@@ -126,7 +126,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 	}
 
-	public getScrollWidgetState(): StickyScrollWidgetState {
+	getScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
