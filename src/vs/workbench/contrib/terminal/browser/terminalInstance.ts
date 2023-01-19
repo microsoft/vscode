@@ -2739,15 +2739,15 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
 		const content = [];
 		content.push(nls.localize('introMsg', "Welcome to Terminal Accessibility Help"));
-		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the terminal buffer.'), enterAccessibilityModeLabel));
+		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the content of the terminal'), enterAccessibilityModeLabel));
 		if (this._hasShellIntegration) {
-			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience. It provides some useful commands for screen readers such as:"));
+			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience and provides some useful commands for screen readers such as:"));
 			content.push('- ' + strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel));
 			content.push('- ' + strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel));
 		}
 		content.push(strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), openDetectedLinkLabel));
 		content.push(strings.format(nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.')));
-		content.push(nls.localize('dismiss', "You can dismiss this by pressing Escape or focusing elsewhere."));
+		content.push(nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere."));
 		const joinedContent = content.join('\n\n');
 		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
 		this._contentDomNode.domNode.setAttribute('aria-label', joinedContent);
