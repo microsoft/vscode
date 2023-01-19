@@ -55,6 +55,7 @@ export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
 	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+	onActivate: () => Promise<void> = () => Promise.resolve(),
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
@@ -67,12 +68,16 @@ export function lazilyActivateClient(
 	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
 		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
 			hasActivated = true;
-			// Force activation
-			void lazyClientHost.value;
 
-			disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
-				return lazyClientHost.value.serviceClient.toPath(resource);
-			}));
+			onActivate().then(() => {
+				// Force activation
+				void lazyClientHost.value;
+
+				disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
+					return lazyClientHost.value.serviceClient.toPath(resource);
+				}));
+			});
+
 			return true;
 		}
 		return false;

@@ -73,9 +73,6 @@
     "onLanguage:jsonc",
     "onWalkthrough:nodejsWelcome"
   ],
-  "extensionDependencies": [
-		"ms-vscode.remote-repositories"
-	],
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
   "contributes": {

@@ -95,16 +95,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		context.subscriptions.push(module.register());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
-
-	if (isWebAndHasSharedArrayBuffers()) {
-		await preload(logger); // TODO: Defer this and only do it when user has turned on this feature
-	}
+	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
+		await preload(logger);
+	}));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
 async function preload(logger: Logger): Promise<void> {
+	if (!isWebAndHasSharedArrayBuffers()) {
+		return;
+	}
+
 	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
 	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || workspaceUri.authority !== 'github') {
 		return undefined;
