@@ -89,7 +89,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private checkAndInstall(): void {
 		const language = platform.language;
-		const locale = platform.locale ?? '';
+		let locale = platform.locale ?? '';
 		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
@@ -108,12 +108,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				let searchLocale = locale;
-				let tagResult = await this.galleryService.query({ text: `tag:lp-${searchLocale}` }, CancellationToken.None);
+				let tagResult = await this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None);
 				if (tagResult.total === 0) {
 					// Trim the locale and try again.
-					searchLocale = locale.split('-')[0];
-					tagResult = await this.galleryService.query({ text: `tag:lp-${searchLocale}` }, CancellationToken.None);
+					locale = locale.split('-')[0];
+					tagResult = await this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None);
 					if (tagResult.total === 0) {
 						return;
 					}
@@ -162,7 +161,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 									.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 									.then(viewlet => {
-										viewlet.search(`tag:lp-${searchLocale}`);
+										viewlet.search(`tag:lp-${locale}`);
 										viewlet.focus();
 									});
 							}
