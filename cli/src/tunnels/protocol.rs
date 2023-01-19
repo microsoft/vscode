@@ -57,16 +57,9 @@ pub struct ForwardResult {
 /// The `install_local` method in the wsl control server
 #[derive(Deserialize, Debug)]
 pub struct InstallFromLocalFolderParams {
-	pub commit_id: String,
-	pub quality: Quality,
 	pub archive_path: String,
-	#[serde(default)]
-	pub extensions: Vec<String>,
-}
-
-#[derive(Serialize, Debug)]
-pub struct InstallPortServerResult {
-	pub port: u16,
+	#[serde(flatten)]
+	pub inner: ServeParams,
 }
 
 #[derive(Deserialize, Debug)]

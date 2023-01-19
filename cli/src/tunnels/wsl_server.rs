@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::path::PathBuf;
-
 use tokio::sync::mpsc;
 
 use crate::{
-	json_rpc::{new_json_rpc, start_json_rpc, JsonRpcSerializer},
 	log,
-	rpc::RpcCaller,
+	msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCaller},
 	state::LauncherPaths,
 	tunnels::code_server::ServerBuilder,
 	update_service::{Platform, Release, TargetKind},
 	util::{
-		errors::{wrap, AnyError, MismatchedLaunchModeError},
+		errors::{
+			wrap, AnyError, InvalidRpcDataError, MismatchedLaunchModeError, NoAttachedServerError,
+		},
 		http::ReqwestSimpleHttp,
 	},
 };
 
 use super::{
 	code_server::{AnyCodeServer, CodeServerArgs, ResolvedServerParams},
-	protocol::{InstallFromLocalFolderParams, InstallPortServerResult},
+	protocol::{EmptyObject, InstallFromLocalFolderParams, ServerMessageParams},
+	server_bridge::ServerBridge,
+	server_multiplexer::ServerMultiplexer,
 	shutdown_signal::ShutdownSignal,
+	socket_signal::{ClientMessageDecoder, ServerMessageDestination, ServerMessageSink},
 };
 
 struct HandlerContext {
@@ -32,12 +34,14 @@ struct HandlerContext {
 	launcher_paths: LauncherPaths,
 	platform: Platform,
 	http: ReqwestSimpleHttp,
+	caller: MsgPackCaller,
+	multiplexer: ServerMultiplexer,
 }
 
 #[derive(Clone)]
-struct JsonRpcLogSink(RpcCaller<JsonRpcSerializer>);
+struct RpcLogSink(MsgPackCaller);
 
-impl JsonRpcLogSink {
+impl RpcLogSink {
 	fn write_json(&self, level: String, message: &str) {
 		self.0.notify(
 			"log",
@@ -49,7 +53,7 @@ impl JsonRpcLogSink {
 	}
 }
 
-impl log::LogSink for JsonRpcLogSink {
+impl log::LogSink for RpcLogSink {
 	fn write_log(&self, level: log::Level, _prefix: &str, message: &str) {
 		self.write_json(level.to_string(), message);
 	}
@@ -68,24 +72,33 @@ pub async fn serve_wsl(
 	shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 ) -> Result<i32, AnyError> {
 	let (caller_tx, caller_rx) = mpsc::unbounded_channel();
-	let mut rpc = new_json_rpc();
+	let mut rpc = new_msgpack_rpc();
 	let caller = rpc.get_caller(caller_tx);
 
-	let log = log.with_sink(JsonRpcLogSink(caller));
+	let log = log.with_sink(RpcLogSink(caller.clone()));
 	let mut rpc = rpc.methods(HandlerContext {
 		log: log.clone(),
+		caller,
 		code_server_args,
 		launcher_paths,
 		platform,
+		multiplexer: ServerMultiplexer::new(),
 		http: ReqwestSimpleHttp::with_client(http),
 	});
 
 	rpc.register_async(
-		"install_local",
-		move |params: InstallFromLocalFolderParams, c| async move { install_local(&c, params).await },
+		"serve",
+		move |m: InstallFromLocalFolderParams, c| async move { handle_serve(&c, m).await },
 	);
+	rpc.register_sync("servermsg", move |m: ServerMessageParams, c| {
+		if c.multiplexer.write_message(&c.log, m.i, m.body) {
+			Ok(EmptyObject {})
+		} else {
+			Err(NoAttachedServerError().into())
+		}
+	});
 
-	start_json_rpc(
+	start_msgpack_rpc(
 		rpc.build(log),
 		tokio::io::stdin(),
 		tokio::io::stdout(),
@@ -98,35 +111,51 @@ pub async fn serve_wsl(
 	Ok(0)
 }
 
-async fn install_local(
+async fn handle_serve(
 	c: &HandlerContext,
 	params: InstallFromLocalFolderParams,
-) -> Result<InstallPortServerResult, AnyError> {
+) -> Result<EmptyObject, AnyError> {
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
-	csa.install_extensions.extend(params.extensions.into_iter());
+	csa.install_extensions
+		.extend(params.inner.extensions.into_iter());
 
 	let resolved = ResolvedServerParams {
 		code_server_args: csa,
 		release: Release {
 			name: String::new(),
-			commit: params.commit_id,
+			commit: params
+				.inner
+				.commit_id
+				.ok_or_else(|| InvalidRpcDataError("commit_id is required".to_string()))?,
 			platform: c.platform,
 			target: TargetKind::Server,
-			quality: params.quality,
+			quality: params.inner.quality,
 		},
 	};
 
 	let sb = ServerBuilder::new(&c.log, &resolved, &c.launcher_paths, c.http.clone());
-
-	let s = match sb.get_running().await? {
-		Some(AnyCodeServer::Port(s)) => s,
+	let code_server = match sb.get_running().await? {
+		Some(AnyCodeServer::Socket(s)) => s,
 		Some(_) => return Err(MismatchedLaunchModeError().into()),
 		None => {
-			sb.setup(Some(PathBuf::from(params.archive_path))).await?;
-			sb.listen_on_port(0).await?
+			sb.setup(None).await?;
+			sb.listen_on_default_socket().await?
 		}
 	};
 
-	Ok(InstallPortServerResult { port: s.port })
+	let bridge = ServerBridge::new(
+		&code_server.socket,
+		ServerMessageSink::new_plain(
+			c.multiplexer.clone(),
+			params.inner.socket_id,
+			ServerMessageDestination::Rpc(c.caller.clone()),
+		),
+		ClientMessageDecoder::new_plain(),
+	)
+	.await?;
+
+	c.multiplexer.register(params.inner.socket_id, bridge);
+	trace!(c.log, "Attached to server");
+	Ok(EmptyObject {})
 }

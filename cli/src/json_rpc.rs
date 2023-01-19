@@ -33,10 +33,12 @@ impl Serialization for JsonRpcSerializer {
 }
 
 /// Creates a new RPC Builder that serializes to JSON.
+#[allow(dead_code)]
 pub fn new_json_rpc() -> rpc::RpcBuilder<JsonRpcSerializer> {
 	rpc::RpcBuilder::new(JsonRpcSerializer {})
 }
 
+#[allow(dead_code)]
 pub async fn start_json_rpc<C: Send + Sync + 'static, S>(
 	dispatcher: rpc::RpcDispatcher<JsonRpcSerializer, C>,
 	read: impl AsyncRead + Unpin,
