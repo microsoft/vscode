@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -198,11 +198,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 		const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
-		// Initialize the workspace folders set
-		for (const workspaceFolder of workspace.workspaceFolders ?? []) {
-			this._workspaceFolders.set(workspaceFolder.uri.fsPath, await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' }));
-		}
-
 		// Initial repository scan function
 		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
@@ -335,15 +330,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
-		for (const workspaceFolder of added) {
-			if (!this._workspaceFolders.has(workspaceFolder.uri.fsPath)) {
-				this._workspaceFolders.set(workspaceFolder.uri.fsPath, await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' }));
-			}
-		}
-		for (const workspaceFolder of removed) {
-			this._workspaceFolders.delete(workspaceFolder.uri.fsPath);
-		}
-
 		const possibleRepositoryFolders = added
 			.filter(folder => !this.getOpenRepository(folder.uri));
 
@@ -455,23 +441,23 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			}
 
 			// Handle git repositories that are in parent folders
-			const isRepositoryOutsideWorkspace = Array.from(this._workspaceFolders.values())
-				.find(workspaceFolder => pathEquals(workspaceFolder, repositoryRoot) || isDescendant(workspaceFolder, repositoryRoot)) === undefined;
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
+			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
+				const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
+				if (isRepositoryOutsideWorkspace) {
+					this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
-			if (isRepositoryOutsideWorkspace && parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
-				this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
+					if (!this._parentRepositories.has(repositoryRoot)) {
+						// Show a notification if the parent repository is opened after the initial scan
+						if (this.state === 'initialized' && parentRepositoryConfig === 'prompt') {
+							this.showParentRepositoryNotification();
+						}
 
-				if (!this._parentRepositories.has(repositoryRoot)) {
-					// Show a notification if the parent repository is opened after the initial scan
-					if (this.state === 'initialized' && parentRepositoryConfig === 'prompt') {
-						this.showParentRepositoryNotification();
+						this._parentRepositories.set(repositoryRoot);
 					}
 
-					this._parentRepositories.set(repositoryRoot);
+					return;
 				}
-
-				return;
 			}
 
 			// Handle unsafe repositories
@@ -805,6 +791,28 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
+		if (!workspace.workspaceFolders || workspace.workspaceFolders.length === 0) {
+			return true;
+		}
+
+		const result = await Promise.all(workspace.workspaceFolders.map(async folder => {
+			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
+			return pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath);
+		}));
+
+		return !result.some(r => r);
+	}
+
+	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string> {
+		if (!this._workspaceFolders.has(workspaceFolder.uri.fsPath)) {
+			const realPath = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
+			this._workspaceFolders.set(workspaceFolder.uri.fsPath, realPath);
+		}
+
+		return this._workspaceFolders.get(workspaceFolder.uri.fsPath)!;
 	}
 
 	private async showParentRepositoryNotification(): Promise<void> {
