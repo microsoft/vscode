@@ -17,7 +17,6 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { ITerminalAddon, Terminal } from 'xterm';
@@ -91,8 +90,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	constructor(
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 	}
