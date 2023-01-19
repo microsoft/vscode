@@ -285,24 +285,19 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
-	private _documentUri: URI;
-
 	get document(): vscode.TextDocument {
+		checkProposedApiEnabled(this._extension, 'scmTextDocument');
+
 		const data = this._extHostDocument.getDocument(this._documentUri);
 		if (!data) {
-			throw new Error(`MISSING extHostDocument for source control input box: ${this._documentUri}`);
+			throw new Error(`MISSING extHostDocument for source control input box: ${this._documentUri.toString()}`);
 		}
 
 		return data.document;
 	}
 
-	constructor(private _extension: IExtensionDescription, private _extHostDocument: ExtHostDocumentsAndEditors, proxy: MainThreadSCMShape, private _sourceControlHandle: number, _id: string, _rootUri?: vscode.Uri) {
+	constructor(private _extension: IExtensionDescription, private _extHostDocument: ExtHostDocumentsAndEditors, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
 		this.#proxy = proxy;
-		this._documentUri = URI.from({
-			scheme: Schemas.vscodeSourceControl,
-			path: `${_id}/scm${this._sourceControlHandle}/input`,
-			query: _rootUri ? `rootUri=${encodeURIComponent(_rootUri.toString())}` : undefined
-		});
 	}
 
 	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
@@ -607,8 +602,14 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	) {
 		this.#proxy = proxy;
 
-		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocument, this.#proxy, this.handle, this._id, this._rootUri);
-		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
+		const inputBoxDocumentUri = URI.from({
+			scheme: Schemas.vscodeSourceControl,
+			path: `${_id}/scm${this.handle}/input`,
+			query: _rootUri ? `rootUri=${encodeURIComponent(_rootUri.toString())}` : undefined
+		});
+
+		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocument, this.#proxy, this.handle, inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, inputBoxDocumentUri);
 	}
 
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();

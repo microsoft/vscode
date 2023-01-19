@@ -1766,12 +1766,7 @@ class SCMInputWidget {
 			query = `rootUri=${encodeURIComponent(input.repository.provider.rootUri.toString())}`;
 		}
 
-		const uri = URI.from({
-			scheme: Schemas.vscodeSourceControl,
-			path: `${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
-			query
-		});
-
+		const uri = input.repository.provider.inputBoxDocumentUri;
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 		}
