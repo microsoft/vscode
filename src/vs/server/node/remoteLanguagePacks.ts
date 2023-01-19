@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
+import { isESM } from 'vs/base/common/amd';
 import type * as lp from 'vs/base/node/languagePacks';
 import product from 'vs/platform/product/common/product';
 
@@ -25,14 +26,6 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
-
-			// ESM-comment-begin
-			const isESM = false;
-			// ESM-comment-end
-			// ESM-uncomment-begin
-			// const isESM = true;
-			// ESM-uncomment-end
-
 			const { getNLSConfiguration } = <typeof import('vs/base/node/languagePacks')>require(`../../base/node/languagePacks.${isESM ? 'esm' : 'cjs'}}}`);
 
 			result = getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {

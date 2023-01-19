@@ -256,7 +256,9 @@ export class ExtensionHostConnection {
 			};
 
 			// ESM-uncomment-begin
-			// execArgv.push('--experimental-loader', FileAccess.asFileUri('server-loader.mjs').fsPath);
+			// if (process.env['VSCODE_DEV']) {
+			// 	execArgv.push('--experimental-loader', FileAccess.asFileUri('server-loader.mjs').fsPath);
+			// }
 			// ESM-uncomment-end
 
 			// Run Extension Host as fork of current process

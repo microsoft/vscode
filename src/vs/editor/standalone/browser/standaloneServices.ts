@@ -1022,8 +1022,6 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 }
 
-
-
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }

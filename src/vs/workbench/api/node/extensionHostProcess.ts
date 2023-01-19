@@ -32,7 +32,6 @@ import 'vs/workbench/api/node/extHost.node.services';
 import type { MessagePortMain } from 'electron';
 import type { UtilityNodeJSProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
-
 interface ParsedExtHostArgs {
 	transformURIs?: boolean;
 	skipWorkspaceStorageLock?: boolean;
