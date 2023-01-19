@@ -81,6 +81,7 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/se
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 const $ = dom.$;
 
@@ -186,6 +187,7 @@ export class SearchView extends ViewPane {
 		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotebookService private readonly notebookService: INotebookService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -1758,17 +1760,24 @@ export class SearchView extends ViewPane {
 		this.currentSelectedFileMatch = undefined;
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(lineMatch instanceof NotebookMatch)) ?
-			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
-			this.open(lineMatch, preserveFocus, sideBySide, pinned);
+	private shouldOpenInNotebookEditor(uri: URI): boolean {
+		return this.notebookService.getContributedNotebookTypes(uri).length > 0;
 	}
 
-	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
-		const selection = this.getSelectionFrom(element);
-		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
+	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
+		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<FileMatch>lineMatch).resource;
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(resource))) ?
+			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
+			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
+	}
+
+	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean, resourceInput?: URI): Promise<void> {
+		const selection = this.getSelectionFrom(element);
+		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
+		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
+		this.shouldOpenInNotebookEditor(resource);
 		let editor: IEditorPane | undefined;
 		try {
 			editor = await this.editorService.openEditor({
@@ -1798,13 +1807,12 @@ export class SearchView extends ViewPane {
 		if (editor instanceof NotebookEditor) {
 			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 			if (element instanceof Match) {
-				const matchIndex = element.parent().matches().findIndex(e => e.id() === element.id());
 				if (element instanceof NotebookMatch) {
 
 					// no op for now!
 					element.parent().showMatch(element);
 				} else {
-
+					const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
 					controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
 				}
 			}

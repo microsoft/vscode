@@ -268,6 +268,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _modelDecorations: string[] = [];
 	private _currentMatchCellDecorations: string[] = [];
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
+	private _allMatchesDecorations: ICellModelDecorations[] = [];
+	private _allMatchesCellDecorations: string[] = [];
 
 	private _context: Map<number, string> = new Map();
 	public get context(): Map<number, string> {
@@ -339,16 +341,22 @@ export class FileMatch extends Disposable implements IFileMatch {
 			}
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
+		this._notebookUpdateScheduler.schedule();
 
-		this.updateHighlights();
 		console.log(`added widget ${this._notebookEditorWidget.textModel?.uri}`);
 	}
 
 	unbindEditorWidget(widget: NotebookEditorWidget) {
-		this.updateMatchesForModel();
+		this.updateMatchesForEditorWidget();
 		if (this._notebookEditorWidget) {
-			this._updateScheduler.cancel();
-			this._model = null;
+			this._notebookUpdateScheduler.cancel();
+			this._notebookEditorWidget.changeModelDecorations((accessor) => {
+				this._currentMatchDecorations = {
+					kind: 'input',
+					decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [])
+				};
+			});
+			this._notebookEditorWidget = null;
 			this._editorWidgetListener?.dispose();
 		}
 		this._notebookEditorWidget = null;
@@ -443,13 +451,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		// this.addContext(
-		// 	addContextToEditorMatches(textSearchResults, model, this.parent().parent().query!)
-		// 		.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-		// 		.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
-
+		this.setAllFindMatchesDecorations(matches);
 		this._onChange.fire({ forceUpdateModel: modelChange });
-		// 	this.updateHighlights();
 	}
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean, model: ITextModel): void {
@@ -607,9 +610,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	public async showMatch(match: NotebookMatch) {
 		const offset = await this.highlightCurrentFindMatchDecoration(match);
-		// if (this._notebookEditorWidget) {
-		// 	this._notebookEditorWidget.focusNotebookCell(match.cell, 'container', {});
-		// }
 		this.revealCellRange(match, offset);
 	}
 
@@ -677,6 +677,45 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 			return offset;
 		}
+	}
+
+	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatchWithIndex[]) {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+		this._notebookEditorWidget.changeModelDecorations((accessor) => {
+
+			const findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
+
+			const deltaDecorations: ICellModelDeltaDecorations[] = cellFindMatches.map(cellFindMatch => {
+				// Find matches
+				const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(cellFindMatch.length);
+				for (let i = 0; i < cellFindMatch.contentMatches.length; i++) {
+					newFindMatchesDecorations[i] = {
+						range: cellFindMatch.contentMatches[i].range,
+						options: findMatchesOptions
+					};
+				}
+
+				return { ownerId: cellFindMatch.cell.handle, decorations: newFindMatchesDecorations };
+			});
+
+			this._allMatchesDecorations = accessor.deltaDecorations(this._allMatchesDecorations, deltaDecorations);
+		});
+
+		this._allMatchesCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._allMatchesCellDecorations, cellFindMatches.map(cellFindMatch => {
+			return {
+				ownerId: cellFindMatch.cell.handle,
+				handle: cellFindMatch.cell.handle,
+				options: {
+					overviewRuler: {
+						color: overviewRulerFindMatchForeground,
+						modelRanges: cellFindMatch.contentMatches.map(match => match.range),
+						includeOutput: cellFindMatch.webviewMatches.length > 0
+					}
+				}
+			};
+		}));
 	}
 
 	private clearCurrentFindMatchDecoration() {
