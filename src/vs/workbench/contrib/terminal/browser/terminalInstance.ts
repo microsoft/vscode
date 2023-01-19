@@ -2708,18 +2708,18 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
 		let content = nls.localize('introMsg', "Welcome to Terminal Accessibility Help\n\n");
 		content += strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the terminal buffer'), enterAccessibilityModeLabel);
-		content += '\n';
+		content += '\n\n';
 		if (this._hasShellIntegration) {
-			content += nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience. \nIt provides some useful commands for screen readers such as  ");
+			content += nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience. \n\nIt provides some useful commands for screen readers such as  ");
 			content += strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel);
 			content += ' and ';
 			content += strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel);
-			content += '\n';
+			content += '\n\n';
 		}
 		content += strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal'), openDetectedLinkLabel);
-		content += '\n';
-		content += nls.localize('minContrastRatio', "The setting terminal.integrated.minimumContrastRatio takes a number between 1 and 21 and will adjust the text color luminance to meet this\n");
-		content += nls.localize('dismiss', "You can dismiss this by pressing Escape or focusing elsewhere\n");
+		content += '\n\n';
+		content += nls.localize('minContrastRatio', "The setting terminal.integrated.minimumContrastRatio takes a number between 1 and 21 and will adjust the text color luminance to meet this\n\n");
+		content += nls.localize('dismiss', "You can dismiss this by pressing Escape or focusing elsewhere\n\n");
 		this._contentDomNode.domNode.appendChild(renderFormattedText(content));
 		this._contentDomNode.domNode.setAttribute('aria-label', content);
 	}
