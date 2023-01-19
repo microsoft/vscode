@@ -166,7 +166,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/**
 	 * An owner of terminals might be created after reconnection has occurred,
 	 * so store them to be requested/adopted later
-	*/
+	 */
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
@@ -178,13 +178,13 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * Perform an action with the active terminal instance, if the terminal does
 	 * not exist the callback will not be called.
 	 * @param callback The callback that fires with the active terminal
-	*/
+	 */
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
 	 * among other things.
-	*/
+	 */
 	refreshActiveGroup(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
@@ -194,7 +194,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
 	 * for links at that position. This lets the terminal know all links at a given area and also
 	 * labels for what these links are going to do.
-	*/
+	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
