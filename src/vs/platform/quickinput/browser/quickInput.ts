@@ -16,9 +16,8 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { activeContrastBorder, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { computeStyles } from 'vs/platform/theme/common/styler';
+import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { activeContrastBorder, asCssValue, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 
 export interface IQuickInputControllerHost extends ILayoutService { }
@@ -186,13 +185,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	private computeStyles(): IQuickInputStyles {
 		return {
 			widget: {
-				...computeStyles(this.theme, {
-					quickInputBackground,
-					quickInputForeground,
-					quickInputTitleBackground,
-					widgetBorder,
-					widgetShadow
-				}),
+				quickInputBackground: asCssValue(quickInputBackground),
+				quickInputForeground: asCssValue(quickInputForeground),
+				quickInputTitleBackground: asCssValue(quickInputTitleBackground),
+				widgetBorder: asCssValue(widgetBorder),
+				widgetShadow: asCssValue(widgetShadow),
 			},
 			inputBox: defaultInputBoxStyles,
 			toggle: defaultToggleStyles,
@@ -200,7 +197,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			button: defaultButtonStyles,
 			progressBar: defaultProgressBarStyles, // default uses progressBarBackground
 			keybindingLabel: defaultKeybindingLabelStyles,
-			list: computeStyles(this.theme, {
+			list: getListStyles({
 				listBackground: quickInputBackground,
 				// Look like focused when inactive.
 				listInactiveFocusForeground: quickInputListFocusForeground,
@@ -208,9 +205,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				listInactiveFocusBackground: quickInputListFocusBackground,
 				listFocusOutline: activeContrastBorder,
 				listInactiveFocusOutline: activeContrastBorder,
-				pickerGroupBorder,
-				pickerGroupForeground
-			})
+			}),
+			pickerGroup: {
+				pickerGroupBorder: asCssValue(pickerGroupBorder),
+				pickerGroupForeground: asCssValue(pickerGroupForeground),
+			}
 		};
 	}
 }

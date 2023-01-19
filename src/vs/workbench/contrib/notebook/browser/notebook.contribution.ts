@@ -107,6 +107,8 @@ import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -710,6 +712,7 @@ registerSingleton(INotebookExecutionService, NotebookExecutionService, Instantia
 registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, InstantiationType.Delayed);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
+registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -922,7 +925,21 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
 			],
 			tags: ['notebookLayout'],
-			default: 'all'
+			default: 'mru'
+		},
+		[NotebookSetting.outputScrolling]: {
+			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
+		[NotebookSetting.logging]: {
+			markdownDescription: nls.localize('notebook.logging', "Enable logging for notebook support."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
 		}
 	}
 });
+
+

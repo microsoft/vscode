@@ -20,11 +20,9 @@ import { matchesPrefix } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IThemable } from 'vs/base/common/styler';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
@@ -797,11 +795,7 @@ export class DefaultStyleController implements IStyleController {
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!platform.isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${this.selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			}
+			content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
 		if (styles.listFocusBackground) {
@@ -972,47 +966,59 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 }
 
 export interface IListStyles {
-	listBackground?: Color;
-	listFocusBackground?: Color;
-	listFocusForeground?: Color;
-	listActiveSelectionBackground?: Color;
-	listActiveSelectionForeground?: Color;
-	listActiveSelectionIconForeground?: Color;
-	listFocusAndSelectionOutline?: Color;
-	listFocusAndSelectionBackground?: Color;
-	listFocusAndSelectionForeground?: Color;
-	listInactiveSelectionBackground?: Color;
-	listInactiveSelectionIconForeground?: Color;
-	listInactiveSelectionForeground?: Color;
-	listInactiveFocusForeground?: Color;
-	listInactiveFocusBackground?: Color;
-	listHoverBackground?: Color;
-	listHoverForeground?: Color;
-	listDropBackground?: Color;
-	listFocusOutline?: Color;
-	listInactiveFocusOutline?: Color;
-	listSelectionOutline?: Color;
-	listHoverOutline?: Color;
-	treeIndentGuidesStroke?: Color;
-	tableColumnsBorder?: Color;
-	tableOddRowsBackgroundColor?: Color;
+	listBackground: string | undefined;
+	listFocusBackground: string | undefined;
+	listFocusForeground: string | undefined;
+	listActiveSelectionBackground: string | undefined;
+	listActiveSelectionForeground: string | undefined;
+	listActiveSelectionIconForeground: string | undefined;
+	listFocusAndSelectionOutline: string | undefined;
+	listFocusAndSelectionBackground: string | undefined;
+	listFocusAndSelectionForeground: string | undefined;
+	listInactiveSelectionBackground: string | undefined;
+	listInactiveSelectionIconForeground: string | undefined;
+	listInactiveSelectionForeground: string | undefined;
+	listInactiveFocusForeground: string | undefined;
+	listInactiveFocusBackground: string | undefined;
+	listHoverBackground: string | undefined;
+	listHoverForeground: string | undefined;
+	listDropBackground: string | undefined;
+	listFocusOutline: string | undefined;
+	listInactiveFocusOutline: string | undefined;
+	listSelectionOutline: string | undefined;
+	listHoverOutline: string | undefined;
+	treeIndentGuidesStroke: string | undefined;
+	treeInactiveIndentGuidesStroke: string | undefined;
+	tableColumnsBorder: string | undefined;
+	tableOddRowsBackgroundColor: string | undefined;
 }
 
-const defaultStyles: IListStyles = {
-	listFocusBackground: Color.fromHex('#7FB0D0'),
-	listActiveSelectionBackground: Color.fromHex('#0E639C'),
-	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
-	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
-	listFocusAndSelectionOutline: Color.fromHex('#90C2F9'),
-	listFocusAndSelectionBackground: Color.fromHex('#094771'),
-	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
-	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
-	listInactiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
-	listHoverBackground: Color.fromHex('#2A2D2E'),
-	listDropBackground: Color.fromHex('#383B3D'),
-	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),
-	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2),
-	tableOddRowsBackgroundColor: Color.fromHex('#cccccc').transparent(0.04)
+export const unthemedListStyles: IListStyles = {
+	listFocusBackground: '#7FB0D0',
+	listActiveSelectionBackground: '#0E639C',
+	listActiveSelectionForeground: '#FFFFFF',
+	listActiveSelectionIconForeground: '#FFFFFF',
+	listFocusAndSelectionOutline: '#90C2F9',
+	listFocusAndSelectionBackground: '#094771',
+	listFocusAndSelectionForeground: '#FFFFFF',
+	listInactiveSelectionBackground: '#3F3F46',
+	listInactiveSelectionIconForeground: '#FFFFFF',
+	listHoverBackground: '#2A2D2E',
+	listDropBackground: '#383B3D',
+	treeIndentGuidesStroke: '#a9a9a9',
+	treeInactiveIndentGuidesStroke: Color.fromHex('#a9a9a9').transparent(0.4).toString(),
+	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2).toString(),
+	tableOddRowsBackgroundColor: Color.fromHex('#cccccc').transparent(0.04).toString(),
+	listBackground: undefined,
+	listFocusForeground: undefined,
+	listInactiveSelectionForeground: undefined,
+	listInactiveFocusForeground: undefined,
+	listInactiveFocusBackground: undefined,
+	listHoverForeground: undefined,
+	listFocusOutline: undefined,
+	listInactiveFocusOutline: undefined,
+	listSelectionOutline: undefined,
+	listHoverOutline: undefined
 };
 
 const DefaultOptions: IListOptions<any> = {
@@ -1241,7 +1247,7 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
  * - Dynamic element height support
  * - Drag-and-drop support
  */
-export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
+export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private focus = new Trait<T>('focused');
 	private selection: Trait<T>;
@@ -1338,8 +1344,6 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	) {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
 		this.selection = new SelectionTrait(role !== 'listbox');
-
-		mixin(_options, defaultStyles, false);
 
 		const baseRenderers: IListRenderer<T, ITraitTemplateData>[] = [this.focus.renderer, this.selection.renderer];
 

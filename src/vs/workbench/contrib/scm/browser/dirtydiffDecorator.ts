@@ -38,7 +38,7 @@ import { basename } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
+import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { equals, sortedDiff } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
@@ -1084,8 +1084,8 @@ function compareChanges(a: IChange, b: IChange): number {
 }
 
 
-export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI): Promise<URI | null> {
-	const quickDiffs = await quickDiffService.getQuickDiffs(uri);
+export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
+	const quickDiffs = await quickDiffService.getQuickDiffs(uri, language, isSynchronized);
 	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }
 
@@ -1316,7 +1316,7 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		const uri = this._model.resource;
-		return this.quickDiffService.getQuickDiffs(uri);
+		return this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), this._model.textEditorModel ? shouldSynchronizeModel(this._model.textEditorModel) : undefined);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {

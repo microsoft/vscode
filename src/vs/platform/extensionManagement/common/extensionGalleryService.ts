@@ -497,7 +497,7 @@ function setTelemetry(extension: IGalleryExtension, index: number, querySource?:
 	/* __GDPR__FRAGMENT__
 	"GalleryExtensionTelemetryData2" : {
 		"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"queryActivityId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 	*/
