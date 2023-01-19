@@ -15,7 +15,8 @@ import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { ServiceConfigurationProvider } from './utils/configuration';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
-import { lazy, Lazy } from './utils/lazy';
+import { Lazy, lazy } from './utils/lazy';
+import { Logger } from './utils/logger';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 
@@ -32,6 +33,7 @@ export function createLazyClientHost(
 		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 		serviceConfigurationProvider: ServiceConfigurationProvider;
 		experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+		logger: Logger;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
