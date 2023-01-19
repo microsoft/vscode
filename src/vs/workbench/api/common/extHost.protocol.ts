@@ -1238,7 +1238,7 @@ export interface MainThreadSCMShape extends IDisposable {
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
-	$registerQuickDiffProvider(handle: number, label: string, rootUri: UriComponents | undefined): Promise<void>;
+	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 

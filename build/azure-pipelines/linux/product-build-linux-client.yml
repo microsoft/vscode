@@ -145,7 +145,7 @@ steps:
   - script: |
       set -e
       node build/npm/setupBuildYarnrc
-      for i in {1..3}; do # try 3 times
+      for i in {1..5}; do # try 5 times
         yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
@@ -191,7 +191,7 @@ steps:
         export VSCODE_REMOTE_CXX=$(which g++)
       fi
 
-      for i in {1..3}; do # try 3 times
+      for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
@@ -293,7 +293,8 @@ steps:
           set -e
           tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
           CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
-          mv $(Build.ArtifactStagingDirectory)/cli/code $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+          APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+          mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
         displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:

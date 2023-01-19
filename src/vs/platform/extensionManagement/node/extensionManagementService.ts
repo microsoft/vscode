@@ -857,7 +857,7 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 
 	readonly identifier = this.task.identifier;
 	readonly source = this.task.source;
-	readonly operation = this.task.operation;
+	get operation() { return this.task.operation; }
 
 	get verificationStatus() {
 		return this.task.verificationStatus;

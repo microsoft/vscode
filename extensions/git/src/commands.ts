@@ -2263,11 +2263,10 @@ export class CommandCenter {
 			run = force => repository.deleteBranch(name, force);
 		} else {
 			const getBranchPicks = async () => {
-				const refs = await repository.getRefs({ pattern: 'refs/heads/*' });
+				const refs = await repository.getRefs({ pattern: 'refs/heads' });
 				const currentHead = repository.HEAD && repository.HEAD.name;
 
-				return refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
-					.map(ref => new BranchDeleteItem(ref));
+				return refs.filter(ref => ref.name !== currentHead).map(ref => new BranchDeleteItem(ref));
 			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
@@ -2425,7 +2424,7 @@ export class CommandCenter {
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
 		const tagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRefs({ pattern: 'refs/tags/*' });
+			const remoteTags = await repository.getRefs({ pattern: 'refs/tags' });
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) This repository has no tags.') }] : remoteTags.map(ref => new TagItem(ref));
 		};
 

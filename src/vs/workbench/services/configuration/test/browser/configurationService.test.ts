@@ -1641,6 +1641,43 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting'), 'profileValue');
 	}));
 
+	test('registering normal setting after init', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.testSetting3": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.testSetting3': {
+					'type': 'string',
+					'default': 'isSet',
+				}
+			}
+		});
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.testSetting3'), 'isSet');
+	}));
+
+	test('registering application scope setting after init', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting3": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.profiles.applicationSetting3': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				}
+			}
+		});
+
+		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting3'), 'defaultProfile');
+	}));
+
 	test('switch to default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "applicationValue", "configurationService.profiles.testSetting": "userValue" }'));
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.applicationSetting": "profileValue", "configurationService.profiles.testSetting": "profileValue" }'));

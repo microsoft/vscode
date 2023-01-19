@@ -6,7 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostContext, ExtHostQuickDiffShape, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostQuickDiffShape, IDocumentFilterDto, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
@@ -24,10 +24,11 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickDiff);
 	}
 
-	async $registerQuickDiffProvider(handle: number, label: string, rootUri: UriComponents | undefined): Promise<void> {
+	async $registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined): Promise<void> {
 		const provider: QuickDiffProvider = {
 			label,
 			rootUri: URI.revive(rootUri),
+			selector,
 			getOriginalResource: async (uri: URI) => {
 				return URI.revive(await this.proxy.$provideOriginalResource(handle, uri, new CancellationTokenSource().token));
 			}

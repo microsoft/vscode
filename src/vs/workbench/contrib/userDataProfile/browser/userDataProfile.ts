@@ -127,7 +127,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const that = this;
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() {
-				return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name);
+				return localize('profiles', "Profiles ({0})", that.userDataProfileService.currentProfile.name);
 			},
 			submenu: ProfilesMenu,
 			group: '1_profiles',
@@ -136,7 +136,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			get title() {
-				return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name);
+				return localize('profiles', "Profiles ({0})", that.userDataProfileService.currentProfile.name);
 			},
 			submenu: ProfilesMenu,
 			group: '1_profiles',

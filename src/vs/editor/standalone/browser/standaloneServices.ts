@@ -57,7 +57,6 @@ import { IContextMenuService, IContextViewDelegate, IContextViewService } from '
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -982,11 +981,10 @@ class StandaloneContextMenuService extends ContextMenuService {
 		@INotificationService notificationService: INotificationService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(telemetryService, notificationService, contextViewService, keybindingService, themeService, menuService, contextKeyService);
+		super(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		this.configure({ blockMouse: false }); // we do not want that in the standalone editor
 	}
 }

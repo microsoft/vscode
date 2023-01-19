@@ -46,7 +46,7 @@ suite('QuickFixAddon', () => {
 			rows: 30
 		});
 		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(ITerminalContributionService, { quickFixes: new Promise((r) => { r([]); }) } as Partial<ITerminalContributionService>);
+		instantiationService.stub(ITerminalContributionService, { quickFixes: Promise.resolve([]) } as Partial<ITerminalContributionService>);
 		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event, onDidRegisterCommandSelector: new Emitter().event } as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
