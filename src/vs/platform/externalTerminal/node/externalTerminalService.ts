@@ -230,7 +230,6 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 			// For WSL terminals on Windows, run in a local terminal a shell that executes wsl
 			// using the correct distro
 			execPromise = Promise.resolve(settings.windowsExec || 'cmd.exe');
-			termArgs.push('wsl.exe', '-d', process.env.WSL_DISTRO_NAME);
 		} else if (settings.linuxExec) {
 			execPromise = Promise.resolve(settings.linuxExec);
 		} else {
@@ -241,13 +240,22 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
 			execPromise.then(exec => {
-				if (exec.indexOf('gnome-terminal') >= 0) {
-					termArgs.push('-x');
+				if (process.env.WSL_DISTRO_NAME) {
+					if (path.basename(exec, '.exe') === 'wt') {
+						termArgs.push('cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
+					} else {
+						exec = 'cmd.exe';
+						termArgs.push('/c', 'start', 'cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
+					}
 				} else {
-					termArgs.push('-e');
+					if (exec.indexOf('gnome-terminal') >= 0) {
+						termArgs.push('-x');
+					} else {
+						termArgs.push('-e');
+					}
+					termArgs.push('bash');
+					termArgs.push('-c');
 				}
-				termArgs.push('bash');
-				termArgs.push('-c');
 
 				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
