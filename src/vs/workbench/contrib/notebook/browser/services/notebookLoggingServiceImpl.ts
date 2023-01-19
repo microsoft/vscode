@@ -61,7 +61,7 @@ export class NotebookLoggingService extends Disposable implements INotebookLoggi
 		}
 
 		const channel = this._getOrCreateOutputChannel();
-		channel.append(`[${category}] ${output}`);
+		channel.append(`[${category}] ${output}\n`);
 	}
 }
 
