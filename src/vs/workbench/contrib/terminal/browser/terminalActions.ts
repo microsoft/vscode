@@ -112,7 +112,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(t.isRemote ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
-		console.log('sendText', resolvedText);
 		t.sendText(resolvedText, false);
 	});
 };

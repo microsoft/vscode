@@ -107,6 +107,7 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 
+	# Conditionally enable suggestions
 	if ($env:VSCODE_SUGGEST -eq '1') {
 		Remove-Item Env:VSCODE_SUGGEST
 
@@ -135,51 +136,17 @@ function Send-Completions {
 
 	# Get completions
 	$result = "`e]633;Completions"
-	if ($completionPrefix.Length -gt 0) {# TODO: Send bell instead?
+	if ($completionPrefix.Length -gt 0) {
 		# Get and send completions
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			# $serialized = $completions.CompletionMatches.ForEach({ $_.CompletionText + '<SP>' + $_.ToolTip })
-			$serialized = $completions.CompletionMatches | ConvertTo-Json -Compress
-			# $result += $([system.String]::Join("<CL>", $serialized))
-			$result += $serialized
+			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
 		}
 	}
 	$result += "`a"
 
 	Write-Host -NoNewLine $result
 }
-
-# function Send-Completions {	# Get current command line
-# 	$commandLine = ""
-# 	# TODO: Take cursor into account
-# 	$cursorIndex = 0
-# 	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
-# 	#       last space and then filter on the client side? That would let you trigger ctrl+space
-# 	#       anywhere on a word and have full completions available
-# 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
-# 	# Get and send completions
-# 	$completionPrefix = $commandLine
-# 	if ($completionPrefix.Length -eq 0) {# TODO: Send bell instead?
-# 		$result = "`e]633;Completions`a"
-# 		Write-Host -NoNewLine $result
-# 		return
-# 	}
-# 	$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-# 	if ($null -eq $completions.CompletionMatches) {
-# 		# TODO: Refine completion sequence
-# 		# TODO: Send bell instead?
-# 		$result = "`e]633;Completions`a"
-# 	} else {
-# 		$result = "`e]633;Completions;$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-# 		# $serialized = $completions.CompletionMatches.ForEach({ $_.CompletionText + '<SP>' + $_.ToolTip })
-# 		$serialized = $completions.CompletionMatches | ConvertTo-Json -Compress
-# 		# $result += $([system.String]::Join("<CL>", $serialized))
-# 		$result += $serialized
-# 		$result += "`a"
-# 	}
-# 	Write-Host -NoNewLine $result
-# }
 
 Set-MappedKeyHandlers
