@@ -497,9 +497,8 @@ export class Git {
 							),
 						);
 						if (networkPath !== undefined) {
-							// Git repositories can be located at the root of a mapped drive.
-							// In such a case we have to append `\` (ex: D:\) otherwise the path
-							// is not valid.
+							// If the repository is at the root of the mapped drive then we
+							// have to append `\` (ex: D:\) otherwise the path is not valid.
 							const isDriveRoot = pathEquals(repoUri.fsPath, networkPath);
 
 							return path.normalize(
