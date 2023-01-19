@@ -922,7 +922,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
 			],
 			tags: ['notebookLayout'],
-			default: 'all'
+			default: 'mru'
 		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
