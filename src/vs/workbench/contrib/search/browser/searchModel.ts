@@ -33,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { minimapFindMatch, overviewRulerFindMatchForeground, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 // import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -665,7 +665,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 					overviewRuler: {
 						color: overviewRulerSelectionHighlightForeground,
 						modelRanges: [match.range()],
-						includeOutput: false
+						includeOutput: false,
+						position: NotebookOverviewRulerLane.Center
 					}
 				}
 			} as INotebookDeltaDecoration]);
@@ -683,7 +684,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 					overviewRuler: {
 						color: overviewRulerSelectionHighlightForeground,
 						modelRanges: [],
-						includeOutput: true
+						includeOutput: true,
+						position: NotebookOverviewRulerLane.Center
 					}
 				}
 			} as INotebookDeltaDecoration]);
@@ -724,7 +726,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 					overviewRuler: {
 						color: overviewRulerFindMatchForeground,
 						modelRanges: cellFindMatch.contentMatches.map(match => match.range),
-						includeOutput: cellFindMatch.webviewMatches.length > 0
+						includeOutput: cellFindMatch.webviewMatches.length > 0,
+						position: NotebookOverviewRulerLane.Center
 					}
 				}
 			};

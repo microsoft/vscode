@@ -27,8 +27,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
-// import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-
 export class RemoteSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
@@ -39,7 +37,6 @@ export class RemoteSearchService extends SearchService {
 		@IFileService fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		// @INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 		const searchProvider = this.instantiationService.createInstance(LocalFileSearchWorkerClient);

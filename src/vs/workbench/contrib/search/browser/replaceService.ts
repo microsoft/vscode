@@ -123,9 +123,6 @@ export class ReplaceService implements IReplaceService {
 			}
 		});
 
-
-		// const notebookPromises = edits.notebookEdits.map(async e => this.editorService.save([...this.editorService.findEditors(e.resource)]));
-
 		return Promises.settled(rawTextPromises);
 	}
 

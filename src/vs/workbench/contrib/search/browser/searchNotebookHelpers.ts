@@ -94,20 +94,3 @@ export function notebookEditorMatchesToTextSearchResults(cellFindMatches: CellFi
 		return notebookEditorMatchToTextSearchResult(sameLineMatches, previewOptions);
 	}).filter((elem): elem is NotebookTextSearchMatch => !!elem);
 }
-
-// export function addContextToNotebookEditorMatches(cellFindMatches: CellFindMatchWithIndex[], query: ITextQuery): ITextSearchResult[] {
-// 	const results: ITextSearchResult[] = [];
-
-// 	// we need a cell and all of its corresponding textmatches
-// 	// ^ we need this split by webview and content matches
-
-// 	//
-// 	cellFindMatches.forEach(findMatch => {
-// 		findMatch.contentMatches.forEach(contentMatch => {
-// 			const result = addContextToEditorMatches()
-// 		})
-// 	})
-
-
-// 	return results;
-// }
