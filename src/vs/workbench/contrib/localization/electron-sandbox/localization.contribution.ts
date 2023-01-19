@@ -108,6 +108,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
+				const fullLocale = locale;
 				let tagResult = await this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None);
 				if (tagResult.total === 0) {
 					// Trim the locale and try again.
@@ -125,9 +126,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, searchLocale)])
+				Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 					.then(([manifest, translation]) => {
-						const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.find(x => locale.startsWith(x.languageId.toLowerCase()));
+						const loc = manifest?.contributes?.localizations && manifest.contributes.localizations.find(x => locale.startsWith(x.languageId.toLowerCase()));
 						const languageName = loc ? (loc.languageName || locale) : locale;
 						const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
 						const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
@@ -187,7 +188,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								label: localize('neverAgain', "Don't Show Again"),
 								isSecondary: true,
 								run: () => {
-									languagePackSuggestionIgnoreList.push(locale);
+									languagePackSuggestionIgnoreList.push(fullLocale);
 									this.storageService.store(
 										LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 										JSON.stringify(languagePackSuggestionIgnoreList),
@@ -210,9 +211,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	private async isLocaleInstalled(locale: string): Promise<boolean> {
 		const installed = await this.extensionManagementService.getInstalled();
 		return installed.some(i => !!(i.manifest
-			&& i.manifest.contributes
-			&& i.manifest.contributes.localizations
-			&& i.manifest.contributes.localizations.length
+			&& i.manifest.contributes?.localizations?.length
 			&& i.manifest.contributes.localizations.some(l => locale.startsWith(l.languageId.toLowerCase()))));
 	}
 
