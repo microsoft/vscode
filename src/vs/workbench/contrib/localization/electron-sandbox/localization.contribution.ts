@@ -128,7 +128,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 				Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 					.then(([manifest, translation]) => {
-						const loc = manifest?.contributes?.localizations && manifest.contributes.localizations.find(x => locale.startsWith(x.languageId.toLowerCase()));
+						const loc = manifest?.contributes?.localizations?.find(x => locale.startsWith(x.languageId.toLowerCase()));
 						const languageName = loc ? (loc.languageName || locale) : locale;
 						const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
 						const translationsFromPack: { [key: string]: string } = translation?.contents?.['vs/workbench/contrib/localization/electron-sandbox/minimalTranslations'] ?? {};
@@ -210,9 +210,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private async isLocaleInstalled(locale: string): Promise<boolean> {
 		const installed = await this.extensionManagementService.getInstalled();
-		return installed.some(i => !!(i.manifest
-			&& i.manifest.contributes?.localizations?.length
-			&& i.manifest.contributes.localizations.some(l => locale.startsWith(l.languageId.toLowerCase()))));
+		return installed.some(i => !!i.manifest.contributes?.localizations?.length
+			&& i.manifest.contributes.localizations.some(l => locale.startsWith(l.languageId.toLowerCase())));
 	}
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
