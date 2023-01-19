@@ -199,6 +199,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			keybindingLabel: defaultKeybindingLabelStyles,
 			list: getListStyles({
 				listBackground: quickInputBackground,
+				listFocusBackground: quickInputListFocusBackground,
+				listFocusForeground: quickInputListFocusForeground,
 				// Look like focused when inactive.
 				listInactiveFocusForeground: quickInputListFocusForeground,
 				listInactiveSelectionIconForeground: quickInputListFocusIconForeground,
