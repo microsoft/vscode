@@ -943,9 +943,19 @@ export interface ITerminalInstance {
 	selectPreviousSuggestion(): void;
 
 	/**
+	 * Selects the previous page suggestion if the suggest widget is visible.
+	 */
+	selectPreviousPageSuggestion(): void;
+
+	/**
 	 * Selects the next suggestion if the suggest widget is visible.
 	 */
 	selectNextSuggestion(): void;
+
+	/**
+	 * Selects the next page suggestion if the suggest widget is visible.
+	 */
+	selectNextPageSuggestion(): void;
 
 	/**
 	 * Accepts the current suggestion if the suggest widget is visible.
@@ -1066,7 +1076,9 @@ export const enum TerminalDataTransfers {
 
 export interface ISuggestController {
 	selectPreviousSuggestion(): void;
+	selectPreviousPageSuggestion(): void;
 	selectNextSuggestion(): void;
+	selectNextPageSuggestion(): void;
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
 	hideSuggestWidget(): void;
 	/**

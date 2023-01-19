@@ -559,8 +559,26 @@ export class SimpleSuggestWidget implements IDisposable {
 		return true;
 	}
 
+	selectNextPage(): boolean {
+		this._list.focusNextPage();
+		const focus = this._list.getFocus();
+		if (focus.length > 0) {
+			this._list.reveal(focus[0]);
+		}
+		return true;
+	}
+
 	selectPrevious(): boolean {
 		this._list.focusPrevious(1, true);
+		const focus = this._list.getFocus();
+		if (focus.length > 0) {
+			this._list.reveal(focus[0]);
+		}
+		return true;
+	}
+
+	selectPreviousPage(): boolean {
+		this._list.focusPreviousPage();
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
 			this._list.reveal(focus[0]);

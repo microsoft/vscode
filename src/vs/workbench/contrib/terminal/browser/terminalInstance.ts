@@ -2336,8 +2336,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm?.suggestController?.selectPreviousSuggestion();
 	}
 
+	selectPreviousPageSuggestion(): void {
+		this.xterm?.suggestController?.selectPreviousPageSuggestion();
+	}
+
 	selectNextSuggestion(): void {
 		this.xterm?.suggestController?.selectNextSuggestion();
+	}
+
+	selectNextPageSuggestion(): void {
+		this.xterm?.suggestController?.selectNextPageSuggestion();
 	}
 
 	async acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): Promise<void> {

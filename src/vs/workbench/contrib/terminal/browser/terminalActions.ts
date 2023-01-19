@@ -2217,7 +2217,8 @@ export function registerTerminalActions() {
 			getCommandHistory(accessor).clear();
 			clearShellFileHistory();
 		}
-	}); registerAction2(class extends Action2 {
+	});
+	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: TerminalCommandId.SelectPrevSuggestion,
@@ -2239,6 +2240,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.SelectPrevPageSuggestion,
+				title: { value: localize('workbench.action.terminal.selectPrevPageSuggestion', "Select the Previous Page Suggestion"), original: 'Select the Previous Page Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Up is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.PageUp,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectPreviousPageSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.SelectNextSuggestion,
 				title: { value: localize('workbench.action.terminal.selectNextSuggestion', "Select the Next Suggestion"), original: 'Select the Next Suggestion' },
 				f1: false,
@@ -2253,6 +2273,25 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectNextSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SelectNextPageSuggestion,
+				title: { value: localize('workbench.action.terminal.selectNextPageSuggestion', "Select the Next Page Suggestion"), original: 'Select the Next Page Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Down is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.PageDown,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectNextPageSuggestion());
 		}
 	});
 	registerAction2(class extends Action2 {

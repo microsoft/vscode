@@ -337,8 +337,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.selectPrevious();
 	}
 
+	selectPreviousPageSuggestion(): void {
+		this._suggestWidget?.selectPreviousPage();
+	}
+
 	selectNextSuggestion(): void {
 		this._suggestWidget?.selectNext();
+	}
+
+	selectNextPageSuggestion(): void {
+		this._suggestWidget?.selectNextPage();
 	}
 
 	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void {
