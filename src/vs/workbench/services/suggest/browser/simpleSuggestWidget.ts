@@ -143,7 +143,6 @@ export class SimpleSuggestWidget implements IDisposable {
 		this._disposables.add(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = new List('SuggestWidget', this._listElement, {
-			// TODO: Proper getHeight
 			getHeight: (_element: SimpleCompletionItem): number => this._getLayoutInfo().itemHeight,
 			getTemplateId: (_element: SimpleCompletionItem): string => 'suggestion'
 		}, [renderer], {
@@ -187,12 +186,9 @@ export class SimpleSuggestWidget implements IDisposable {
 			}
 		});
 
-		// TODO: Use real menu
 		if (options.statusBarMenuId) {
 			this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId);
-			// TODO: Setting?
-			const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', true);
-			applyStatusBarStyle();
+			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
 		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
