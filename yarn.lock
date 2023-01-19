@@ -1140,10 +1140,12 @@
   resolved "https://registry.yarnpkg.com/@types/windows-mutex/-/windows-mutex-0.4.0.tgz#d27070418aa26047c6c860c704952ff26aeb961b"
   integrity sha512-zUMH4nutIURLARU6f10Ls6XcZWhUkwmzVEALs26dt1ZbaLv/qxsGdYiePUbwhQmrQUp3EPZ1HxopWpzzC8ot5A==
 
-"@types/windows-process-tree@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.2.0.tgz#2fa205c838a8ef0a07697cd747c954653978d22c"
-  integrity sha512-vQAnkWpMX4HUPjubkxKta4Rfh2EDy2ksalnr37gFHNrmk+uxx50PRH+/fM5nTsEBCi4ESFT/7t7Za3jGqyTZ4g==
+"@types/windows-process-tree@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.3.1.tgz#193a91d7f320104b31c19da3e28e7904115c526b"
+  integrity sha512-moISLLGHvTr4jS4WnAAe5xeyk+Ow/fJmKnJhzmJswji17S3T5QZZOUidzTVPyg+IMciXKWA1ImOMzns+/Alt3A==
+  dependencies:
+    windows-process-tree "*"
 
 "@types/winreg@^1.2.30":
   version "1.2.30"
@@ -7602,7 +7604,7 @@ mute-stream@0.0.7:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
   integrity sha1-MHXOk7whuPq0PhvE2n6BFe0ee6s=
 
-nan@^2.12.1, nan@^2.13.2:
+nan@^2.12.1:
   version "2.14.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
@@ -7611,6 +7613,11 @@ nan@^2.14.0:
   version "2.15.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.15.0.tgz#3f34a473ff18e15c1b5626b62903b5ad6e665fee"
   integrity sha512-8ZtvEnA2c5aYCZYd1cvgdnU6cqwixRoYg70xPLWUws5ORTa/lnw+u4amixRS/Ac5U5mQVgp9pnlSUnbNWFaWZQ==
+
+nan@^2.17.0:
+  version "2.17.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
+  integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
 
 nanoid@3.3.1:
   version "3.3.1"
@@ -11583,12 +11590,12 @@ windows-mutex@0.4.1:
     bindings "^1.2.1"
     nan "^2.14.0"
 
-windows-process-tree@0.3.4:
-  version "0.3.4"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.4.tgz#6bc4b8010129c30ff95bcd333b9f94744dd3c4fb"
-  integrity sha512-rtSX73i9OnkDxSdBP9c1YBunEwheZdO/hjRwNk9uSoWqO92x0zDRGfIIK0MtUn8gZZD+2kPEVpj5MmfNl7JpJA==
+windows-process-tree@*, windows-process-tree@0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.4.0.tgz#31ac49c5da557e628ce7e37a5800972173d3349a"
+  integrity sha512-9LunDnc1WwuhyLeTAXMFX8wbActGJtDCBaiapQXFYk/nO4W4X9YxOKV5g/lQL3XX69QYxveDbjVVrdnTt1qqCQ==
   dependencies:
-    nan "^2.13.2"
+    nan "^2.17.0"
 
 word-wrap@^1.2.3, word-wrap@~1.2.3:
   version "1.2.3"
