@@ -62,7 +62,7 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 	}
 
 	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		return new Logger(this.channel, file, logLevel, options);
+		return new Logger(this.channel, file, logLevel, options, this.windowId);
 	}
 
 	public static setLogLevel(channel: IChannel, level: LogLevel): Promise<void>;
@@ -83,10 +83,11 @@ class Logger extends AbstractMessageLogger {
 		private readonly file: URI,
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
+		windowId?: number | undefined
 	) {
 		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
-		this.channel.call('createLogger', [file, loggerOptions])
+		this.channel.call('createLogger', [file, loggerOptions, windowId])
 			.then(() => {
 				this.doLog(this.buffer);
 				this.isLoggerCreated = true;

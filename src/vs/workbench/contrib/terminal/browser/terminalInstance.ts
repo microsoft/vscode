@@ -220,6 +220,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
+	private _accessibilityBuffer: HTMLElement | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1098,6 +1099,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
+	}
+
+	focusAccessibilityBuffer(): void {
+		if (!this.xterm?.raw.element) {
+			return;
+		}
+		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
+		if (!this._accessibilityBuffer) {
+			return;
+		}
+		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
+		const cellHeight = this._configHelper.getFont((this.xterm.raw as any)._core)?.charHeight || undefined;
+		this._accessibilityBuffer.style.lineHeight = cellHeight ? (this._configurationService.getValue(TerminalSettingId.LineHeight) as number) * cellHeight + 'px' : '';
+		this._accessibilityBuffer.focus();
 	}
 
 	private _setShellIntegrationContextKey(): void {

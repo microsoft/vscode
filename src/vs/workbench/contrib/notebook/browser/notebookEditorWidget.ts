@@ -84,10 +84,10 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { BaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 const $ = DOM.$;
 
@@ -185,6 +185,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _shadowElement?: HTMLElement;
 	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 
+	private _listStyleOverride = {
+		listBackground: notebookEditorBackground,
+		listActiveSelectionBackground: notebookEditorBackground,
+		listActiveSelectionForeground: foreground,
+		listFocusAndSelectionBackground: notebookEditorBackground,
+		listFocusAndSelectionForeground: foreground,
+		listFocusBackground: notebookEditorBackground,
+		listFocusForeground: foreground,
+		listHoverForeground: foreground,
+		listHoverBackground: notebookEditorBackground,
+		listHoverOutline: focusBorder,
+		listFocusOutline: focusBorder,
+		listInactiveSelectionBackground: notebookEditorBackground,
+		listInactiveSelectionForeground: foreground,
+		listInactiveFocusBackground: notebookEditorBackground,
+		listInactiveFocusOutline: notebookEditorBackground,
+	};
+
 	private readonly _editorFocus: IContextKey<boolean>;
 	private readonly _outputFocus: IContextKey<boolean>;
 	private readonly _editorEditable: IContextKey<boolean>;
@@ -269,7 +287,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@ILogService private readonly logService: ILogService
+		@INotebookLoggingService readonly logService: INotebookLoggingService,
 	) {
 		super();
 
@@ -847,23 +865,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				initialSize: this._dimension,
 				styleController: (_suffix: string) => { return this._list; },
-				overrideStyles: {
-					listBackground: notebookEditorBackground,
-					listActiveSelectionBackground: notebookEditorBackground,
-					listActiveSelectionForeground: foreground,
-					listFocusAndSelectionBackground: notebookEditorBackground,
-					listFocusAndSelectionForeground: foreground,
-					listFocusBackground: notebookEditorBackground,
-					listFocusForeground: foreground,
-					listHoverForeground: foreground,
-					listHoverBackground: notebookEditorBackground,
-					listHoverOutline: focusBorder,
-					listFocusOutline: focusBorder,
-					listInactiveSelectionBackground: notebookEditorBackground,
-					listInactiveSelectionForeground: foreground,
-					listInactiveFocusBackground: notebookEditorBackground,
-					listInactiveFocusOutline: notebookEditorBackground,
-				},
+				overrideStyles: this._listStyleOverride,
 				accessibilityProvider: {
 					getAriaLabel: (element: CellViewModel) => {
 						if (!this.viewModel) {
@@ -1502,15 +1504,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
 
-		this.logService.trace('NotebookEditorWidget.warmup', this.viewModel?.uri.toString());
+		this.logService.log('NotebookEditorWidget', 'warmup ' + this.viewModel?.uri.toString());
 		await this._resolveWebview();
-		this.logService.trace('NotebookEditorWidget.warmup - webview resolved');
+		this.logService.log('NotebookEditorWidget', 'warmup - webview resolved');
 
 		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
 		this._webview!.element.style.visibility = 'hidden';
 		// warm up can take around 200ms to load markdown libraries, etc.
 		await this._warmupViewport(viewModel, viewState);
-		this.logService.trace('NotebookEditorWidget.warmup - viewport warmed up');
+		this.logService.log('NotebookEditorWidget', 'warmup - viewport warmed up');
 
 		// todo@rebornix @mjbvz, is this too complicated?
 
@@ -1529,7 +1531,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
 		this._debug('finish initial viewport warmup and view state restore.');
 		this._webview!.element.style.visibility = 'visible';
-		this.logService.trace('NotebookEditorWidget.warmup - list view model attached, set to visible');
+		this.logService.log('NotebookEditorWidget', 'warmup - list view model attached, set to visible');
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
@@ -1733,12 +1735,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const newCellListHeight = Math.max(newBodyHeight - topInserToolbarHeight, 0);
 		if (this._list.getRenderHeight() < newCellListHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight, overrideStyles: this._listStyleOverride });
 			this._list.layout(newCellListHeight, dimension.width);
 		} else {
 			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
 			this._list.layout(newCellListHeight, dimension.width);
-			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight, overrideStyles: this._listStyleOverride });
 		}
 
 		this._overlayContainer.style.visibility = 'visible';
@@ -2150,15 +2152,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			deferred.complete(undefined);
 		};
 
-		if (context === CellLayoutContext.Fold) {
-			doLayout();
-		} else {
+		if (this._list.inRenderingTransaction) {
 			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout);
 
 			this._pendingLayouts?.set(cell, toDisposable(() => {
 				layoutDisposable.dispose();
 				deferred.complete(undefined);
 			}));
+		} else {
+			doLayout();
 		}
 
 		return deferred.p;
