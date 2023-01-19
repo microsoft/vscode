@@ -706,6 +706,11 @@ export interface ITerminalInstance {
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
+	 * Focuses the terminal buffer accessibility element
+	 */
+	focusAccessibilityBuffer(): void;
+
+	/**
 	 * Check if anything is selected in terminal.
 	 */
 	hasSelection(): boolean;
