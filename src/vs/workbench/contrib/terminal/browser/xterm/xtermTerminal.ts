@@ -37,12 +37,15 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-
-// How long in milliseconds should an average frame take to render for a notification to appear
-// which suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 50;
-const NUMBER_OF_FRAMES_TO_MEASURE = 20;
-const SMOOTH_SCROLL_DURATION = 125;
+const enum RenderConstants {
+	/**
+	 * How long in milliseconds should an average frame take to render for a notification to appear
+	 * which suggests the fallback DOM-based renderer.
+	 */
+	SlowCanvasRenderThreshold = 50,
+	NumberOfFramestoMeasure = 20,
+	SmoothScrollDuration = 125
+}
 
 let CanvasAddon: typeof CanvasAddonType;
 let SearchAddon: typeof SearchAddonType;
@@ -136,6 +139,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
+	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -205,6 +209,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
+			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
 			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
@@ -216,7 +221,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10,
-			smoothScrollDuration: config.smoothScrolling ? SMOOTH_SCROLL_DURATION : 0
+			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -301,6 +306,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
+		this.raw.options.tabStopWidth = config.tabStopWidth;
 		this.raw.options.fastScrollSensitivity = config.fastScrollSensitivity;
 		this.raw.options.scrollSensitivity = config.mouseWheelScrollSensitivity;
 		this.raw.options.macOptionIsMeta = config.macOptionIsMeta;
@@ -310,7 +316,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		this.raw.options.smoothScrollDuration = config.smoothScrolling ? SMOOTH_SCROLL_DURATION : 0;
+		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else {
@@ -620,7 +626,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			frameTimes.shift();
 
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
-			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
+			if (medianTime > RenderConstants.SlowCanvasRenderThreshold) {
 				if (this._configHelper.config.gpuAcceleration === 'auto') {
 					XtermTerminal._suggestedRendererType = 'dom';
 					this.updateConfig();
@@ -653,7 +659,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			const startTime = performance.now();
 			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
 			frameTimes.push(performance.now() - startTime);
-			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
+			if (frameTimes.length === RenderConstants.NumberOfFramestoMeasure) {
 				evaluateCanvasRenderer();
 				// Restore original function
 				textRenderLayer.onGridChanged = originalOnGridChanged;

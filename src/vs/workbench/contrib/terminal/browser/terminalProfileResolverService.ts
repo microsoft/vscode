@@ -19,7 +19,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry, IIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/arrays';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -37,16 +37,16 @@ export interface IProfileContextProvider {
 
 const generatedProfileName = 'Generated';
 
-/*
-* Resolves terminal shell launch config and terminal
-* profiles for the given operating system,
-* environment, and user configuration
-*/
-
-const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
+const enum StorageKeys {
+	ShouldPromptForProfileMigration = 'terminals.integrated.profile-migration'
+}
 
 let migrationMessageShown = false;
 
+/*
+ * Resolves terminal shell launch config and terminal profiles for the given operating system,
+ * environment, and user configuration.
+ */
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	declare _serviceBrand: undefined;
 
@@ -243,12 +243,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			return this._terminalProfileService.availableProfiles.find(e => e.profileName === defaultProfileName);
-		}
-
-		return undefined;
+		return this._terminalProfileService.getDefaultProfile(os);
 	}
 
 	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
@@ -294,14 +289,18 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 
-		// Try select an existing profile to fallback to, based on the default system shell
-		let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
-		if (existingProfile) {
-			if (options.allowAutomationShell) {
-				existingProfile = deepClone(existingProfile);
-				existingProfile.icon = Codicon.tools;
+		// Try select an existing profile to fallback to, based on the default system shell, only do
+		// this when it is NOT a local terminal in a remote window where the front and back end OS
+		// differs (eg. Windows -> WSL, Mac -> Linux)
+		if (options.os === OS) {
+			let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
+			if (existingProfile) {
+				if (options.allowAutomationShell) {
+					existingProfile = deepClone(existingProfile);
+					existingProfile.icon = Codicon.tools;
+				}
+				return existingProfile;
 			}
-			return existingProfile;
 		}
 
 		// Finally fallback to a generated profile
@@ -482,7 +481,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + this._primaryBackendOs) ||
 			!!this._configurationService.inspect(TerminalSettingPrefix.ShellArgs + this._primaryBackendOs).userValue) &&
 			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + this._primaryBackendOs);
-		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
+		if (shouldMigrateToProfile && this._storageService.getBoolean(StorageKeys.ShouldPromptForProfileMigration, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
 			this._notificationService.prompt(
 				Severity.Info,
 				localize('terminalProfileMigration', "The terminal is using deprecated shell/shellArgs settings, do you want to migrate it to a profile?"),
@@ -513,7 +512,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 					} as IPromptChoice,
 				],
 				{
-					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
+					neverShowAgain: { id: StorageKeys.ShouldPromptForProfileMigration, scope: NeverShowAgainScope.WORKSPACE }
 				}
 			);
 			migrationMessageShown = true;

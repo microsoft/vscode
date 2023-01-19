@@ -43,7 +43,6 @@ import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbe
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { staticObservableValue } from 'vs/base/common/observableValue';
 
 // declare var __dirname: string;
 
@@ -183,7 +182,7 @@ suite.skip('TextSearch performance (integration)', () => {
 
 class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: undefined;
-	public telemetryLevel = staticObservableValue(TelemetryLevel.USAGE);
+	public telemetryLevel = TelemetryLevel.USAGE;
 	public sendErrorTelemetry = true;
 
 	public events: any[] = [];

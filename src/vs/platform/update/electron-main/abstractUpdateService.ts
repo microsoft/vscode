@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { getMigratedSettingValue, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -74,7 +74,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateMode = this.getUpdateMode();
+		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
@@ -104,10 +104,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 		}
-	}
-
-	protected getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
-		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
@@ -188,7 +184,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
-		const mode = await this.getUpdateMode();
+		const mode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
 
 		if (mode === 'none') {
 			return false;

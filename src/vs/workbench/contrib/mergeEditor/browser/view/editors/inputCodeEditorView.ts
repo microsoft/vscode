@@ -8,6 +8,7 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
@@ -415,7 +416,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			autorun('Update Checkbox', (reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
+				const iconMap: Record<InputState, { icon: ThemeIcon | undefined; checked: boolean; title: string }> = {
 					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
 					[InputState.unrecognized]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
 					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },

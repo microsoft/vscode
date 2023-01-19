@@ -112,7 +112,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 
 	private _scheduleRender(): void {
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
+			this._renderAnimationFrame = DOM.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 16);
 		}
 	}
 
@@ -124,7 +124,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private _layoutNow() {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const height = layoutInfo.height;
-		const scrollHeight = layoutInfo.scrollHeight;
+		const contentHeight = this._diffElementViewModels.map(view => view.layoutInfo.totalHeight).reduce((a, b) => a + b, 0);
 		const ratio = browser.PixelRatio.value;
 		this._domNode.setWidth(this.width);
 		this._domNode.setHeight(height);
@@ -132,7 +132,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		this._domNode.domNode.height = height * ratio;
 		const ctx = this._domNode.domNode.getContext('2d')!;
 		ctx.clearRect(0, 0, this.width * ratio, height * ratio);
-		this._renderCanvas(ctx, this.width * ratio, height * ratio, scrollHeight * ratio, ratio);
+		this._renderCanvas(ctx, this.width * ratio, height * ratio, contentHeight * ratio, ratio);
 		this._renderOverviewViewport();
 	}
 
@@ -160,8 +160,8 @@ export class NotebookDiffOverviewRuler extends Themable {
 		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
 		const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
-		const computedSliderSize = Math.max(0, Math.floor(layoutInfo.height * computedRatio));
-		const computedSliderPosition = Math.floor(scrollTop * computedRatio);
+		const computedSliderSize = Math.max(0, Math.round(layoutInfo.height * computedRatio));
+		const computedSliderPosition = Math.round(scrollTop * computedRatio);
 
 		return {
 			height: computedSliderSize,
@@ -180,7 +180,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		for (let i = 0; i < this._diffElementViewModels.length; i++) {
 			const element = this._diffElementViewModels[i];
 
-			const cellHeight = (element.layoutInfo.totalHeight / scrollHeight) * ratio * height;
+			const cellHeight = Math.round((element.layoutInfo.totalHeight / scrollHeight) * ratio * height);
 
 			switch (element.type) {
 				case 'insert':

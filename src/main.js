@@ -99,16 +99,15 @@ if (locale) {
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
-if (product.quality === 'insider' || product.quality === 'exploration') {
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
 
-	// Pass in the locale to Electron so that the
-	// Windows Control Overlay is rendered correctly on Windows,
-	// and so that the traffic lights are rendered properly
-	// on macOS when using a custom titlebar.
-	// If the locale is `qps-ploc`, the Microsoft
-	// Pseudo Language Language Pack is being used.
-	// In that case, use `en` as the Electron locale.
-
+if (process.platform === 'win32') {
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -184,7 +183,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
@@ -576,18 +575,26 @@ async function resolveNlsConfiguration() {
 		// VS Code moves to Electron 22.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
-		if ((product.quality === 'insider' || product.quality === 'exploration')
+		if (process.platform === 'win32'
 			&& 'getPreferredSystemLanguages' in app
 			&& typeof app.getPreferredSystemLanguages === 'function'
 			&& app.getPreferredSystemLanguages().length) {
+			// Use the most preferred OS language for language recommendation.
 			appLocale = app.getPreferredSystemLanguages()[0];
 		}
+
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
 
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
+
+			if (appLocale.startsWith('zh-hans')) {
+				appLocale = 'zh-cn';
+			} else if (appLocale.startsWith('zh-hant')) {
+				appLocale = 'zh-tw';
+			}
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);

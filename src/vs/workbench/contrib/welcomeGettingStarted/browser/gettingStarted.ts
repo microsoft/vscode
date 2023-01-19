@@ -14,7 +14,8 @@ import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'v
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -29,7 +30,7 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -609,14 +610,16 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
-					postTrueKeysMessage();
-				}
-			}));
+			if (rawHTML.indexOf('<code>') >= 0) {
+				// Render again when Theme changes since syntax highlighting of code blocks may have changed
+				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+					const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
+					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+						webview.html = body;
+						postTrueKeysMessage();
+					}
+				}));
+			}
 
 			const layoutDelayer = new Delayer(50);
 
@@ -702,7 +705,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('getStarted', "Get Started")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -849,9 +852,9 @@ export class GettingStartedPage extends EditorPane {
 			let windowOpenable: IWindowOpenable;
 			if (isRecentFolder(recent)) {
 				windowOpenable = { folderUri: recent.folderUri };
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
 			} else {
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 
@@ -1115,7 +1118,7 @@ export class GettingStartedPage extends EditorPane {
 
 		if (toSide && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT, { activate: true });
 
 				const gettingStartedSize = Math.floor(fullSize.width / 2);
 

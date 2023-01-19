@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from 'vs/base/common/assert';
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
+import { matchesSubString } from 'vs/base/common/filters';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -14,25 +16,23 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
-import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextModel } from 'vs/editor/common/model';
+import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
+import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { assertNever } from 'vs/base/common/assert';
-import { matchesSubString } from 'vs/base/common/filters';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetParser, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -507,6 +507,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!completion) {
 			return;
 		}
+
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
 			this.commit(completion);
@@ -522,7 +523,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const line = firstPart.lines[0];
 		const langId = this.editor.getModel()!.getLanguageIdAtPosition(ghostText.lineNumber, 1);
 		const config = this.languageConfigurationService.getLanguageConfiguration(langId);
-		const m = line.match(config.wordDefinition);
+		const r = new RegExp(config.wordDefinition, config.wordDefinition.flags.replace('g', ''));
+		const m = line.match(r);
 		let acceptUntilIndexExclusive = 0;
 		if (m && m.index !== undefined) {
 			if (m.index === 0) {
@@ -805,12 +807,17 @@ export async function provideInlineCompletions(
 				}
 
 				const snippet = new SnippetParser().parse(item.insertText.snippet);
-				insertText = snippet.toString();
 
-				snippetInfo = {
-					snippet: item.insertText.snippet,
-					range: range
-				};
+				if (snippet.children.length === 1 && snippet.children[0] instanceof Text) {
+					insertText = snippet.children[0].value;
+					snippetInfo = undefined;
+				} else {
+					insertText = snippet.toString();
+					snippetInfo = {
+						snippet: item.insertText.snippet,
+						range: range
+					};
+				}
 			} else {
 				assertNever(item.insertText);
 			}

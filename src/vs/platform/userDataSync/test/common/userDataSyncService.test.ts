@@ -32,8 +32,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -51,6 +49,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -69,8 +69,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Keybindings
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
@@ -85,6 +83,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -102,8 +102,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
@@ -116,6 +114,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -139,13 +139,13 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -177,7 +177,6 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
@@ -187,6 +186,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -219,9 +219,6 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
@@ -231,6 +228,9 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
@@ -322,9 +322,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Profiles
-			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
 			// Settings
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			// Keybindings
@@ -333,6 +330,9 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			// Global state
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+			// Profiles
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
@@ -452,8 +452,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: { 'If-None-Match': '1' } },
 			// Keybindings
@@ -462,6 +460,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: { 'If-None-Match': '1' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: { 'If-None-Match': '1' } },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
@@ -487,8 +487,8 @@ suite('UserDataSyncService', () => {
 
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
-			{ type: 'DELETE', url: `${target.url}/v1/resource`, headers: {} },
 			{ type: 'DELETE', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'DELETE', url: `${target.url}/v1/resource`, headers: {} },
 		]);
 
 	});
@@ -512,8 +512,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -531,6 +529,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});

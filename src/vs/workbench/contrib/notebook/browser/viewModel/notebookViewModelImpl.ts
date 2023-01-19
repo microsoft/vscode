@@ -765,6 +765,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const editingCells: { [key: number]: boolean } = {};
 		const collapsedInputCells: { [key: number]: boolean } = {};
 		const collapsedOutputCells: { [key: number]: boolean } = {};
+		const cellLineNumberStates: { [key: number]: 'on' | 'off' } = {};
 
 		this._viewCells.forEach((cell, i) => {
 			if (cell.getEditState() === CellEditState.Editing) {
@@ -778,6 +779,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (cell instanceof CodeCellViewModel && cell.isOutputCollapsed) {
 				collapsedOutputCells[i] = true;
 			}
+
+			if (cell.lineNumbers !== 'inherit') {
+				cellLineNumberStates[i] = cell.lineNumbers;
+			}
 		});
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
@@ -789,6 +794,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return {
 			editingCells,
 			editorViewStates,
+			cellLineNumberStates,
 			collapsedInputCells,
 			collapsedOutputCells
 		};
@@ -811,6 +817,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 			if (viewState.collapsedOutputCells && viewState.collapsedOutputCells[index] && cell instanceof CodeCellViewModel) {
 				cell.isOutputCollapsed = true;
+			}
+			if (viewState.cellLineNumberStates && viewState.cellLineNumberStates[index]) {
+				cell.lineNumbers = viewState.cellLineNumberStates[index];
 			}
 		});
 	}

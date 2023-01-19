@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
@@ -176,7 +176,7 @@ class InPlaceReplaceDown extends EditorAction {
 	}
 }
 
-registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController);
+registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
 

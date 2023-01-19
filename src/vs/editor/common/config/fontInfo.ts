@@ -45,7 +45,7 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public static createFromRawSettings(opts: { fontFamily?: string | string[]; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; fontVariations?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
+	public static createFromRawSettings(opts: { fontFamily?: string; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; fontVariations?: boolean | string; lineHeight?: number; letterSpacing?: number }, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
 		const fontFamily = EditorOptions.fontFamily.validate(opts.fontFamily);
 		const fontWeight = EditorOptions.fontWeight.validate(opts.fontWeight);
 		const fontSize = EditorOptions.fontSize.validate(opts.fontSize);

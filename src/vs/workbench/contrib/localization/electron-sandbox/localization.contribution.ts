@@ -57,42 +57,39 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
 		for (const e of results) {
-			if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
-				const locale = e.local.manifest.contributes.localizations[0].languageId;
-				if (platform.language !== locale) {
-					const updateAndRestart = platform.locale !== locale;
-					this.notificationService.prompt(
-						Severity.Info,
-						updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-							: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
-						[{
-							label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
-							run: () => {
-								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
-								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
-							}
-						}, {
-							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't Change Language") : localize('doNotRestart', "Don't Restart"),
-							run: () => { }
-						}],
-						{
-							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
-						}
-					);
-				}
+			if (e.operation !== InstallOperation.Install || !e.local?.manifest?.contributes?.localizations?.length) {
+				continue;
 			}
+			const languageId = e.local.manifest.contributes.localizations[0].languageId;
+			if (platform.language === languageId) {
+				continue;
+			}
+
+			this.notificationService.prompt(
+				Severity.Info,
+				localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+				[{
+					label: localize('changeAndRestart', "Change Language and Restart"),
+					run: async () => {
+						try {
+							await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: languageId }], true);
+							await this.hostService.restart();
+						} catch (e) {
+							this.notificationService.error(e);
+						}
+					}
+				}],
+				{
+					sticky: true,
+					neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+				}
+			);
 		}
 	}
 
 	private checkAndInstall(): void {
 		const language = platform.language;
-		let locale = platform.locale ?? '';
-		if (locale.startsWith('zh-hans')) {
-			locale = 'zh-cn';
-		} else if (locale.startsWith('zh-hant')) {
-			locale = 'zh-tw';
-		}
+		const locale = platform.locale ?? '';
 		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.APPLICATION, '[]'));
 
 		if (!this.galleryService.isEnabled()) {
@@ -141,9 +138,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						const translations: { [key: string]: string } = {};
 						Object.keys(minimumTranslatedStrings).forEach(key => {
 							if (!translationsFromPack[key] || useEnglish) {
-								translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
+								translations[key] = minimumTranslatedStrings[key].replace('{0}', () => languageName);
 							} else {
-								translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
+								translations[key] = `${translationsFromPack[key].replace('{0}', () => languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', () => languageName)})`;
 							}
 						});
 
@@ -173,9 +170,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 						const installAndRestartAction = {
 							label: translations['installAndRestart'],
-							run: () => {
+							run: async () => {
 								logUserReaction('installAndRestart');
-								this.installExtension(extensionToInstall!).then(() => this.hostService.restart());
+								await this.installExtension(extensionToInstall!);
+								await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
+								await this.hostService.restart();
 							}
 						};
 

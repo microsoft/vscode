@@ -88,6 +88,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/vie
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
+import 'vs/workbench/contrib/notebook/browser/contrib/kernelDetection/notebookKernelDetection';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -106,6 +107,8 @@ import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -709,6 +712,7 @@ registerSingleton(INotebookExecutionService, NotebookExecutionService, Instantia
 registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, InstantiationType.Delayed);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
+registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -898,7 +902,7 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.outputLineHeight]: {
 			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
-			default: 22,
+			default: 19,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
@@ -921,7 +925,21 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
 			],
 			tags: ['notebookLayout'],
-			default: 'all'
+			default: 'mru'
+		},
+		[NotebookSetting.outputScrolling]: {
+			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
+		[NotebookSetting.logging]: {
+			markdownDescription: nls.localize('notebook.logging', "Enable logging for notebook support."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
 		}
 	}
 });
+
+

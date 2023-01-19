@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use std::fmt::Display;
 
-use crate::constants::{APPLICATION_NAME, CONTROL_PORT, QUALITYLESS_PRODUCT_NAME};
+use crate::constants::{
+	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+};
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -169,7 +171,8 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at https://code.visualstudio.com/docs/remote/linux",
+			"{}\r\n\r\nMore info at {}/remote/linux",
+			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
 	}
@@ -242,15 +245,6 @@ pub struct NoAttachedServerError();
 impl std::fmt::Display for NoAttachedServerError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "No server is running")
-	}
-}
-
-#[derive(Debug)]
-pub struct ServerWriteError();
-
-impl std::fmt::Display for ServerWriteError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error writing to the server, it should be restarted")
 	}
 }
 
@@ -377,6 +371,15 @@ impl std::fmt::Display for WindowsNeedsElevation {
 }
 
 #[derive(Debug)]
+pub struct InvalidRpcDataError(pub String);
+
+impl std::fmt::Display for InvalidRpcDataError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "parse error: {}", self.0)
+	}
+}
+
+#[derive(Debug)]
 pub struct CorruptDownload(pub String);
 
 impl std::fmt::Display for CorruptDownload {
@@ -395,6 +398,23 @@ pub struct MissingHomeDirectory();
 impl std::fmt::Display for MissingHomeDirectory {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "Could not find your home directory. Please ensure this command is running in the context of an normal user.")
+	}
+}
+
+#[derive(Debug)]
+pub struct OAuthError {
+	pub error: String,
+	pub error_description: Option<String>,
+}
+
+impl std::fmt::Display for OAuthError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Error getting authorization: {} {}",
+			self.error,
+			self.error_description.as_deref().unwrap_or("")
+		)
 	}
 }
 
@@ -471,7 +491,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	ServerWriteError,
 	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
@@ -484,7 +503,9 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed
+	CommandFailed,
+	OAuthError,
+	InvalidRpcDataError
 );
 
 impl From<reqwest::Error> for AnyError {

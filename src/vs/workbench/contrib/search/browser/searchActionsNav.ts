@@ -90,7 +90,7 @@ registerAction2(class ToggleCaseSensitiveCommandAction extends Action2 {
 				value: nls.localize('ToggleCaseSensitiveCommandId.label', "Toggle Case Sensitive"),
 				original: 'Toggle Case Sensitive'
 			},
-			category: category,
+			category,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: isMacintosh ? ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()) : Constants.SearchViewFocusedKey,
@@ -117,7 +117,7 @@ registerAction2(class ToggleWholeWordCommandAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.SearchViewFocusedKey,
 			}, ToggleWholeWordKeybinding),
-			category: category.value,
+			category,
 		});
 	}
 
@@ -138,7 +138,7 @@ registerAction2(class ToggleRegexCommandAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.SearchViewFocusedKey,
 			}, ToggleRegexKeybinding),
-			category: category.value,
+			category,
 		});
 	}
 
@@ -159,7 +159,7 @@ registerAction2(class TogglePreserveCaseAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.SearchViewFocusedKey,
 			}, TogglePreserveCaseKeybinding),
-			category: category.value,
+			category,
 		});
 	}
 
@@ -247,7 +247,7 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 			},
-			category: category.value,
+			category,
 		});
 	}
 
@@ -359,7 +359,7 @@ registerAction2(class ToggleSearchOnTypeAction extends Action2 {
 				value: nls.localize('toggleTabs', 'Toggle Search on Type'),
 				original: 'Toggle Search on Type'
 			},
-			category: category.value,
+			category,
 		});
 
 	}
@@ -381,7 +381,7 @@ registerAction2(class FocusSearchListCommandAction extends Action2 {
 				value: nls.localize('focusSearchListCommandLabel', "Focus List"),
 				original: 'Focus List'
 			},
-			category: category,
+			category,
 			f1: true
 		});
 	}
@@ -403,7 +403,7 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 				primary: KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
-			category: category,
+			category,
 			f1: true,
 			precondition: ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor),
 		});
@@ -426,7 +426,7 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 				primary: KeyMod.Shift | KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
-			category: category,
+			category,
 			f1: true,
 			precondition: ContextKeyExpr.or(Constants.HasSearchResults, SearchEditorConstants.InSearchEditor),
 		});
@@ -449,7 +449,7 @@ registerAction2(class ReplaceInFilesAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
-			category: category,
+			category,
 			f1: true,
 			menu: [{
 				id: MenuId.MenubarEditMenu,

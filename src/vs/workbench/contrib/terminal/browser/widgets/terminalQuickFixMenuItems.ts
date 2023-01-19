@@ -3,28 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Schemas } from 'vs/base/common/network';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
-
-export const enum TerminalQuickFixType {
-	Command = 'command',
-	Opener = 'opener',
-	Port = 'port'
-}
+import { TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalAction } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 
 export class TerminalQuickFix implements IActionItem {
-	action: IAction;
-	type: string;
+	action: ITerminalAction;
+	type: TerminalQuickFixType;
 	disabled?: boolean;
 	title?: string;
-	constructor(action: IAction, type: string, title?: string, disabled?: boolean) {
+	source: string;
+	constructor(action: ITerminalAction, type: TerminalQuickFixType, source: string, title?: string, disabled?: boolean) {
 		this.action = action;
 		this.disabled = disabled;
 		this.title = title;
+		this.source = source;
 		this.type = type;
 	}
 }
@@ -57,15 +56,16 @@ export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHe
 	return menuItems;
 }
 
-function getQuickFixIcon(quickFix: TerminalQuickFix): { codicon: Codicon } {
+function getQuickFixIcon(quickFix: TerminalQuickFix): ThemeIcon {
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
-			// TODO: if it's a file link, use the open file icon
-			return { codicon: Codicon.link };
+			if ('uri' in quickFix.action && quickFix.action.uri) {
+				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
+				return isUrl ? Codicon.linkExternal : Codicon.goToFile;
+			}
 		case TerminalQuickFixType.Command:
-			return { codicon: Codicon.run };
+			return Codicon.run;
 		case TerminalQuickFixType.Port:
-			return { codicon: Codicon.debugDisconnect };
+			return Codicon.debugDisconnect;
 	}
-	return { codicon: Codicon.lightBulb };
 }

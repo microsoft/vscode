@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { IObservableValue } from 'vs/base/common/observableValue';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -53,7 +52,7 @@ export interface ITelemetryService {
 
 	setExperimentProperty(name: string, value: string): void;
 
-	readonly telemetryLevel: IObservableValue<TelemetryLevel>;
+	readonly telemetryLevel: TelemetryLevel;
 }
 
 export interface ITelemetryEndpoint {
@@ -80,6 +79,7 @@ export const machineIdKey = 'telemetry.machineId';
 // Configuration Keys
 export const TELEMETRY_SECTION_ID = 'telemetry';
 export const TELEMETRY_SETTING_ID = 'telemetry.telemetryLevel';
+export const TELEMETRY_CRASH_REPORTER_SETTING_ID = 'telemetry.enableCrashReporter';
 export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
 
 export const enum TelemetryLevel {

@@ -18,7 +18,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
-	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
@@ -121,7 +121,7 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['singleClick', 'doubleClick'],
 			enumDescriptions: [
 				localize('terminal.integrated.tabs.focusMode.singleClick', "Focus the terminal when clicking a terminal tab"),
-				localize('terminal.integrated.tabs.focusMode.doubleClick', "Focus the terminal when double clicking a terminal tab")
+				localize('terminal.integrated.tabs.focusMode.doubleClick', "Focus the terminal when double-clicking a terminal tab")
 			],
 			default: 'doubleClick',
 			description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
@@ -188,6 +188,12 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 4.5,
 			tags: ['accessibility']
+		},
+		[TerminalSettingId.TabStopWidth]: {
+			markdownDescription: localize('terminal.integrated.tabStopWidth', "The number of cells in a tab stop."),
+			type: 'number',
+			minimum: 1,
+			default: 8
 		},
 		[TerminalSettingId.FastScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
@@ -437,15 +443,21 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.WordSeparators]: {
-			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
+			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double-click to select word feature."),
 			type: 'string',
 			// allow-any-unicode-next-line
 			default: ' ()[]{}\',"`─‘’'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
-			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
-			type: 'boolean',
-			default: true
+			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in terminals. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
+			type: 'string',
+			enum: ['off', 'on', 'notRemote'],
+			enumDescriptions: [
+				localize('enableFileLinks.off', "Always off."),
+				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace."),
+				localize('enableFileLinks.on', "Always on.")
+			],
+			default: 'on'
 		},
 		[TerminalSettingId.UnicodeVersion]: {
 			type: 'string',
@@ -534,7 +546,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`'),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
 			type: 'boolean',
 			default: true
 		},

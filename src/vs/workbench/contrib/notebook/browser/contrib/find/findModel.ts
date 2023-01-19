@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration, ICellViewModel, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -481,7 +481,8 @@ export class FindModel extends Disposable {
 					overviewRuler: {
 						color: overviewRulerSelectionHighlightForeground,
 						modelRanges: [match.range],
-						includeOutput: false
+						includeOutput: false,
+						position: NotebookOverviewRulerLane.Center
 					}
 				}
 			} as INotebookDeltaDecoration]);
@@ -501,7 +502,8 @@ export class FindModel extends Disposable {
 					overviewRuler: {
 						color: overviewRulerSelectionHighlightForeground,
 						modelRanges: [],
-						includeOutput: true
+						includeOutput: true,
+						position: NotebookOverviewRulerLane.Center
 					}
 				}
 			} as INotebookDeltaDecoration]);
@@ -552,7 +554,8 @@ export class FindModel extends Disposable {
 					overviewRuler: {
 						color: overviewRulerFindMatchForeground,
 						modelRanges: cellFindMatch.contentMatches.map(match => match.range),
-						includeOutput: cellFindMatch.webviewMatches.length > 0
+						includeOutput: cellFindMatch.webviewMatches.length > 0,
+						position: NotebookOverviewRulerLane.Center
 					}
 				}
 			};

@@ -30,10 +30,11 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-class TestWebglAddon {
+class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
 	static isEnabled = false;
 	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
+	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
 	readonly onContextLoss = new Emitter().event as IEvent<void>;
 	activate() {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;

@@ -24,6 +24,7 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 // --- bisect service
 
@@ -235,11 +236,10 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const extensionManagement = accessor.get(IExtensionManagementService);
-		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
+		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 
-		const disabled = new Set(extensionEnablementService.getDisabledExtensions().map(id => id.id));
-		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => !disabled.has(ext.identifier.id));
+		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => extensionEnablementService.isEnabled(ext));
 
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),

@@ -21,7 +21,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { category, getElementsToOperateOnInfo, getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 
 
 //#region Interfaces
@@ -101,8 +101,7 @@ registerAction2(class RemoveAction extends Action2 {
 			element = viewer.getFocus()[0] ?? undefined;
 		}
 
-		const opInfo = getElementsToOperateOnInfo(viewer, element, configurationService.getValue<ISearchConfigurationProperties>('search'));
-		const elementsToRemove = opInfo.elements;
+		const elementsToRemove = getElementsToOperateOn(viewer, element, configurationService.getValue<ISearchConfigurationProperties>('search'));
 		let focusElement = viewer.getFocus()[0] ?? undefined;
 
 		if (elementsToRemove.length === 0) {
@@ -114,7 +113,8 @@ registerAction2(class RemoveAction extends Action2 {
 		}
 
 		let nextFocusElement;
-		if (opInfo.mustReselect && focusElement) {
+		const shouldRefocusMatch = shouldRefocus(elementsToRemove, focusElement);
+		if (focusElement && shouldRefocusMatch) {
 			nextFocusElement = getElementToFocusAfterRemoved(viewer, focusElement, elementsToRemove);
 		}
 
@@ -124,7 +124,7 @@ registerAction2(class RemoveAction extends Action2 {
 			searchResult.batchRemove(elementsToRemove);
 		}
 
-		if (opInfo.mustReselect && focusElement) {
+		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
 				nextFocusElement = getLastNodeFromSameType(viewer, focusElement);
 			}
@@ -276,8 +276,7 @@ function performReplace(accessor: ServicesAccessor,
 	const element: RenderableMatch | null = context?.element ?? viewer.getFocus()[0];
 
 	// since multiple elements can be selected, we need to check the type of the FolderMatch/FileMatch/Match before we perform the replace.
-	const opInfo = getElementsToOperateOnInfo(viewer, element ?? undefined, configurationService.getValue<ISearchConfigurationProperties>('search'));
-	const elementsToReplace = opInfo.elements;
+	const elementsToReplace = getElementsToOperateOn(viewer, element ?? undefined, configurationService.getValue<ISearchConfigurationProperties>('search'));
 	let focusElement = viewer.getFocus()[0];
 
 	if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (focusElement instanceof SearchResult)) {

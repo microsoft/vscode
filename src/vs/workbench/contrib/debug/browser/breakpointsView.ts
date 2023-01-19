@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -38,7 +39,8 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -1010,7 +1012,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 		return localize('breakpoints', "Breakpoints");
 	}
 
-	getRole() {
+	getRole(): AriaRole {
 		return 'checkbox';
 	}
 

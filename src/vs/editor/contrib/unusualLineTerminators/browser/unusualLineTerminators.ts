@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -57,6 +57,8 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 			}
 			this._checkForUnusualLineTerminators();
 		}));
+
+		this._checkForUnusualLineTerminators();
 	}
 
 	private async _checkForUnusualLineTerminators(): Promise<void> {
@@ -116,4 +118,4 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 	}
 }
 
-registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector);
+registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector, EditorContributionInstantiation.AfterFirstRender);

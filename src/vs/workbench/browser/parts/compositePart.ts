@@ -32,6 +32,7 @@ import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActio
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export interface ICompositeTitleLabel {
 
@@ -70,6 +71,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private contentAreaSize: Dimension | undefined;
 	private readonly telemetryActionsListener = this._register(new MutableDisposable());
 	private currentCompositeOpenToken: string | undefined;
+	private boundarySashes: IBoundarySashes | undefined;
 
 	constructor(
 		private readonly notificationService: INotificationService,
@@ -284,6 +286,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.contentAreaSize) {
 			composite.layout(this.contentAreaSize);
 		}
+
+		// Make sure boundary sashes are propagated
+		if (this.boundarySashes) {
+			composite.setBoundarySashes(this.boundarySashes);
+		}
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
@@ -482,6 +489,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Layout composite
 		this.activeComposite?.layout(this.contentAreaSize);
+	}
+
+	setBoundarySashes?(sashes: IBoundarySashes): void {
+		this.boundarySashes = sashes;
+		this.activeComposite?.setBoundarySashes(sashes);
 	}
 
 	protected removeComposite(compositeId: string): boolean {

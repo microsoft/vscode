@@ -13,7 +13,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
 import { CustomTreeView, RawCustomTreeViewContextKey, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -251,7 +251,18 @@ type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
 const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewExtensionPointType>({
 	extensionPoint: 'views',
 	deps: [viewsContainersExtensionPoint],
-	jsonSchema: viewsContribution
+	jsonSchema: viewsContribution,
+	activationEventsGenerator: (viewExtensionPointTypeArray, result) => {
+		for (const viewExtensionPointType of viewExtensionPointTypeArray) {
+			for (const viewDescriptors of Object.values(viewExtensionPointType)) {
+				for (const viewDescriptor of viewDescriptors) {
+					if (viewDescriptor.id) {
+						result.push(`onView:${viewDescriptor.id}`);
+					}
+				}
+			}
+		}
+	}
 });
 
 const CUSTOM_VIEWS_START_ORDER = 7;

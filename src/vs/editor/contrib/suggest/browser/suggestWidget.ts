@@ -26,7 +26,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionModel } from './completionModel';
@@ -34,6 +33,7 @@ import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { CompletionItem, Context as SuggestContext } from './suggest';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
+import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 /**
  * Suggest widget colors
@@ -259,15 +259,15 @@ export class SuggestWidget implements IDisposable {
 				},
 			}
 		});
+		this._list.style(getListStyles({
+			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
+			listInactiveFocusOutline: activeContrastBorder
+		}));
 
 		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode);
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 
-		this._disposables.add(attachListStyler(this._list, _themeService, {
-			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-			listInactiveFocusOutline: activeContrastBorder
-		}));
 		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t)));
 		this._onThemeChange(_themeService.getColorTheme());
 
@@ -555,9 +555,7 @@ export class SuggestWidget implements IDisposable {
 			this._list.splice(0, this._list.length, this._completionModel.items);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
-			if (!noFocus) {
-				this._list.setFocus([selectionIndex]);
-			}
+			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			this._onDidFocus.resume();
 			this._onDidSelect.resume();
@@ -572,11 +570,8 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	focusSelected(): void {
-		const selection = this._list.getSelection();
-		if (selection.length !== 1) {
+		if (this._list.length > 0) {
 			this._list.setFocus([0]);
-		} else {
-			this._list.setFocus([selection[0]]);
 		}
 	}
 
@@ -669,6 +664,7 @@ export class SuggestWidget implements IDisposable {
 			&& this._state !== State.Empty
 			&& this._state !== State.Loading
 			&& this._completionModel
+			&& this._list.getFocus().length > 0
 		) {
 
 			return {
