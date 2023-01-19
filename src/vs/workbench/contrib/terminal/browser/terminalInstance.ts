@@ -215,7 +215,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
-	private _accessibilityElement: HTMLElement | undefined;
+	private _accessibilityBuffer: HTMLElement | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1096,19 +1096,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	focusAccessibilityElement(): void {
+	focusAccessibilityBuffer(): void {
 		if (!this.xterm?.raw.element) {
 			return;
 		}
-		this._accessibilityElement = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement | undefined;
-		if (!this._accessibilityElement) {
+		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
+		if (!this._accessibilityBuffer) {
 			return;
 		}
-		const fontFamily = this._configurationService.getValue(TerminalSettingId.FontFamily) || 'Monospace';
-		const fontSize = this._configurationService.getValue(TerminalSettingId.FontSize);
-		this._accessibilityElement.style.fontFamily = fontFamily ? fontFamily.toString() : '';
-		this._accessibilityElement.style.fontSize = fontSize ? fontSize + 'px' : '';
-		this._accessibilityElement.focus();
+		this._accessibilityBuffer.focus();
 	}
 
 	private _setShellIntegrationContextKey(): void {

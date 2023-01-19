@@ -708,7 +708,7 @@ export interface ITerminalInstance {
 	/**
 	 * Focuses the terminal buffer accessibility element
 	 */
-	focusAccessibilityElement(): void;
+	focusAccessibilityBuffer(): void;
 
 	/**
 	 * Check if anything is selected in terminal.
