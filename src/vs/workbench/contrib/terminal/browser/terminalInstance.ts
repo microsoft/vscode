@@ -2704,9 +2704,10 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _buildContent(): void {
 		const runRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.runRecentCommand')?.getAriaLabel();
 		const goToRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.goToRecentDirectory')?.getAriaLabel();
-		const enterAccessibilityMode = this._keybindingService.lookupKeybinding('workbench.action.terminal.enterAccessibilityMode')?.getAriaLabel();
+		const enterAccessibilityModeLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.enterAccessibilityMode')?.getAriaLabel();
+		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
 		let content = nls.localize('introMsg', "Welcome to Terminal Accessibility Help\n\n");
-		content += strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the terminal buffer'), enterAccessibilityMode);
+		content += strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the terminal buffer'), enterAccessibilityModeLabel);
 		content += '\n';
 		if (this._hasShellIntegration) {
 			content += nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience. \nIt provides some useful commands for screen readers such as  ");
@@ -2715,6 +2716,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 			content += strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel);
 			content += '\n';
 		}
+		content += strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal'), openDetectedLinkLabel);
 		content += nls.localize('minContrastRatio', "The setting terminal.integrated.minimumContrastRatio takes a number between 1 and 21 and will adjust the text color luminance to meet this.\n");
 		content += nls.localize('dismiss', "You can dismiss this by pressing Escape or focusing elsewhere.\n");
 		this._contentDomNode.domNode.appendChild(renderFormattedText(content));
