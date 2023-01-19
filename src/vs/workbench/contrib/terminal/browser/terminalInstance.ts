@@ -2739,9 +2739,9 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
 		const content = [];
 		content.push(nls.localize('introMsg', "Welcome to Terminal Accessibility Help"));
-		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read the content of the terminal.'), enterAccessibilityModeLabel));
+		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.'), enterAccessibilityModeLabel));
 		if (this._hasShellIntegration) {
-			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration which offers an enhanced experience and provides some useful commands for screen readers such as:"));
+			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
 			content.push('- ' + strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel));
 			content.push('- ' + strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel));
 		}
