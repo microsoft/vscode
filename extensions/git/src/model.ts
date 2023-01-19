@@ -164,6 +164,16 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		return this._parentRepositories;
 	}
 
+	/**
+	 * We maintain a map containing both the path and the canonical path of the
+	 * workspace folders. We are doing this as `git.exe` expands the symbolic links
+	 * while there are scenarios in which VS Code does not.
+	 *
+	 * Key   - path of the workspace folder
+	 * Value - canonical path of the workspace folder
+	 */
+	private _workspaceFolders = new Map<string, string>();
+
 	private disposables: Disposable[] = [];
 
 	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private logger: LogOutputChannel, private telemetryReporter: TelemetryReporter) {
@@ -188,6 +198,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 		const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
+		// Initialize the workspace folders set
+		for (const workspaceFolder of workspace.workspaceFolders ?? []) {
+			this._workspaceFolders.set(workspaceFolder.uri.fsPath, await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' }));
+		}
+
+		// Initial repository scan function
 		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
@@ -319,6 +335,15 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
+		for (const workspaceFolder of added) {
+			if (!this._workspaceFolders.has(workspaceFolder.uri.fsPath)) {
+				this._workspaceFolders.set(workspaceFolder.uri.fsPath, await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' }));
+			}
+		}
+		for (const workspaceFolder of removed) {
+			this._workspaceFolders.delete(workspaceFolder.uri.fsPath);
+		}
+
 		const possibleRepositoryFolders = added
 			.filter(folder => !this.getOpenRepository(folder.uri));
 
@@ -430,8 +455,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			}
 
 			// Handle git repositories that are in parent folders
-			const isRepositoryOutsideWorkspace = (workspace.workspaceFolders ?? [])
-				.find(f => pathEquals(f.uri.fsPath, repositoryRoot) || isDescendant(f.uri.fsPath, repositoryRoot)) === undefined;
+			const isRepositoryOutsideWorkspace = Array.from(this._workspaceFolders.values())
+				.find(workspaceFolder => pathEquals(workspaceFolder, repositoryRoot) || isDescendant(workspaceFolder, repositoryRoot)) === undefined;
 			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
 			if (isRepositoryOutsideWorkspace && parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
