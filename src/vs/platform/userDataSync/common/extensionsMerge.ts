@@ -15,7 +15,7 @@ export interface IMergeResult {
 	readonly remote: { added: ISyncExtension[]; removed: ISyncExtension[]; updated: ISyncExtension[]; all: ISyncExtension[] } | null;
 }
 
-export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: IRemoteSyncExtension[] | null, lastSyncExtensions: IRemoteSyncExtension[] | null, skippedExtensions: ISyncExtension[], ignoredExtensions: string[], lastSyncBuiltinExtensions: IExtensionIdentifier[]): IMergeResult {
+export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: IRemoteSyncExtension[] | null, lastSyncExtensions: IRemoteSyncExtension[] | null, skippedExtensions: ISyncExtension[], ignoredExtensions: string[], lastSyncBuiltinExtensions: IExtensionIdentifier[] | null): IMergeResult {
 	const added: ISyncExtension[] = [];
 	const removed: IExtensionIdentifier[] = [];
 	const updated: ISyncExtension[] = [];
@@ -64,10 +64,10 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 		const uuid = uuids.get(id.toLowerCase());
 		return set.add(uuid ? `uuid:${uuid}` : `id:${id.toLowerCase()}`);
 	}, new Set<string>());
-	const lastSyncBuiltinExtensionsSet = lastSyncBuiltinExtensions.reduce((set, { id, uuid }) => {
+	const lastSyncBuiltinExtensionsSet = lastSyncBuiltinExtensions ? lastSyncBuiltinExtensions.reduce((set, { id, uuid }) => {
 		uuid = uuid ?? uuids.get(id.toLowerCase());
 		return set.add(uuid ? `uuid:${uuid}` : `id:${id.toLowerCase()}`);
-	}, new Set<string>());
+	}, new Set<string>()) : null;
 
 	const localToRemote = compare(localExtensionsMap, remoteExtensionsMap, ignoredExtensionsSet, false);
 	if (localToRemote.added.size > 0 || localToRemote.removed.size > 0 || localToRemote.updated.size > 0) {
@@ -117,7 +117,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 			}
 
 			const baseExtension = assertIsDefined(lastSyncExtensionsMap?.get(key));
-			const wasAnInstalledExtensionDuringLastSync = !lastSyncBuiltinExtensionsSet.has(key) && baseExtension.installed;
+			const wasAnInstalledExtensionDuringLastSync = lastSyncBuiltinExtensionsSet && !lastSyncBuiltinExtensionsSet.has(key) && baseExtension.installed;
 			if (localExtension.installed && wasAnInstalledExtensionDuringLastSync /* It is an installed extension now and during last sync */) {
 				// Installed extension is removed from remote. Remove it from local.
 				removed.push(localExtension.identifier);
@@ -160,7 +160,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 
 			// Also exist in local
 			if (localExtension) {
-				const wasAnInstalledExtensionDuringLastSync = !lastSyncBuiltinExtensionsSet.has(key) && baseExtension.installed;
+				const wasAnInstalledExtensionDuringLastSync = lastSyncBuiltinExtensionsSet && !lastSyncBuiltinExtensionsSet.has(key) && baseExtension.installed;
 				if (wasAnInstalledExtensionDuringLastSync && localExtension.installed && !remoteExtension.installed) {
 					// Remove it locally if it is installed locally and not remotely
 					removed.push(localExtension.identifier);
@@ -219,6 +219,10 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 			}
 			// Skip if it is a builtin extension
 			if (!assertIsDefined(remoteExtensionsMap.get(key)).installed) {
+				continue;
+			}
+			// Skip if last sync builtin extensions set is not available
+			if (!lastSyncBuiltinExtensionsSet) {
 				continue;
 			}
 			// Skip if it was a builtin extension during last sync
