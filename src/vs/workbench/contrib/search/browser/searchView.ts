@@ -21,6 +21,7 @@ import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -1769,14 +1770,15 @@ export class SearchView extends ViewPane {
 	}
 
 	private shouldOpenInNotebookEditor(uri: URI): boolean {
-		return this.notebookService.getContributedNotebookTypes(uri).length > 0;
+		//
+		return uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0;
 	}
 
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
 		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<FileMatch>lineMatch).resource;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(resource))) ?
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(lineMatch instanceof NotebookMatch) && !(this.shouldOpenInNotebookEditor(resource))) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
 	}
