@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from 'vs/base/common/uri';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IUserDataProfileImportExportService, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class UserDataProfilePreviewContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
-		@IProductService productService: IProductService,
 		@IUserDataProfileImportExportService userDataProfileImportExportService: IUserDataProfileImportExportService
 	) {
 		super();
-		if (environmentService.options?.profile) {
-			userDataProfileImportExportService.importProfile(toUserDataProfileUri(environmentService.options?.profile, productService), { donotPrompt: true, previewAsTempProfile: true });
+		if (environmentService.options?.profileToPreview) {
+			userDataProfileImportExportService.importProfile(URI.revive(environmentService.options.profileToPreview), { donotPrompt: true, previewAsTempProfile: true });
 		}
 	}
 

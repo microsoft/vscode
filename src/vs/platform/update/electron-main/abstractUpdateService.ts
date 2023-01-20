@@ -190,11 +190,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return false;
 		}
 
-		const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+		try {
+			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			// The update server replies with 204 (No Content) when no
+			// update is available - that's all we want to know.
+			return context.res.statusCode === 204;
 
-		// The update server replies with 204 (No Content) when no
-		// update is available - that's all we want to know.
-		return context.res.statusCode === 204;
+		} catch (error) {
+			this.logService.error('update#isLatestVersion(): failed to check for updates');
+			this.logService.error(error);
+			return undefined;
+		}
 	}
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
