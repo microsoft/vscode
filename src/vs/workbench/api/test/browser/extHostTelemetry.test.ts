@@ -10,7 +10,7 @@ import { DEFAULT_LOG_LEVEL, LogLevel } from 'vs/platform/log/common/log';
 import { ITelemetryInfo, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TestTelemetryLoggerService } from 'vs/platform/telemetry/test/common/telemetryLogAppender.test';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostTelemetry, ExtHostTelemetryLogger } from 'vs/workbench/api/common/extHostTelemetry';
 import { IEnvironment } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import type { TelemetrySender } from 'vscode';
@@ -90,6 +90,31 @@ suite('ExtHostTelemetry', function () {
 		const logger = extensionTelemetry.instantiateLogger(mockExtensionIdentifier, appender);
 		return logger;
 	};
+
+	test('Validate sender instances', function () {
+		assert.throws(() => ExtHostTelemetryLogger.validateSender(<any>null));
+		assert.throws(() => ExtHostTelemetryLogger.validateSender(<any>1));
+		assert.throws(() => ExtHostTelemetryLogger.validateSender(<any>{}));
+		assert.throws(() => {
+			ExtHostTelemetryLogger.validateSender(<any>{
+				sendErrorData: () => { },
+				sendEventData: true
+			});
+		});
+		assert.throws(() => {
+			ExtHostTelemetryLogger.validateSender(<any>{
+				sendErrorData: 123,
+				sendEventData: () => { },
+			});
+		});
+		assert.throws(() => {
+			ExtHostTelemetryLogger.validateSender(<any>{
+				sendErrorData: () => { },
+				sendEventData: () => { },
+				flush: true
+			});
+		});
+	});
 
 	test('Ensure logger gets proper telemetry level during initialization', function () {
 		const extensionTelemetry = createExtHostTelemetry();
