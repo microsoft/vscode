@@ -17,7 +17,6 @@ import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -30,6 +29,8 @@ import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
+import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
 
 const enum CellEditorRevealType {
 	Line,
@@ -76,6 +77,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
+	override readonly view!: NotebookCellListView<CellViewModel>;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -140,6 +142,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this._webviewElement;
 	}
 
+	get inRenderingTransaction() {
+		return this.view.inRenderingTransaction;
+	}
+
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
@@ -149,11 +155,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._viewContext = viewContext;
 		this._previousFocusedElements = this.getFocusedElements();
@@ -274,6 +279,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 			updateVisibleRanges();
 		}));
+	}
+
+	protected override createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<CellViewModel>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<CellViewModel>): IListView<CellViewModel> {
+		return new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
 	}
 
 	attachWebview(element: HTMLElement) {
@@ -1173,7 +1182,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change.
 
-		if (this.view.elementTop(index) >= this.view.scrollTop) {
+		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
 			return this.view.updateElementHeight(index, size, index);
 		}
 
@@ -1228,11 +1237,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			}
+			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
 		if (styles.listFocusBackground) {

@@ -929,6 +929,7 @@ export const NotebookSetting = {
 	outputFontFamily: 'notebook.outputFontFamily',
 	kernelPickerType: 'notebook.kernelPicker.type',
 	outputScrolling: 'notebook.experimental.outputScrolling',
+	logging: 'notebook.logging',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1059,4 +1060,5 @@ export interface INotebookKernelSourceAction {
 	readonly description?: string;
 	readonly detail?: string;
 	readonly command?: string | Command;
+	readonly documentation?: UriComponents | string;
 }

@@ -27,9 +27,7 @@ import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
@@ -92,7 +90,6 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
@@ -132,24 +129,10 @@ export class DebugHoverWidget implements IContentWidget {
 		this.toDispose.push(this.scrollbar);
 
 		this.editor.applyFontInfo(this.domNode);
+		this.domNode.style.backgroundColor = asCssVariable(editorHoverBackground);
+		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
+		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
-		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder, editorHoverForeground }, colors => {
-			if (colors.editorHoverBackground) {
-				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
-			} else {
-				this.domNode.style.backgroundColor = '';
-			}
-			if (colors.editorHoverBorder) {
-				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
-			} else {
-				this.domNode.style.border = '';
-			}
-			if (colors.editorHoverForeground) {
-				this.domNode.style.color = colors.editorHoverForeground.toString();
-			} else {
-				this.domNode.style.color = '';
-			}
-		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();

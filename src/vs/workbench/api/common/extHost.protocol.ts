@@ -1055,8 +1055,9 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
 	$removeKernelDetectionTask(handle: number): void;
 
-	$addKernelSourceActionProvider(handle: number, notebookType: string): Promise<void>;
-	$removeKernelSourceActionProvider(handle: number): void;
+	$addKernelSourceActionProvider(handle: number, eventHandle: number, notebookType: string): Promise<void>;
+	$removeKernelSourceActionProvider(handle: number, eventHandle: number): void;
+	$emitNotebookKernelSourceActionsChangeEvent(eventHandle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -1238,7 +1239,7 @@ export interface MainThreadSCMShape extends IDisposable {
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
-	$registerQuickDiffProvider(handle: number, label: string, rootUri: UriComponents | undefined): Promise<void>;
+	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 

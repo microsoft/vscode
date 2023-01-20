@@ -8,7 +8,7 @@
 	align-items: baseline;
 	display: flex;
 	flex-direction: column;
-	background-color: transparent!important;
+	background-color: transparent !important;
 	user-select: initial;
 	-webkit-user-select: initial;
 	position: relative;
@@ -541,4 +541,21 @@
 .monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:active,
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+.monaco-workbench .terminal-accessibility-help {
+	z-index: 35;
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	top: 0;
+	margin: auto;
+	text-align: left;
+	background-color: var(--vscode-menu-background);
+	min-width: 10%;
+	width: fit-content;
+	max-width: 70%;
+	vertical-align: middle;
+	border: 2px solid var(--vscode-contrastBorder);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }

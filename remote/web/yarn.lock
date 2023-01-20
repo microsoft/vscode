@@ -68,10 +68,10 @@ vscode-textmate@8.0.0:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-8.0.0.tgz#2c7a3b1163ef0441097e0b5d6389cd5504b59e5d"
   integrity sha512-AFbieoL7a5LMqcnOF04ji+rpXadgOXnZsxQr//r83kLPr7biP7am3g9zbaZIaBGwBRWeSvoMD4mgPdX3e4NWBg==
 
-xterm-addon-canvas@0.4.0-beta.6:
-  version "0.4.0-beta.6"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.4.0-beta.6.tgz#f8cb09ef980f1fa9d73f067e00f7a879c374ad68"
-  integrity sha512-x5OY0VOJxqvXdyXpW9aug3vaeQX/+r7TZk13MujReuJRLRAjCHaH6ep6g9ZOVlqa8VCBWPwmm/eXH05SGUbnQQ==
+xterm-addon-canvas@0.4.0-beta.7:
+  version "0.4.0-beta.7"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.4.0-beta.7.tgz#ae365d8e10c900292186529f70f7f275ac94b3d5"
+  integrity sha512-r1hbQTsulI49orR5G3qWrJCwn2dKsEUCrgj6xsmgXuTeoUcGfed6lly+MvYlL3P8aPrxS2fC2TEzSM0Au4SX+w==
 
 xterm-addon-search@0.11.0:
   version "0.11.0"
@@ -88,7 +88,7 @@ xterm-addon-webgl@0.15.0-beta.4:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.15.0-beta.4.tgz#d03a98e446372a5dbb7d92075d1f125eec23b030"
   integrity sha512-W9N0+5i3trQhgBOHDsnNiBbBiJpleFenY668wWaZ9GlvWseCTnjnWis1kfnM9WASDh/0+7aOjWrD089o+QeHGQ==
 
-xterm@5.2.0-beta.10:
-  version "5.2.0-beta.10"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.0-beta.10.tgz#33e67a8397937dd8b731a2f315c67f4bd63f3c28"
-  integrity sha512-3zVxU/0XrUWpvOIU/KkXREweq7hCxNGFt4asT4D/SsRlRKYOnO+vooz1CjLO6USY++iHXicgf8PdgRDeYj5fFQ==
+xterm@5.2.0-beta.17:
+  version "5.2.0-beta.17"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.0-beta.17.tgz#034bf7cac9aff2adc0f2958e09a62203ace7c48e"
+  integrity sha512-pLkLhWh1XPkZnSNyxY1A/2WOzMRq0axJO69vCV+gu6/do3W/EeMtyPqwZSmIHF9s37t3CQlN8RsMHUpdR61VCQ==

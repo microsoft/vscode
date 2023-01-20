@@ -10,22 +10,15 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, isUserDataProfileTemplate, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -54,7 +47,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
-		@IProductService private readonly productService: IProductService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
@@ -64,8 +56,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
-
-		this.registerConfiguration();
 
 		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
 		PROFILES_ENABLEMENT_CONTEXT.bindTo(contextKeyService).set(this.userDataProfilesService.isEnabled());
@@ -91,23 +81,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.reportWorkspaceProfileInfo();
 	}
 
-	private registerConfiguration(): void {
-		if (this.productService.quality === 'stable') {
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-				...workbenchConfigurationNodeBase,
-				'properties': {
-					[PROFILES_ENABLEMENT_CONFIG]: {
-						'type': 'boolean',
-						'default': false,
-						'description': localize('workbench.experimental.profiles.enabled', "Controls whether to enable the Profiles preview feature."),
-						scope: ConfigurationScope.APPLICATION,
-						ignoreSync: true
-					}
-				}
-			});
-		}
-	}
-
 	private registerActions(): void {
 		this.registerProfileSubMenu();
 
@@ -124,19 +97,20 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerProfileSubMenu(): void {
-		const that = this;
+		const getProfilesTitle = () => {
+			return localize('profiles', "Profiles ({0})", this.userDataProfileService.currentProfile.name);
+		};
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() {
-				return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name);
+				return getProfilesTitle();
 			},
 			submenu: ProfilesMenu,
 			group: '1_profiles',
 			order: 1,
-			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			get title() {
-				return localize('profile', "{0} (Profile)", that.userDataProfileService.currentProfile.name);
+				return getProfilesTitle();
 			},
 			submenu: ProfilesMenu,
 			group: '1_profiles',
@@ -228,7 +202,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '2_manage_current',
-							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 3
 						}, {
 							id: MenuId.CommandPalette
@@ -262,7 +235,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '4_import_export_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 1
 						}, {
 							id: MenuId.CommandPalette
@@ -301,7 +273,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						original: 'Import Profile...'
 					},
 					category: PROFILES_CATEGORY,
-					f1: true,
 					precondition: IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT.toNegated(),
 					menu: [
 						{
@@ -309,6 +280,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							group: '4_import_export_profiles',
 							when: PROFILES_ENABLEMENT_CONTEXT,
 							order: 2
+						}, {
+							id: MenuId.CommandPalette,
+							when: PROFILES_ENABLEMENT_CONTEXT,
 						}
 					]
 				});
@@ -317,23 +291,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async run(accessor: ServicesAccessor) {
 				const fileDialogService = accessor.get(IFileDialogService);
 				const quickInputService = accessor.get(IQuickInputService);
-				const fileService = accessor.get(IFileService);
-				const requestService = accessor.get(IRequestService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
-				const dialogService = accessor.get(IDialogService);
-				const contextKeyService = accessor.get(IContextKeyService);
 				const notificationService = accessor.get(INotificationService);
-
-				const isSettingProfilesEnabled = contextKeyService.contextMatchesRules(PROFILES_ENABLEMENT_CONTEXT);
-
-				if (!isSettingProfilesEnabled) {
-					if (!(await dialogService.confirm({
-						title: localize('import profile title', "Import Settings from a Profile"),
-						message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
-					})).confirmed) {
-						return;
-					}
-				}
 
 				const disposables = new DisposableStore();
 				const quickPick = disposables.add(quickInputService.createQuickPick());
@@ -351,16 +310,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				disposables.add(quickPick.onDidAccept(async () => {
 					try {
 						quickPick.hide();
-						if (isSettingProfilesEnabled) {
-							const profile = quickPick.selectedItems[0].description ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
-							if (profile) {
-								await userDataProfileImportExportService.importProfile(profile);
-							}
-						} else {
-							const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
-							if (profile) {
-								await userDataProfileImportExportService.setProfile(profile);
-							}
+						const profile = quickPick.selectedItems[0].description ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
+						if (profile) {
+							await userDataProfileImportExportService.importProfile(profile);
 						}
 					} catch (error) {
 						notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
@@ -382,28 +334,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					return null;
 				}
 				return profileLocation[0];
-			}
-
-			private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IUserDataProfileTemplate | null> {
-				const profileLocation = await this.getProfileUriFromFileSystem(fileDialogService);
-				if (!profileLocation) {
-					return null;
-				}
-				const content = (await fileService.readFile(profileLocation)).value.toString();
-				const parsed = JSON.parse(content);
-				return isUserDataProfileTemplate(parsed) ? parsed : null;
-			}
-
-			private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
-				const options = { type: 'GET', url };
-				const context = await requestService.request(options, CancellationToken.None);
-				if (context.res.statusCode === 200) {
-					const result = await asJson(context);
-					return isUserDataProfileTemplate(result) ? result : null;
-				} else {
-					const message = await asText(context);
-					throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
-				}
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {

@@ -9,6 +9,7 @@ import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
 import { observableValue, transaction } from 'vs/base/common/observable';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -270,6 +271,39 @@ suite('Event', function () {
 		doc.setText('3');
 	});
 
+
+	test('Debounce Event (microtask)', function (done: () => void) {
+		const doc = new Samples.Document3();
+
+		const onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
+			if (!prev) {
+				prev = [cur];
+			} else if (prev.indexOf(cur) < 0) {
+				prev.push(cur);
+			}
+			return prev;
+		}, MicrotaskDelay);
+
+		let count = 0;
+
+		onDocDidChange(keys => {
+			count++;
+			assert.ok(keys, 'was not expecting keys.');
+			if (count === 1) {
+				doc.setText('4');
+				assert.deepStrictEqual(keys, ['1', '2', '3']);
+			} else if (count === 2) {
+				assert.deepStrictEqual(keys, ['4']);
+				done();
+			}
+		});
+
+		doc.setText('1');
+		doc.setText('2');
+		doc.setText('3');
+	});
+
+
 	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
 		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
@@ -286,7 +320,7 @@ suite('Event', function () {
 		assert.strictEqual(calls, 1);
 	});
 
-	test('Debounce Event - leading', async function () {
+	test('Debounce Event - leading (2)', async function () {
 		const emitter = new Emitter<void>();
 		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
 

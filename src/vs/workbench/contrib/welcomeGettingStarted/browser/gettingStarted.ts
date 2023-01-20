@@ -532,10 +532,10 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: {}, extension: undefined }));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
-			webview.html = await this.detailsRenderer.renderSVG(media.path);
+			webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
 
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -544,7 +544,7 @@ export class GettingStartedPage extends EditorPane {
 				// Render again since color vars change
 				const body = await this.detailsRenderer.renderSVG(media.path);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
+					webview.setHtml(body);
 				}
 			}));
 
@@ -573,11 +573,11 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, extension: undefined }));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, title: '', extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
 			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-			webview.html = rawHTML;
+			webview.setHtml(rawHTML);
 
 			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
 				.replace(/&#39;/g, '\'')
@@ -615,7 +615,7 @@ export class GettingStartedPage extends EditorPane {
 				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 					const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-						webview.html = body;
+						webview.setHtml(body);
 						postTrueKeysMessage();
 					}
 				}));

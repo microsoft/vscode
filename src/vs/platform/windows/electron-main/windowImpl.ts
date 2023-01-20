@@ -668,7 +668,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
@@ -809,7 +809,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const telemetryService = new TelemetryService(config, this.configurationService, this.productService);
 
 			type WindowAdminErrorClassification = {
-				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 				owner: 'bpasero';
 				comment: 'Provides insight into reasons the vscode window had an error when running as admin.';
@@ -910,10 +910,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
-		const newMenuBarVisibility = this.getMenuBarVisibility();
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.setMenuBarVisibility(newMenuBarVisibility);
+		if (!e || e.affectsConfiguration('window.menuBarVisibility')) {
+			const newMenuBarVisibility = this.getMenuBarVisibility();
+			if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+				this.currentMenuBarVisibility = newMenuBarVisibility;
+				this.setMenuBarVisibility(newMenuBarVisibility);
+			}
 		}
 
 		// Proxy
@@ -1089,7 +1091,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
+		configuration.loggers = {
+			window: this.loggerMainService.getRegisteredLoggers(this.id),
+			global: this.loggerMainService.getRegisteredLoggers()
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

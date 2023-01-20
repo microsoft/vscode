@@ -28,9 +28,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
@@ -399,7 +397,6 @@ export class SearchWidget extends Widget {
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService
 	) {
@@ -414,19 +411,10 @@ export class SearchWidget extends Widget {
 
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
-			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
-				this.countElement.style.backgroundColor = background;
-
-				this.countElement.style.borderWidth = border ? '1px' : '';
-				this.countElement.style.borderStyle = border ? 'solid' : '';
-				this.countElement.style.borderColor = border;
-
-				const color = this.themeService.getColorTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : '';
-			}));
+			this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
+			this.countElement.style.color = asCssVariable(badgeForeground);
+			this.countElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 		}
 
 		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');

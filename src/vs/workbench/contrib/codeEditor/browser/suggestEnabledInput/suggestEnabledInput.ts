@@ -6,10 +6,8 @@
 import 'vs/css!./suggestEnabledInput';
 import { $, Dimension, append } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
@@ -26,14 +24,12 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { IThemable } from 'vs/base/common/styler';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
@@ -89,29 +85,21 @@ interface SuggestEnabledInputOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+
+	/**
+	 * Override the default styling of the input.
+	 */
+	styleOverrides?: ISuggestEnabledInputStyleOverrides;
 }
 
-export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
+export interface ISuggestEnabledInputStyleOverrides {
 	inputBackground?: ColorIdentifier;
 	inputForeground?: ColorIdentifier;
 	inputBorder?: ColorIdentifier;
 	inputPlaceholderForeground?: ColorIdentifier;
 }
 
-type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
-};
-
-export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		inputBackground: style?.inputBackground || inputBackground,
-		inputForeground: style?.inputForeground || inputForeground,
-		inputBorder: style?.inputBorder || inputBorder,
-		inputPlaceholderForeground: style?.inputPlaceholderForeground || inputPlaceholderForeground,
-	} as ISuggestEnabledInputStyleOverrides, widget);
-}
-
-export class SuggestEnabledInput extends Widget implements IThemable {
+export class SuggestEnabledInput extends Widget {
 
 	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
@@ -254,6 +242,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				};
 			}
 		}));
+
+		this.style(options.styleOverrides || {});
 	}
 
 	protected getScopedContextKeyService(_contextKeyService: IContextKeyService): IContextKeyService | undefined {
@@ -276,20 +266,17 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		return this.inputWidget.getValue();
 	}
 
-	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
-
+	private style(styleOverrides: ISuggestEnabledInputStyleOverrides): void {
+		this.stylingContainer.style.backgroundColor = asCssVariable(styleOverrides.inputBackground ?? inputBackground);
+		this.stylingContainer.style.color = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
+		this.placeholderText.style.color = asCssVariable(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
-		this.stylingContainer.style.borderColor = colors.inputBorder ?
-			colors.inputBorder.toString() :
-			'transparent';
+		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
+			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
 		}
 	}
 

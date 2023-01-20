@@ -55,6 +55,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import * as strings from 'vs/base/common/strings';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -92,6 +93,11 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 
 const enum Constants {
 	/**
@@ -215,6 +221,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
+	private _accessibilityBuffer: HTMLElement | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -370,6 +377,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
+		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
@@ -586,6 +594,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel()));
+		this._register(this.onDidBlur(() => this.xterm?.suggestController?.hideSuggestWidget()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -735,7 +744,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
+		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this._terminalSuggestWidgetVisibleContextKey, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
@@ -749,6 +758,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.sendText(e.command.command, e.noNewLine ? false : true);
 			}
 		});
+		this.xterm.onDidRequestFocus(() => this.focus());
+		this.xterm.onDidRequestSendText(e => this.sendText(e, false));
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		const initialTextWrittenPromise = this._shellLaunchConfig.initialText ? new Promise<void>(r => this._writeInitialText(xterm, r)) : undefined;
@@ -1095,6 +1106,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	focusAccessibilityBuffer(): void {
+		if (!this.xterm?.raw.element) {
+			return;
+		}
+		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
+		if (!this._accessibilityBuffer) {
+			return;
+		}
+		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
+		const font = this.xterm.getFont();
+		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
+		this._accessibilityBuffer.style.lineHeight = lineHeight;
+		this._accessibilityBuffer.focus();
+	}
+
 	private _setShellIntegrationContextKey(): void {
 		if (this.xterm) {
 			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
@@ -1119,6 +1145,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	hasSelection(): boolean {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
+	}
+
+	showAccessibilityHelp(): void {
+		if (!this.xterm?.raw.buffer || !this._container) {
+			return;
+		}
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
 	}
 
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
@@ -1335,6 +1368,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Send it to the process
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
+		this.xterm?.suggestController?.handleNonXtermData(text);
 		this.xterm?.scrollToBottom();
 	}
 
@@ -1956,11 +1990,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		if (xterm && xterm.textarea) {
-			let label: string;
+			let label: string = '';
 			if (title && title.length > 0) {
 				label = nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title);
 			} else {
 				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
+			}
+			const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (screenReaderOptimized && isMacintosh) {
+				label += nls.localize('terminalTextBoxAriaLabelMacKeybinding', 'Press alt+f1 for terminal accessibility help');
+			} else if (screenReaderOptimized) {
+				label += nls.localize('terminalTextBoxAriaLabelLinuxWinKeybinding', 'Press shift+f1 for terminal accessibility help');
 			}
 			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
 			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
@@ -2326,6 +2366,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.hide();
 		document.body.removeChild(styleElement);
 	}
+
+	selectPreviousSuggestion(): void {
+		this.xterm?.suggestController?.selectPreviousSuggestion();
+	}
+
+	selectPreviousPageSuggestion(): void {
+		this.xterm?.suggestController?.selectPreviousPageSuggestion();
+	}
+
+	selectNextSuggestion(): void {
+		this.xterm?.suggestController?.selectNextSuggestion();
+	}
+
+	selectNextPageSuggestion(): void {
+		this.xterm?.suggestController?.selectNextPageSuggestion();
+	}
+
+	async acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): Promise<void> {
+		this.xterm?.suggestController?.acceptSelectedSuggestion(suggestion);
+	}
+
+	hideSuggestWidget(): void {
+		this.xterm?.suggestController?.hideSuggestWidget();
+	}
 }
 
 class TerminalInstanceDragAndDropController extends Disposable implements dom.IDragAndDropObserverCallbacks {
@@ -2626,4 +2690,71 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
+	readonly id = 'help';
+	private _container: HTMLElement | undefined;
+	private _domNode: FastDomNode<HTMLElement>;
+	private _contentDomNode: FastDomNode<HTMLElement>;
+	constructor(
+		private readonly _hasShellIntegration: boolean,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
+		super();
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode.setClassName('terminal-accessibility-help');
+		this._contentDomNode.setAttribute('role', 'document');
+		this._domNode.setDisplay('none');
+		this._domNode.setAttribute('role', 'dialog');
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.appendChild(this._contentDomNode);
+		this.onblur(this._contentDomNode.domNode, () => this.hide());
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Escape) {
+				this.hide();
+			}
+		}));
+	}
+
+	public hide(): void {
+		if (!this._container) {
+			return;
+		}
+		this._domNode.setDisplay('none');
+		this._contentDomNode.setDisplay('none');
+		this._domNode.setAttribute('aria-hidden', 'true');
+	}
+
+	attach(container: HTMLElement): void {
+		this._container = container;
+		this._domNode.setDisplay('block');
+		this._domNode.setAttribute('aria-hidden', 'false');
+		this._contentDomNode.domNode.tabIndex = 0;
+		this._buildContent();
+		container.appendChild(this._contentDomNode.domNode);
+		this._contentDomNode.domNode.focus();
+	}
+
+	private _buildContent(): void {
+		const runRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.runRecentCommand')?.getAriaLabel();
+		const goToRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.goToRecentDirectory')?.getAriaLabel();
+		const enterAccessibilityModeLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.enterAccessibilityMode')?.getAriaLabel();
+		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
+		const content = [];
+		content.push(nls.localize('introMsg', "Welcome to Terminal Accessibility Help"));
+		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.'), enterAccessibilityModeLabel));
+		if (this._hasShellIntegration) {
+			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
+			content.push('- ' + strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel));
+			content.push('- ' + strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel));
+		}
+		content.push(strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), openDetectedLinkLabel));
+		content.push(strings.format(nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.')));
+		content.push(nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere."));
+		const joinedContent = content.join('\n\n');
+		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
+		this._contentDomNode.domNode.setAttribute('aria-label', joinedContent);
+	}
 }

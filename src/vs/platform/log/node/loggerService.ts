@@ -11,6 +11,6 @@ import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 export class LoggerService extends AbstractLoggerService implements ILoggerService {
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		return new SpdLogLogger(options?.name || generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
+		return new SpdLogLogger(generateUuid(), resource.fsPath, !options?.donotRotate, !!options?.donotUseFormatters, logLevel);
 	}
 }

@@ -10,14 +10,13 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { IAsyncDataSource, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
+import { IListService, IWorkbenchAsyncDataTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -29,26 +28,12 @@ import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { basename } from 'vs/base/common/resources';
 import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
 export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
-
-export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
-	hasChildren(element: any): boolean {
-		return (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) && !(element instanceof CommentNode);
-	}
-
-	getChildren(element: any): any[] | Promise<any[]> {
-		if (element instanceof CommentsModel) {
-			return Promise.resolve(element.resourceCommentThreads);
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return Promise.resolve(element.commentThreads);
-		}
-		return Promise.resolve([]);
-	}
-}
 
 interface IResourceTemplateData {
 	resourceLabel: IResourceLabel;
@@ -252,7 +237,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 }
 
 export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
-	overrideStyles?: IColorMapping;
+	overrideStyles?: IStyleOverride<IListStyles>;
 }
 
 const enum FilterDataType {
@@ -277,6 +262,10 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 	constructor(public options: FilterOptions) { }
 
 	filter(element: ResourceWithCommentThreads | CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+		if (this.options.filter === '' && this.options.showResolved && this.options.showUnresolved) {
+			return TreeVisibility.Visible;
+		}
+
 		if (element instanceof ResourceWithCommentThreads) {
 			return this.filterResourceMarkers(element);
 		} else {
@@ -340,7 +329,7 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 	}
 }
 
-export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
+export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
 	constructor(
 		labels: ResourceLabels,
 		container: HTMLElement,
@@ -352,7 +341,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const delegate = new CommentsModelVirualDelegate();
-		const dataSource = new CommentsAsyncDataSource();
 
 		const renderers = [
 			instantiationService.createInstance(ResourceWithCommentsRenderer, labels),
@@ -364,7 +352,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 			container,
 			delegate,
 			renderers,
-			dataSource,
 			{
 				accessibilityProvider: options.accessibilityProvider,
 				identityProvider: {
@@ -388,9 +375,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 
 					return true;
 				},
-				collapseByDefault: () => {
-					return false;
-				},
+				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
 				findWidgetEnabled: false
@@ -398,8 +383,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 			instantiationService,
 			contextKeyService,
 			listService,
-			themeService,
-			configurationService
+			configurationService,
 		);
 	}
 

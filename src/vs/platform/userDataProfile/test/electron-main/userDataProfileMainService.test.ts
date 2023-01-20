@@ -45,7 +45,6 @@ suite('UserDataProfileMainService', () => {
 
 		testObject = new UserDataProfilesMainService(stateService, new UriIdentityService(fileService), environmentService, fileService, logService);
 		await stateService.init();
-		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());

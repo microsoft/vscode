@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriDto } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, isLogLevel, LogLevel } from 'vs/platform/log/common/log';
@@ -11,8 +11,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
-	constructor(private readonly windowId: number | undefined, logLevel: LogLevel, loggers: UriDto<ILoggerResource>[], private readonly channel: IChannel) {
-		super(logLevel, loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: loggerResource.hidden || !!loggerResource.extensionId })));
+	constructor(private readonly windowId: number | undefined, logLevel: LogLevel, loggers: ILoggerResource[], private readonly channel: IChannel) {
+		super(logLevel, loggers);
 		this._register(channel.listen<LogLevel | [URI, LogLevel]>('onDidChangeLogLevel', windowId)(arg => {
 			if (isLogLevel(arg)) {
 				super.setLogLevel(arg);
@@ -62,7 +62,7 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 	}
 
 	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		return new Logger(this.channel, file, logLevel, options);
+		return new Logger(this.channel, file, logLevel, options, this.windowId);
 	}
 
 	public static setLogLevel(channel: IChannel, level: LogLevel): Promise<void>;
@@ -83,10 +83,11 @@ class Logger extends AbstractMessageLogger {
 		private readonly file: URI,
 		logLevel: LogLevel,
 		loggerOptions?: ILoggerOptions,
+		windowId?: number | undefined
 	) {
 		super(loggerOptions?.logLevel === 'always');
 		this.setLevel(logLevel);
-		this.channel.call('createLogger', [file, loggerOptions])
+		this.channel.call('createLogger', [file, loggerOptions, windowId])
 			.then(() => {
 				this.doLog(this.buffer);
 				this.isLoggerCreated = true;

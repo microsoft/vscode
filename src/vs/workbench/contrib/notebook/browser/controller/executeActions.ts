@@ -5,7 +5,7 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -18,12 +18,13 @@ import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeN
 import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -620,11 +621,30 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 		const notebook = context.notebookEditor.textModel.uri;
 		const executingCells = notebookExecutionStateService.getCellExecutionsForNotebook(notebook);
 		if (executingCells[0]) {
-			const cell = context.notebookEditor.getCellByHandle(executingCells[0].cellHandle);
+			const topStackFrameCell = this.findCellAtTopFrame(accessor, notebook);
+			const focusHandle = topStackFrameCell ?? executingCells[0].cellHandle;
+			const cell = context.notebookEditor.getCellByHandle(focusHandle);
 			if (cell) {
 				context.notebookEditor.focusNotebookCell(cell, 'container');
 			}
 		}
+	}
+
+	private findCellAtTopFrame(accessor: ServicesAccessor, notebook: URI): number | undefined {
+		const debugService = accessor.get(IDebugService);
+		for (const session of debugService.getModel().getSessions()) {
+			for (const thread of session.getAllThreads()) {
+				const sf = thread.getTopStackFrame();
+				if (sf) {
+					const parsed = CellUri.parse(sf.source.uri);
+					if (parsed && parsed.notebook.toString() === notebook.toString()) {
+						return parsed.handle;
+					}
+				}
+			}
+		}
+
+		return undefined;
 	}
 });
 

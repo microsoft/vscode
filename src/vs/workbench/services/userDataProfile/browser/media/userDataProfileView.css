@@ -10,11 +10,22 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-buttons-container .monaco-button {
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button,
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown {
 	margin-block-start: 13px;
 	margin-inline-start: 0px;
 	margin-inline-end: 0px;
 	max-width: 260px;
 	margin-left: auto;
 	margin-right: auto;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown {
+	width: 100%;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown > .monaco-dropdown-button {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
 }
