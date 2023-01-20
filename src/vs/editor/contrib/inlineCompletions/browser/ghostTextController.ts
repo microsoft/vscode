@@ -14,12 +14,16 @@ import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
+import { InlineSuggestionHintsWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import * as nls from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -140,9 +144,9 @@ export class GhostTextController extends Disposable {
 		this.activeModel?.showPreviousInlineCompletion();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.activeModel?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	public async getInlineCompletionsCount(): Promise<number> {
+		const result = await this.activeModel?.getInlineCompletionsCount();
+		return result ?? 0;
 	}
 }
 
@@ -164,6 +168,8 @@ export class ActiveGhostTextController extends Disposable {
 	public readonly contextKeys = new GhostTextContextKeys(this.contextKeyService);
 	public readonly model = this._register(this.instantiationService.createInstance(GhostTextModel, this.editor));
 	public readonly widget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, this.model));
+
+	public readonly hintsWidget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsWidget, this.editor, this.model.inlineCompletionsModel));
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -221,7 +227,7 @@ export class ActiveGhostTextController extends Disposable {
 
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.showNext';
+	public static ID = showNextInlineSuggestionActionId;
 	constructor() {
 		super({
 			id: ShowNextInlineSuggestionAction.ID,
@@ -245,7 +251,7 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 }
 
 export class ShowPreviousInlineSuggestionAction extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.showPrevious';
+	public static ID = showPreviousInlineSuggestionActionId;
 	constructor() {
 		super({
 			id: ShowPreviousInlineSuggestionAction.ID,
@@ -294,7 +300,13 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
-			}
+			},
+			menuOpts: [{
+				menuId: MenuId.InlineSuggestionToolbar,
+				title: nls.localize('acceptPart', 'Accept Part'),
+				group: 'primary',
+				order: 2,
+			}],
 		});
 	}
 
@@ -306,9 +318,110 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 	}
 }
 
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'undo',
-	weight: KeybindingWeight.EditorContrib + 1,
-	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-	when: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.canUndoInlineSuggestion),
-});
+export class AcceptInlineCompletion extends EditorAction {
+	constructor() {
+		super({
+			id: inlineSuggestCommitId,
+			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
+			alias: 'Accept Next Word Of Inline Suggestion',
+			precondition: GhostTextController.inlineSuggestionVisible,
+			menuOpts: [{
+				menuId: MenuId.InlineSuggestionToolbar,
+				title: nls.localize('accept', "Accept"),
+				group: 'primary',
+				order: 1,
+			}],
+			kbOpts: {
+				primary: KeyCode.Tab,
+				weight: 200,
+				kbExpr: ContextKeyExpr.and(
+					GhostTextController.inlineSuggestionVisible,
+					EditorContextKeys.tabMovesFocus.toNegated(),
+					GhostTextController.inlineSuggestionHasIndentationLessThanTabSize
+				),
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = GhostTextController.get(editor);
+		if (controller) {
+			controller.commit();
+			controller.editor.focus();
+		}
+	}
+}
+
+export class HideInlineCompletion extends EditorAction {
+	public static ID = 'editor.action.inlineSuggest.hide';
+
+	constructor() {
+		super({
+			id: HideInlineCompletion.ID,
+			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
+			alias: 'Accept Next Word Of Inline Suggestion',
+			precondition: GhostTextController.inlineSuggestionVisible,
+			kbOpts: {
+				weight: 100,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = GhostTextController.get(editor);
+		if (controller) {
+			controller.hide();
+		}
+	}
+}
+
+export class DisableSuggestionHints extends EditorAction {
+	public static ID = 'editor.action.inlineSuggest.disableHints';
+
+	constructor() {
+		super({
+			id: DisableSuggestionHints.ID,
+			label: nls.localize('action.inlineSuggest.disableHints', "Disable suggestion hints"),
+			alias: 'Disable suggestion hints',
+			precondition: undefined,
+			menuOpts: [{
+				menuId: MenuId.InlineSuggestionToolbar,
+				title: nls.localize('action.inlineSuggest.disableHints', "Disable suggestion hints"),
+				group: 'secondary',
+				order: 10,
+			}],
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configService = accessor.get(IConfigurationService);
+		configService.updateValue('editor.inlineSuggest.hideHints', true);
+	}
+}
+
+export class UndoAcceptPart extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.undo',
+			label: nls.localize('action.inlineSuggest.undo', "Undo Accept Part"),
+			alias: 'Undo Accept Part',
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.canUndoInlineSuggestion),
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.canUndoInlineSuggestion),
+			},
+			menuOpts: [{
+				menuId: MenuId.InlineSuggestionToolbar,
+				title: 'Undo Accept Part',
+				group: 'secondary',
+				order: 3,
+			}],
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		editor.getModel()?.undo();
+	}
+}
