@@ -129,7 +129,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
+	private _findLabel!: HTMLElement;
 	private _replaceInput!: ReplaceInput;
+	private _replaceLabel!: HTMLElement;
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
@@ -328,12 +330,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					this._isReplaceVisible = true;
 					this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 					this._updateButtons();
+					this._updateLabels();
 					this._replaceInput.inputBox.layout();
 				}
 			} else {
 				if (this._isReplaceVisible) {
 					this._isReplaceVisible = false;
 					this._updateButtons();
+					this._updateLabels();
 				}
 			}
 		}
@@ -484,6 +488,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		const canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
 		this._toggleReplaceBtn.setEnabled(this._isVisible && canReplace);
+	}
+
+	private _updateLabels(): void {
+		if (this._isVisible) {
+			let labelWidth = parseFloat(dom.getComputedStyle(this._findLabel).width);
+			if (this._isReplaceVisible) {
+				labelWidth = Math.max(parseFloat(dom.getComputedStyle(this._replaceLabel).width), labelWidth);
+				this._replaceLabel.style.width = `${labelWidth}px`;
+				this._findLabel.style.width = `${labelWidth}px`;
+			} else {
+				this._findLabel.style.width = '';
+			}
+		}
 	}
 
 	private _revealTimeouts: any[] = [];
@@ -1027,10 +1044,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const findPart = document.createElement('div');
 		findPart.className = 'find-part';
 
-		const findLabel = document.createElement('div');
-		findLabel.className = 'find-label';
-		findLabel.innerText = NLS_FIND_INPUT_LABEL;
-		findPart.appendChild(findLabel);
+		this._findLabel = document.createElement('div');
+		this._findLabel.className = 'find-label';
+		this._findLabel.innerText = NLS_FIND_INPUT_LABEL;
+		findPart.appendChild(this._findLabel);
 
 		findPart.appendChild(this._findInput.domNode);
 		const actionsContainer = document.createElement('div');
@@ -1168,10 +1185,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
 
-		const replaceLabel = document.createElement('div');
-		replaceLabel.className = 'replace-label';
-		replaceLabel.innerText = NLS_REPLACE_INPUT_LABEL;
-		replacePart.appendChild(replaceLabel);
+		this._replaceLabel = document.createElement('div');
+		this._replaceLabel.className = 'replace-label';
+		this._replaceLabel.innerText = NLS_REPLACE_INPUT_LABEL;
+		replacePart.appendChild(this._replaceLabel);
 
 		replacePart.appendChild(this._replaceInput.domNode);
 

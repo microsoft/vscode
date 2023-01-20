@@ -63,7 +63,7 @@
 .monaco-editor .find-widget .find-label,
 .monaco-editor .find-widget .replace-label {
 	margin: 3px 5px 0 5px;
-	width: 43px
+	/* width: 43px */
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
