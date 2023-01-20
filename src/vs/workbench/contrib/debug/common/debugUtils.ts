@@ -121,13 +121,13 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 		{ start: 0, end: 0 };
 }
 
-export async function getEvaluatableExpressionAtPosition(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: Position, token: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
+export async function getEvaluatableExpressionAtPosition(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: Position, token?: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
 	if (languageFeaturesService.evaluatableExpressionProvider.has(model)) {
 		const supports = languageFeaturesService.evaluatableExpressionProvider.ordered(model);
 
 		const results = coalesce(await Promise.all(supports.map(async support => {
 			try {
-				return await support.provideEvaluatableExpression(model, position, token);
+				return await support.provideEvaluatableExpression(model, position, token ?? CancellationToken.None);
 			} catch (err) {
 				return undefined;
 			}
