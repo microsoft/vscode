@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
-use crate::options::Quality;
+use crate::{constants::{VSCODE_CLI_VERSION, PROTOCOL_VERSION}, options::Quality};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug)]
@@ -68,6 +68,9 @@ pub struct ServeParams {
 	pub commit_id: Option<String>,
 	pub quality: Quality,
 	pub extensions: Vec<String>,
+	/// Optional preferred connection token.
+	#[serde(default)]
+	pub connection_token: Option<String>,
 	#[serde(default)]
 	pub use_local_download: bool,
 	/// If true, the client and server should gzip servermsg's sent in either direction.
@@ -141,4 +144,13 @@ pub struct CallServerHttpResult {
 pub struct VersionParams {
 	pub version: &'static str,
 	pub protocol_version: u32,
+}
+
+impl Default for VersionParams {
+	fn default() -> Self {
+		Self {
+			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
+			protocol_version: PROTOCOL_VERSION,
+		}
+	}
 }

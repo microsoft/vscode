@@ -2,9 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use crate::constants::{
-	CONTROL_PORT, EDITOR_WEB_URL, PROTOCOL_VERSION, QUALITYLESS_SERVER_NAME, VSCODE_CLI_VERSION,
-};
+use crate::constants::{CONTROL_PORT, EDITOR_WEB_URL, QUALITYLESS_SERVER_NAME};
 use crate::log;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcDispatcher, Serialization};
 use crate::self_update::SelfUpdate;
@@ -414,10 +412,7 @@ async fn process_socket(
 async fn send_version(tx: &mpsc::Sender<SocketSignal>) {
 	tx.send(SocketSignal::from_message(&ToClientRequest {
 		id: None,
-		params: ClientRequestMethod::version(VersionParams {
-			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
-			protocol_version: PROTOCOL_VERSION,
-		}),
+		params: ClientRequestMethod::version(VersionParams::default()),
 	}))
 	.await
 	.ok();

@@ -97,7 +97,6 @@ impl ServerMessageSink {
 			}
 		};
 
-		drop(body);
 		self.tx = Some(tx);
 		r
 	}

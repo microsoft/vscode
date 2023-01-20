@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
 	code_server::{AnyCodeServer, CodeServerArgs, ResolvedServerParams},
-	protocol::{EmptyObject, InstallFromLocalFolderParams, ServerMessageParams},
+	protocol::{EmptyObject, InstallFromLocalFolderParams, ServerMessageParams, VersionParams},
 	server_bridge::ServerBridge,
 	server_multiplexer::ServerMultiplexer,
 	shutdown_signal::ShutdownSignal,
@@ -75,6 +75,9 @@ pub async fn serve_wsl(
 	let mut rpc = new_msgpack_rpc();
 	let caller = rpc.get_caller(caller_tx);
 
+	// notify the incoming client about the server version
+	caller.notify("version", VersionParams::default());
+
 	let log = log.with_sink(RpcLogSink(caller.clone()));
 	let mut rpc = rpc.methods(HandlerContext {
 		log: log.clone(),
@@ -101,7 +104,7 @@ pub async fn serve_wsl(
 	start_msgpack_rpc(
 		rpc.build(log),
 		tokio::io::stdin(),
-		tokio::io::stdout(),
+		tokio::io::stderr(),
 		caller_rx,
 		shutdown_rx,
 	)
@@ -117,6 +120,7 @@ async fn handle_serve(
 ) -> Result<EmptyObject, AnyError> {
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
+	csa.connection_token = params.inner.connection_token.or(csa.connection_token);
 	csa.install_extensions
 		.extend(params.inner.extensions.into_iter());
 
