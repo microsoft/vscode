@@ -2281,23 +2281,27 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 		this.getHTMLElement().classList.add('settings-editor-tree');
 
-		this.style(getListStyles({
-			listBackground: editorBackground,
-			listActiveSelectionBackground: editorBackground,
-			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: editorBackground,
-			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: editorBackground,
-			listFocusForeground: foreground,
-			listHoverForeground: foreground,
-			listHoverBackground: editorBackground,
-			listHoverOutline: editorBackground,
-			listFocusOutline: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}));
+		this.style({
+			...getListStyles({
+				listBackground: editorBackground,
+				listActiveSelectionBackground: editorBackground,
+				listActiveSelectionForeground: foreground,
+				listFocusAndSelectionBackground: editorBackground,
+				listFocusAndSelectionForeground: foreground,
+				listFocusBackground: editorBackground,
+				listFocusForeground: foreground,
+				listHoverForeground: foreground,
+				listHoverBackground: editorBackground,
+				listHoverOutline: editorBackground,
+				listFocusOutline: editorBackground,
+				listInactiveSelectionBackground: editorBackground,
+				listInactiveSelectionForeground: foreground,
+				listInactiveFocusBackground: editorBackground,
+				listInactiveFocusOutline: editorBackground,
+			}),
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined,
+		});
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.list.smoothScrolling')) {

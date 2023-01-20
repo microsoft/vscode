@@ -33,7 +33,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { asCssValue, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -704,10 +704,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.createAffectedFeaturesElement(scrollableContent);
 		this.createConfigurationElement(scrollableContent);
 
-		this.rootElement.style.setProperty('--workspace-trust-selected-color', asCssValue(buttonBackground));
-		this.rootElement.style.setProperty('--workspace-trust-unselected-color', asCssValue(buttonSecondaryBackground));
-		this.rootElement.style.setProperty('--workspace-trust-check-color', asCssValue(debugIconStartForeground));
-		this.rootElement.style.setProperty('--workspace-trust-x-color', asCssValue(editorErrorForeground));
+		this.rootElement.style.setProperty('--workspace-trust-selected-color', asCssVariable(buttonBackground));
+		this.rootElement.style.setProperty('--workspace-trust-unselected-color', asCssVariable(buttonSecondaryBackground));
+		this.rootElement.style.setProperty('--workspace-trust-check-color', asCssVariable(debugIconStartForeground));
+		this.rootElement.style.setProperty('--workspace-trust-x-color', asCssVariable(editorErrorForeground));
 
 		// Navigate page with keyboard
 		this._register(addDisposableListener(this.rootElement, EventType.KEY_DOWN, e => {

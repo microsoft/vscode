@@ -67,7 +67,6 @@ import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { LogService } from 'vs/platform/log/common/logService';
 
@@ -258,7 +257,8 @@ class CodeMain {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesMainService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		// Initialize user data profiles after initializing the state
+		userDataProfilesMainService.init();
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

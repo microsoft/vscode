@@ -39,7 +39,7 @@ interface IExtensionResourcePreview extends IResourcePreview {
 	readonly localExtensions: ILocalSyncExtension[];
 	readonly remoteExtensions: ISyncExtension[] | null;
 	readonly skippedExtensions: ISyncExtension[];
-	readonly builtinExtensions: IExtensionIdentifier[];
+	readonly builtinExtensions: IExtensionIdentifier[] | null;
 	readonly previewResult: IExtensionResourceMergeResult;
 }
 
@@ -142,10 +142,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionResourcePreview[]> {
-		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
-		const skippedExtensions: ISyncExtension[] = lastSyncUserData?.skippedExtensions || [];
-		const builtinExtensions: IExtensionIdentifier[] = lastSyncUserData?.builtinExtensions || [];
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
+		const remoteExtensions = remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
+		const skippedExtensions = lastSyncUserData?.skippedExtensions ?? [];
+		const builtinExtensions = lastSyncUserData?.builtinExtensions ?? null;
+		const lastSyncExtensions = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
 		const { localExtensions, ignoredExtensions } = await this.localExtensionsProvider.getLocalExtensions(this.syncResource.profile);
 
@@ -278,7 +278,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IExtensionResourcePreview, IExtensionResourceMergeResult][], force: boolean): Promise<void> {
-		let { skippedExtensions, localExtensions } = resourcePreviews[0][0];
+		let { skippedExtensions, builtinExtensions, localExtensions } = resourcePreviews[0][0];
 		const { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
@@ -301,10 +301,30 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized extensions...`);
-			const builtinExtensions = localExtensions.filter(e => !e.installed).map(e => e.identifier);
+			builtinExtensions = this.computeBuiltinExtensions(localExtensions, builtinExtensions);
 			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions, builtinExtensions });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized extensions.${skippedExtensions.length ? ` Skipped: ${JSON.stringify(skippedExtensions.map(e => e.identifier.id))}.` : ''}`);
 		}
+	}
+
+	private computeBuiltinExtensions(localExtensions: ILocalSyncExtension[], previousBuiltinExtensions: IExtensionIdentifier[] | null): IExtensionIdentifier[] {
+		const localExtensionsSet = new Set<string>();
+		const builtinExtensions: IExtensionIdentifier[] = [];
+		for (const localExtension of localExtensions) {
+			localExtensionsSet.add(localExtension.identifier.id.toLowerCase());
+			if (!localExtension.installed) {
+				builtinExtensions.push(localExtension.identifier);
+			}
+		}
+		if (previousBuiltinExtensions) {
+			for (const builtinExtension of previousBuiltinExtensions) {
+				// Add previous builtin extension if it does not exist in local extensions
+				if (!localExtensionsSet.has(builtinExtension.id.toLowerCase())) {
+					builtinExtensions.push(builtinExtension);
+				}
+			}
+		}
+		return builtinExtensions;
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {

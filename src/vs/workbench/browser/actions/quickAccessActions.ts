@@ -154,7 +154,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenWithModes',
-			title: localize('quickOpenWithModes', "Command Center"),
+			title: localize('quickOpenWithModes', "Quick Open"),
 			menu: {
 				id: MenuId.CommandCenter,
 				order: 100
