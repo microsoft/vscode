@@ -9,9 +9,9 @@ COPY --chown=${USERNAME}:${USERNAME} . /repo-source-tmp/
 RUN mkdir -p ${CACHE_FOLDER} && chown ${USERNAME} ${CACHE_FOLDER} /repo-source-tmp \
 	&& su ${USERNAME} -c "\
 		cd /repo-source-tmp \
-		&& .devcontainer/cache/before-cache.sh . ${CACHE_FOLDER} \
-		&& .devcontainer/prepare.sh . ${CACHE_FOLDER} \
-		&& .devcontainer/cache/cache-diff.sh . ${CACHE_FOLDER}"
+		&& .devcontainer/prebuilt/cache/before-cache.sh . ${CACHE_FOLDER} \
+		&& .devcontainer/prebuilt/prepare.sh . ${CACHE_FOLDER} \
+		&& .devcontainer/prebuilt/cache/cache-diff.sh . ${CACHE_FOLDER}"
 
 # This second stage starts fresh and just copies in cache.tar from the previous stage. The related
 # devcontainer.json file is then setup to have postCreateCommand fire restore-diff.sh to expand it.
