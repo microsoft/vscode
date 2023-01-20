@@ -15,7 +15,6 @@ import { runningCellRulerDecorationColor } from 'vs/workbench/contrib/notebook/b
 import { CellUri, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-
 interface ICellAndRange {
 	handle: number;
 	range: IRange;
@@ -38,14 +37,16 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 		this._register(_debugService.getModel().onDidChangeCallStack(() => this.updateExecutionDecorations()));
 		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.updateExecutionDecorations()));
 		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsNotebook(this._notebookEditor.textModel!.uri)) {
+			if (this._notebookEditor.textModel && e.affectsNotebook(this._notebookEditor.textModel.uri)) {
 				this.updateExecutionDecorations();
 			}
 		}));
 	}
 
 	private updateExecutionDecorations(): void {
-		const exes = this._notebookExecutionStateService.getCellExecutionsByHandleForNotebook(this._notebookEditor.textModel!.uri);
+		const exes = this._notebookEditor.textModel ?
+			this._notebookExecutionStateService.getCellExecutionsByHandleForNotebook(this._notebookEditor.textModel.uri)
+			: undefined;
 
 		const topFrameCellsAndRanges: ICellAndRange[] = [];
 		let focusedFrameCellAndRange: ICellAndRange | undefined = undefined;
