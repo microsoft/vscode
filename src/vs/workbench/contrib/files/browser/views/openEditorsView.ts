@@ -20,7 +20,7 @@ import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration,
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { asCssValue, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -198,9 +198,9 @@ export class OpenEditorsView extends ViewPane {
 		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
-		this.dirtyCountElement.style.backgroundColor = asCssValue(badgeBackground);
-		this.dirtyCountElement.style.color = asCssValue(badgeForeground);
-		this.dirtyCountElement.style.border = `1px solid ${asCssValue(contrastBorder)}`;
+		this.dirtyCountElement.style.backgroundColor = asCssVariable(badgeBackground);
+		this.dirtyCountElement.style.color = asCssVariable(badgeForeground);
+		this.dirtyCountElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		this.updateDirtyIndicator();
 	}

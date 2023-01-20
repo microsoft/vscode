@@ -24,7 +24,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, asCssValue, asCssValueWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -267,16 +267,16 @@ export class SuggestEnabledInput extends Widget {
 	}
 
 	private style(styleOverrides: ISuggestEnabledInputStyleOverrides): void {
-		this.stylingContainer.style.backgroundColor = asCssValue(styleOverrides.inputBackground ?? inputBackground);
-		this.stylingContainer.style.color = asCssValue(styleOverrides.inputForeground ?? inputForeground);
-		this.placeholderText.style.color = asCssValue(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
+		this.stylingContainer.style.backgroundColor = asCssVariable(styleOverrides.inputBackground ?? inputBackground);
+		this.stylingContainer.style.color = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
+		this.placeholderText.style.color = asCssVariable(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
-		this.stylingContainer.style.borderColor = asCssValueWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
+		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = asCssValue(styleOverrides.inputForeground ?? inputForeground);
+			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
 		}
 	}
 
