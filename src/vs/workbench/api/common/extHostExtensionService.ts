@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
 import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { asPromise, Barrier, IntervalTimer, runWhenIdle, timeout } from 'vs/base/common/async';
+import { asPromise, Barrier, IntervalTimer, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -42,6 +42,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -605,7 +606,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					for (const activationEvent of desc.activationEvents) {
 						if (activationEvent === 'onStartupFinished') {
 							if (shouldDeferActivation) {
-								this._register(runWhenIdle(() => this._activateOneStartupFinished(desc, activationEvent)));
+								setTimeout0(() => this._activateOneStartupFinished(desc, activationEvent));
 							} else {
 								this._activateOneStartupFinished(desc, activationEvent);
 							}
