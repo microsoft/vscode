@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -88,7 +88,8 @@ export class ExtensionsResource implements IProfileResource {
 							donotIncludePackAndDependencies: true,
 							installGivenVersion: !!e.version,
 							installPreReleaseVersion: e.preRelease,
-							profileLocation: profile.extensionsResource
+							profileLocation: profile.extensionsResource,
+							context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
 						});
 						this.logService.info(`Importing Profile (${profile.name}): Installed extension...`, extension.identifier.id, extension.version);
 					} else {
