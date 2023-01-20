@@ -808,7 +808,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string> {
 		let result = this._workspaceFolders.get(workspaceFolder.uri.fsPath);
-		
+
 		if (!result) {
 			result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
 			this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
