@@ -2996,6 +2996,13 @@ export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.fo
 	hcLight: debugIconStartForeground
 }, nls.localize('notebookStatusSuccessIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
 
+export const runningCellRulerDecorationColor = registerColor('notebookEditorOverviewRuler.runningCellForeground', {
+	light: debugIconStartForeground,
+	dark: debugIconStartForeground,
+	hcDark: debugIconStartForeground,
+	hcLight: debugIconStartForeground
+}, nls.localize('notebookEditorOverviewRuler.runningCellForeground', "The color of the running cell decoration in the notebook editor overview ruler."));
+
 export const cellStatusIconError = registerColor('notebookStatusErrorIcon.foreground', {
 	light: errorForeground,
 	dark: errorForeground,
