@@ -21,6 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { Command } from 'vs/editor/common/languages';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -37,8 +38,8 @@ export class InlineCompletionsHover implements IHoverPart {
 		);
 	}
 
-	public hasMultipleSuggestions(): Promise<boolean> {
-		return this.controller.hasMultipleInlineCompletions();
+	public getInlineCompletionsCount(): Promise<number> {
+		return this.controller.getInlineCompletionsCount();
 	}
 
 	public get commands(): Command[] {
@@ -58,19 +59,24 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-	) { }
+	) {
+	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
 		const controller = GhostTextController.get(this._editor);
 		if (!controller) {
 			return null;
 		}
+		if (this._editor.getOption(EditorOption.inlineSuggest).useExperimentalHints) {
+			return null;
+		}
+
 		const target = mouseEvent.target;
 		if (target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
 			// handle the case where the mouse is over the view zone
 			const viewZoneData = target.detail;
 			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
-				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position), mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(this._editor.getModel()!.validatePosition(viewZoneData.positionBefore || viewZoneData.position)), mouseEvent.event.posx, mouseEvent.event.posy);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_EMPTY) {
@@ -131,9 +137,9 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		for (const action of actions) {
 			action.setEnabled(false);
 		}
-		part.hasMultipleSuggestions().then(hasMore => {
+		part.getInlineCompletionsCount().then(count => {
 			for (const action of actions) {
-				action.setEnabled(hasMore);
+				action.setEnabled(count > 1);
 			}
 		});
 

@@ -128,13 +128,31 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 }
 
 export class ExtHostTelemetryLogger {
-	private _appender: vscode.TelemetrySender;
+
+	static validateSender(sender: vscode.TelemetrySender): void {
+		if (typeof sender !== 'object') {
+			throw new TypeError('TelemetrySender argument is invalid');
+		}
+		if (typeof sender.sendEventData !== 'function') {
+			throw new TypeError('TelemetrySender.sendEventData must be a function');
+		}
+		if (typeof sender.sendErrorData !== 'function') {
+			throw new TypeError('TelemetrySender.sendErrorData must be a function');
+		}
+		if (typeof sender.flush !== 'undefined' && typeof sender.flush !== 'function') {
+			throw new TypeError('TelemetrySender.flush must be a function or undefined');
+		}
+	}
+
+	private readonly _sender: vscode.TelemetrySender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
-	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
-	private _apiObject: vscode.TelemetryLogger | undefined;
 	private readonly _ignoreBuiltinCommonProperties: boolean;
 	private readonly _additionalCommonProperties: Record<string, any> | undefined;
 	public readonly ignoreUnhandledExtHostErrors: boolean;
+
+	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
+	private _apiObject: vscode.TelemetryLogger | undefined;
+
 	constructor(
 		sender: vscode.TelemetrySender,
 		options: vscode.TelemetryLoggerOptions | undefined,
@@ -147,7 +165,7 @@ export class ExtHostTelemetryLogger {
 		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
 		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
 		this._additionalCommonProperties = options?.additionalCommonProperties;
-		this._appender = sender;
+		this._sender = sender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
 
@@ -192,7 +210,7 @@ export class ExtHostTelemetryLogger {
 		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
 		if (!this._inLoggingOnlyMode) {
-			this._appender.sendEventData(eventName, data);
+			this._sender.sendEventData(eventName, data);
 		}
 		this._logger.trace(eventName, data);
 	}
@@ -212,7 +230,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.sendErrorData(eventNameOrException, data);
+			this._sender.sendErrorData(eventNameOrException, data);
 		}
 	}
 
@@ -237,8 +255,8 @@ export class ExtHostTelemetryLogger {
 	}
 
 	dispose(): void {
-		if (this._appender?.flush) {
-			this._appender.flush();
+		if (this._sender?.flush) {
+			this._sender.flush();
 		}
 	}
 }

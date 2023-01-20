@@ -87,7 +87,7 @@ export class SettingsResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = ProfileResourceType.Settings;
 	readonly label = { label: localize('settings', "Settings") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,

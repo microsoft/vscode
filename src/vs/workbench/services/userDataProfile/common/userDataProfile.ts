@@ -13,9 +13,10 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { ITreeItem, ITreeItemCheckboxState, ITreeItemLabel } from 'vs/workbench/common/views';
+import { ITreeItem, ITreeItemLabel } from 'vs/workbench/common/views';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly preserveData: boolean;
@@ -64,7 +65,19 @@ export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataPro
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
 }
 
-export type ProfileCreationOptions = { readonly skipComments: boolean };
+export const PROFILE_URL_AUTHORITY = 'profile';
+export function toUserDataProfileUri(path: string, productService: IProductService): URI {
+	return URI.from({
+		scheme: productService.urlProtocol,
+		authority: PROFILE_URL_AUTHORITY,
+		path: path.startsWith('/') ? path : `/${path}`
+	});
+}
+
+export interface IProfileImportOptions {
+	readonly donotPrompt?: boolean;
+	readonly previewAsTempProfile?: boolean;
+}
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
 export interface IUserDataProfileImportExportService {
@@ -74,7 +87,7 @@ export interface IUserDataProfileImportExportService {
 	unregisterProfileContentHandler(id: string): void;
 
 	exportProfile(): Promise<void>;
-	importProfile(uri: URI): Promise<void>;
+	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
@@ -95,7 +108,6 @@ export interface IProfileResource {
 
 export interface IProfileResourceTreeItem extends ITreeItem {
 	readonly type: ProfileResourceType;
-	checkbox: ITreeItemCheckboxState;
 	readonly label: ITreeItemLabel;
 	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
 	getContent(): Promise<string>;

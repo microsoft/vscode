@@ -231,21 +231,27 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			configurationService,
 		);
 
-		this.style(getListStyles({
-			listBackground: editorBackground,
-			listFocusOutline: focusBorder,
-			listActiveSelectionBackground: editorBackground,
-			listActiveSelectionForeground: settingsHeaderForeground,
-			listFocusAndSelectionBackground: editorBackground,
-			listFocusAndSelectionForeground: settingsHeaderForeground,
-			listFocusBackground: editorBackground,
-			listFocusForeground: settingsHeaderHoverForeground,
-			listHoverForeground: settingsHeaderHoverForeground,
-			listHoverBackground: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: settingsHeaderForeground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}));
+		this.style({
+			...getListStyles({
+				listBackground: editorBackground,
+				listFocusOutline: focusBorder,
+				listActiveSelectionBackground: editorBackground,
+				listActiveSelectionForeground: settingsHeaderForeground,
+				listFocusAndSelectionBackground: editorBackground,
+				listFocusAndSelectionForeground: settingsHeaderForeground,
+				listFocusBackground: editorBackground,
+				listFocusForeground: settingsHeaderHoverForeground,
+				listHoverForeground: settingsHeaderHoverForeground,
+				listHoverBackground: editorBackground,
+				listInactiveSelectionBackground: editorBackground,
+				listInactiveSelectionForeground: settingsHeaderForeground,
+				listInactiveFocusBackground: editorBackground,
+				listInactiveFocusOutline: editorBackground,
+				treeIndentGuidesStroke: undefined,
+				treeInactiveIndentGuidesStroke: undefined
+			}),
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined,
+		});
 	}
 }
