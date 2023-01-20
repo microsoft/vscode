@@ -18,8 +18,8 @@ pub struct NoOpSleepInhibitor();
 
 #[allow(dead_code)]
 impl NoOpSleepInhibitor {
-	pub fn new() -> Self {
-		NoOpSleepInhibitor()
+	pub fn new() -> std::io::Result<Self> {
+		Ok(NoOpSleepInhibitor())
 	}
 }
 
