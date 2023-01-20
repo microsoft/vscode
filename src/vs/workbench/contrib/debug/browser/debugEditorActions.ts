@@ -358,9 +358,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			expression = model.getValueInRange(selection);
 		} else {
 			const position = editor.getPosition();
-			const cancellation = new CancellationTokenSource();
-			const evaluatableExpression = await getEvaluatableExpressionAtPosition(languageFeaturesService, model, position, cancellation.token);
-			cancellation.dispose();
+			const evaluatableExpression = await getEvaluatableExpressionAtPosition(languageFeaturesService, model, position);
 			if (!evaluatableExpression) {
 				return;
 			}
