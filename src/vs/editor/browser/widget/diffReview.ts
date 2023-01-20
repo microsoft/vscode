@@ -173,7 +173,8 @@ export class DiffReview extends Disposable {
 				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
 				|| e.equals(KeyMod.Alt | KeyCode.Escape)
 				|| e.equals(KeyMod.Shift | KeyCode.Escape)
-				|| e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)
+				|| e.equals(KeyCode.Space)
+				|| e.equals(KeyCode.Enter)
 			) {
 				e.preventDefault();
 				this.accept();
