@@ -263,6 +263,12 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+	//#region Profile options
+
+	readonly profile?: string;
+
+	//#endregion
+
 
 	//#region Update/Quality related
 

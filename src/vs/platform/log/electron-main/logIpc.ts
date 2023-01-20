@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogger, ILoggerOptions, log, LogLevel } from 'vs/platform/log/common/log';
@@ -11,7 +12,7 @@ import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService'
 
 export class LoggerChannel implements IServerChannel {
 
-	private readonly loggers = new Map<string, ILogger>();
+	private readonly loggers = new ResourceMap<ILogger>();
 
 	constructor(private readonly loggerService: ILoggerMainService) { }
 
@@ -26,7 +27,7 @@ export class LoggerChannel implements IServerChannel {
 
 	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1]); return;
+			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1], arg[2]); return;
 			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
 			case 'setLogLevel': return this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
@@ -38,8 +39,8 @@ export class LoggerChannel implements IServerChannel {
 		throw new Error(`Call not found: ${command}`);
 	}
 
-	private createLogger(file: URI, options: ILoggerOptions): void {
-		this.loggers.set(file.toString(), this.loggerService.createLogger(file, options));
+	private createLogger(file: URI, options: ILoggerOptions, windowId: number | undefined): void {
+		this.loggers.set(file, this.loggerService.createLogger(file, options, windowId));
 	}
 
 	private consoleLog(level: LogLevel, args: any[]): void {
@@ -61,7 +62,7 @@ export class LoggerChannel implements IServerChannel {
 	}
 
 	private log(file: URI, messages: [LogLevel, string][]): void {
-		const logger = this.loggers.get(file.toString());
+		const logger = this.loggers.get(file);
 		if (!logger) {
 			throw new Error('Create the logger before logging');
 		}

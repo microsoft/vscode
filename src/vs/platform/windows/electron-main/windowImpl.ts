@@ -910,10 +910,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
-		const newMenuBarVisibility = this.getMenuBarVisibility();
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.setMenuBarVisibility(newMenuBarVisibility);
+		if (!e || e.affectsConfiguration('window.menuBarVisibility')) {
+			const newMenuBarVisibility = this.getMenuBarVisibility();
+			if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+				this.currentMenuBarVisibility = newMenuBarVisibility;
+				this.setMenuBarVisibility(newMenuBarVisibility);
+			}
 		}
 
 		// Proxy
@@ -1089,7 +1091,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
 		configuration.logLevel = this.logService.getLevel();
-		configuration.loggers = this.loggerMainService.getRegisteredLoggers(this.id);
+		configuration.loggers = {
+			window: this.loggerMainService.getRegisteredLoggers(this.id),
+			global: this.loggerMainService.getRegisteredLoggers()
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });

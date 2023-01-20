@@ -675,27 +675,22 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
-		switch (resource.scheme) {
-			case fileSchemes.file:
-				{
-					let result = resource.fsPath;
-					if (!result) {
-						return undefined;
-					}
-					result = path.normalize(result);
+		if (resource.scheme === fileSchemes.file && !isWeb()) {
+			let result = resource.fsPath;
+			if (!result) {
+				return undefined;
+			}
+			result = path.normalize(result);
 
-					// Both \ and / must be escaped in regular expressions
-					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
-				}
-			default:
-				{
-					return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)
-						+ '/' + resource.scheme
-						+ '/' + (resource.authority || this.emptyAuthority)
-						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
-						+ (resource.fragment ? '#' + resource.fragment : '');
-				}
+			// Both \ and / must be escaped in regular expressions
+			return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 		}
+
+		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)
+			+ '/' + resource.scheme
+			+ '/' + (resource.authority || this.emptyAuthority)
+			+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
+			+ (resource.fragment ? '#' + resource.fragment : '');
 	}
 
 	public toPath(resource: vscode.Uri): string | undefined {

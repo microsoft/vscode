@@ -29,10 +29,10 @@ function Global:__VSCode-Escape-Value([string]$value) {
 }
 
 function Global:Prompt() {
+	$FakeCode = [int]!$global:?
 	# NOTE: We disable strict mode for the scope of this function because it unhelpfully throws an
 	# error when $LastHistoryEntry is null, and is not otherwise useful.
 	Set-StrictMode -Off
-	$FakeCode = [int]!$global:?
 	$LastHistoryEntry = Get-History -Count 1
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {
@@ -106,6 +106,46 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+
+	# Conditionally enable suggestions
+	if ($env:VSCODE_SUGGEST -eq '1') {
+		Remove-Item Env:VSCODE_SUGGEST
+
+		# VS Code send completions request (may override Ctrl+Spacebar)
+		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
+			Send-Completions
+		}
+
+		# Suggest trigger characters
+		Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
+			[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
+			Send-Completions
+		}
+	}
+}
+
+function Send-Completions {
+	$commandLine = ""
+	$cursorIndex = 0
+	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
+	#       last space and then filter on the client side? That would let you trigger ctrl+space
+	#       anywhere on a word and have full completions available
+	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
+	$completionPrefix = $commandLine
+
+	# Get completions
+	$result = "`e]633;Completions"
+	if ($completionPrefix.Length -gt 0) {
+		# Get and send completions
+		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		if ($null -ne $completions.CompletionMatches) {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+		}
+	}
+	$result += "`a"
+
+	Write-Host -NoNewLine $result
 }
 
 Set-MappedKeyHandlers

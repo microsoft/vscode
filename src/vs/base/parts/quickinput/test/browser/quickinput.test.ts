@@ -63,7 +63,13 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				keybindingLabel: {},
 				list: unthemedListStyles,
 				progressBar: {},
-				widget: {},
+				widget: {
+					quickInputBackground: undefined,
+					quickInputForeground: undefined,
+					quickInputTitleBackground: undefined,
+					widgetBorder: undefined,
+					widgetShadow: undefined,
+				},
 				pickerGroup: {
 					pickerGroupBorder: undefined,
 					pickerGroupForeground: undefined,

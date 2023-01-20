@@ -7,7 +7,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DidChangeLoggersEvent, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
+import { DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 
 export const ILoggerMainService = refineServiceDecorator<ILoggerService, ILoggerMainService>(ILoggerService);
@@ -20,6 +20,8 @@ export interface ILoggerMainService extends ILoggerService {
 
 	getOnDidChangeLoggersEvent(windowId: number): Event<DidChangeLoggersEvent>;
 
+	createLogger(resource: URI, options?: ILoggerOptions, windowId?: number): ILogger;
+
 	registerLogger(resource: ILoggerResource, windowId?: number): void;
 
 	getRegisteredLoggers(windowId?: number): ILoggerResource[];
@@ -31,6 +33,18 @@ export interface ILoggerMainService extends ILoggerService {
 export class LoggerMainService extends LoggerService implements ILoggerMainService {
 
 	private readonly loggerResourcesByWindow = new ResourceMap<number>();
+
+	override createLogger(resource: URI, options?: ILoggerOptions, windowId?: number): ILogger {
+		if (windowId !== undefined) {
+			this.loggerResourcesByWindow.set(resource, windowId);
+		}
+		try {
+			return super.createLogger(resource, options);
+		} catch (error) {
+			this.loggerResourcesByWindow.delete(resource);
+			throw error;
+		}
+	}
 
 	override registerLogger(resource: ILoggerResource, windowId?: number): void {
 		if (windowId !== undefined) {
@@ -47,7 +61,7 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 	override getRegisteredLoggers(windowId?: number): ILoggerResource[] {
 		const resources: ILoggerResource[] = [];
 		for (const resource of super.getRegisteredLoggers()) {
-			if (this.isInterestedLoggerResource(resource.resource, windowId)) {
+			if (windowId === this.loggerResourcesByWindow.get(resource.resource)) {
 				resources.push(resource);
 			}
 		}

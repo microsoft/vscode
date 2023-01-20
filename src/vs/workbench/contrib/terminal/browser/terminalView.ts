@@ -24,8 +24,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssValue, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
@@ -293,7 +292,6 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService
 	) {
@@ -311,9 +309,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-terminal');
-		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
-		}));
+		container.style.borderColor = asCssValue(selectBorder);
 	}
 
 	private _updateItems(): void {
