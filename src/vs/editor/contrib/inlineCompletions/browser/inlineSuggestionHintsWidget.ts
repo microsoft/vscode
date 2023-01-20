@@ -12,7 +12,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineSuggestionHintsWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
