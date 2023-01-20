@@ -596,6 +596,10 @@ pub struct TunnelServeArgs {
 	#[clap(long)]
 	pub random_name: bool,
 
+	/// Prevents the machine going to sleep while this command runs.
+	#[clap(long)]
+	pub no_sleep: bool,
+
 	/// Sets the machine name for port forwarding service
 	#[clap(long)]
 	pub name: Option<String>,

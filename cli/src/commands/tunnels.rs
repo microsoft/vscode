@@ -17,8 +17,8 @@ use super::{
 	CommandContext,
 };
 
-use crate::tunnels::dev_tunnels::ActiveTunnel;
 use crate::tunnels::shutdown_signal::ShutdownSignal;
+use crate::tunnels::{dev_tunnels::ActiveTunnel, SleepInhibitor};
 use crate::{
 	auth::Auth,
 	log::{self, Logger},
@@ -213,10 +213,22 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 		log, paths, args, ..
 	} = ctx;
 
+	let no_sleep = match gateway_args.no_sleep.then(SleepInhibitor::new) {
+		Some(Ok(i)) => Some(i),
+		Some(Err(e)) => {
+			warning!(log, "Could not inhibit sleep: {}", e);
+			None
+		}
+		None => None,
+	};
+
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
-	serve_with_csa(paths, log, gateway_args, csa, None).await
+	let result = serve_with_csa(paths, log, gateway_args, csa, None).await;
+	drop(no_sleep);
+
+	result
 }
 
 fn get_connection_token(tunnel: &ActiveTunnel) -> String {
@@ -253,16 +265,16 @@ async fn serve_with_csa(
 	let shutdown_tx = if let Some(tx) = shutdown_rx {
 		tx
 	} else if let Some(pid) = gateway_args
- 			.parent_process_id
- 			.and_then(|p| Pid::from_str(&p).ok())
- 		{
- 			ShutdownSignal::create_rx(&[
- 				ShutdownSignal::CtrlC,
- 				ShutdownSignal::ParentProcessKilled(pid),
- 			])
- 		} else {
- 			ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC])
- 		};
+		.parent_process_id
+		.and_then(|p| Pid::from_str(&p).ok())
+	{
+		ShutdownSignal::create_rx(&[
+			ShutdownSignal::CtrlC,
+			ShutdownSignal::ParentProcessKilled(pid),
+		])
+	} else {
+		ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC])
+	};
 
 	let mut r = crate::tunnels::serve(&log, tunnel, &paths, &csa, platform, shutdown_tx).await?;
 	r.tunnel.close().await.ok();

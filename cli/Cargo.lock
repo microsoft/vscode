@@ -234,6 +234,7 @@ dependencies = [
  "clap",
  "clap_lex",
  "const_format",
+ "core-foundation",
  "dialoguer",
  "dirs 4.0.0",
  "flate2",
