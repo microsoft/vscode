@@ -382,8 +382,8 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: (action) => {
-				return this._strategy.actionProvider(action);
+			actionViewItemProvider: (action, options) => {
+				return this._strategy.actionProvider(action, options);
 			},
 			renderDropdownAsChildElement: true
 		});
@@ -440,8 +440,8 @@ export class NotebookEditorToolbar extends Disposable {
 				this._notebookLeftToolbar.dispose();
 				this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-					actionViewItemProvider: (action) => {
-						return this._strategy.actionProvider(action);
+					actionViewItemProvider: (action, options) => {
+						return this._strategy.actionProvider(action, options);
 					},
 					renderDropdownAsChildElement: true
 				});
