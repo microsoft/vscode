@@ -143,7 +143,7 @@ async fn handle_serve(
 		Some(AnyCodeServer::Socket(s)) => s,
 		Some(_) => return Err(MismatchedLaunchModeError().into()),
 		None => {
-			sb.setup(None).await?;
+			sb.setup(Some(params.archive_path.into())).await?;
 			sb.listen_on_default_socket().await?
 		}
 	};
