@@ -81,7 +81,7 @@ import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostUriOpeners } from 'vs/workbench/api/common/extHostUriOpener';
 import { IExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostTelemetry, isNewAppInstall } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostTelemetryLogger, IExtHostTelemetry, isNewAppInstall } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ExtHostNotebookRenderers } from 'vs/workbench/api/common/extHostNotebookRenderers';
@@ -336,9 +336,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get isNewAppInstall() {
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
-			createTelemetryLogger(appender: vscode.TelemetrySender): vscode.TelemetryLogger {
+			createTelemetryLogger(sender: vscode.TelemetrySender): vscode.TelemetryLogger {
 				checkProposedApiEnabled(extension, 'telemetryLogger');
-				return extHostTelemetry.instantiateLogger(extension, appender);
+				ExtHostTelemetryLogger.validateSender(sender);
+				return extHostTelemetry.instantiateLogger(extension, sender);
 			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
