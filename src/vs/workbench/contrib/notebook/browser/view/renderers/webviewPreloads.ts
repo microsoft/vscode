@@ -950,23 +950,27 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
-
 		const range = selection.getRangeAt(0);
+
+		// we need to keep a reference to the old selection range to re-apply later
 		const oldRange = range.cloneRange();
 		const captureLength = selection.toString().length;
 
-		// selection.collapseToStart();
-		// oldRange.setStart(range.startContainer, range.startOffset);
-		// oldRange.setEnd(range.endContainer, range.endOffset);
+		// use selection API to modify selection to get entire line (the first line if multi-select)
+
+		// collapse selection to start so that the cursor position is at beginning of match
+		selection.collapseToStart();
+
+		// extend selection in both directions to select the line
 		selection.modify('move', 'backward', 'lineboundary');
 		selection.modify('extend', 'forward', 'lineboundary');
 
-		const newRange = selection.getRangeAt(0);
 		const line = selection.toString();
-		const rangeStart = getStartOffset(newRange, oldRange);
-		// const rangeStart = oldRange.startOffset - newRange.startOffset;
-		// const rangeEnd = oldRange.endOffset - newRange.startOffset;
-		// console.log(getStartOffset(newRange, oldRange));
+
+		// using the original range and the new range, we can find the offset of the match from the line start.
+		const rangeStart = getStartOffset(selection.getRangeAt(0), oldRange);
+
+		// line range for match
 		const lineRange = {
 			start: rangeStart,
 			end: rangeStart + captureLength,
@@ -980,6 +984,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	function getStartOffset(lineRange: Range, originalRange: Range) {
+		// sometimes, the old and new range are in different DOM elements (ie: when the match is inside of <b></b>)
+		// so we need to find the first common ancestor DOM element and find the positions of the old and new range relative to that.
 		const firstCommonAncestor = findFirstCommonAncestor(lineRange.startContainer, originalRange.startContainer);
 
 		const selectionOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, lineRange.startContainer) + lineRange.startOffset;
@@ -1006,8 +1012,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return offset;
 		}
 
-		let prevSibling = currentNode.previousSibling;
 
+		// count the number of chars before the current dom elem and the start of the dom
+		let prevSibling = currentNode.previousSibling;
 		while (prevSibling) {
 			const nodeContent = prevSibling.nodeValue || '';
 			offset += nodeContent.length;
