@@ -350,6 +350,11 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
 		},
+		'search.experimental.notebookSearch': {
+			type: 'boolean',
+			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search."),
+			default: false
+		},
 	}
 });
 

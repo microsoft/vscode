@@ -34,13 +34,11 @@ import { minimapFindMatch, overviewRulerFindMatchForeground, overviewRulerSelect
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-// import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { notebookEditorMatchesToTextSearchResults, NotebookMatchInfo, NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
-// import { addContextToNotebookEditorMatches, notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -1420,6 +1418,7 @@ export class SearchResult extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
@@ -1531,6 +1530,12 @@ export class SearchResult extends Disposable {
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+
+		if (!experimentalNotebooksEnabled) {
+			return;
+		}
+
 		widget.onWillChangeModel(
 			(model) => {
 				if (model) {
@@ -1895,7 +1900,9 @@ export class SearchModel extends Disposable {
 
 			onProgress?.(p);
 		};
-		const notebookResult = await this.notebookSearch(query, onProgressCall);
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+
+		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, onProgressCall) : <ISearchComplete>{ messages: [], results: [] };
 		const currentResult = await this.searchService.textSearch(
 			searchQuery,
 			this.currentCancelTokenSource.token, onProgressCall,
