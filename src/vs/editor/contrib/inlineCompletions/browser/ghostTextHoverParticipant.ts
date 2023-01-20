@@ -70,7 +70,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			// handle the case where the mouse is over the view zone
 			const viewZoneData = target.detail;
 			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
-				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position), mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(this._editor.getModel()!.validatePosition(viewZoneData.positionBefore || viewZoneData.position)), mouseEvent.event.posx, mouseEvent.event.posy);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_EMPTY) {
