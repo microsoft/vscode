@@ -19,7 +19,7 @@ import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/gho
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -292,7 +292,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			alias: 'Accept Next Word Of Inline Suggestion',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
-				weight: 1000,
+				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 			}
 		});
@@ -308,7 +308,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'undo',
-	weight: 1000,
+	weight: KeybindingWeight.EditorContrib + 1,
 	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 	when: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.canUndoInlineSuggestion),
 });
