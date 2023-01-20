@@ -429,6 +429,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		try {
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
+			this.logger.trace(`Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
 			if (this.getRepositoryExact(repositoryRoot)) {
 				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
