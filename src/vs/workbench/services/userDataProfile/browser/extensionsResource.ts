@@ -165,7 +165,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 	readonly handle = ProfileResourceType.Extensions;
 	readonly label = { label: localize('extensions', "Extensions") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	protected readonly excludedExtensions = new Set<string>();
 
@@ -178,7 +178,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 			label: { label: e.displayName || e.identifier.id },
 			description: e.disabled ? localize('disabled', "Disabled") : undefined,
 			collapsibleState: TreeItemCollapsibleState.None,
-			checkbox: {
+			checkbox: that.checkbox ? {
 				get isChecked() { return !that.excludedExtensions.has(e.identifier.id.toLowerCase()); },
 				set isChecked(value: boolean) {
 					if (value) {
@@ -187,7 +187,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 						that.excludedExtensions.add(e.identifier.id.toLowerCase());
 					}
 				}
-			},
+			} : undefined,
 			command: {
 				id: 'extension.open',
 				title: '',
