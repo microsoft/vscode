@@ -28,7 +28,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { assertType } from 'vs/base/common/types';
-import { asCssValue, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
@@ -479,7 +479,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.style.borderColor = asCssValue(selectBorder);
+		container.style.borderColor = asCssVariable(selectBorder);
 	}
 
 	protected override runAction(option: string, index: number): void {

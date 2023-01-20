@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssValue, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, activeContrastBorder, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground, listFocusAndSelectionOutline, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground, tableColumnsBorder, tableOddRowsBackgroundColor, treeIndentGuidesStroke, asCssValueWithDefault, editorWidgetBorder, focusBorder, pickerGroupForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, selectBackground, selectBorder, selectForeground, selectListBackground, treeInactiveIndentGuidesStroke, menuBorder, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuSeparatorBackground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, asCssVariable, widgetShadow, buttonForeground, buttonSeparator, buttonBackground, buttonHoverBackground, buttonSecondaryForeground, buttonSecondaryBackground, buttonSecondaryHoverBackground, buttonBorder, progressBarBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground, editorWidgetBackground, editorWidgetForeground, contrastBorder, checkboxBorder, checkboxBackground, checkboxForeground, problemsErrorIconForeground, problemsWarningIconForeground, problemsInfoIconForeground, inputBackground, inputForeground, inputBorder, textLinkForeground, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFilterWidgetShadow, badgeBackground, badgeForeground, breadcrumbsBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, activeContrastBorder, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground, listFocusAndSelectionOutline, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground, tableColumnsBorder, tableOddRowsBackgroundColor, treeIndentGuidesStroke, asCssVariableWithDefault, editorWidgetBorder, focusBorder, pickerGroupForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, selectBackground, selectBorder, selectForeground, selectListBackground, treeInactiveIndentGuidesStroke, menuBorder, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuSeparatorBackground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ICheckboxStyles, IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { IDialogStyles } from 'vs/base/browser/ui/dialog/dialog';
@@ -25,25 +25,25 @@ export const defaultKeybindingLabelStyles = getKeybindingLabelStyles({});
 
 export function getKeybindingLabelStyles(override: IStyleOverride<IKeybindingLabelStyles>): IKeybindingLabelStyles {
 	return {
-		keybindingLabelBackground: asCssValue(override.keybindingLabelBackground ?? keybindingLabelBackground),
-		keybindingLabelForeground: asCssValue(override.keybindingLabelForeground ?? keybindingLabelForeground),
-		keybindingLabelBorder: asCssValue(override.keybindingLabelBorder ?? keybindingLabelBorder),
-		keybindingLabelBottomBorder: asCssValue(override.keybindingLabelBottomBorder ?? keybindingLabelBottomBorder),
-		keybindingLabelShadow: asCssValue(override.keybindingLabelShadow ?? widgetShadow)
+		keybindingLabelBackground: asCssVariable(override.keybindingLabelBackground ?? keybindingLabelBackground),
+		keybindingLabelForeground: asCssVariable(override.keybindingLabelForeground ?? keybindingLabelForeground),
+		keybindingLabelBorder: asCssVariable(override.keybindingLabelBorder ?? keybindingLabelBorder),
+		keybindingLabelBottomBorder: asCssVariable(override.keybindingLabelBottomBorder ?? keybindingLabelBottomBorder),
+		keybindingLabelShadow: asCssVariable(override.keybindingLabelShadow ?? widgetShadow)
 	};
 }
 export const defaultButtonStyles: IButtonStyles = getButtonStyles({});
 
 export function getButtonStyles(override: IStyleOverride<IButtonStyles>): IButtonStyles {
 	return {
-		buttonForeground: asCssValue(override.buttonForeground ?? buttonForeground),
-		buttonSeparator: asCssValue(override.buttonSeparator ?? buttonSeparator),
-		buttonBackground: asCssValue(override.buttonBackground ?? buttonBackground),
-		buttonHoverBackground: asCssValue(override.buttonHoverBackground ?? buttonHoverBackground),
-		buttonSecondaryForeground: asCssValue(override.buttonSecondaryForeground ?? buttonSecondaryForeground),
-		buttonSecondaryBackground: asCssValue(override.buttonSecondaryBackground ?? buttonSecondaryBackground),
-		buttonSecondaryHoverBackground: asCssValue(override.buttonSecondaryHoverBackground ?? buttonSecondaryHoverBackground),
-		buttonBorder: asCssValue(override.buttonBorder ?? buttonBorder),
+		buttonForeground: asCssVariable(override.buttonForeground ?? buttonForeground),
+		buttonSeparator: asCssVariable(override.buttonSeparator ?? buttonSeparator),
+		buttonBackground: asCssVariable(override.buttonBackground ?? buttonBackground),
+		buttonHoverBackground: asCssVariable(override.buttonHoverBackground ?? buttonHoverBackground),
+		buttonSecondaryForeground: asCssVariable(override.buttonSecondaryForeground ?? buttonSecondaryForeground),
+		buttonSecondaryBackground: asCssVariable(override.buttonSecondaryBackground ?? buttonSecondaryBackground),
+		buttonSecondaryHoverBackground: asCssVariable(override.buttonSecondaryHoverBackground ?? buttonSecondaryHoverBackground),
+		buttonBorder: asCssVariable(override.buttonBorder ?? buttonBorder),
 	};
 }
 
@@ -51,7 +51,7 @@ export const defaultProgressBarStyles: IProgressBarStyles = getProgressBarStyles
 
 export function getProgressBarStyles(override: IStyleOverride<IProgressBarStyles>): IProgressBarStyles {
 	return {
-		progressBarBackground: asCssValue(override.progressBarBackground ?? progressBarBackground)
+		progressBarBackground: asCssVariable(override.progressBarBackground ?? progressBarBackground)
 	};
 }
 
@@ -59,9 +59,9 @@ export const defaultToggleStyles: IToggleStyles = getToggleStyles({});
 
 export function getToggleStyles(override: IStyleOverride<IToggleStyles>): IToggleStyles {
 	return {
-		inputActiveOptionBorder: asCssValue(override.inputActiveOptionBorder ?? inputActiveOptionBorder),
-		inputActiveOptionForeground: asCssValue(override.inputActiveOptionForeground ?? inputActiveOptionForeground),
-		inputActiveOptionBackground: asCssValue(override.inputActiveOptionBackground ?? inputActiveOptionBackground)
+		inputActiveOptionBorder: asCssVariable(override.inputActiveOptionBorder ?? inputActiveOptionBorder),
+		inputActiveOptionForeground: asCssVariable(override.inputActiveOptionForeground ?? inputActiveOptionForeground),
+		inputActiveOptionBackground: asCssVariable(override.inputActiveOptionBackground ?? inputActiveOptionBackground)
 	};
 }
 
@@ -69,9 +69,9 @@ export const defaultCheckboxStyles: ICheckboxStyles = getCheckboxStyles({});
 
 export function getCheckboxStyles(override: IStyleOverride<ICheckboxStyles>): ICheckboxStyles {
 	return {
-		checkboxBackground: asCssValue(override.checkboxBackground ?? checkboxBackground),
-		checkboxBorder: asCssValue(override.checkboxBorder ?? checkboxBorder),
-		checkboxForeground: asCssValue(override.checkboxForeground ?? checkboxForeground)
+		checkboxBackground: asCssVariable(override.checkboxBackground ?? checkboxBackground),
+		checkboxBorder: asCssVariable(override.checkboxBorder ?? checkboxBorder),
+		checkboxForeground: asCssVariable(override.checkboxForeground ?? checkboxForeground)
 	};
 }
 
@@ -79,14 +79,14 @@ export const defaultDialogStyles = getDialogStyle({});
 
 export function getDialogStyle(override: IStyleOverride<IDialogStyles>): IDialogStyles {
 	return {
-		dialogBackground: asCssValue(override.dialogBackground ?? editorWidgetBackground),
-		dialogForeground: asCssValue(override.dialogForeground ?? editorWidgetForeground),
-		dialogShadow: asCssValue(override.dialogShadow ?? widgetShadow),
-		dialogBorder: asCssValue(override.dialogBorder ?? contrastBorder),
-		errorIconForeground: asCssValue(override.errorIconForeground ?? problemsErrorIconForeground),
-		warningIconForeground: asCssValue(override.warningIconForeground ?? problemsWarningIconForeground),
-		infoIconForeground: asCssValue(override.infoIconForeground ?? problemsInfoIconForeground),
-		textLinkForeground: asCssValue(override.textLinkForeground ?? textLinkForeground)
+		dialogBackground: asCssVariable(override.dialogBackground ?? editorWidgetBackground),
+		dialogForeground: asCssVariable(override.dialogForeground ?? editorWidgetForeground),
+		dialogShadow: asCssVariable(override.dialogShadow ?? widgetShadow),
+		dialogBorder: asCssVariable(override.dialogBorder ?? contrastBorder),
+		errorIconForeground: asCssVariable(override.errorIconForeground ?? problemsErrorIconForeground),
+		warningIconForeground: asCssVariable(override.warningIconForeground ?? problemsWarningIconForeground),
+		infoIconForeground: asCssVariable(override.infoIconForeground ?? problemsInfoIconForeground),
+		textLinkForeground: asCssVariable(override.textLinkForeground ?? textLinkForeground)
 	};
 }
 
@@ -94,26 +94,26 @@ export const defaultInputBoxStyles = getInputBoxStyle({});
 
 export function getInputBoxStyle(override: IStyleOverride<IInputBoxStyles>): IInputBoxStyles {
 	return {
-		inputBackground: asCssValue(override.inputBackground ?? inputBackground),
-		inputForeground: asCssValue(override.inputForeground ?? inputForeground),
-		inputBorder: asCssValue(override.inputBorder ?? inputBorder),
-		inputValidationInfoBorder: asCssValue(override.inputValidationInfoBorder ?? inputValidationInfoBorder),
-		inputValidationInfoBackground: asCssValue(override.inputValidationInfoBackground ?? inputValidationInfoBackground),
-		inputValidationInfoForeground: asCssValue(override.inputValidationInfoForeground ?? inputValidationInfoForeground),
-		inputValidationWarningBorder: asCssValue(override.inputValidationWarningBorder ?? inputValidationWarningBorder),
-		inputValidationWarningBackground: asCssValue(override.inputValidationWarningBackground ?? inputValidationWarningBackground),
-		inputValidationWarningForeground: asCssValue(override.inputValidationWarningForeground ?? inputValidationWarningForeground),
-		inputValidationErrorBorder: asCssValue(override.inputValidationErrorBorder ?? inputValidationErrorBorder),
-		inputValidationErrorBackground: asCssValue(override.inputValidationErrorBackground ?? inputValidationErrorBackground),
-		inputValidationErrorForeground: asCssValue(override.inputValidationErrorForeground ?? inputValidationErrorForeground)
+		inputBackground: asCssVariable(override.inputBackground ?? inputBackground),
+		inputForeground: asCssVariable(override.inputForeground ?? inputForeground),
+		inputBorder: asCssVariable(override.inputBorder ?? inputBorder),
+		inputValidationInfoBorder: asCssVariable(override.inputValidationInfoBorder ?? inputValidationInfoBorder),
+		inputValidationInfoBackground: asCssVariable(override.inputValidationInfoBackground ?? inputValidationInfoBackground),
+		inputValidationInfoForeground: asCssVariable(override.inputValidationInfoForeground ?? inputValidationInfoForeground),
+		inputValidationWarningBorder: asCssVariable(override.inputValidationWarningBorder ?? inputValidationWarningBorder),
+		inputValidationWarningBackground: asCssVariable(override.inputValidationWarningBackground ?? inputValidationWarningBackground),
+		inputValidationWarningForeground: asCssVariable(override.inputValidationWarningForeground ?? inputValidationWarningForeground),
+		inputValidationErrorBorder: asCssVariable(override.inputValidationErrorBorder ?? inputValidationErrorBorder),
+		inputValidationErrorBackground: asCssVariable(override.inputValidationErrorBackground ?? inputValidationErrorBackground),
+		inputValidationErrorForeground: asCssVariable(override.inputValidationErrorForeground ?? inputValidationErrorForeground)
 	};
 }
 
 export const defaultFindWidgetStyles: IFindWidgetStyles = {
-	listFilterWidgetBackground: asCssValue(listFilterWidgetBackground),
-	listFilterWidgetOutline: asCssValue(listFilterWidgetOutline),
-	listFilterWidgetNoMatchesOutline: asCssValue(listFilterWidgetNoMatchesOutline),
-	listFilterWidgetShadow: asCssValue(listFilterWidgetShadow),
+	listFilterWidgetBackground: asCssVariable(listFilterWidgetBackground),
+	listFilterWidgetOutline: asCssVariable(listFilterWidgetOutline),
+	listFilterWidgetNoMatchesOutline: asCssVariable(listFilterWidgetNoMatchesOutline),
+	listFilterWidgetShadow: asCssVariable(listFilterWidgetShadow),
 	inputBoxStyles: defaultInputBoxStyles,
 	toggleStyles: defaultToggleStyles
 };
@@ -122,9 +122,9 @@ export const defaultCountBadgeStyles = getCountBadgeStyle({});
 
 export function getCountBadgeStyle(override: IStyleOverride<ICountBadgeStyles>): ICountBadgeStyles {
 	return {
-		badgeBackground: asCssValue(override.badgeBackground ?? badgeBackground),
-		badgeForeground: asCssValue(override.badgeForeground ?? badgeForeground),
-		badgeBorder: asCssValue(contrastBorder)
+		badgeBackground: asCssVariable(override.badgeBackground ?? badgeBackground),
+		badgeForeground: asCssVariable(override.badgeForeground ?? badgeForeground),
+		badgeBorder: asCssVariable(contrastBorder)
 	};
 }
 
@@ -132,11 +132,11 @@ export const defaultBreadcrumbsWidgetStyles = getBreadcrumbsWidgetStyles({});
 
 export function getBreadcrumbsWidgetStyles(override: IStyleOverride<IBreadcrumbsWidgetStyles>): IBreadcrumbsWidgetStyles {
 	return {
-		breadcrumbsBackground: asCssValue(override.breadcrumbsBackground ?? breadcrumbsBackground),
-		breadcrumbsForeground: asCssValue(override.breadcrumbsForeground ?? breadcrumbsForeground),
-		breadcrumbsHoverForeground: asCssValue(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
-		breadcrumbsFocusForeground: asCssValue(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
-		breadcrumbsFocusAndSelectionForeground: asCssValue(override.breadcrumbsFocusAndSelectionForeground ?? breadcrumbsActiveSelectionForeground)
+		breadcrumbsBackground: asCssVariable(override.breadcrumbsBackground ?? breadcrumbsBackground),
+		breadcrumbsForeground: asCssVariable(override.breadcrumbsForeground ?? breadcrumbsForeground),
+		breadcrumbsHoverForeground: asCssVariable(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
+		breadcrumbsFocusForeground: asCssVariable(override.breadcrumbsFocusForeground ?? breadcrumbsFocusForeground),
+		breadcrumbsFocusAndSelectionForeground: asCssVariable(override.breadcrumbsFocusAndSelectionForeground ?? breadcrumbsActiveSelectionForeground)
 	};
 }
 
@@ -144,31 +144,31 @@ export const defaultListStyles = getListStyles({});
 
 export function getListStyles(override: IStyleOverride<IListStyles>): IListStyles {
 	return {
-		listBackground: override.listBackground ? asCssValue(override.listBackground) : undefined,
-		listInactiveFocusForeground: override.listInactiveFocusForeground ? asCssValue(override.listInactiveFocusForeground) : undefined,
-		listFocusBackground: asCssValue(override.listFocusBackground ?? listFocusBackground),
-		listFocusForeground: asCssValue(override.listFocusForeground ?? listFocusForeground),
-		listFocusOutline: asCssValue(override.listFocusOutline ?? listFocusOutline),
-		listActiveSelectionBackground: asCssValue(override.listActiveSelectionBackground ?? listActiveSelectionBackground),
-		listActiveSelectionForeground: asCssValue(override.listActiveSelectionForeground ?? listActiveSelectionForeground),
-		listActiveSelectionIconForeground: asCssValue(override.listActiveSelectionIconForeground ?? listActiveSelectionIconForeground),
-		listFocusAndSelectionOutline: asCssValue(override.listFocusAndSelectionOutline ?? listFocusAndSelectionOutline),
-		listFocusAndSelectionBackground: asCssValue(override.listFocusAndSelectionBackground ?? listActiveSelectionBackground),
-		listFocusAndSelectionForeground: asCssValue(override.listFocusAndSelectionForeground ?? listActiveSelectionForeground),
-		listInactiveSelectionBackground: asCssValue(override.listInactiveSelectionBackground ?? listInactiveSelectionBackground),
-		listInactiveSelectionIconForeground: asCssValue(override.listInactiveSelectionIconForeground ?? listInactiveSelectionIconForeground),
-		listInactiveSelectionForeground: asCssValue(override.listInactiveSelectionForeground ?? listInactiveSelectionForeground),
-		listInactiveFocusBackground: asCssValue(override.listInactiveFocusBackground ?? listInactiveFocusBackground),
-		listInactiveFocusOutline: asCssValue(override.listInactiveFocusOutline ?? listInactiveFocusOutline),
-		listHoverBackground: asCssValue(override.listHoverBackground ?? listHoverBackground),
-		listHoverForeground: asCssValue(override.listHoverForeground ?? listHoverForeground),
-		listDropBackground: asCssValue(override.listDropBackground ?? listDropBackground),
-		listSelectionOutline: asCssValue(override.listSelectionOutline ?? activeContrastBorder),
-		listHoverOutline: asCssValue(override.listHoverOutline ?? activeContrastBorder),
-		treeIndentGuidesStroke: asCssValue(override.treeIndentGuidesStroke ?? treeIndentGuidesStroke),
-		treeInactiveIndentGuidesStroke: asCssValue(override.treeInactiveIndentGuidesStroke ?? treeInactiveIndentGuidesStroke),
-		tableColumnsBorder: asCssValue(override.tableColumnsBorder ?? tableColumnsBorder),
-		tableOddRowsBackgroundColor: asCssValue(override.tableOddRowsBackgroundColor ?? tableOddRowsBackgroundColor),
+		listBackground: override.listBackground ? asCssVariable(override.listBackground) : undefined,
+		listInactiveFocusForeground: override.listInactiveFocusForeground ? asCssVariable(override.listInactiveFocusForeground) : undefined,
+		listFocusBackground: asCssVariable(override.listFocusBackground ?? listFocusBackground),
+		listFocusForeground: asCssVariable(override.listFocusForeground ?? listFocusForeground),
+		listFocusOutline: asCssVariable(override.listFocusOutline ?? listFocusOutline),
+		listActiveSelectionBackground: asCssVariable(override.listActiveSelectionBackground ?? listActiveSelectionBackground),
+		listActiveSelectionForeground: asCssVariable(override.listActiveSelectionForeground ?? listActiveSelectionForeground),
+		listActiveSelectionIconForeground: asCssVariable(override.listActiveSelectionIconForeground ?? listActiveSelectionIconForeground),
+		listFocusAndSelectionOutline: asCssVariable(override.listFocusAndSelectionOutline ?? listFocusAndSelectionOutline),
+		listFocusAndSelectionBackground: asCssVariable(override.listFocusAndSelectionBackground ?? listActiveSelectionBackground),
+		listFocusAndSelectionForeground: asCssVariable(override.listFocusAndSelectionForeground ?? listActiveSelectionForeground),
+		listInactiveSelectionBackground: asCssVariable(override.listInactiveSelectionBackground ?? listInactiveSelectionBackground),
+		listInactiveSelectionIconForeground: asCssVariable(override.listInactiveSelectionIconForeground ?? listInactiveSelectionIconForeground),
+		listInactiveSelectionForeground: asCssVariable(override.listInactiveSelectionForeground ?? listInactiveSelectionForeground),
+		listInactiveFocusBackground: asCssVariable(override.listInactiveFocusBackground ?? listInactiveFocusBackground),
+		listInactiveFocusOutline: asCssVariable(override.listInactiveFocusOutline ?? listInactiveFocusOutline),
+		listHoverBackground: asCssVariable(override.listHoverBackground ?? listHoverBackground),
+		listHoverForeground: asCssVariable(override.listHoverForeground ?? listHoverForeground),
+		listDropBackground: asCssVariable(override.listDropBackground ?? listDropBackground),
+		listSelectionOutline: asCssVariable(override.listSelectionOutline ?? activeContrastBorder),
+		listHoverOutline: asCssVariable(override.listHoverOutline ?? activeContrastBorder),
+		treeIndentGuidesStroke: asCssVariable(override.treeIndentGuidesStroke ?? treeIndentGuidesStroke),
+		treeInactiveIndentGuidesStroke: asCssVariable(override.treeInactiveIndentGuidesStroke ?? treeInactiveIndentGuidesStroke),
+		tableColumnsBorder: asCssVariable(override.tableColumnsBorder ?? tableColumnsBorder),
+		tableOddRowsBackgroundColor: asCssVariable(override.tableOddRowsBackgroundColor ?? tableOddRowsBackgroundColor),
 	};
 }
 
@@ -176,20 +176,20 @@ export const defaultSelectBoxStyles = getSelectBoxStyles({});
 
 export function getSelectBoxStyles(override: IStyleOverride<ISelectBoxStyles>): ISelectBoxStyles {
 	return {
-		selectBackground: asCssValue(override.selectBackground || selectBackground),
-		selectListBackground: asCssValue(override.selectListBackground || selectListBackground),
-		selectForeground: asCssValue(override.selectForeground || selectForeground),
-		decoratorRightForeground: asCssValue(override.decoratorRightForeground || pickerGroupForeground),
-		selectBorder: asCssValue(override.selectBorder || selectBorder),
-		focusBorder: asCssValue(override.focusBorder || focusBorder),
-		listFocusBackground: asCssValue(override.listFocusBackground || quickInputListFocusBackground),
-		listInactiveSelectionIconForeground: asCssValue(override.listInactiveSelectionIconForeground || quickInputListFocusIconForeground),
-		listFocusForeground: asCssValue(override.listFocusForeground || quickInputListFocusForeground),
-		listFocusOutline: asCssValueWithDefault(override.listFocusOutline ?? activeContrastBorder, Color.transparent.toString()),
-		listHoverBackground: asCssValue(override.listHoverBackground || listHoverBackground),
-		listHoverForeground: asCssValue(override.listHoverForeground || listHoverForeground),
-		listHoverOutline: asCssValue(override.listFocusOutline || activeContrastBorder),
-		selectListBorder: asCssValue(override.selectListBorder || editorWidgetBorder),
+		selectBackground: asCssVariable(override.selectBackground || selectBackground),
+		selectListBackground: asCssVariable(override.selectListBackground || selectListBackground),
+		selectForeground: asCssVariable(override.selectForeground || selectForeground),
+		decoratorRightForeground: asCssVariable(override.decoratorRightForeground || pickerGroupForeground),
+		selectBorder: asCssVariable(override.selectBorder || selectBorder),
+		focusBorder: asCssVariable(override.focusBorder || focusBorder),
+		listFocusBackground: asCssVariable(override.listFocusBackground || quickInputListFocusBackground),
+		listInactiveSelectionIconForeground: asCssVariable(override.listInactiveSelectionIconForeground || quickInputListFocusIconForeground),
+		listFocusForeground: asCssVariable(override.listFocusForeground || quickInputListFocusForeground),
+		listFocusOutline: asCssVariableWithDefault(override.listFocusOutline ?? activeContrastBorder, Color.transparent.toString()),
+		listHoverBackground: asCssVariable(override.listHoverBackground || listHoverBackground),
+		listHoverForeground: asCssVariable(override.listHoverForeground || listHoverForeground),
+		listHoverOutline: asCssVariable(override.listFocusOutline || activeContrastBorder),
+		selectListBorder: asCssVariable(override.selectListBorder || editorWidgetBorder),
 		listBackground: undefined,
 		listActiveSelectionBackground: undefined,
 		listActiveSelectionForeground: undefined,
@@ -216,17 +216,17 @@ export const defaultMenuStyles = getMenuStyles({});
 
 export function getMenuStyles(override: IStyleOverride<IMenuStyles>): IMenuStyles {
 	return {
-		shadowColor: asCssValue(override.shadowColor ?? widgetShadow),
-		borderColor: asCssValue(override.borderColor ?? menuBorder),
-		foregroundColor: asCssValue(override.foregroundColor ?? menuForeground),
-		backgroundColor: asCssValue(override.backgroundColor ?? menuBackground),
-		selectionForegroundColor: asCssValue(override.selectionForegroundColor ?? menuSelectionForeground),
-		selectionBackgroundColor: asCssValue(override.selectionBackgroundColor ?? menuSelectionBackground),
-		selectionBorderColor: asCssValue(override.selectionBorderColor ?? menuSelectionBorder),
-		separatorColor: asCssValue(override.separatorColor ?? menuSeparatorBackground),
-		scrollbarShadow: asCssValue(override.scrollbarShadow ?? scrollbarShadow),
-		scrollbarSliderBackground: asCssValue(override.scrollbarSliderBackground ?? scrollbarSliderBackground),
-		scrollbarSliderHoverBackground: asCssValue(override.scrollbarSliderHoverBackground ?? scrollbarSliderHoverBackground),
-		scrollbarSliderActiveBackground: asCssValue(override.scrollbarSliderActiveBackground ?? scrollbarSliderActiveBackground)
+		shadowColor: asCssVariable(override.shadowColor ?? widgetShadow),
+		borderColor: asCssVariable(override.borderColor ?? menuBorder),
+		foregroundColor: asCssVariable(override.foregroundColor ?? menuForeground),
+		backgroundColor: asCssVariable(override.backgroundColor ?? menuBackground),
+		selectionForegroundColor: asCssVariable(override.selectionForegroundColor ?? menuSelectionForeground),
+		selectionBackgroundColor: asCssVariable(override.selectionBackgroundColor ?? menuSelectionBackground),
+		selectionBorderColor: asCssVariable(override.selectionBorderColor ?? menuSelectionBorder),
+		separatorColor: asCssVariable(override.separatorColor ?? menuSeparatorBackground),
+		scrollbarShadow: asCssVariable(override.scrollbarShadow ?? scrollbarShadow),
+		scrollbarSliderBackground: asCssVariable(override.scrollbarSliderBackground ?? scrollbarSliderBackground),
+		scrollbarSliderHoverBackground: asCssVariable(override.scrollbarSliderHoverBackground ?? scrollbarSliderHoverBackground),
+		scrollbarSliderActiveBackground: asCssVariable(override.scrollbarSliderActiveBackground ?? scrollbarSliderActiveBackground)
 	};
 }

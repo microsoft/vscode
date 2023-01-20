@@ -21,7 +21,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
-import { asCssValue, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
@@ -237,7 +237,7 @@ class DecorationDataRequest {
 }
 
 function getColor(color: ColorIdentifier | undefined) {
-	return color ? asCssValue(color) : 'inherit';
+	return color ? asCssVariable(color) : 'inherit';
 }
 
 type DecorationEntry = Map<IDecorationsProvider, DecorationDataRequest | IDecorationData | null>;
