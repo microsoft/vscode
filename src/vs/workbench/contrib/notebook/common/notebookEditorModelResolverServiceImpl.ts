@@ -6,7 +6,7 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { ComplexNotebookEditorModel, InteractiveWindowNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -20,6 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { assertIsDefined } from 'vs/base/common/types';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -70,22 +71,31 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType, info.controller);
 			result = await model.load();
 
-		} else if (info instanceof SimpleNotebookProviderInfo) {
-			const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
-			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
-			if (!workingCopyManager) {
-				const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
-				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-					FileWorkingCopyManager,
-					workingCopyTypeId,
-					factory,
-					factory,
-				);
-				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
+		}
+		else if (info instanceof SimpleNotebookProviderInfo) {
+			if (viewType === 'interactive') {
+				const factory = async () => {
+					const data = await info.serializer.dataToNotebook(VSBuffer.fromString(''));
+					return this._notebookService.createNotebookTextModel(viewType, uri, data, info.serializer.options);
+				};
+				const model = new InteractiveWindowNotebookEditorModel(uri, factory);
+				result = await model.load();
+			} else {
+				const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
+				let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
+				if (!workingCopyManager) {
+					const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
+					workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+						FileWorkingCopyManager,
+						workingCopyTypeId,
+						factory,
+						factory,
+					);
+					this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
+				}
+				const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
+				result = await model.load();
 			}
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
-			result = await model.load();
-
 		} else {
 			throw new Error(`CANNOT open ${key}, no provider found`);
 		}

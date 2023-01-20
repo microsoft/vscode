@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, INotebookTextModel, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -435,6 +435,63 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 }
 
 //#endregion
+
+export class InteractiveWindowNotebookEditorModel extends EditorModel implements INotebookEditorModel {
+	readonly viewType = 'interactive';
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent>());
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	readonly onDidSave: Event<IStoredFileWorkingCopySaveEvent> = this._onDidSave.event;
+	readonly onDidChangeOrphaned: Event<void> = this._onDidChangeOrphaned.event;
+	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
+
+	constructor(
+		readonly resource: URI,
+		readonly textModelFactory: () => Promise<INotebookTextModel>
+	) {
+		super();
+	}
+
+	notebook: INotebookTextModel | undefined;
+
+	override isResolved(): this is IResolvedNotebookEditorModel {
+		return Boolean(this.notebook);
+	}
+
+	isDirty(): boolean {
+		return false;
+	}
+	isReadonly(): boolean {
+		return false;
+	}
+	isOrphaned(): boolean {
+		return false;
+	}
+	hasAssociatedFilePath(): boolean {
+		return false;
+	}
+	async load(options?: INotebookLoadOptions | undefined): Promise<IResolvedNotebookEditorModel> {
+		if (!this.notebook) {
+			this.notebook = await this.textModelFactory();
+		}
+
+		assertType(this.isResolved());
+		return this;
+	}
+	async save(options?: ISaveOptions | undefined): Promise<boolean> {
+		return true;
+	}
+	async saveAs(target: URI): Promise<IUntypedEditorInput | undefined> {
+		return this;
+	}
+	async revert(options?: IRevertOptions | undefined): Promise<void> {
+
+	}
+
+}
 
 //#region --- simple content provider
 
