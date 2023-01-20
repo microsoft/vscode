@@ -49,6 +49,7 @@ log = "0.4"
 const_format = "0.2"
 sha2 = "0.10"
 base64 = "0.13"
+core-foundation = "0.9.3"
 
 [build-dependencies]
 serde = { version = "1.0" }
