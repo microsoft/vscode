@@ -1772,6 +1772,8 @@ export class SearchView extends ViewPane {
 	private shouldOpenInNotebookEditor(match: Match, uri: URI): boolean {
 		// Untitled files will return a false positive for getContributedNotebookTypes.
 		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
+
+		// notebookMatch are only created when search.experimental.notebookSearch is enabled, so this should never return true if experimental flag is disabled.
 		return match instanceof NotebookMatch || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
@@ -1818,8 +1820,6 @@ export class SearchView extends ViewPane {
 			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 			if (element instanceof Match) {
 				if (element instanceof NotebookMatch) {
-
-					// no op for now!
 					element.parent().showMatch(element);
 				} else {
 					const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());

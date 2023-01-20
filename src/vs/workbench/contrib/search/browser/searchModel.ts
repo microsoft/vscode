@@ -298,6 +298,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ILabelService readonly labelService: ILabelService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -315,7 +316,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	private async createMatches(): Promise<void> {
 		const model = this.modelService.getModel(this._resource);
-		const notebookEditorWidgetBorrow = this.notebookEditorService.retrieveExistingWidgetFromURI(this._resource);
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+		const notebookEditorWidgetBorrow = experimentalNotebooksEnabled ? this.notebookEditorService.retrieveExistingWidgetFromURI(this._resource) : undefined;
 		if (notebookEditorWidgetBorrow?.value) {
 			this.bindEditorWidget(notebookEditorWidgetBorrow.value);
 			await this.updateMatchesForEditorWidget();
