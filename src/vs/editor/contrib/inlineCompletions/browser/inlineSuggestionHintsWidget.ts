@@ -7,7 +7,7 @@ import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineSuggestionHintsWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -39,6 +39,7 @@ export class InlineSuggestionHintsWidget extends Disposable {
 		super();
 
 		editor.addContentWidget(this.widget);
+		this._register(toDisposable(() => editor.removeContentWidget(this.widget)));
 		this._register(model.onDidChange(() => this.update()));
 		this._register(editor.onDidChangeConfiguration(() => this.update()));
 		this.update();
