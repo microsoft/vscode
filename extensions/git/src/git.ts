@@ -12,7 +12,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
@@ -497,10 +497,14 @@ export class Git {
 							),
 						);
 						if (networkPath !== undefined) {
+							// If the repository is at the root of the mapped drive then we
+							// have to append `\` (ex: D:\) otherwise the path is not valid.
+							const isDriveRoot = pathEquals(repoUri.fsPath, networkPath);
+
 							return path.normalize(
 								repoUri.fsPath.replace(
 									networkPath,
-									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+									`${letter.toLowerCase()}:${isDriveRoot || networkPath.endsWith('\\') ? '\\' : ''}`
 								),
 							);
 						}
@@ -2092,7 +2096,7 @@ export class Repository {
 				HEAD = await this.getBranch(HEAD.name);
 			} else if (HEAD.commit) {
 				// Tag || Commit
-				const tags = await this.getRefs({ pattern: 'refs/tags/*' });
+				const tags = await this.getRefs({ pattern: 'refs/tags' });
 				const tag = tags.find(tag => tag.commit === HEAD!.commit);
 
 				if (tag) {

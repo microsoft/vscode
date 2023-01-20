@@ -56,19 +56,23 @@ export class ExtensionsResource implements IProfileResource {
 			for (const e of profileExtensions) {
 				const isDisabled = extensionEnablementService.getDisabledExtensions().some(disabledExtension => areSameExtensions(disabledExtension, e.identifier));
 				const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
-				if (!installedExtension || installedExtension.preRelease !== e.preRelease) {
+				if (!installedExtension || (!installedExtension.isBuiltin && installedExtension.preRelease !== e.preRelease)) {
 					extensionsToInstall.push(e);
 				}
 				if (installedExtension && isDisabled !== !!e.disabled) {
-					extensionsToEnableOrDisable.push({ extension: installedExtension, enable: !!e.disabled });
+					extensionsToEnableOrDisable.push({ extension: installedExtension, enable: !e.disabled });
 				}
 			}
 			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => extension.type === ExtensionType.User && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
 			for (const { extension, enable } of extensionsToEnableOrDisable) {
 				if (enable) {
+					this.logService.trace(`Importing Profile (${profile.name}): Enabling extension...`, extension.identifier.id);
 					await extensionEnablementService.enableExtension(extension.identifier);
+					this.logService.info(`Importing Profile (${profile.name}): Enabled extension...`, extension.identifier.id);
 				} else {
+					this.logService.trace(`Importing Profile (${profile.name}): Disabling extension...`, extension.identifier.id);
 					await extensionEnablementService.disableExtension(extension.identifier);
+					this.logService.info(`Importing Profile (${profile.name}): Disabled extension...`, extension.identifier.id);
 				}
 			}
 			if (extensionsToInstall.length) {
@@ -79,6 +83,7 @@ export class ExtensionsResource implements IProfileResource {
 						return;
 					}
 					if (await this.extensionManagementService.canInstall(extension)) {
+						this.logService.trace(`Importing Profile (${profile.name}): Installing extension...`, extension.identifier.id, extension.version);
 						await this.extensionManagementService.installFromGallery(extension, {
 							isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
 							donotIncludePackAndDependencies: true,
@@ -86,8 +91,9 @@ export class ExtensionsResource implements IProfileResource {
 							installPreReleaseVersion: e.preRelease,
 							profileLocation: profile.extensionsResource
 						});
+						this.logService.info(`Importing Profile (${profile.name}): Installed extension...`, extension.identifier.id, extension.version);
 					} else {
-						this.logService.info(`Profile: Skipped installing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
+						this.logService.info(`Importing Profile (${profile.name}): Skipped installing extension because it cannot be installed.`, extension.identifier.id);
 					}
 				}));
 			}

@@ -5,8 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -19,6 +17,7 @@ import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewIte
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
@@ -29,14 +28,12 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		private readonly optionsItems: IRemoteSelectItem[],
-		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IRemoteExplorerService private remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
-		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		super(null, action, optionsItems, 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 	}
 
 	public setSelectionForConnection(): boolean {

@@ -528,6 +528,10 @@ export class TerminalService implements ITerminalService {
 		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
+	showTerminalAccessibilityHelp(): void {
+		this.activeInstance?.showAccessibilityHelp();
+	}
+
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
