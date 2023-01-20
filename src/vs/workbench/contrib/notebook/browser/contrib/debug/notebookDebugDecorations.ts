@@ -5,6 +5,8 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { debugIconBreakpointForeground } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { focusedStackFrameColor, topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -33,16 +35,16 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 	) {
 		super();
 
-		this._register(_debugService.getModel().onDidChangeCallStack(() => this.onDidChangeCallStack()));
-		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.onDidChangeCallStack()));
+		this._register(_debugService.getModel().onDidChangeCallStack(() => this.updateExecutionDecorations()));
+		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.updateExecutionDecorations()));
 		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (e.affectsNotebook(this._notebookEditor.textModel!.uri)) {
-				this.onDidChangeCallStack();
+				this.updateExecutionDecorations();
 			}
 		}));
 	}
 
-	private onDidChangeCallStack(): void {
+	private updateExecutionDecorations(): void {
 		const exes = this._notebookExecutionStateService.getCellExecutionsByHandleForNotebook(this._notebookEditor.textModel!.uri);
 
 		const topFrameCellsAndRanges: ICellAndRange[] = [];
@@ -141,3 +143,44 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 }
 
 registerNotebookContribution(PausedCellDecorationContribution.id, PausedCellDecorationContribution);
+
+export class NotebookBreakpointDecorations extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.debug.notebookBreakpointDecorations';
+
+	private _currentDecorations: string[] = [];
+
+	constructor(
+		private readonly _notebookEditor: INotebookEditor,
+		@IDebugService private readonly _debugService: IDebugService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
+	) {
+		super();
+		this._register(_debugService.getModel().onDidChangeBreakpoints(() => this.updateDecorations()));
+		this._register(_configService.onDidChangeConfiguration(e => e.affectsConfiguration('debug.showBreakpointsInOverviewRuler') && this.updateDecorations()));
+	}
+
+	private updateDecorations(): void {
+		const enabled = this._configService.getValue('debug.showBreakpointsInOverviewRuler');
+		const newDecorations = enabled ?
+			this._debugService.getModel().getBreakpoints().map(breakpoint => {
+				const parsed = CellUri.parse(breakpoint.uri);
+				if (!parsed || parsed.notebook.toString() !== this._notebookEditor.textModel!.uri.toString()) {
+					return null;
+				}
+
+				const options: INotebookCellDecorationOptions = {
+					overviewRuler: {
+						color: debugIconBreakpointForeground,
+						includeOutput: false,
+						modelRanges: [new Range(breakpoint.lineNumber, 0, breakpoint.lineNumber, 0)],
+						position: NotebookOverviewRulerLane.Left
+					}
+				};
+				return { handle: parsed.handle, options };
+			}).filter(x => !!x) as INotebookDeltaDecoration[]
+			: [];
+		this._currentDecorations = this._notebookEditor.deltaCellDecorations(this._currentDecorations, newDecorations);
+	}
+}
+
+registerNotebookContribution(NotebookBreakpointDecorations.id, NotebookBreakpointDecorations);
