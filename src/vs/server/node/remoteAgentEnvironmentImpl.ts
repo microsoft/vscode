@@ -21,7 +21,7 @@ import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/n
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { basename, isAbsolute, join, resolve } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
-import { InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
@@ -29,6 +29,8 @@ import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/e
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
+import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -40,7 +42,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly _connectionToken: ServerConnectionToken,
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _userDataProfilesService: IUserDataProfilesService,
-		extensionManagementCLI: ExtensionManagementCLI,
+		private readonly _extensionManagementCLI: ExtensionManagementCLI,
+		private readonly _extensionGalleryService: IExtensionGalleryService,
 		private readonly _logService: ILogService,
 		private readonly _extensionHostStatusService: IExtensionHostStatusService,
 		private readonly _extensionsScannerService: IExtensionsScannerService,
@@ -48,7 +51,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		if (_environmentService.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] };
 			performance.mark('code/server/willInstallBuiltinExtensions');
-			this.whenExtensionsReady = extensionManagementCLI.installExtensions([], _environmentService.args['install-builtin-extension'], installOptions, !!_environmentService.args['force'])
+			this.whenExtensionsReady = _extensionManagementCLI.installExtensions([], _environmentService.args['install-builtin-extension'], installOptions, !!_environmentService.args['force'])
 				.then(() => performance.mark('code/server/didInstallBuiltinExtensions'), error => {
 					_logService.error(error);
 				});
@@ -60,7 +63,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		if (extensionsToInstall) {
 			const idsOrVSIX = extensionsToInstall.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 			this.whenExtensionsReady
-				.then(() => extensionManagementCLI.installExtensions(idsOrVSIX, [], { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] }, !!_environmentService.args['force']))
+				.then(() => _extensionManagementCLI.installExtensions(idsOrVSIX, [], { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] }, !!_environmentService.args['force']))
 				.then(null, error => {
 					_logService.error(error);
 				});
@@ -312,7 +315,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	private async _scanExtensions(language: string, extensionDevelopmentPath?: string[]): Promise<IExtensionDescription[]> {
-		// Ensure that the language packs are available
+		await this._ensureLanguagePackIsInstalled(language);
 
 		const [builtinExtensions, installedExtensions, developedExtensions] = await Promise.all([
 			this._scanBuiltinExtensions(language),
@@ -349,4 +352,38 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
 
+	private async _ensureLanguagePackIsInstalled(language: string): Promise<void> {
+		if (
+			// No need to install language packs for the default language
+			language === platform.LANGUAGE_DEFAULT &&
+			// The extension gallery service needs to be available
+			!this._extensionGalleryService.isEnabled()
+		) {
+			return;
+		}
+		const config = await getNLSConfiguration(language, this._environmentService.userDataPath);
+		if (!InternalNLSConfiguration.is(config)) {
+			try {
+				const tagResult = await this._extensionGalleryService.query({ text: `tag:lp-${language}` }, CancellationToken.None);
+				if (tagResult.total === 0) {
+					this._logService.warn(`No extension found for language ${language}. This is unexpected since the client is configured to use this language.`);
+					return;
+				}
+
+				const extensionToInstall = tagResult.total === 1
+					? tagResult.firstPage[0]
+					// If there are multiple extensions, prefer the one from Microsoft. This mirrors the client behavior. This "multiple extensions" case hasn't
+					// come up yet, but it is possible that a language pack is published by a third party.
+					: tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack')) ?? tagResult.firstPage[0];
+				this._logService.trace(`Language Pack for ${language} is not installed. It will be installed now.`);
+				await this._extensionManagementCLI.installExtensions([extensionToInstall.identifier.id], [], { isMachineScoped: true }, true, {
+					log: (s) => this._logService.info(s),
+					error: (s) => this._logService.error(s)
+				});
+			} catch (err) {
+				// log and continue with the default language
+				this._logService.error(err);
+			}
+		}
+	}
 }
