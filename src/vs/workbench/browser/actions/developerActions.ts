@@ -237,6 +237,13 @@ class ToggleScreencastModeAction extends Action2 {
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
+			// Hide the single arrow key pressed
+			if (shortcut?.commandId && configurationService.getValue('screencastMode.hideSingleArrowKeys') && (
+				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
+			) {
+				return;
+			}
+
 			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 				if (
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
@@ -387,6 +394,11 @@ configurationRegistry.registerConfiguration({
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
 			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
+			default: false
+		},
+		'screencastMode.hideSingleArrowKeys': {
+			type: 'boolean',
+			description: localize('screencastMode.hideSingleArrowKeys', "Hide the single arrow key pressed in screencast mode."),
 			default: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
