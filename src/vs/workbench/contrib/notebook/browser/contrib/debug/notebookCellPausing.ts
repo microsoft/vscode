@@ -14,7 +14,8 @@ import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/de
 import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { runningCellRulerDecorationColor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { CellUri, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -29,18 +30,27 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 
 	private _currentTopDecorations: string[] = [];
 	private _currentOtherDecorations: string[] = [];
+	private _executingCellDecorations: string[] = [];
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IDebugService private readonly _debugService: IDebugService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
 		this._register(_debugService.getModel().onDidChangeCallStack(() => this.onDidChangeCallStack()));
 		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.onDidChangeCallStack()));
+		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+			if (e.affectsNotebook(this._notebookEditor.textModel!.uri)) {
+				this.onDidChangeCallStack();
+			}
+		}));
 	}
 
-	private async onDidChangeCallStack(): Promise<void> {
+	private onDidChangeCallStack(): void {
+		const exes = this._notebookExecutionStateService.getCellExecutionsByHandleForNotebook(this._notebookEditor.textModel!.uri);
+
 		const topFrameCellsAndRanges: ICellAndRange[] = [];
 		let focusedFrameCellAndRange: ICellAndRange | undefined = undefined;
 
@@ -59,6 +69,7 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 					const notebookCellAndRange = getNotebookCellAndRange(topFrame);
 					if (notebookCellAndRange) {
 						topFrameCellsAndRanges.push(notebookCellAndRange);
+						exes?.delete(notebookCellAndRange.handle);
 					}
 				}
 			}
@@ -70,13 +81,20 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 			if (thisFocusedFrameCellAndRange &&
 				!topFrameCellsAndRanges.some(topFrame => topFrame.handle === thisFocusedFrameCellAndRange?.handle && Range.equalsRange(topFrame.range, thisFocusedFrameCellAndRange?.range))) {
 				focusedFrameCellAndRange = thisFocusedFrameCellAndRange;
+				exes?.delete(focusedFrameCellAndRange.handle);
 			}
 		}
 
 		this.setTopFrameDecoration(topFrameCellsAndRanges);
 		this.setFocusedFrameDecoration(focusedFrameCellAndRange);
-	}
 
+		const exeHandles = exes ?
+			Array.from(exes.entries())
+				.filter(([_, exe]) => exe.state === NotebookCellExecutionState.Executing)
+				.map(([handle]) => handle)
+			: [];
+		this.setExecutingCellDecorations(exeHandles);
+	}
 
 	private setTopFrameDecoration(handlesAndRanges: ICellAndRange[]): void {
 		const newDecorations = handlesAndRanges.map(({ handle, range }) => {
@@ -109,6 +127,22 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 		}
 
 		this._currentOtherDecorations = this._notebookEditor.deltaCellDecorations(this._currentOtherDecorations, newDecorations);
+	}
+
+	private setExecutingCellDecorations(handles: number[]): void {
+		const newDecorations = handles.map(handle => {
+			const options: INotebookCellDecorationOptions = {
+				overviewRuler: {
+					color: runningCellRulerDecorationColor,
+					includeOutput: false,
+					modelRanges: [new Range(0, 0, 0, 0)],
+					position: NotebookOverviewRulerLane.Left
+				}
+			};
+			return { handle, options };
+		});
+
+		this._executingCellDecorations = this._notebookEditor.deltaCellDecorations(this._executingCellDecorations, newDecorations);
 	}
 }
 
