@@ -337,7 +337,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
 			createTelemetryLogger(sender: vscode.TelemetrySender): vscode.TelemetryLogger {
-				checkProposedApiEnabled(extension, 'telemetryLogger');
 				ExtHostTelemetryLogger.validateSender(sender);
 				return extHostTelemetry.instantiateLogger(extension, sender);
 			},
