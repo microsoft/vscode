@@ -299,16 +299,23 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	registerKernelSourceActionProvider(extension: IExtensionDescription, viewType: string, provider: vscode.NotebookKernelSourceActionProvider) {
 		const handle = this._kernelSourceActionProviderHandlePool++;
+		const eventHandle = typeof provider.onDidChangeNotebookKernelSourceActions === 'function' ? handle : undefined;
 		const that = this;
 
 		this._kernelSourceActionProviders.set(handle, provider);
 		this._logService.trace(`NotebookKernelSourceActionProvider[${handle}], CREATED by ${extension.identifier.value}`);
-		this._proxy.$addKernelSourceActionProvider(handle, viewType);
+		this._proxy.$addKernelSourceActionProvider(handle, handle, viewType);
+
+		let subscription: vscode.Disposable | undefined;
+		if (eventHandle !== undefined) {
+			subscription = provider.onDidChangeNotebookKernelSourceActions!(_ => this._proxy.$emitNotebookKernelSourceActionsChangeEvent(eventHandle));
+		}
 
 		return {
 			dispose: () => {
 				this._kernelSourceActionProviders.delete(handle);
-				that._proxy.$removeKernelSourceActionProvider(handle);
+				that._proxy.$removeKernelSourceActionProvider(handle, handle);
+				subscription?.dispose();
 			}
 		};
 	}
