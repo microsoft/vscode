@@ -27,7 +27,7 @@ import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { asCssValue, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
@@ -129,9 +129,9 @@ export class DebugHoverWidget implements IContentWidget {
 		this.toDispose.push(this.scrollbar);
 
 		this.editor.applyFontInfo(this.domNode);
-		this.domNode.style.backgroundColor = asCssValue(editorHoverBackground);
-		this.domNode.style.border = `1px solid ${asCssValue(editorHoverBorder)}`;
-		this.domNode.style.color = asCssValue(editorHoverForeground);
+		this.domNode.style.backgroundColor = asCssVariable(editorHoverBackground);
+		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
+		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
