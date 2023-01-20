@@ -104,6 +104,7 @@
 	"command.timelineSelectForCompare": "Select for Compare",
 	"command.timelineCompareWithSelected": "Compare with Selected",
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
+	"command.openRepositoriesInParentFolders": "Open Repositories In Parent Folders",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
@@ -242,7 +243,14 @@
 	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
 	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"config.optimisticUpdate": "Controls whether to optimistically update the state of the Source Control view after running git commands.",
+	"config.openRepositoryInParentFolders": "Control whether a repository in the parent folders of the workspace, open file(s) should be opened.",
+	"config.openRepositoryInParentFolders.always": "Always open a repository in the parent folders of the workspace, open file(s).",
+	"config.openRepositoryInParentFolders.never": "Never open a repository in the parent folders of the workspace, open file(s).",
+	"config.openRepositoryInParentFolders.prompt": "Prompt before opening a repository in the parent folders of the workspace, open file(s).",
 	"config.publishBeforeContinueOn": "Controls whether to publish unpublished git state when using Continue Working On from a git repository.",
+	"config.publishBeforeContinueOn.always": "Always publish unpublished git state when using Continue Working On from a git repository",
+	"config.publishBeforeContinueOn.never": "Never publish unpublished git state when using Continue Working On from a git repository",
+	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished git state when using Continue Working On from a git repository",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -333,6 +341,24 @@
 	},
 	"view.workbench.scm.scanWorkspaceForRepositories": {
 		"message": "Scanning workspace for git repositories..."
+	},
+	"view.workbench.scm.repositoryInParentFolders": {
+		"message": "A git repository was found in one of the parent directories of the workspace, open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse [this setting](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) to control how git repositories in parent directories of the workspace, open file(s) are opened. To learn more [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"comment": [
+			"{Locked='](command:git.openRepositoriesInParentFolders'}",
+			"{Locked='](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.repositoriesInParentFolders": {
+		"message": "Git repositories were found in one of the parent directories of the workspace, open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse [this setting](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) to control how git repositories in parent directories of the workspace, open file(s) are opened. To learn more [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"comment": [
+			"{Locked='](command:git.openRepositoriesInParentFolders'}",
+			"{Locked='](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
 	},
 	"view.workbench.scm.unsafeRepository": {
 		"message": "The detected git repository is potentially unsafe as the folder is owned by someone other than the current user.\n[Manage Unsafe Repositories](command:git.manageUnsafeRepositories)\nTo learn more about unsafe repositories [read our docs](https://aka.ms/vscode-git-unsafe-repository).",
