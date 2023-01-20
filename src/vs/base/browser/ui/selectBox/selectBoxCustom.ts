@@ -414,7 +414,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		const listBackground = dom.asCssValueWithDefault(this.styles.selectListBackground, background);
 		this.selectDropDownListContainer.style.backgroundColor = listBackground;
 		this.selectionDetailsPane.style.backgroundColor = listBackground;
-		const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder : '';
+		const optionsBorder = this.styles.focusBorder ?? '';
 		this.selectDropDownContainer.style.outlineColor = optionsBorder;
 		this.selectDropDownContainer.style.outlineOffset = '-1px';
 
