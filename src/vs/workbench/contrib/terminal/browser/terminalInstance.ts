@@ -1996,7 +1996,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			} else {
 				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
 			}
-			label += this._accessibilityService.isScreenReaderOptimized() ? nls.localize('terminalTextBoxAriaLabelNumberAndTitleAccessibility', "Press alt+f1 for terminal accessibility help") : '';
+			const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (screenReaderOptimized && isMacintosh) {
+				label += nls.localize('terminalTextBoxAriaLabelMacKeybinding', 'Press alt+f1 for terminal accessibility help');
+			} else if (screenReaderOptimized) {
+				label += nls.localize('terminalTextBoxAriaLabelLinuxWinKeybinding', 'Press shift+f1 for terminal accessibility help');
+			}
 			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
 			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
 			if (navigateUpKeybinding && navigateDownKeybinding) {
