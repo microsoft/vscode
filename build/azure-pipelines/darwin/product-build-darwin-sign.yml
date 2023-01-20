@@ -41,7 +41,7 @@ steps:
 
   - script: |
       mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js x64 > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
     displayName: Prepare yarn cache flags
 

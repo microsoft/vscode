@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -40,6 +40,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 interface WebviewContent {
 	readonly html: string;
+	readonly title: string | undefined;
 	readonly options: WebviewContentOptions;
 	readonly state: string | undefined;
 }
@@ -143,7 +144,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
@@ -166,6 +166,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._content = {
 			html: '',
+			title: initInfo.title,
 			options: initInfo.contentOptions,
 			state: undefined
 		};
@@ -587,13 +588,17 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}));
 	}
 
-	public set html(value: string) {
+	public setHtml(html: string) {
+		this.doUpdateContent({ ...this._content, html });
+		this._onDidHtmlChange.fire(html);
+	}
+
+	public setTitle(title: string) {
 		this.doUpdateContent({
-			html: value,
-			options: this._content.options,
-			state: this._content.state,
+			...this._content,
+			title,
 		});
-		this._onDidHtmlChange.fire(value);
+		this._send('set-title', title);
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
@@ -604,11 +609,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			return;
 		}
 
-		this.doUpdateContent({
-			html: this._content.html,
-			options: options,
-			state: this._content.state,
-		});
+		this.doUpdateContent({ ...this._content, options });
 	}
 
 	public set localResourcesRoot(resources: readonly URI[]) {
@@ -619,11 +620,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	public set state(state: string | undefined) {
-		this._content = {
-			html: this._content.html,
-			options: this._content.options,
-			state,
-		};
+		this._content = { ...this._content, state };
 	}
 
 	public set initialScrollProgress(value: number) {
@@ -638,6 +635,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		const allowScripts = !!this._content.options.allowScripts;
 		this._send('content', {
 			contents: this._content.html,
+			title: this._content.title,
 			options: {
 				allowMultipleAPIAcquire: !!this._content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,

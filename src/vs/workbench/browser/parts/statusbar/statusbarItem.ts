@@ -67,6 +67,7 @@ export class StatusbarEntryItem extends Disposable {
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 		this.labelContainer.setAttribute('role', 'button');
+		this.labelContainer.className = 'statusbar-item-label';
 		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)

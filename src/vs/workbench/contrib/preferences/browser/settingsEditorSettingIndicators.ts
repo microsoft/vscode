@@ -266,7 +266,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 		const currentlyFocusedIndicator = indicators[this.focusedIndex];
 		const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
-		previousFocusedElement.removeAttribute('tabIndex');
+		previousFocusedElement.tabIndex = -1;
 
 		this.focusedIndex = index;
 	}
@@ -364,6 +364,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+				view.tabIndex = -1;
 				this.scopeOverridesIndicator.focusElement = view;
 				const onClickOrKeydown = (e: UIEvent) => {
 					const [scope, language] = overriddenScope.split(':');

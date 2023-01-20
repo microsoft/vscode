@@ -9,6 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -19,6 +20,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotebookLoggingService private readonly _notebookLoggingService: INotebookLoggingService
 	) {
 		super();
 
@@ -45,6 +47,11 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 					// parse the event to get the notebook type
 					const notebookType = e.event.substring('onNotebook:'.length);
 
+					if (notebookType === '*') {
+						// ignore
+						return;
+					}
+
 					let shouldStartDetection = false;
 
 					const extensionStatus = this._extensionService.getExtensionsStatus();
@@ -59,6 +66,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 					});
 
 					if (shouldStartDetection && !this._detectionMap.has(notebookType)) {
+						this._notebookLoggingService.log('KernelDetection', `start extension activation for ${notebookType}`);
 						const task = this._notebookKernelService.registerNotebookKernelDetectionTask({
 							notebookType: notebookType
 						});
@@ -77,11 +85,18 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 
 				// activation state might not be updated yet, postpone to next frame
 				timer = setTimeout(() => {
+					const taskToDelete: string[] = [];
 					for (const [notebookType, task] of this._detectionMap) {
 						if (this._extensionService.activationEventIsDone(`onNotebook:${notebookType}`)) {
+							this._notebookLoggingService.log('KernelDetection', `finish extension activation for ${notebookType}`);
+							taskToDelete.push(notebookType);
 							task.dispose();
 						}
 					}
+
+					taskToDelete.forEach(notebookType => {
+						this._detectionMap.delete(notebookType);
+					});
 				});
 			}));
 

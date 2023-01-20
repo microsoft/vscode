@@ -91,11 +91,13 @@ export class NotebookOverviewRuler extends Themable {
 							break;
 					}
 
+					const width = overviewRuler.position === NotebookOverviewRulerLane.Full ? laneWidth * 3 : laneWidth;
+
 					for (let i = 0; i < lineNumbers.length; i++) {
 						ctx.fillStyle = fillStyle;
 						const lineNumber = lineNumbers[i];
 						const offset = (lineNumber - 1) * lineHeight;
-						ctx.fillRect(x, currentFrom + offset, laneWidth, lineHeight);
+						ctx.fillRect(x, currentFrom + offset, width, lineHeight);
 					}
 
 					if (overviewRuler.includeOutput) {

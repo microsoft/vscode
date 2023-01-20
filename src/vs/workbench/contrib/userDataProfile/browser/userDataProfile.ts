@@ -124,10 +124,16 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerProfileSubMenu(): void {
-		const that = this;
+		const getProfilesTitle = () => {
+			if (this.userDataProfileService.currentProfile.isTransient) {
+				return localize('profiles temporary', "Profiles ({0}) - Temporary", this.userDataProfileService.currentProfile.name);
+			} else {
+				return localize('profiles', "Profiles ({0})", this.userDataProfileService.currentProfile.name);
+			}
+		};
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() {
-				return localize('profiles', "Profiles ({0})", that.userDataProfileService.currentProfile.name);
+				return getProfilesTitle();
 			},
 			submenu: ProfilesMenu,
 			group: '1_profiles',
@@ -136,7 +142,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 			get title() {
-				return localize('profiles', "Profiles ({0})", that.userDataProfileService.currentProfile.name);
+				return getProfilesTitle();
 			},
 			submenu: ProfilesMenu,
 			group: '1_profiles',
@@ -159,7 +165,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
-					title: profile.name,
+					title: profile.isTransient ? localize('profile temporary', "{0} - Temporary", profile.name) : profile.name,
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{

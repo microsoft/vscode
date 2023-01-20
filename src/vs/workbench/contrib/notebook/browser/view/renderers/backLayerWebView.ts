@@ -1011,6 +1011,7 @@ var requirejs = (function() {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
+			title: nls.localize('webview title', "Notebook webview content"),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,
 				enableFindWidget: false,
@@ -1024,7 +1025,7 @@ var requirejs = (function() {
 			extension: undefined
 		});
 
-		webview.html = content;
+		webview.setHtml(content);
 		return webview;
 	}
 
