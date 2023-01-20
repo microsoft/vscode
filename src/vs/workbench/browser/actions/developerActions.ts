@@ -242,6 +242,8 @@ class ToggleScreencastModeAction extends Action2 {
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
 					|| length > 20
 					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+					|| event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.DownArrow
+					|| event.keyCode === KeyCode.LeftArrow || event.keyCode === KeyCode.RightArrow
 				) {
 					keyboardMarker.innerText = '';
 					length = 0;
