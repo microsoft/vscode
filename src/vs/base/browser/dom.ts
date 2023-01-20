@@ -1818,8 +1818,23 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 		el.id = match.groups['id'];
 	}
 
+	const classNames = [];
 	if (match.groups['class']) {
-		el.className = match.groups['class'].replace(/\./g, ' ').trim();
+		for (const className of match.groups['class'].split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (attributes.className !== undefined) {
+		for (const className of attributes.className.split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (classNames.length > 0) {
+		el.className = classNames.join(' ');
 	}
 
 	const result: Record<string, HTMLElement> = {};
@@ -1842,7 +1857,9 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	}
 
 	for (const [key, value] of Object.entries(attributes)) {
-		if (key === 'style') {
+		if (key === 'className') {
+			continue;
+		} else if (key === 'style') {
 			for (const [cssKey, cssValue] of Object.entries(value)) {
 				el.style.setProperty(
 					camelCaseToHyphenCase(cssKey),
