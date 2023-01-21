@@ -16,6 +16,8 @@ mod nosleep;
 mod nosleep_macos;
 #[cfg(target_os = "windows")]
 mod nosleep_windows;
+#[cfg(target_os = "linux")]
+mod nosleep_linux;
 mod port_forwarder;
 mod protocol;
 #[cfg_attr(unix, path = "tunnels/server_bridge_unix.rs")]
