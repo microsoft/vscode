@@ -66,7 +66,7 @@ pub struct SleepInhibitor {
 }
 
 impl SleepInhibitor {
-	pub fn new() -> io::Result<Self> {
+	pub async fn new() -> io::Result<Self> {
 		let request = Request::new()?;
 		request.set(PowerRequestSystemRequired)?;
 		Ok(Self { request })

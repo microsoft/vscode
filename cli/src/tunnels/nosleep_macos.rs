@@ -28,7 +28,7 @@ pub struct SleepInhibitor {
 }
 
 impl SleepInhibitor {
-	pub fn new() -> io::Result<Self> {
+	pub async fn new() -> io::Result<Self> {
 		let mut assertion_id = 0;
 		let assertion_type = CFString::from_static_string("PreventSystemSleep");
 		let assertion_name =
