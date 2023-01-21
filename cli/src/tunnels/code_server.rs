@@ -286,6 +286,7 @@ async fn install_server_if_needed(
 	paths: &ServerPaths,
 	release: &Release,
 	http: impl SimpleHttp + Send + Sync + 'static,
+	existing_archive_path: Option<PathBuf>,
 ) -> Result<(), AnyError> {
 	if paths.executable.exists() {
 		info!(
@@ -296,11 +297,14 @@ async fn install_server_if_needed(
 		return Ok(());
 	}
 
-	let tar_file_path = spanf!(
-		log,
-		log.span("server.download"),
-		download_server(&paths.server_dir, release, log, http)
-	)?;
+	let tar_file_path = match existing_archive_path {
+		Some(p) => p,
+		None => spanf!(
+			log,
+			log.span("server.download"),
+			download_server(&paths.server_dir, release, log, http)
+		)?,
+	};
 
 	span!(
 		log,
@@ -471,7 +475,7 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 	}
 
 	/// Ensures the server is set up in the configured directory.
-	pub async fn setup(&self) -> Result<(), AnyError> {
+	pub async fn setup(&self, existing_archive_path: Option<PathBuf>) -> Result<(), AnyError> {
 		debug!(
 			self.logger,
 			"Installing and setting up {}...", QUALITYLESS_SERVER_NAME
@@ -482,6 +486,7 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 			&self.server_paths,
 			&self.server_params.release,
 			self.http.clone(),
+			existing_archive_path,
 		)
 		.await?;
 		debug!(self.logger, "Server setup complete");
@@ -497,6 +502,40 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 		}
 
 		Ok(())
+	}
+
+	pub async fn listen_on_port(&self, port: u16) -> Result<PortCodeServer, AnyError> {
+		let mut cmd = self.get_base_command();
+		cmd.arg("--start-server")
+			.arg("--enable-remote-auto-shutdown")
+			.arg(format!("--port={}", port));
+
+		let child = self.spawn_server_process(cmd)?;
+		let log_file = self.get_logfile()?;
+		let plog = self.logger.prefixed(&log::new_code_server_prefix());
+
+		let (mut origin, listen_rx) =
+			monitor_server::<PortMatcher, u16>(child, Some(log_file), plog, false);
+
+		let port = match timeout(Duration::from_secs(8), listen_rx).await {
+			Err(e) => {
+				origin.kill().await;
+				Err(wrap(e, "timed out looking for port"))
+			}
+			Ok(Err(e)) => {
+				origin.kill().await;
+				Err(wrap(e, "server exited without writing port"))
+			}
+			Ok(Ok(p)) => Ok(p),
+		}?;
+
+		info!(self.logger, "Server started");
+
+		Ok(PortCodeServer {
+			commit_id: self.server_params.release.commit.to_owned(),
+			port,
+			origin: Arc::new(origin),
+		})
 	}
 
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {

@@ -49,7 +49,6 @@ pub async fn get_socket_rw_stream(path: &Path) -> Result<NamedPipeClient, AnyErr
 impl ServerBridge {
 	pub async fn new(
 		path: &Path,
-		index: u16,
 		mut target: ServerMessageSink,
 		decoder: ClientMessageDecoder,
 	) -> Result<Self, AnyError> {
@@ -88,7 +87,7 @@ impl ServerBridge {
 					match client.try_read(&mut read_buf) {
 						Ok(0) => return, // EOF
 						Ok(s) => {
-							let send = target.server_message(index, &read_buf[..s]).await;
+							let send = target.server_message(&read_buf[..s]).await;
 							if send.is_err() {
 								return;
 							}
