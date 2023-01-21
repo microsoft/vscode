@@ -49,7 +49,6 @@ log = "0.4"
 const_format = "0.2"
 sha2 = "0.10"
 base64 = "0.13"
-core-foundation = "0.9.3"
 
 [build-dependencies]
 serde = { version = "1.0" }
@@ -58,6 +57,9 @@ serde_json = { version = "1.0" }
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.5"
 winreg = "0.10"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }
