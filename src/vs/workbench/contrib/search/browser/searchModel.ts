@@ -22,7 +22,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
-import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,10 +29,11 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { minimapFindMatch, overviewRulerFindMatchForeground, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, INotebookDeltaDecoration, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
+import { CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -277,10 +277,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
-	private _currentMatchCellDecorations: string[] = [];
-	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
-	private _allMatchesDecorations: ICellModelDecorations[] = [];
-	private _allMatchesCellDecorations: string[] = [];
+	private _findMatchDecorationModel: FindMatchDecorationModel;
 
 	private _context: Map<number, string> = new Map();
 	public get context(): Map<number, string> {
@@ -307,6 +304,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
+		this._findMatchDecorationModel = new FindMatchDecorationModel(undefined);
 		this.createMatches();
 	}
 
@@ -345,37 +343,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateHighlights();
 	}
 
-	bindEditorWidget(widget: NotebookEditorWidget) {
-		this._notebookEditorWidget = widget;
-
-		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
-			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
-				return;
-			}
-			this._notebookUpdateScheduler.schedule();
-		}) ?? null;
-		this._notebookUpdateScheduler.schedule();
-
-		console.log(`added widget ${this._notebookEditorWidget.textModel?.uri}`);
-	}
-
-	unbindEditorWidget(widget: NotebookEditorWidget) {
-		this.updateMatchesForEditorWidget();
-		if (this._notebookEditorWidget) {
-			this._notebookUpdateScheduler.cancel();
-			this._notebookEditorWidget.changeModelDecorations((accessor) => {
-				this._currentMatchDecorations = {
-					kind: 'input',
-					decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [])
-				};
-			});
-			this._notebookEditorWidget = null;
-			this._editorWidgetListener?.dispose();
-		}
-		this._notebookEditorWidget = null;
-		console.log(`removed widget ${widget.textModel?.uri}`);
-	}
-
 	private onModelWillDispose(): void {
 		// Update matches because model might have some dirty changes
 		this.updateMatchesForModel();
@@ -391,6 +358,28 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._model = null;
 			this._modelListener!.dispose();
 		}
+	}
+
+	bindEditorWidget(widget: NotebookEditorWidget) {
+		this._notebookEditorWidget = widget;
+		this._findMatchDecorationModel.notebookEditor = widget;
+		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
+			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
+				return;
+			}
+			this._notebookUpdateScheduler.schedule();
+		}) ?? null;
+		this._notebookUpdateScheduler.schedule();
+	}
+
+	unbindEditorWidget() {
+		this.updateMatchesForEditorWidget();
+		if (this._notebookEditorWidget) {
+			this._notebookUpdateScheduler.cancel();
+			this._findMatchDecorationModel.notebookEditor = undefined;
+			this._editorWidgetListener?.dispose();
+		}
+		this._notebookEditorWidget = null;
 	}
 
 	private updateMatchesForModel(): void {
@@ -464,7 +453,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		this.setAllFindMatchesDecorations(matches);
+		this._findMatchDecorationModel.setAllFindMatchesDecorations(matches);
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
 
@@ -617,6 +606,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 	override dispose(): void {
 		this.setSelectedMatch(null);
 		this.unbindModel();
+		this.unbindEditorWidget();
+		this._findMatchDecorationModel.dispose();
 		this._onDispose.fire();
 		super.dispose();
 	}
@@ -627,128 +618,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
-		if (!this._notebookEditorWidget) {
-			return Promise.resolve(null);
-		}
-		// needs
-		// notebook cell
-		// only cellmatch:
-		//    match range
-		// only webviewmatch:
-		//
-
 		if (match.webviewIndex === undefined) {
-			this.clearCurrentFindMatchDecoration();
-			// match is an editor FindMatch, we update find match decoration in the editor
-			// we will highlight the match in the webview
-			this._notebookEditorWidget.changeModelDecorations(accessor => {
-				const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
-
-				const decorations: IModelDeltaDecoration[] = [
-					{ range: match.range(), options: findMatchesOptions }
-				];
-				const deltaDecoration: ICellModelDeltaDecorations = {
-					ownerId: match.cell.handle,
-					decorations: decorations
-				};
-
-				this._currentMatchDecorations = {
-					kind: 'input',
-					decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [deltaDecoration])
-				};
-			});
-
-			this._currentMatchCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._currentMatchCellDecorations, [{
-				ownerId: match.cell.handle,
-				handle: match.cell.handle,
-				options: {
-					overviewRuler: {
-						color: overviewRulerSelectionHighlightForeground,
-						modelRanges: [match.range()],
-						includeOutput: false,
-						position: NotebookOverviewRulerLane.Center
-					}
-				}
-			} as INotebookDeltaDecoration]);
-
-			return null;
+			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInCell(match.cell, match.range());
 		} else {
-			this.clearCurrentFindMatchDecoration();
-			const offset = await this._notebookEditorWidget.highlightFind(match.webviewIndex);
-			this._currentMatchDecorations = { kind: 'output', index: match.webviewIndex };
-
-			this._currentMatchCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._currentMatchCellDecorations, [{
-				ownerId: match.cell.handle,
-				handle: match.cell.handle,
-				options: {
-					overviewRuler: {
-						color: overviewRulerSelectionHighlightForeground,
-						modelRanges: [],
-						includeOutput: true,
-						position: NotebookOverviewRulerLane.Center
-					}
-				}
-			} as INotebookDeltaDecoration]);
-
-			return offset;
+			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInWebview(match.cell, match.webviewIndex);
 		}
-	}
-
-	private setAllFindMatchesDecorations(cellFindMatches: CellFindMatchWithIndex[]) {
-		if (!this._notebookEditorWidget) {
-			return;
-		}
-		this._notebookEditorWidget.changeModelDecorations((accessor) => {
-
-			const findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
-
-			const deltaDecorations: ICellModelDeltaDecorations[] = cellFindMatches.map(cellFindMatch => {
-				// Find matches
-				const newFindMatchesDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(cellFindMatch.length);
-				for (let i = 0; i < cellFindMatch.contentMatches.length; i++) {
-					newFindMatchesDecorations[i] = {
-						range: cellFindMatch.contentMatches[i].range,
-						options: findMatchesOptions
-					};
-				}
-
-				return { ownerId: cellFindMatch.cell.handle, decorations: newFindMatchesDecorations };
-			});
-
-			this._allMatchesDecorations = accessor.deltaDecorations(this._allMatchesDecorations, deltaDecorations);
-		});
-
-		this._allMatchesCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._allMatchesCellDecorations, cellFindMatches.map(cellFindMatch => {
-			return {
-				ownerId: cellFindMatch.cell.handle,
-				handle: cellFindMatch.cell.handle,
-				options: {
-					overviewRuler: {
-						color: overviewRulerFindMatchForeground,
-						modelRanges: cellFindMatch.contentMatches.map(match => match.range),
-						includeOutput: cellFindMatch.webviewMatches.length > 0,
-						position: NotebookOverviewRulerLane.Center
-					}
-				}
-			};
-		}));
-	}
-
-	private clearCurrentFindMatchDecoration() {
-		if (!this._notebookEditorWidget) {
-			return;
-		}
-
-		if (this._currentMatchDecorations?.kind === 'input') {
-			this._notebookEditorWidget.changeModelDecorations(accessor => {
-				accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], []);
-				this._currentMatchDecorations = null;
-			});
-		} else if (this._currentMatchDecorations?.kind === 'output') {
-			this._notebookEditorWidget.unHighlightFind(this._currentMatchDecorations.index);
-		}
-
-		this._currentMatchCellDecorations = this._notebookEditorWidget.deltaCellDecorations(this._currentMatchCellDecorations, []);
 	}
 
 	private revealCellRange(match: NotebookMatch, outputOffset: number | null) {
@@ -756,11 +630,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 		if (match.webviewIndex) {
-			// reveal output range
 			this._notebookEditorWidget.focusElement(match.cell);
 			const index = this._notebookEditorWidget.getCellIndex(match.cell);
 			if (index !== undefined) {
-				// const range: ICellRange = { start: index, end: index + 1 };
 				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
 			}
 		} else {
@@ -884,7 +756,7 @@ export class FolderMatch extends Disposable {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			fileMatch.unbindEditorWidget(editor);
+			fileMatch.unbindEditorWidget();
 		} else {
 			const folderMatches = this.folderMatchesIterator();
 			for (const elem of folderMatches) {

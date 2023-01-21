@@ -61,7 +61,6 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { appendKeyBindingLabel } from 'vs/workbench/contrib/search/browser/searchActionsBase';
@@ -1817,13 +1816,20 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 			if (element instanceof Match) {
 				if (element instanceof NotebookMatch) {
 					element.parent().showMatch(element);
 				} else {
+					// problems with this:
+					// 1: relies on the notebook having already been binded to the fileMatch (race condition)
+					// 2: doesn't wait for output to load before revealing cell, so when everything is loaded, there might be an offset
 					const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
-					controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
+					const sortedMatches = element.parent().matches().sort(searchMatchComparer);
+					const match = matchIndex >= sortedMatches.length ? sortedMatches[sortedMatches.length - 1] : sortedMatches[matchIndex];
+
+					if (match instanceof NotebookMatch) {
+						element.parent().showMatch(match);
+					}
 				}
 			}
 
