@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #[cfg(target_os = "windows")]
-pub type SleepInhibitor = NoOpSleepInhibitor;
+pub type SleepInhibitor = super::nosleep_windows::SleepInhibitor;
 
 #[cfg(target_os = "linux")]
 pub type SleepInhibitor = NoOpSleepInhibitor;
