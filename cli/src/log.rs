@@ -135,6 +135,7 @@ impl Clone for Box<dyn LogSink> {
 	}
 }
 
+/// The basic log sink that writes output to stdout, with colors when relevant.
 #[derive(Clone)]
 pub struct StdioLogSink {
 	level: Level,
@@ -243,6 +244,17 @@ impl Logger {
 
 		Logger {
 			sink: new_sinks,
+			..self.clone()
+		}
+	}
+
+	/// Creates a new logger with the sink replace with the given sink.
+	pub fn with_sink<T>(&self, sink: T) -> Logger
+	where
+		T: LogSink + 'static,
+	{
+		Logger {
+			sink: vec![Box::new(sink)],
 			..self.clone()
 		}
 	}
