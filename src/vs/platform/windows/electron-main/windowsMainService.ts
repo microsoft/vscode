@@ -1319,9 +1319,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<ICodeWindow> {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
+		const lastActiveWindow = this.getLastActiveWindow();
+		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || this.getLastActiveWindow();
+			window = options.windowToUse || lastActiveWindow;
 			if (window) {
 				window.focus();
 			}
@@ -1355,7 +1358,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				// Set to default profile first and resolve and update the profile
 				// only after the workspace-backup is registered.
 				// Because, workspace identifier of an empty window is known only then.
-				profile: this.userDataProfilesMainService.defaultProfile
+				profile: defaultProfile
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1465,17 +1468,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (window.isReady) {
 			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(async veto => {
 				if (!veto) {
-					await this.doOpenInBrowserWindow(window!, configuration, options);
+					await this.doOpenInBrowserWindow(window!, configuration, options, defaultProfile);
 				}
 			});
 		} else {
-			await this.doOpenInBrowserWindow(window, configuration, options);
+			await this.doOpenInBrowserWindow(window, configuration, options, defaultProfile);
 		}
 
 		return window;
 	}
 
-	private async doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): Promise<void> {
+	private async doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions, defaultProfile: IUserDataProfile): Promise<void> {
 
 		// Register window for backups unless the window
 		// is for extension development, where we do not
@@ -1510,7 +1513,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		if (this.userDataProfilesMainService.isEnabled()) {
 			const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
-			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace);
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
 			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
 			configuration.profiles.profile = profile;
 
@@ -1526,7 +1529,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.load(configuration);
 	}
 
-	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions, workspace: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> | IUserDataProfile {
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions, workspace: IAnyWorkspaceIdentifier, defaultProfile: IUserDataProfile): Promise<IUserDataProfile> | IUserDataProfile {
 		if (options.forceProfile) {
 			return this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
 		}
@@ -1535,7 +1538,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return this.userDataProfilesMainService.createTransientProfile();
 		}
 
-		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? this.userDataProfilesMainService.defaultProfile;
+		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? defaultProfile;
 	}
 
 	private onWindowClosed(window: ICodeWindow): void {

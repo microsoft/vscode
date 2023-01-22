@@ -214,11 +214,13 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	} = ctx;
 
 	let no_sleep = match gateway_args.no_sleep.then(SleepInhibitor::new) {
-		Some(Ok(i)) => Some(i),
-		Some(Err(e)) => {
-			warning!(log, "Could not inhibit sleep: {}", e);
-			None
-		}
+		Some(i) => match i.await {
+			Ok(i) => Some(i),
+			Err(e) => {
+				warning!(log, "Could not inhibit sleep: {}", e);
+				None
+			}
+		},
 		None => None,
 	};
 

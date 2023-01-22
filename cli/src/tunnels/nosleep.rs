@@ -4,27 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 #[cfg(target_os = "windows")]
-pub type SleepInhibitor = NoOpSleepInhibitor;
+pub type SleepInhibitor = super::nosleep_windows::SleepInhibitor;
 
 #[cfg(target_os = "linux")]
-pub type SleepInhibitor = NoOpSleepInhibitor;
+pub type SleepInhibitor = super::nosleep_linux::SleepInhibitor;
 
 #[cfg(target_os = "macos")]
 pub type SleepInhibitor = super::nosleep_macos::SleepInhibitor;
-
-/// Stub no-sleep implementation for unsupported platforms.
-#[allow(dead_code)]
-pub struct NoOpSleepInhibitor();
-
-#[allow(dead_code)]
-impl NoOpSleepInhibitor {
-	pub fn new() -> std::io::Result<Self> {
-		Ok(NoOpSleepInhibitor())
-	}
-}
-
-impl Drop for NoOpSleepInhibitor {
-	fn drop(&mut self) {
-		// no-op
-	}
-}

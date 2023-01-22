@@ -265,6 +265,7 @@ dependencies = [
  "tunnels",
  "url",
  "uuid",
+ "winapi",
  "windows-service",
  "winreg",
  "zbus 3.4.0",
