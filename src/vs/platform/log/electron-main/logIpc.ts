@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogger, ILoggerOptions, log, LogLevel } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerOptions, isLogLevel, log, LogLevel } from 'vs/platform/log/common/log';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 export class LoggerChannel implements IServerChannel {
@@ -30,7 +30,7 @@ export class LoggerChannel implements IServerChannel {
 			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1], arg[2]); return;
 			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
 			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
-			case 'setLogLevel': return this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
+			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
 			case 'setVisibility': return this.loggerService.setVisibility(URI.revive(arg[0]), arg[1]);
 			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
 			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]));

@@ -178,7 +178,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this._register(new NativeLogService(this.configuration.logLevel, loggerService, environmentService));
+		const logService = this._register(new NativeLogService(loggerService, environmentService));
 		serviceCollection.set(ILogService, logService);
 		if (isCI) {
 			logService.info('workbench#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
