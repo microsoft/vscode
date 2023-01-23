@@ -71,35 +71,26 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		}
 		const { languageId, languageName } = localization;
 
-		if (fromSettingsSync) {
-			this.notificationService.prompt(
-				Severity.Info,
-				localize('updateLocale', "Would you like to change {0}'s display language to {1} and restart?", this.productService.nameLong, languageName || languageId),
-				[{
-					label: localize('changeAndRestart', "Change Language and Restart"),
-					run: async () => {
-						await this.localeService.setLocale({
-							id: languageId,
-							label: languageName ?? languageId,
-							extensionId: localExtension.identifier.id,
-							// If settings sync installs the language pack, then we would have just shown the notification so no
-							// need to show the dialog.
-						}, true);
-					}
-				}],
-				{
-					sticky: true,
-					neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+		this.notificationService.prompt(
+			Severity.Info,
+			localize('updateLocale', "Would you like to change {0}'s display language to {1} and restart?", this.productService.nameLong, languageName || languageId),
+			[{
+				label: localize('changeAndRestart', "Change Language and Restart"),
+				run: async () => {
+					await this.localeService.setLocale({
+						id: languageId,
+						label: languageName ?? languageId,
+						extensionId: localExtension.identifier.id,
+						// If settings sync installs the language pack, then we would have just shown the notification so no
+						// need to show the dialog.
+					}, true);
 				}
-			);
-			return;
-		}
-
-		await this.localeService.setLocale({
-			id: languageId,
-			label: languageName ?? languageId,
-			extensionId: localExtension.identifier.id,
-		});
+			}],
+			{
+				sticky: true,
+				neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+			}
+		);
 	}
 
 	private async onDidUninstallExtension(_event: DidUninstallExtensionEvent): Promise<void> {

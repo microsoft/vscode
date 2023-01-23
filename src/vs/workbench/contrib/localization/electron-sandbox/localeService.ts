@@ -108,9 +108,11 @@ export class NativeLocaleService implements ILocaleService {
 				);
 			}
 
-			if (await this.writeLocaleValue(locale) && !skipDialog) {
-				await this.showRestartDialog(languagePackItem.label);
+			if (!skipDialog && !await this.showRestartDialog(languagePackItem.label)) {
+				return;
 			}
+			await this.writeLocaleValue(locale);
+			await this.hostService.restart();
 		} catch (err) {
 			this.notificationService.error(err);
 		}
@@ -127,7 +129,7 @@ export class NativeLocaleService implements ILocaleService {
 		}
 	}
 
-	private async showRestartDialog(languageName: string): Promise<void> {
+	private async showRestartDialog(languageName: string): Promise<boolean> {
 		const restartDialog = await this.dialogService.confirm({
 			type: 'info',
 			message: localize('restartDisplayLanguageMessage1', "Restart {0} to switch to {1}?", this.productService.nameLong, languageName),
@@ -140,8 +142,6 @@ export class NativeLocaleService implements ILocaleService {
 			primaryButton: localize({ key: 'restart', comment: ['&& denotes a mnemonic character'] }, "&&Restart"),
 		});
 
-		if (restartDialog.confirmed) {
-			this.hostService.restart();
-		}
+		return restartDialog.confirmed;
 	}
 }
