@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
+import { app, BrowserWindow, WebContents } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
 import { hostname, release } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
@@ -12,7 +12,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
+import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
@@ -55,6 +55,7 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 //#region Helper Interfaces
 
@@ -793,19 +794,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Path does not exist: show a warning box
 			const uri = this.resourceFromOpenable(pathToOpen);
 
-			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+			this.dialogMainService.showMessageBox(massageMessageBoxOptions({
 				type: 'info',
-				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-				defaultId: 0,
+				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
-					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true)),
-				noLink: true
-			};
-
-			this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true))
+			}, this.productService).options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
 			return undefined;
 		}));
