@@ -1510,8 +1510,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (locale === language) {
 			return;
 		}
-		const localizedLanguageName = extension.gallery?.properties?.localizedLanguages?.[0];
-		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: localizedLanguageName ?? extension.displayName });
+		return this.localeService.setLocale({ id: locale, galleryExtension: extension.gallery, extensionId: extension.identifier.id, label: extension.displayName });
 	}
 
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void> {

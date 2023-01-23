@@ -10,9 +10,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -26,7 +28,6 @@ import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/w
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
 import { NativeLocaleService } from 'vs/workbench/contrib/localization/electron-sandbox/localeService';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 registerSingleton(ILocaleService, NativeLocaleService, InstantiationType.Delayed);
 
@@ -39,8 +40,8 @@ const LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/language
 export class LocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@ILocaleService private readonly localeService: ILocaleService,
-		@IProductService private readonly productService: IProductService,
+		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -52,39 +53,30 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 		this.checkAndInstall();
 		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
-		this._register(this.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
 	}
 
-	private async onDidInstallExtensions(results: readonly InstallExtensionResult[]): Promise<void> {
-		for (const result of results) {
-			if (result.operation === InstallOperation.Install && result.local) {
-				await this.onDidInstallExtension(result.local, !!result.context?.extensionsSync);
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const e of results) {
+			if (e.operation !== InstallOperation.Install || !e.local?.manifest?.contributes?.localizations?.length) {
+				continue;
 			}
-		}
+			const languageId = e.local.manifest.contributes.localizations[0].languageId;
+			if (platform.language === languageId) {
+				continue;
+			}
 
-	}
-
-	private async onDidInstallExtension(localExtension: ILocalExtension, fromSettingsSync: boolean): Promise<void> {
-		const localization = localExtension.manifest.contributes?.localizations?.[0];
-		if (!localization || platform.language === localization.languageId) {
-			return;
-		}
-		const { languageId, languageName } = localization;
-
-		if (fromSettingsSync) {
 			this.notificationService.prompt(
 				Severity.Info,
-				localize('updateLocale', "Would you like to change {0}'s display language to {1} and restart?", this.productService.nameLong, languageName || languageId),
+				localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
 				[{
 					label: localize('changeAndRestart', "Change Language and Restart"),
 					run: async () => {
-						await this.localeService.setLocale({
-							id: languageId,
-							label: languageName ?? languageId,
-							extensionId: localExtension.identifier.id,
-							// If settings sync installs the language pack, then we would have just shown the notification so no
-							// need to show the dialog.
-						}, true);
+						try {
+							await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: languageId }], true);
+							await this.hostService.restart();
+						} catch (e) {
+							this.notificationService.error(e);
+						}
 					}
 				}],
 				{
@@ -92,22 +84,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
 				}
 			);
-			return;
-		}
-
-		await this.localeService.setLocale({
-			id: languageId,
-			label: languageName ?? languageId,
-			extensionId: localExtension.identifier.id,
-		});
-	}
-
-	private async onDidUninstallExtension(_event: DidUninstallExtensionEvent): Promise<void> {
-		if (!await this.isLocaleInstalled(platform.language)) {
-			this.localeService.setLocale({
-				id: 'en',
-				label: 'English'
-			});
 		}
 	}
 
@@ -196,12 +172,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							label: translations['installAndRestart'],
 							run: async () => {
 								logUserReaction('installAndRestart');
-								await this.localeService.setLocale({
-									id: locale,
-									label: languageName,
-									extensionId: extensionToInstall?.identifier.id,
-									// The user will be prompted if they want to install the language pack before this.
-								}, true);
+								await this.installExtension(extensionToInstall!);
+								await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true);
 								await this.hostService.restart();
 							}
 						};
@@ -240,6 +212,14 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		const installed = await this.extensionManagementService.getInstalled();
 		return installed.some(i => !!i.manifest.contributes?.localizations?.length
 			&& i.manifest.contributes.localizations.some(l => locale.startsWith(l.languageId.toLowerCase())));
+	}
+
+	private installExtension(extension: IGalleryExtension): Promise<void> {
+		return this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar)
+			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
+			.then(() => this.extensionManagementService.installFromGallery(extension))
+			.then(() => undefined, err => this.notificationService.error(err));
 	}
 }
 
