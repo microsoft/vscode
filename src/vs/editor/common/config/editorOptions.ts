@@ -3785,8 +3785,7 @@ export interface IInlineSuggestOptions {
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
-	useExperimentalHints?: boolean;
-	hideHints?: boolean;
+	showToolbar?: 'always' | 'onHover';
 }
 
 /**
@@ -3802,8 +3801,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: true,
 			mode: 'subwordSmart',
-			useExperimentalHints: false,
-			hideHints: false,
+			showToolbar: 'onHover',
 		};
 
 		super(
@@ -3814,15 +3812,15 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
 				},
-				'editor.inlineSuggest.useExperimentalHints': {
-					type: 'boolean',
-					default: defaults.useExperimentalHints,
-					description: nls.localize('inlineSuggest.useExperimentalHints', "Controls whether to use experimental hints in the editor."),
-				},
-				'editor.inlineSuggest.hideHints': {
-					type: 'boolean',
-					default: defaults.hideHints,
-					description: nls.localize('inlineSuggest.hideHints', "Controls whether to hide hints in the editor."),
+				'editor.inlineSuggest.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover'],
+					enumDescriptions: [
+						nls.localize('inlineSuggest.showToolbar.always', "Always show the inline suggestion toolbar."),
+						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over the inline suggestion."),
+					],
+					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
 			}
 		);
@@ -3836,8 +3834,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
-			useExperimentalHints: boolean(input.useExperimentalHints, this.defaultValue.useExperimentalHints),
-			hideHints: boolean(input.hideHints, this.defaultValue.hideHints),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
 		};
 	}
 }
