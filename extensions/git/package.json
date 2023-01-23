@@ -100,12 +100,14 @@
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
-        "icon": "$(compare-changes)"
+        "icon": "$(compare-changes)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.openAllChanges",
         "title": "%command.openAllChanges%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.openFile",
@@ -668,7 +670,8 @@
       {
         "command": "git.closeAllDiffEditors",
         "title": "%command.closeAllDiffEditors%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.api.getRepositories",
