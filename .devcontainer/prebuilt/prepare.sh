@@ -5,5 +5,5 @@
 # running commands like "yarn install" from the ground up. Developers (and should) still run these commands
 # after the actual dev container is created, but only differences will be processed.
 
-yarn install
+yarn install --network-timeout 180000
 yarn electron
