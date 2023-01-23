@@ -128,7 +128,10 @@ function hasModifier(modifiers: ts.NodeArray<ts.ModifierLike> | undefined, kind:
 }
 
 function isStatic(ts: typeof import('typescript'), member: ts.ClassElement | ts.TypeElement): boolean {
-	return hasModifier(member.modifiers, ts.SyntaxKind.StaticKeyword);
+	if (ts.canHaveModifiers(member)) {
+		return hasModifier(ts.getModifiers(member), ts.SyntaxKind.StaticKeyword);
+	}
+	return false;
 }
 
 function isDefaultExport(ts: typeof import('typescript'), declaration: ts.InterfaceDeclaration | ts.ClassDeclaration): boolean {

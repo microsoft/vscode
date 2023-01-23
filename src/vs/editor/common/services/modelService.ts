@@ -195,10 +195,7 @@ export class ModelService extends Disposable implements IModelService {
 		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
 			const parsedIndentSize = parseInt(config.editor.indentSize, 10);
 			if (!isNaN(parsedIndentSize)) {
-				indentSize = parsedIndentSize;
-			}
-			if (indentSize < 1) {
-				indentSize = 1;
+				indentSize = Math.max(parsedIndentSize, 1);
 			}
 		}
 
