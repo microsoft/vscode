@@ -100,14 +100,12 @@
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
-        "icon": "$(compare-changes)",
-        "enablement": "!operationInProgress"
+        "icon": "$(compare-changes)"
       },
       {
         "command": "git.openAllChanges",
         "title": "%command.openAllChanges%",
-        "category": "Git",
-        "enablement": "!operationInProgress"
+        "category": "Git"
       },
       {
         "command": "git.openFile",
