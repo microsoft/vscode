@@ -253,10 +253,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 			if (options?.previewAsTempProfile) {
 				const actions: IAction[] = [];
-				actions.push(new Action('saveProfile', localize('save profile', "Save Profile"), undefined, true, async () => this.saveTemporaryProfile(importedProfile!)));
 				if (isWeb) {
 					actions.push(new Action('openInDesktop', localize('open in desktop', "Open in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true })));
 				}
+				actions.push(new Action('saveProfile', localize('save profile', "Save Profile"), undefined, true, async () => this.saveTemporaryProfile(importedProfile!)));
 				userDataProfileImportState.canSelect = false;
 				await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, actions, new Action('close', localize('close', "Close")), userDataProfileImportState);
 			} else {
