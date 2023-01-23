@@ -9,9 +9,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
-  "enabledApiProposals": [
-    "telemetryLogger"
-  ],
+  "enabledApiProposals": [],
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",

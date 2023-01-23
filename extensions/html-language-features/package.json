@@ -15,7 +15,6 @@
     "onLanguage:handlebars"
   ],
   "enabledApiProposals": [
-    "telemetryLogger",
     "extensionsAny"
   ],
   "main": "./client/out/node/htmlClientMain",
