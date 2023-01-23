@@ -11,7 +11,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('Dialog', () => {
 
-	function assertOptions({ options, buttonIndeces }: IMassagedMessageBoxOptions, buttons: string[], defaultId: number, cancelId: number | undefined, indeces: number[]): void {
+	function assertOptions({ options, buttonIndeces }: IMassagedMessageBoxOptions, buttons: string[], defaultId: number, cancelId: number, indeces: number[]): void {
 		deepEqual(options.buttons, buttons);
 		deepEqual(options.defaultId, defaultId);
 		deepEqual(options.cancelId, cancelId);
@@ -57,22 +57,22 @@ suite('Dialog', () => {
 
 		// Windows: cancel button is always at the end
 		if (isWindows) {
-			assertOptions(oneButtonNoCancel, ['1'], 0, undefined, [0]);
+			assertOptions(oneButtonNoCancel, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_0, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_1, ['1'], 0, 1, [0]);
 
-			assertOptions(twoButtonNoCancel, ['1', '2'], 0, undefined, [0, 1]);
+			assertOptions(twoButtonNoCancel, ['1', '2'], 0, 1, [0, 1]);
 			assertOptions(twoButtonCancel_0, ['2', '1'], 0, 1, [1, 0]);
 			assertOptions(twoButtonCancel_1, ['1', '2'], 0, 1, [0, 1]);
 			assertOptions(twoButtonCancel_2, ['1', '2'], 0, 2, [0, 1]);
 
-			assertOptions(threeButtonNoCancel, ['1', '2', '3'], 0, undefined, [0, 1, 2]);
+			assertOptions(threeButtonNoCancel, ['1', '2', '3'], 0, 2, [0, 1, 2]);
 			assertOptions(threeButtonCancel_0, ['2', '3', '1'], 0, 2, [1, 2, 0]);
 			assertOptions(threeButtonCancel_1, ['1', '3', '2'], 0, 2, [0, 2, 1]);
 			assertOptions(threeButtonCancel_2, ['1', '2', '3'], 0, 2, [0, 1, 2]);
 			assertOptions(threeButtonCancel_3, ['1', '2', '3'], 0, 3, [0, 1, 2]);
 
-			assertOptions(fourButtonNoCancel, ['1', '2', '3', '4'], 0, undefined, [0, 1, 2, 3]);
+			assertOptions(fourButtonNoCancel, ['1', '2', '3', '4'], 0, 3, [0, 1, 2, 3]);
 			assertOptions(fourButtonCancel_0, ['2', '3', '4', '1'], 0, 3, [1, 2, 3, 0]);
 			assertOptions(fourButtonCancel_1, ['1', '3', '4', '2'], 0, 3, [0, 2, 3, 1]);
 			assertOptions(fourButtonCancel_2, ['1', '2', '4', '3'], 0, 3, [0, 1, 3, 2]);
@@ -82,22 +82,22 @@ suite('Dialog', () => {
 
 		// macOS: returns buttons as is
 		else if (isMacintosh) {
-			assertOptions(oneButtonNoCancel, ['1'], 0, undefined, [0]);
+			assertOptions(oneButtonNoCancel, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_0, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_1, ['1'], 0, 1, [0]);
 
-			assertOptions(twoButtonNoCancel, ['1', '2'], 0, undefined, [0, 1]);
+			assertOptions(twoButtonNoCancel, ['1', '2'], 0, 1, [0, 1]);
 			assertOptions(twoButtonCancel_0, ['1', '2'], 0, 0, [0, 1]);
 			assertOptions(twoButtonCancel_1, ['1', '2'], 0, 1, [0, 1]);
 			assertOptions(twoButtonCancel_2, ['1', '2'], 0, 2, [0, 1]);
 
-			assertOptions(threeButtonNoCancel, ['1', '2', '3'], 0, undefined, [0, 1, 2]);
+			assertOptions(threeButtonNoCancel, ['1', '2', '3'], 0, 2, [0, 1, 2]);
 			assertOptions(threeButtonCancel_0, ['1', '2', '3'], 0, 0, [0, 1, 2]);
 			assertOptions(threeButtonCancel_1, ['1', '2', '3'], 0, 1, [0, 1, 2]);
 			assertOptions(threeButtonCancel_2, ['1', '2', '3'], 0, 2, [0, 1, 2]);
 			assertOptions(threeButtonCancel_3, ['1', '2', '3'], 0, 3, [0, 1, 2]);
 
-			assertOptions(fourButtonNoCancel, ['1', '2', '3', '4'], 0, undefined, [0, 1, 2, 3]);
+			assertOptions(fourButtonNoCancel, ['1', '2', '3', '4'], 0, 3, [0, 1, 2, 3]);
 			assertOptions(fourButtonCancel_0, ['1', '2', '3', '4'], 0, 0, [0, 1, 2, 3]);
 			assertOptions(fourButtonCancel_1, ['1', '2', '3', '4'], 0, 1, [0, 1, 2, 3]);
 			assertOptions(fourButtonCancel_2, ['1', '2', '3', '4'], 0, 2, [0, 1, 2, 3]);
@@ -108,22 +108,22 @@ suite('Dialog', () => {
 		// Linux: reverses buttons and puts cancel button
 		// after the first button
 		else if (isLinux) {
-			assertOptions(oneButtonNoCancel, ['1'], 0, undefined, [0]);
+			assertOptions(oneButtonNoCancel, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_0, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_1, ['1'], 0, 1, [0]);
 
-			assertOptions(twoButtonNoCancel, ['2', '1'], 1, undefined, [1, 0]);
+			assertOptions(twoButtonNoCancel, ['2', '1'], 1, 0, [1, 0]);
 			assertOptions(twoButtonCancel_0, ['1', '2'], 1, 0, [0, 1]);
 			assertOptions(twoButtonCancel_1, ['2', '1'], 1, 0, [1, 0]);
 			assertOptions(twoButtonCancel_2, ['2', '1'], 1, 2, [1, 0]);
 
-			assertOptions(threeButtonNoCancel, ['3', '2', '1'], 2, undefined, [2, 1, 0]);
+			assertOptions(threeButtonNoCancel, ['2', '3', '1'], 2, 1, [1, 2, 0]);
 			assertOptions(threeButtonCancel_0, ['3', '1', '2'], 2, 1, [2, 0, 1]);
 			assertOptions(threeButtonCancel_1, ['3', '2', '1'], 2, 1, [2, 1, 0]);
 			assertOptions(threeButtonCancel_2, ['2', '3', '1'], 2, 1, [1, 2, 0]);
 			assertOptions(threeButtonCancel_3, ['3', '2', '1'], 2, 3, [2, 1, 0]);
 
-			assertOptions(fourButtonNoCancel, ['4', '3', '2', '1'], 3, undefined, [3, 2, 1, 0]);
+			assertOptions(fourButtonNoCancel, ['3', '2', '4', '1'], 3, 2, [2, 1, 3, 0]);
 			assertOptions(fourButtonCancel_0, ['4', '3', '1', '2'], 3, 2, [3, 2, 0, 1]);
 			assertOptions(fourButtonCancel_1, ['4', '3', '2', '1'], 3, 2, [3, 2, 1, 0]);
 			assertOptions(fourButtonCancel_2, ['4', '2', '3', '1'], 3, 2, [3, 1, 2, 0]);

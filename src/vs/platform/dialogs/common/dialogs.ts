@@ -434,8 +434,8 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button));
 	let buttonIndeces = (options.buttons || []).map((button, index) => index);
 
-	let cancelId = massagedOptions.cancelId;
 	let defaultId = 0; // by default the first button is default button
+	let cancelId = massagedOptions.cancelId ?? buttons.length - 1; // by default the last button is cancel button
 
 	// Apply HIG per OS when more than one button is used
 	if (buttons.length > 1) {
