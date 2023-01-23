@@ -319,18 +319,31 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				}
 				const message = localize('export success', "Profile '{0}' is exported successfully.", profile.name);
 				if (profileContentHandler.extensionId) {
+					const actions: string[] = [];
+					const link = this.productService.webUrl ? `${this.productService.webUrl}${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
+					actions.push(localize('copy', "Copy Link"));
+					if (this.productService.webUrl) {
+						actions.push(localize('open', "Open Link"));
+					} else {
+						actions.push(localize('open in', "Open in {0}", profileContentHandler.name));
+					}
+					actions.push(localize('close', "Close"));
 					const result = await this.dialogService.show(
 						Severity.Info,
 						message,
-						[localize('copy', "Copy Link"), localize('open', "Open in {0}", profileContentHandler.name), localize('close', "Close")],
+						actions,
 						{ cancelId: 2 }
 					);
 					switch (result.choice) {
 						case 0:
-							await this.clipboardService.writeText(toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString());
+							await this.clipboardService.writeText(link);
 							break;
 						case 1:
-							await this.openerService.open(saveResult.link.toString());
+							if (this.productService.webUrl) {
+								await this.openerService.open(link);
+							} else {
+								await this.openerService.open(saveResult.link.toString());
+							}
 							break;
 
 					}
