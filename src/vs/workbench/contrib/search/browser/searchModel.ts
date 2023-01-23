@@ -317,8 +317,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		const notebookEditorWidgetBorrow = experimentalNotebooksEnabled ? this.notebookEditorService.retrieveExistingWidgetFromURI(this._resource) : undefined;
 		if (notebookEditorWidgetBorrow?.value) {
-			this.bindEditorWidget(notebookEditorWidgetBorrow.value);
-			await this.updateMatchesForEditorWidget();
+			await this.bindEditorWidget(notebookEditorWidgetBorrow.value);
 		} else if (model) {
 			this.bindModel(model);
 			this.updateMatchesForModel();
@@ -360,7 +359,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
-	bindEditorWidget(widget: NotebookEditorWidget) {
+	async bindEditorWidget(widget: NotebookEditorWidget) {
+
+		if (this._notebookEditorWidget === widget) {
+			return;
+		}
+
 		this._notebookEditorWidget = widget;
 		this._findMatchDecorationModel.notebookEditor = widget;
 		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
@@ -369,10 +373,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 			}
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
-		this._notebookUpdateScheduler.schedule();
+		await this.updateMatchesForEditorWidget();
 	}
 
-	unbindEditorWidget() {
+	unbindEditorWidget(widget?: NotebookEditorWidget) {
+		if (widget && this._notebookEditorWidget !== widget) {
+			return;
+		}
+
 		this.updateMatchesForEditorWidget();
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
@@ -739,15 +747,15 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	bindEditorWidget(editor: NotebookEditorWidget, resource: URI) {
+	async bindEditorWidget(editor: NotebookEditorWidget, resource: URI) {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			fileMatch.bindEditorWidget(editor);
+			await fileMatch.bindEditorWidget(editor);
 		} else {
 			const folderMatches = this.folderMatchesIterator();
 			for (const elem of folderMatches) {
-				elem.bindEditorWidget(editor, resource);
+				await elem.bindEditorWidget(editor, resource);
 			}
 		}
 	}
@@ -756,7 +764,7 @@ export class FolderMatch extends Disposable {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			fileMatch.unbindEditorWidget();
+			fileMatch.unbindEditorWidget(editor);
 		} else {
 			const folderMatches = this.folderMatchesIterator();
 			for (const elem of folderMatches) {
@@ -1433,9 +1441,9 @@ export class SearchResult extends Disposable {
 		folderMatch?.bindModel(model);
 	}
 
-	private onNotebookEditorWidgetAdded(editor: NotebookEditorWidget, resource: URI): void {
+	private async onNotebookEditorWidgetAdded(editor: NotebookEditorWidget, resource: URI): Promise<void> {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
-		folderMatch?.bindEditorWidget(editor, resource);
+		await folderMatch?.bindEditorWidget(editor, resource);
 	}
 
 	private onNotebookEditorWidgetRemoved(editor: NotebookEditorWidget, resource: URI): void {

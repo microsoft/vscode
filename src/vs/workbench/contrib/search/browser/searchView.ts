@@ -1820,16 +1820,24 @@ export class SearchView extends ViewPane {
 				if (element instanceof NotebookMatch) {
 					element.parent().showMatch(element);
 				} else {
-					// problems with this:
-					// 1: relies on the notebook having already been binded to the fileMatch (race condition)
-					// 2: doesn't wait for output to load before revealing cell, so when everything is loaded, there might be an offset
-					const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
-					const sortedMatches = element.parent().matches().sort(searchMatchComparer);
-					const match = matchIndex >= sortedMatches.length ? sortedMatches[sortedMatches.length - 1] : sortedMatches[matchIndex];
+					const editorWidget = editor.getControl();
+					if (editorWidget) {
+						// Ensure that the editor widget is binded. If if is, then this should return immediately.
+						// Otherwise, it will bind the widget.
+						await element.parent().bindEditorWidget(editorWidget);
 
-					if (match instanceof NotebookMatch) {
-						element.parent().showMatch(match);
+						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
+						const matches = element.parent().matches();
+						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
+
+						if (match instanceof NotebookMatch) {
+							element.parent().showMatch(match);
+						}
+						this.tree.setSelection([match], getSelectionKeyboardEvent());
+						// todo: bug sometimes where results disappear
+						// todo: focus goes automatically to notebook when using arrow keys
 					}
+
 				}
 			}
 
