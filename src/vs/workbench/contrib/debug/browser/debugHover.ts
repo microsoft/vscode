@@ -26,9 +26,8 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
@@ -91,7 +90,6 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
@@ -131,24 +129,10 @@ export class DebugHoverWidget implements IContentWidget {
 		this.toDispose.push(this.scrollbar);
 
 		this.editor.applyFontInfo(this.domNode);
+		this.domNode.style.backgroundColor = asCssVariable(editorHoverBackground);
+		this.domNode.style.border = `1px solid ${asCssVariable(editorHoverBorder)}`;
+		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
-		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder, editorHoverForeground }, colors => {
-			if (colors.editorHoverBackground) {
-				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
-			} else {
-				this.domNode.style.backgroundColor = '';
-			}
-			if (colors.editorHoverBorder) {
-				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
-			} else {
-				this.domNode.style.border = '';
-			}
-			if (colors.editorHoverForeground) {
-				this.domNode.style.color = colors.editorHoverForeground.toString();
-			} else {
-				this.domNode.style.color = '';
-			}
-		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
@@ -369,17 +353,16 @@ class DebugHoverComputer {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	public async compute(position: Position, token: CancellationToken): Promise<IDebugHoverComputeResult> {
 		const session = this.debugService.getViewModel().focusedSession;
-
 		if (!session || !this.editor.hasModel()) {
 			return { rangeChanged: false };
 		}
 
 		const model = this.editor.getModel();
-
 		const result = await this.doCompute(model, position, token);
 		if (!result) {
 			return { rangeChanged: false };
@@ -434,7 +417,8 @@ class DebugHoverComputer {
 
 	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {
 		if (!this._currentExpression) {
-			throw new Error('No expression to evaluate');
+			this.logService.error('No expression to evaluate');
+			return;
 		}
 
 		if (session.capabilities.supportsEvaluateForHovers) {

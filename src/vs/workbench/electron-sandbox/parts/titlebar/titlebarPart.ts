@@ -20,6 +20,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
@@ -83,11 +84,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private onDidChangeWindowMaximized(maximized: boolean): void {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
-				this.maxRestoreControl.classList.add(...Codicon.chromeRestore.classNamesArray);
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
 			} else {
-				this.maxRestoreControl.classList.remove(...Codicon.chromeRestore.classNamesArray);
-				this.maxRestoreControl.classList.add(...Codicon.chromeMaximize.classNamesArray);
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
 			}
 		}
 
@@ -98,8 +99,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				show(this.resizer);
 			}
 		}
-
-		this.adjustTitleMarginToCenter();
 	}
 
 	private onMenubarFocusChanged(focused: boolean): void {
@@ -165,15 +164,15 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.windowControls) {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
 			// Minimize
-			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
+			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.nativeHostService.minimizeWindow();
 			}));
 
 			// Restore
-			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore'));
+			this.maxRestoreControl = append(this.primaryWindowControls, $('div.window-icon.window-max-restore'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
 				if (maximized) {
@@ -184,7 +183,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.windowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
+			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
 			}));

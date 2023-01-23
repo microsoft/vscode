@@ -3784,6 +3784,9 @@ export interface IInlineSuggestOptions {
 	 * Defaults to `prefix`.
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
+
+	useExperimentalHints?: boolean;
+	hideHints?: boolean;
 }
 
 /**
@@ -3798,7 +3801,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: true,
-			mode: 'subwordSmart'
+			mode: 'subwordSmart',
+			useExperimentalHints: false,
+			hideHints: false,
 		};
 
 		super(
@@ -3808,7 +3813,17 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
-				}
+				},
+				'editor.inlineSuggest.useExperimentalHints': {
+					type: 'boolean',
+					default: defaults.useExperimentalHints,
+					description: nls.localize('inlineSuggest.useExperimentalHints', "Controls whether to use experimental hints in the editor."),
+				},
+				'editor.inlineSuggest.hideHints': {
+					type: 'boolean',
+					default: defaults.hideHints,
+					description: nls.localize('inlineSuggest.hideHints', "Controls whether to hide hints in the editor."),
+				},
 			}
 		);
 	}
@@ -3821,6 +3836,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
+			useExperimentalHints: boolean(input.useExperimentalHints, this.defaultValue.useExperimentalHints),
+			hideHints: boolean(input.hideHints, this.defaultValue.hideHints),
 		};
 	}
 }
@@ -4891,7 +4908,7 @@ export const enum EditorOption {
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
-		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`; `) can be a commit character that accepts a suggestion and types that character.") }
+		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.") }
 	)),
 	acceptSuggestionOnEnter: register(new EditorStringEnumOption(
 		EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter',

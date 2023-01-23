@@ -209,9 +209,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this.session?.showPreviousInlineCompletion();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.session?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	public async getInlineCompletionsCount(): Promise<number> {
+		const result = await this.session?.getInlineCompletionsCount();
+		return result ?? 0;
 	}
 }
 
@@ -328,6 +328,10 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	// We use a semantic id to track the selection even if the cache changes.
 	private currentlySelectedCompletionId: string | undefined = undefined;
 
+	public get currentlySelectedIndex(): number {
+		return this.fixAndGetIndexOfCurrentSelection();
+	}
+
 	private fixAndGetIndexOfCurrentSelection(): number {
 		if (!this.currentlySelectedCompletionId || !this.cache.value) {
 			return 0;
@@ -379,6 +383,10 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		this.onDidChangeEmitter.fire();
 	}
 
+	public get hasBeenTriggeredExplicitly(): boolean {
+		return this.cache.value?.triggerKind === InlineCompletionTriggerKind.Explicit;
+	}
+
 	public async ensureUpdateWithExplicitContext(): Promise<void> {
 		if (this.updateOperation.value) {
 			// Restart or wait for current update operation
@@ -393,9 +401,13 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
+	public async getInlineCompletionsCount(): Promise<number> {
 		await this.ensureUpdateWithExplicitContext();
-		return (this.cache.value?.completions.length || 0) > 1;
+		return this.getInlineCompletionsCountSync();
+	}
+
+	public getInlineCompletionsCountSync(): number {
+		return this.filteredCompletions.length || 0;
 	}
 
 	//#endregion

@@ -263,6 +263,15 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+	//#region Profile options
+
+	/**
+	 * URI of the profile to preview.
+	 */
+	readonly profileToPreview?: UriComponents;
+
+	//#endregion
+
 
 	//#region Update/Quality related
 

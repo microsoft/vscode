@@ -13,7 +13,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
-	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
+	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
 	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -656,11 +656,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
-	abstract reinstallFromGallery(extension: ILocalExtension): Promise<void>;
+	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 
-	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
-	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
-	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
+	abstract onDidUpdateExtensionMetadata: Event<ILocalExtension>;
+	abstract getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined>;
+	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;

@@ -35,7 +35,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
-		this._outputLogger = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource));
+		this._outputLogger = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource), { hidden: true });
 		this._outputLogger.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
 		this._outputLogger.info('===========================================================');
 	}
@@ -52,10 +52,10 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		};
 	}
 
-	instantiateLogger(extension: IExtensionDescription, appender: vscode.TelemetryAppender, options?: vscode.TelemetryInitializationOptions) {
+	instantiateLogger(extension: IExtensionDescription, sender: vscode.TelemetrySender, options?: vscode.TelemetryLoggerOptions) {
 		const telemetryDetails = this.getTelemetryDetails();
 		const logger = new ExtHostTelemetryLogger(
-			appender,
+			sender,
 			options,
 			extension,
 			this._outputLogger,
@@ -77,7 +77,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		const commonProperties: Record<string, string | boolean | number | undefined> = {};
 		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
 		// Or will first party extensions just mix this in
-		commonProperties['common.extname'] = extension.name;
+		commonProperties['common.extname'] = `${extension.publisher}.${extension.name}`;
 		commonProperties['common.extversion'] = extension.version;
 		commonProperties['common.vscodemachineid'] = this.initData.telemetryInfo.machineId;
 		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
@@ -128,16 +128,34 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 }
 
 export class ExtHostTelemetryLogger {
-	private _appender: vscode.TelemetryAppender;
+
+	static validateSender(sender: vscode.TelemetrySender): void {
+		if (typeof sender !== 'object') {
+			throw new TypeError('TelemetrySender argument is invalid');
+		}
+		if (typeof sender.sendEventData !== 'function') {
+			throw new TypeError('TelemetrySender.sendEventData must be a function');
+		}
+		if (typeof sender.sendErrorData !== 'function') {
+			throw new TypeError('TelemetrySender.sendErrorData must be a function');
+		}
+		if (typeof sender.flush !== 'undefined' && typeof sender.flush !== 'function') {
+			throw new TypeError('TelemetrySender.flush must be a function or undefined');
+		}
+	}
+
+	private readonly _sender: vscode.TelemetrySender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
-	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
-	private _apiObject: vscode.TelemetryLogger | undefined;
 	private readonly _ignoreBuiltinCommonProperties: boolean;
 	private readonly _additionalCommonProperties: Record<string, any> | undefined;
 	public readonly ignoreUnhandledExtHostErrors: boolean;
+
+	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
+	private _apiObject: vscode.TelemetryLogger | undefined;
+
 	constructor(
-		appender: vscode.TelemetryAppender,
-		options: vscode.TelemetryInitializationOptions | undefined,
+		sender: vscode.TelemetrySender,
+		options: vscode.TelemetryLoggerOptions | undefined,
 		private readonly _extension: IExtensionDescription,
 		private readonly _logger: ILogger,
 		private readonly _inLoggingOnlyMode: boolean,
@@ -147,7 +165,7 @@ export class ExtHostTelemetryLogger {
 		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
 		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
 		this._additionalCommonProperties = options?.additionalCommonProperties;
-		this._appender = appender;
+		this._sender = sender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
 
@@ -192,7 +210,7 @@ export class ExtHostTelemetryLogger {
 		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
 		if (!this._inLoggingOnlyMode) {
-			this._appender.logEvent(eventName, data);
+			this._sender.sendEventData(eventName, data);
 		}
 		this._logger.trace(eventName, data);
 	}
@@ -212,7 +230,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.logError(eventNameOrException, data);
+			this._sender.sendErrorData(eventNameOrException, data);
 		}
 	}
 
@@ -237,8 +255,8 @@ export class ExtHostTelemetryLogger {
 	}
 
 	dispose(): void {
-		if (this._appender?.flush) {
-			this._appender.flush();
+		if (this._sender?.flush) {
+			this._sender.flush();
 		}
 	}
 }

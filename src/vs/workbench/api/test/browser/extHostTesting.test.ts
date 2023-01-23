@@ -701,6 +701,7 @@ suite('ExtHost Testing', () => {
 					include: [single.root.id],
 					exclude: [new TestId(['ctrlId', 'id-b']).toString()],
 					persist: false,
+					continuous: false,
 				}]
 			]);
 
