@@ -6,7 +6,7 @@
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
@@ -33,6 +33,8 @@ import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/qu
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { LinkedList } from 'vs/base/common/linkedList';
+import { illegalState } from 'vs/base/common/errors';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -654,35 +656,116 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return result;
 	}
 
-	private readonly _onWillCreateEditSessionIdentityEvent = new AsyncEmitter<vscode.EditSessionIdentityWillCreateEvent>();
+	private readonly _callbacks = new LinkedList<[Function, any, IExtensionDescription]>();
+	private readonly _thresholds: { timeout: number; errors: number } = { timeout: 10000, errors: 3 };
+	private readonly _badListeners = new WeakMap<Function, number>();
 
 	getOnWillCreateEditSessionIdentityEvent(extension: IExtensionDescription): Event<vscode.EditSessionIdentityWillCreateEvent> {
 		return (listener, thisArg, disposables) => {
-			const wrappedListener: IExtensionListener<vscode.EditSessionIdentityWillCreateEvent> = function wrapped(e) { listener.call(thisArg, e); };
-			wrappedListener.extension = extension;
-			return this._onWillCreateEditSessionIdentityEvent.event(wrappedListener, undefined, disposables);
+			const remove = this._callbacks.push([listener, thisArg, extension]);
+			const result = { dispose: remove };
+			if (Array.isArray(disposables)) {
+				disposables.push(result);
+			}
+			return result;
 		};
 	}
 
 	// main thread calls this to trigger participants
-	async $onWillCreateEditSessionIdentity(workspaceFolder: UriComponents, token: CancellationToken, timeout: number): Promise<void> {
+	async $onWillCreateEditSessionIdentity(workspaceFolder: UriComponents) {
 		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
 
-		if (folder === undefined) {
-			throw new Error('Unable to resolve workspace folder');
+		let didTimeout = false;
+		const didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
+
+		const results: boolean[] = [];
+		try {
+			for (const listener of [...this._callbacks]) { // copy to prevent concurrent modifications
+				if (didTimeout) {
+					// timeout - no more listeners
+					break;
+				}
+				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ workspaceFolder: folder });
+				results.push(success);
+			}
+		} finally {
+			clearTimeout(didTimeoutHandle);
+		}
+		return results;
+	}
+
+	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: [Function, any, IExtensionDescription], stubEvent: vscode.EditSessionIdentityWillCreateEvent): Promise<any> {
+		const errors = this._badListeners.get(listener);
+		if (typeof errors === 'number' && errors > this._thresholds.errors) {
+			// bad listener - ignore
+			return Promise.resolve(false);
 		}
 
-		await this._onWillCreateEditSessionIdentityEvent.fireAsync({ workspaceFolder: folder }, token, async (thenable: Promise<unknown>, listener) => {
-			const now = Date.now();
-			await Promise.resolve(thenable);
-			if (Date.now() - now > timeout) {
-				this._logService.warn('SLOW edit session create-participant', (<IExtensionListener<vscode.EditSessionIdentityWillCreateEvent>>listener).extension.identifier);
+		return this._deliverEventAsync(extension, listener, thisArg, stubEvent).then(() => {
+			// don't send result across the wire
+			return true;
+
+		}, err => {
+
+			this._logService.error(`onWillCreateEditSessionIdentity-listener from extension '${extension.identifier.value}' threw ERROR`);
+			this._logService.error(err);
+
+			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
+				const errors = this._badListeners.get(listener);
+				this._badListeners.set(listener, !errors ? 1 : errors + 1);
+
+				if (typeof errors === 'number' && errors > this._thresholds.errors) {
+					this._logService.info(`onWillCreateEditSessionIdentity-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
+				}
+			}
+			return false;
+		});
+	}
+
+	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.EditSessionIdentityWillCreateEvent): Promise<void> {
+
+		const promises: Promise<void>[] = [];
+
+		const t1 = Date.now();
+		const { workspaceFolder, token } = stubEvent;
+
+		const event = Object.freeze<vscode.EditSessionIdentityWillCreateEvent>({
+			workspaceFolder,
+			token,
+			waitUntil(p: Promise<void>) {
+				if (Object.isFrozen(promises)) {
+					throw illegalState('waitUntil can not be called async');
+				}
+				promises.push(Promise.resolve(p));
 			}
 		});
 
-		if (token.isCancellationRequested) {
-			return undefined;
+		try {
+			// fire event
+			listener.apply(thisArg, [event]);
+		} catch (err) {
+			return Promise.reject(err);
 		}
+
+		// freeze promises after event call
+		Object.freeze(promises);
+
+		return new Promise<void>((resolve, reject) => {
+			// join on all listener promises, reject after timeout
+			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
+
+			return Promise.all(promises).then(() => {
+				this._logService.debug(`onWillCreateEditSessionIdentity-listener from extension '${extension.identifier.value}' finished after ${(Date.now() - t1)}ms`);
+				clearTimeout(handle);
+				resolve(undefined);
+			}).catch(err => {
+				clearTimeout(handle);
+				reject(err);
+			});
+
+		}).then(() => {
+			return Promise.reject(new Error('concurrent_edits'));
+		});
 	}
 }
 
@@ -706,9 +789,3 @@ function parseSearchInclude(include: string | IRelativePatternDto | undefined | 
 		folder: includeFolder
 	};
 }
-
-interface IExtensionListener<E> {
-	extension: IExtensionDescription;
-	(e: E): any;
-}
-
