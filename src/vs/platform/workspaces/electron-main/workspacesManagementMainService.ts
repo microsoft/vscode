@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, MessageBoxOptions } from 'electron';
+import { BrowserWindow } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
@@ -16,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -279,17 +279,12 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
-			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+			await this.dialogMainService.showMessageBox(massageMessageBoxOptions({
 				type: 'info',
-				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
-				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true,
-				defaultId: 0
-			};
-
-			await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
+			}, this.productService).options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
 			return false;
 		}
