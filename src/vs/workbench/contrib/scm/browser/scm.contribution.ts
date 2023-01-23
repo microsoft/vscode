@@ -30,6 +30,8 @@ import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRep
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
+import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
+import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -385,3 +387,4 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
+registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);

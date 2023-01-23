@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
+import * as MicrotaskDelay from "vs/base/common/symbols";
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -188,7 +189,7 @@ suite('Async', () => {
 				return Promise.resolve(++count);
 			};
 
-			const delayer = new async.Delayer(async.MicrotaskDelay);
+			const delayer = new async.Delayer(MicrotaskDelay.MicrotaskDelay);
 			const promises: Promise<any>[] = [];
 
 			assert(!delayer.isTriggered());
@@ -251,7 +252,7 @@ suite('Async', () => {
 				return Promise.resolve(++count);
 			};
 
-			const delayer = new async.Delayer(async.MicrotaskDelay);
+			const delayer = new async.Delayer(MicrotaskDelay.MicrotaskDelay);
 
 			assert(!delayer.isTriggered());
 

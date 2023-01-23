@@ -33,7 +33,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
@@ -435,7 +436,7 @@ const firstLineRange = (originalRange: IRange) => ({
 	startLineNumber: originalRange.startLineNumber,
 	endLineNumber: originalRange.startLineNumber,
 	startColumn: 0,
-	endColumn: 1,
+	endColumn: Number.MAX_SAFE_INTEGER,
 });
 
 const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[], visible: boolean): IModelDeltaDecoration => {

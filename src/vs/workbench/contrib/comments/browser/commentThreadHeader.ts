@@ -17,7 +17,7 @@ import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/co
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MarshalledId } from 'vs/base/common/marshallingIds';

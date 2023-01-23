@@ -29,11 +29,12 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		// foo:339
 		// foo:339:12
 		// foo 339
-		// foo 339:12                   [#140780]
+		// foo 339:12                    [#140780]
 		// "foo",339
 		// "foo",339:12
 		`(?::| |['"],)${l()}(:${c()})?$`,
-		// "foo", line 339               [#40468]
+		// The quotes below are optional [#171652]
+		// "foo", line 339                [#40468]
 		// "foo", line 339, col 12
 		// "foo", line 339, column 12
 		// "foo":line 339
@@ -45,7 +46,7 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		// "foo" on line 339
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
-		`['"](?:, |: ?| on )line ${l()}(, col(?:umn)? ${c()})?$`,
+		`['"]?(?:, |: ?| on )line ${l()}(, col(?:umn)? ${c()})?$`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -81,7 +82,7 @@ export function removeLinkSuffix(link: string): string {
  * @param link The link to parse.
  */
 export function getLinkSuffix(link: string): { row: number | undefined; col: number | undefined; suffix: { index: number; text: string } } | null {
-	const matches = linkSuffixRegex.getValue().exec(link);
+	const matches = linkSuffixRegex.value.exec(link);
 	const groups = matches?.groups;
 	if (!groups || matches.length < 1) {
 		return null;

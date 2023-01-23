@@ -17,7 +17,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isObject, isString } from 'vs/base/common/types';
+import { Mutable, isObject, isString } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -83,6 +83,7 @@ export interface IExtensionsProfileScannerService {
 
 	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]>;
 	addExtensionsToProfile(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	updateMetadata(extensions: [IExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void>;
 }
 
@@ -166,6 +167,25 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		}
 	}
 
+	async updateMetadata(extensions: [IExtension, Metadata][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
+		const updatedExtensions: IScannedProfileExtension[] = [];
+		await this.withProfileExtensions(profileLocation, profileExtensions => {
+			const result: IScannedProfileExtension[] = [];
+			for (const profileExtension of profileExtensions) {
+				const extension = extensions.find(([e]) => areSameExtensions(e.identifier, profileExtension.identifier) && e.manifest.version === profileExtension.version);
+				if (extension) {
+					profileExtension.metadata = { ...profileExtension.metadata, ...extension[1] };
+					updatedExtensions.push(profileExtension);
+					result.push(profileExtension);
+				} else {
+					result.push(profileExtension);
+				}
+			}
+			return result;
+		});
+		return updatedExtensions;
+	}
+
 	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		this._onRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
@@ -195,7 +215,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		}
 	}
 
-	private async withProfileExtensions(file: URI, updateFn?: (extensions: IScannedProfileExtension[]) => IScannedProfileExtension[], options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]> {
+	private async withProfileExtensions(file: URI, updateFn?: (extensions: Mutable<IScannedProfileExtension>[]) => IScannedProfileExtension[], options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]> {
 		return this.getResourceAccessQueue(file).queue(async () => {
 			let extensions: IScannedProfileExtension[] = [];
 

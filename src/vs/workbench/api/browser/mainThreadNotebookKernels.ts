@@ -115,6 +115,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
 	private readonly _kernelDetectionTasks = new Map<number, [task: MainThreadKernelDetectionTask, registraion: IDisposable]>();
 	private readonly _kernelSourceActionProviders = new Map<number, [provider: IKernelSourceActionProvider, registraion: IDisposable]>();
+	private readonly _kernelSourceActionProvidersEventRegistrations = new Map<number, IDisposable>();
+
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
 	private readonly _executions = new Map<number, INotebookCellExecution>();
@@ -314,22 +316,54 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	// --- notebook kernel source action provider
 
-	async $addKernelSourceActionProvider(handle: number, notebookType: string): Promise<void> {
+	async $addKernelSourceActionProvider(handle: number, eventHandle: number, notebookType: string): Promise<void> {
 		const kernelSourceActionProvider: IKernelSourceActionProvider = {
 			viewType: notebookType,
 			provideKernelSourceActions: async () => {
-				return this._proxy.$provideKernelSourceActions(handle, CancellationToken.None);
+				const actions = await this._proxy.$provideKernelSourceActions(handle, CancellationToken.None);
+
+				return actions.map(action => {
+					let documentation = action.documentation;
+					if (action.documentation && typeof action.documentation !== 'string') {
+						documentation = URI.revive(action.documentation);
+					}
+
+					return {
+						label: action.label,
+						command: action.command,
+						description: action.description,
+						detail: action.detail,
+						documentation,
+					};
+				});
 			}
 		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._kernelSourceActionProvidersEventRegistrations.set(eventHandle, emitter);
+			kernelSourceActionProvider.onDidChangeSourceActions = emitter.event;
+		}
+
 		const registration = this._notebookKernelService.registerKernelSourceActionProvider(notebookType, kernelSourceActionProvider);
 		this._kernelSourceActionProviders.set(handle, [kernelSourceActionProvider, registration]);
 	}
 
-	$removeKernelSourceActionProvider(handle: number): void {
+	$removeKernelSourceActionProvider(handle: number, eventHandle: number): void {
 		const tuple = this._kernelSourceActionProviders.get(handle);
 		if (tuple) {
 			tuple[1].dispose();
 			this._kernelSourceActionProviders.delete(handle);
+		}
+		if (typeof eventHandle === 'number') {
+			this._kernelSourceActionProvidersEventRegistrations.delete(eventHandle);
+		}
+	}
+
+	$emitNotebookKernelSourceActionsChangeEvent(eventHandle: number): void {
+		const emitter = this._kernelSourceActionProvidersEventRegistrations.get(eventHandle);
+		if (emitter instanceof Emitter) {
+			emitter.fire(undefined);
 		}
 	}
 }

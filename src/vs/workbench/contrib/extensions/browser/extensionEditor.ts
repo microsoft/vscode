@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
-import { OS, locale } from 'vs/base/common/platform';
+import { OS, language } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -34,7 +34,8 @@ import {
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -673,7 +674,7 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, title: string, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
 			const body = await this.renderMarkdown(cacheResult, container, token);
 			if (token.isCancellationRequested) {
@@ -681,6 +682,7 @@ export class ExtensionEditor extends EditorPane {
 			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
+				title,
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
@@ -695,7 +697,7 @@ export class ExtensionEditor extends EditorPane {
 			setParentFlowTo(webview.container, container);
 			webview.layoutWebviewOverElement(container);
 
-			webview.html = body;
+			webview.setHtml(body);
 			webview.claim(this, undefined);
 
 			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
@@ -716,7 +718,7 @@ export class ExtensionEditor extends EditorPane {
 				// Render again since syntax highlighting of code blocks may have changed
 				const body = await this.renderMarkdown(cacheResult, container);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
+					webview.setHtml(body);
 				}
 			}));
 
@@ -829,7 +831,7 @@ export class ExtensionEditor extends EditorPane {
 		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
 			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
 		} else {
-			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
+			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
 		}
 
 		this.renderAdditionalDetails(additionalDetailsContainer, extension);
@@ -869,7 +871,7 @@ export class ExtensionEditor extends EditorPane {
 
 		await Promise.all([
 			this.renderExtensionPack(manifest, extensionPackContent, token),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, token),
+			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, localize('Readme title', "Readme"), token),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
@@ -943,11 +945,11 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('published', "Published")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(locale, { hourCycle: 'h23' }))
+					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(language, { hourCycle: 'h23' }))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last released', "Last released")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(locale, { hourCycle: 'h23' }))
+					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(language, { hourCycle: 'h23' }))
 				)
 			);
 		}
@@ -955,7 +957,7 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(locale, { hourCycle: 'h23' }))
+					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(language, { hourCycle: 'h23' }))
 				)
 			);
 		}
@@ -967,7 +969,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, token);
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {

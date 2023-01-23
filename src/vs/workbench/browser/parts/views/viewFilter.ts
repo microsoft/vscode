@@ -10,10 +10,9 @@ import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
@@ -87,7 +86,6 @@ export class FilterWidget extends Widget {
 		private readonly options: IFilterWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -179,18 +177,9 @@ export class FilterWidget extends Widget {
 
 	private createBadge(container: HTMLElement): HTMLElement {
 		const filterBadge = DOM.append(container, DOM.$('.viewpane-filter-badge.hidden'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-
-			filterBadge.style.backgroundColor = background;
-
-			filterBadge.style.borderWidth = border ? '1px' : '';
-			filterBadge.style.borderStyle = border ? 'solid' : '';
-			filterBadge.style.borderColor = border;
-			filterBadge.style.color = foreground;
-		}));
+		filterBadge.style.backgroundColor = asCssVariable(badgeBackground);
+		filterBadge.style.color = asCssVariable(badgeForeground);
+		filterBadge.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 		return filterBadge;
 	}
 

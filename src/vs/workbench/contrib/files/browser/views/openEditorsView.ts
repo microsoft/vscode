@@ -19,9 +19,8 @@ import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/fil
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -199,18 +198,9 @@ export class OpenEditorsView extends ViewPane {
 		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
-		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-
-			this.dirtyCountElement.style.backgroundColor = background;
-			this.dirtyCountElement.style.color = foreground;
-
-			this.dirtyCountElement.style.borderWidth = border ? '1px' : '';
-			this.dirtyCountElement.style.borderStyle = border ? 'solid' : '';
-			this.dirtyCountElement.style.borderColor = border;
-		})));
+		this.dirtyCountElement.style.backgroundColor = asCssVariable(badgeBackground);
+		this.dirtyCountElement.style.color = asCssVariable(badgeForeground);
+		this.dirtyCountElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		this.updateDirtyIndicator();
 	}

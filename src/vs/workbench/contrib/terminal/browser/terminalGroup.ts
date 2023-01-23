@@ -19,7 +19,7 @@ const enum Constants {
 	/**
 	 * The minimum size in pixels of a split pane.
 	 */
-	SplitPaneMinSize = 180,
+	SplitPaneMinSize = 80,
 	/**
 	 * The number of cells the terminal gets added or removed when asked to increase or decrease
 	 * the view size.
@@ -512,7 +512,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	private _getBellTitle(instance: ITerminalInstance) {
-		if (this._terminalService.configHelper.config.enableBell && instance.statusList.statuses.find(e => e.id === TerminalStatus.Bell)) {
+		if (this._terminalService.configHelper.config.enableBell && instance.statusList.statuses.some(e => e.id === TerminalStatus.Bell)) {
 			return '*';
 		}
 		return '';

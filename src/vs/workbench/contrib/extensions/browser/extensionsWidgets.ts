@@ -14,7 +14,8 @@ import { EnablementState, IExtensionManagementServerService } from 'vs/workbench
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, ExtensionStatusAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -114,7 +115,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			}
 		}
 		else {
-			installLabel = installCount.toLocaleString(platform.locale);
+			installLabel = installCount.toLocaleString(platform.language);
 		}
 
 		return installLabel;

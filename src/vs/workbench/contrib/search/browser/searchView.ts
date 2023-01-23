@@ -50,7 +50,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IFileIconTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IFileIconTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
@@ -1909,10 +1910,10 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
-		const patternExcludes = this.inputPatternExcludes.getValue().trim();
-		const patternIncludes = this.inputPatternIncludes.getValue().trim();
-		const onlyOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
-		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
+		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
+		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
+		const onlyOpenEditors = this.inputPatternIncludes?.onlySearchInOpenEditors() ?? false;
+		const useExcludesAndIgnoreFiles = this.inputPatternExcludes?.useExcludesAndIgnoreFiles() ?? true;
 		const preserveCase = this.viewModel.preserveCase;
 
 		if (this.searchWidget.searchInput) {

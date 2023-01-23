@@ -91,6 +91,8 @@ export interface IProductConfiguration {
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
 	readonly trustedExtensionAuthAccess?: readonly string[];
 
+	readonly commandPaletteSuggestedCommandIds?: string[];
+
 	readonly crashReporter?: {
 		readonly companyName: string;
 		readonly productName: string;

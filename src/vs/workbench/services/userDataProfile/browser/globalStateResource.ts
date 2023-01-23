@@ -61,7 +61,7 @@ export class GlobalStateResource implements IProfileResource {
 			];
 			for (const key of storageKeys) {
 				if (nonProfileKeys.includes(key)) {
-					this.logService.info(`Profile: Ignoring global state key '${key}' because it is not a profile key.`);
+					this.logService.info(`Importing Profile (${profile.name}): Ignoring global state key '${key}' because it is not a profile key.`);
 				} else {
 					updatedStorage.set(key, globalState.storage[key]);
 				}
@@ -76,8 +76,8 @@ export abstract class GlobalStateResourceTreeItem implements IProfileResourceTre
 	readonly type = ProfileResourceType.GlobalState;
 	readonly handle = ProfileResourceType.GlobalState;
 	readonly label = { label: localize('globalState', "UI State") };
-	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	readonly collapsibleState = TreeItemCollapsibleState.Collapsed;
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(private readonly resource: URI) { }
 

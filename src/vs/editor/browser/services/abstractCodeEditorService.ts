@@ -14,7 +14,8 @@ import { ICodeEditorOpenHandler, ICodeEditorService } from 'vs/editor/browser/se
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 

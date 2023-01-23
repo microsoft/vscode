@@ -18,7 +18,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyTrueExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -27,11 +27,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService,
-	IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataSyncResourceConflicts, IUserDataSyncResource, IUserDataSyncResourceError
+	IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataSyncResourceConflicts, IUserDataSyncResource, IUserDataSyncResourceError, USER_DATA_SYNC_LOG_ID
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -569,11 +568,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {
-			id: SyncResource.Extensions,
-			label: getSyncAreaLabel(SyncResource.Extensions)
-		}, {
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
+		}, {
+			id: SyncResource.Extensions,
+			label: getSyncAreaLabel(SyncResource.Extensions)
 		}];
 		if (this.userDataProfilesService.isEnabled()) {
 			result.push({
@@ -649,7 +648,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private showSyncActivity(): Promise<void> {
-		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
+		return this.outputService.showChannel(USER_DATA_SYNC_LOG_ID);
 	}
 
 	private async selectSettingsSyncService(userDataSyncStore: IUserDataSyncStore): Promise<void> {
@@ -719,26 +718,26 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
 		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_settings',
+			group: '1_profiles',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: ContextKeyExpr.and(turnOnSyncWhenContext),
-			order: 3
+			order: 2
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: turnOnSyncCommand,
 			when: turnOnSyncWhenContext,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_settings',
+			group: '1_profiles',
 			command: {
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Settings Sync...")
 			},
 			when: turnOnSyncWhenContext,
-			order: 3
+			order: 2
 		});
 		MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			group: '1_settings',
@@ -760,10 +759,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '5_settings',
+						group: '1_profiles',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 3
+						order: 2
 					}, {
 						group: '1_settings',
 						id: MenuId.AccountsContext,
@@ -807,10 +806,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '5_settings',
+						group: '1_profiles',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 3
+						order: 2
 					}
 				});
 			}
@@ -836,7 +835,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		CommandsRegistry.registerCommand(showConflictsCommand.id, () => this.userDataSyncWorkbenchService.showConflicts());
 		const getTitle = () => localize('resolveConflicts_global', "{0}: Show Conflicts ({1})", SYNC_TITLE, this.getConflictsCount());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_settings',
+			group: '1_profiles',
 			command: {
 				id: showConflictsCommand.id,
 				get title() { return getTitle(); }
@@ -867,18 +866,19 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				super({
 					id: 'workbench.userDataSync.actions.manage',
 					title: localize('sync is on', "Settings Sync is On"),
+					toggled: ContextKeyTrueExpr.INSTANCE,
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '5_settings',
+							group: '1_profiles',
 							when,
-							order: 3
+							order: 2
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '5_settings',
+							group: '1_profiles',
 							when,
-							order: 3,
+							order: 2,
 						},
 						{
 							id: MenuId.AccountsContext,

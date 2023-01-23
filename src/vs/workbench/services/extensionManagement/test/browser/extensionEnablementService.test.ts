@@ -65,6 +65,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onUninstallExtension: new Emitter<UninstallExtensionEvent>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
 					onDidChangeProfile: new Emitter<DidChangeProfileEvent>().event,
+					onDidUpdateExtensionMetadata: new Emitter<ILocalExtension>().event,
 				},
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);
@@ -615,13 +616,6 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.strictEqual(testObject.canChangeEnablement(aLocalExtension('pub.a')), false);
-	});
-
-	test('test canChangeEnablement return false for system extension when extension is disabled in environment', () => {
-		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
-		testObject = new TestExtensionEnablementService(instantiationService);
-		const extension = aLocalExtension('pub.a', undefined, ExtensionType.System);
-		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
 	test('test extension does not support vitrual workspace is not enabled in virtual workspace', async () => {

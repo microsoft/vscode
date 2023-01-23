@@ -14,7 +14,6 @@ import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser'
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -39,6 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -185,8 +185,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, undefined, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
-		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
