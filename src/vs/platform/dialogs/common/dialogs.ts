@@ -12,6 +12,11 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { deepClone } from 'vs/base/common/objects';
 
 export interface FileFilter {
 	readonly extensions: string[];
@@ -401,4 +406,115 @@ export interface INativeOpenDialogOptions {
 
 	readonly telemetryEventName?: string;
 	readonly telemetryExtraData?: ITelemetryData;
+}
+
+export interface IMassagedMessageBoxOptions {
+
+	/**
+	 * OS massaged message box options.
+	 */
+	options: MessageBoxOptions;
+
+	/**
+	 * Since the massaged result of the message box options potentially
+	 * changes the order of buttons, we have to keep a map of these
+	 * changes so that we can still return the correct index to the caller.
+	 */
+	buttonIndeces: number[];
+}
+
+/**
+ * A utility method to ensure the options for the message box dialog
+ * are using properties that are consistent across all platforms and
+ * specific to the platform where necessary.
+ */
+export function massageMessageBoxOptions(options: MessageBoxOptions, productService: IProductService): IMassagedMessageBoxOptions {
+	const massagedOptions = deepClone(options);
+
+	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button));
+	let buttonIndeces = (options.buttons || []).map((button, index) => index);
+
+	let defaultId = 0; // by default the first button is default button
+	let cancelId = massagedOptions.cancelId ?? buttons.length - 1; // by default the last button is cancel button
+
+	// Apply HIG per OS when more than one button is used
+	if (buttons.length > 1) {
+		if (isLinux) {
+
+			// Linux: the GNOME HIG (https://developer.gnome.org/hig/patterns/feedback/dialogs.html?highlight=dialog)
+			// recommend the following:
+			// "Always ensure that the cancel button appears first, before the affirmative button. In left-to-right
+			//  locales, this is on the left. This button order ensures that users become aware of, and are reminded
+			//  of, the ability to cancel prior to encountering the affirmative button."
+			//
+			// Electron APIs do not reorder buttons for us, so we ensure a reverse order of buttons and a position
+			// of the cancel button (if provided) that matches the HIG
+
+			const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
+
+			buttons = buttons.reverse();
+			buttonIndeces = buttonIndeces.reverse();
+
+			defaultId = buttons.length - 1;
+
+			if (typeof cancelButton === 'string') {
+				cancelId = buttons.indexOf(cancelButton);
+				if (cancelId !== buttons.length - 2 /* left to primary action */) {
+					buttons.splice(cancelId, 1);
+					buttons.splice(buttons.length - 1, 0, cancelButton);
+
+					const buttonIndex = buttonIndeces[cancelId];
+					buttonIndeces.splice(cancelId, 1);
+					buttonIndeces.splice(buttonIndeces.length - 1, 0, buttonIndex);
+
+					cancelId = buttons.length - 2;
+				}
+			}
+		} else if (isWindows) {
+
+			// Windows: the HIG (https://learn.microsoft.com/en-us/windows/win32/uxguide/win-dialog-box)
+			// recommend the following:
+			// "One of the following sets of concise commands: Yes/No, Yes/No/Cancel, [Do it]/Cancel,
+			//  [Do it]/[Don't do it], [Do it]/[Don't do it]/Cancel."
+			//
+			// Electron APIs do not reorder buttons for us, so we ensure the position of the cancel button
+			// (if provided) that matches the HIG
+
+			const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
+
+			if (typeof cancelButton === 'string') {
+				cancelId = buttons.indexOf(cancelButton);
+				if (cancelId !== buttons.length - 1 /* right to primary action */) {
+					buttons.splice(cancelId, 1);
+					buttons.push(cancelButton);
+
+					const buttonIndex = buttonIndeces[cancelId];
+					buttonIndeces.splice(cancelId, 1);
+					buttonIndeces.push(buttonIndex);
+
+					cancelId = buttons.length - 1;
+				}
+			}
+		} else if (isMacintosh) {
+
+			// macOS: the HIG (https://developer.apple.com/design/human-interface-guidelines/components/presentation/alerts)
+			// recommend the following:
+			// "Place buttons where people expect. In general, place the button people are most likely to choose on the trailing side in a
+			//  row of buttons or at the top in a stack of buttons. Always place the default button on the trailing side of a row or at the
+			//  top of a stack. Cancel buttons are typically on the leading side of a row or at the bottom of a stack."
+			//
+			// Electron APIs ensure above for us, so there is nothing we have to do.
+		}
+	}
+
+	massagedOptions.buttons = buttons;
+	massagedOptions.defaultId = defaultId;
+	massagedOptions.cancelId = cancelId;
+	massagedOptions.noLink = true;
+	massagedOptions.title = massagedOptions.title || productService.nameLong;
+
+	return {
+		options: massagedOptions,
+		buttonIndeces
+	};
 }

@@ -1329,7 +1329,7 @@ export class ListView<T> implements IListView<T> {
 	 * Given a stable rendered state, checks every rendered element whether it needs
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
-	private _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
+	protected _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
 		// Let's remember the second element's position, this helps in scrolling up

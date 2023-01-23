@@ -8,7 +8,6 @@ import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
@@ -51,6 +50,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -715,25 +715,24 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					}
 
 					// Show Dialog
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
+					const { options, buttonIndeces } = massageMessageBoxOptions({
 						type: 'warning',
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen"),
+							localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"),
+							localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")
 						],
 						message: localize('appStalled', "The window is not responding"),
 						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-						noLink: true,
-						defaultId: 0,
-						cancelId: 1,
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this._win);
+					}, this.productService);
+
+					const result = await this.dialogMainService.showMessageBox(options, this._win);
+					const buttonIndex = buttonIndeces[result.response];
 
 					// Handle choice
-					if (result.response !== 1 /* keep waiting */) {
-						const reopen = result.response === 0;
+					if (buttonIndex !== 1 /* keep waiting */) {
+						const reopen = buttonIndex === 0;
 						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
@@ -759,26 +758,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 
 						// Show Dialog
-						const result = await this.dialogMainService.showMessageBox({
-							title: this.productService.nameLong,
+						const { options, buttonIndeces } = massageMessageBoxOptions({
 							type: 'warning',
 							buttons: [
-								this._config?.workspace ?
-									mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")) :
-									mnemonicButtonLabel(localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window")),
-								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+								this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
+								localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close")
 							],
 							message,
 							detail: this._config?.workspace ?
 								localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
 								localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
-							noLink: true,
-							defaultId: 0,
 							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-						}, this._win);
+						}, this.productService);
+
+						const result = await this.dialogMainService.showMessageBox(options, this._win);
 
 						// Handle choice
-						const reopen = result.response === 0;
+						const reopen = buttonIndeces[result.response] === 0;
 						await this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
@@ -822,20 +818,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Inform user
-		const result = await this.dialogMainService.showMessageBox({
-			title: this.productService.nameLong,
+		const { options, buttonIndeces } = massageMessageBoxOptions({
 			type: 'error',
 			buttons: [
-				mnemonicButtonLabel(localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More")),
-				mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+				localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+				localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close")
 			],
 			message: localize('appGoneAdminMessage', "Running as administrator is not supported in your environment"),
-			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong),
-			noLink: true,
-			defaultId: 0
-		}, this._win);
+			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong)
+		}, this.productService);
 
-		if (result.response === 0) {
+		const result = await this.dialogMainService.showMessageBox(options, this._win);
+		if (buttonIndeces[result.response] === 0) {
 			await this.nativeHostMainService.openExternal(undefined, 'https://go.microsoft.com/fwlink/?linkid=2220179');
 		}
 

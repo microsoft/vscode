@@ -19,7 +19,7 @@ export function getLocale(extension: IGalleryExtension): string | undefined {
 export const ILanguagePackService = createDecorator<ILanguagePackService>('languagePackService');
 
 export interface ILanguagePackItem extends IQuickPickItem {
-	readonly extensionId: string;
+	readonly extensionId?: string;
 	readonly galleryExtension?: IGalleryExtension;
 }
 
@@ -68,10 +68,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 			};
 		});
 
-		allFromMarketplace.push({
-			...this.createQuickPickItem('en', 'English'),
-			extensionId: 'default',
-		});
+		allFromMarketplace.push(this.createQuickPickItem('en', 'English'));
 
 		return allFromMarketplace;
 	}

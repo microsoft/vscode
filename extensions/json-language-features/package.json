@@ -156,7 +156,7 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.2-preview",
+    "@vscode/extension-telemetry": "^0.7.4-preview",
     "request-light": "^0.6.0",
     "vscode-languageclient": "^8.1.0-next.2"
   },

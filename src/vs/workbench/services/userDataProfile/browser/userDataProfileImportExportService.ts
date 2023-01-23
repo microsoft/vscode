@@ -209,6 +209,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		disposables.add(toDisposable(() => this.isProfileImportInProgressContextKey.set(false)));
 
 		try {
+
+			let userDataProfileImportState: UserDataProfileImportState | undefined;
+			let importedProfile: IUserDataProfile | undefined;
+
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				command: showWindowLogActionId,
@@ -224,7 +228,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					throw new Error('Invalid profile content.');
 				}
 
-				const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
+				userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 
 				if (!userDataProfileImportState.isEmpty() && !options?.donotPrompt) {
 					const title = localize('import profile preview', "Import");
@@ -236,30 +240,34 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					}
 				}
 
-				const profile = await this.importAndSwitch(userDataProfileImportState, options, progress);
+				importedProfile = await this.importAndSwitch(userDataProfileImportState, options, progress);
 
-				if (!profile) {
+				if (!importedProfile) {
 					return;
 				}
-
-				if (options?.previewAsTempProfile) {
-					const actions: IAction[] = [];
-					actions.push(new Action('saveProfile', localize('save profile', "Save Profile"), undefined, true, async () => this.saveTemporaryProfile(profile)));
-					if (isWeb) {
-						actions.push(new Action('openInDesktop', localize('open in desktop', "Open in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true })));
-					}
-					userDataProfileImportState.canSelect = false;
-					await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, profile.name, actions, new Action('close', localize('close', "Close")), userDataProfileImportState);
-				} else {
-					this.notificationService.notify({
-						severity: Severity.Info,
-						message: localize('imported profile', "Profile '{0}' is imported successfully.", profile.name),
-						actions: {
-							primary: [new Action('profiles.showProfileContents', localize('show profile contents', "Show Profile Contents"), undefined, true, () => this.showProfileContents())]
-						}
-					});
-				}
 			});
+
+			if (!importedProfile || !userDataProfileImportState) {
+				return;
+			}
+
+			if (options?.previewAsTempProfile) {
+				const actions: IAction[] = [];
+				if (isWeb) {
+					actions.push(new Action('openInDesktop', localize('open in desktop', "Open in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true })));
+				}
+				actions.push(new Action('saveProfile', localize('save profile', "Save Profile"), undefined, true, async () => this.saveTemporaryProfile(importedProfile!)));
+				userDataProfileImportState.canSelect = false;
+				await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, actions, new Action('close', localize('close', "Close")), userDataProfileImportState);
+			} else {
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: localize('imported profile', "Profile '{0}' is imported successfully.", importedProfile.name),
+					actions: {
+						primary: [new Action('profiles.showProfileContents', localize('show profile contents', "Show Profile Contents"), undefined, true, () => this.showProfileContents())]
+					}
+				});
+			}
 		} finally {
 			disposables.dispose();
 		}
