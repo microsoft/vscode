@@ -935,7 +935,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keybindings' },
+					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keyboard Shortcuts' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -956,7 +956,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
-					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keybindings' },
+					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keyboard Shortcuts' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -977,7 +977,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
-					title: { value: nls.localize('showUserKeybindings', "Show User Keybindings"), original: 'Show User Keybindings' },
+					title: { value: nls.localize('showUserKeybindings', "Show User Keybindings"), original: 'Show User Keyboard Shortcuts' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,

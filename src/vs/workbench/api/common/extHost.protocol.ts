@@ -1822,7 +1822,7 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$initializeTelemetryLevel(level: TelemetryLevel, debugLoggingOnly: boolean, productConfig?: { usage: boolean; error: boolean }): void;
+	$initializeTelemetryLevel(level: TelemetryLevel, supportsTelemetry: boolean, productConfig?: { usage: boolean; error: boolean }): void;
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 
@@ -1997,6 +1997,7 @@ export interface MainThreadLoggerShape {
 	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
 	$registerLogger(logger: UriDto<ILoggerResource>): Promise<void>;
 	$deregisterLogger(resource: UriComponents): Promise<void>;
+	$setVisibility(resource: UriComponents, visible: boolean): Promise<void>;
 }
 
 export interface ExtHostOutputServiceShape {
