@@ -668,7 +668,8 @@
       {
         "command": "git.closeAllDiffEditors",
         "title": "%command.closeAllDiffEditors%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.api.getRepositories",
