@@ -69,7 +69,7 @@ suite('ExtHostTelemetry', function () {
 			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });
 		return extensionTelemetry;
 	};
 
@@ -125,19 +125,19 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(config.isErrorsEnabled, true);
 
 		// Initialize would never be called twice, but this is just for testing
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.ERROR, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.ERROR, true, { usage: true, error: true });
 		config = extensionTelemetry.getTelemetryDetails();
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
 		assert.strictEqual(config.isErrorsEnabled, true);
 
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.CRASH, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.CRASH, true, { usage: true, error: true });
 		config = extensionTelemetry.getTelemetryDetails();
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
 		assert.strictEqual(config.isErrorsEnabled, false);
 
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, { usage: false, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: false, error: true });
 		config = extensionTelemetry.getTelemetryDetails();
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
@@ -206,7 +206,7 @@ suite('ExtHostTelemetry', function () {
 			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, loggerService);
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });
 
 		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
 

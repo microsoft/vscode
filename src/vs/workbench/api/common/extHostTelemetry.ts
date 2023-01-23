@@ -28,6 +28,8 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 
 	private _productConfig: { usage: boolean; error: boolean } = { usage: true, error: true };
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
+	// This holds whether or not we're running with --disable-telemetry, etc. Usings supportsTelemtry() from the main thread
+	private _telemetryIsSupported: boolean = false;
 	private _oldTelemetryEnablement: boolean | undefined;
 	private readonly _inLoggingOnlyMode: boolean = false;
 	private readonly extHostTelemetryLogFile: URI;
@@ -52,7 +54,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 	}
 
 	private updateLoggerVisibility(): void {
-		this.loggerService.setVisibility(this.extHostTelemetryLogFile, this._level !== TelemetryLevel.NONE && this.loggerService.getLogLevel() === LogLevel.Trace);
+		this.loggerService.setVisibility(this.extHostTelemetryLogFile, this._telemetryIsSupported && this.loggerService.getLogLevel() === LogLevel.Trace);
 	}
 
 	getTelemetryConfiguration(): boolean {
@@ -82,8 +84,9 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		return logger.apiTelemetryLogger;
 	}
 
-	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void {
+	$initializeTelemetryLevel(level: TelemetryLevel, supportsTelemetry: boolean, productConfig?: { usage: boolean; error: boolean }): void {
 		this._level = level;
+		this._telemetryIsSupported = supportsTelemetry;
 		this._productConfig = productConfig ?? { usage: true, error: true };
 		this.updateLoggerVisibility();
 	}
