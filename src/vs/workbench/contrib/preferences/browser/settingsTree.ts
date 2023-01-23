@@ -22,7 +22,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS, language } from 'vs/base/common/platform';
+import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -1758,7 +1758,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 
 		template.onChange = undefined;
 		template.inputBox.value = typeof dataElement.value === 'number' ?
-			dataElement.value.toLocaleString(language) : '';
+			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
@@ -2281,23 +2281,27 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 		this.getHTMLElement().classList.add('settings-editor-tree');
 
-		this.style(getListStyles({
-			listBackground: editorBackground,
-			listActiveSelectionBackground: editorBackground,
-			listActiveSelectionForeground: foreground,
-			listFocusAndSelectionBackground: editorBackground,
-			listFocusAndSelectionForeground: foreground,
-			listFocusBackground: editorBackground,
-			listFocusForeground: foreground,
-			listHoverForeground: foreground,
-			listHoverBackground: editorBackground,
-			listHoverOutline: editorBackground,
-			listFocusOutline: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: foreground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}));
+		this.style({
+			...getListStyles({
+				listBackground: editorBackground,
+				listActiveSelectionBackground: editorBackground,
+				listActiveSelectionForeground: foreground,
+				listFocusAndSelectionBackground: editorBackground,
+				listFocusAndSelectionForeground: foreground,
+				listFocusBackground: editorBackground,
+				listFocusForeground: foreground,
+				listHoverForeground: foreground,
+				listHoverBackground: editorBackground,
+				listHoverOutline: editorBackground,
+				listFocusOutline: editorBackground,
+				listInactiveSelectionBackground: editorBackground,
+				listInactiveSelectionForeground: foreground,
+				listInactiveFocusBackground: editorBackground,
+				listInactiveFocusOutline: editorBackground,
+			}),
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined,
+		});
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.list.smoothScrolling')) {

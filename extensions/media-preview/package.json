@@ -2,9 +2,6 @@
   "name": "media-preview",
   "displayName": "%displayName%",
   "description": "%description%",
-  "enabledApiProposals": [
-    "telemetryLogger"
-  ],
   "extensionKind": [
     "ui",
     "workspace"

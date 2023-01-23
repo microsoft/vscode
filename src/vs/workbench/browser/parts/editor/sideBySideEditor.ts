@@ -502,13 +502,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			if (this.orientation === Orientation.HORIZONTAL) {
 				this.primaryEditorContainer.style.borderLeftWidth = '1px';
 				this.primaryEditorContainer.style.borderLeftStyle = 'solid';
-				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER) ?? '';
 
 				this.primaryEditorContainer.style.borderTopWidth = '0';
 			} else {
 				this.primaryEditorContainer.style.borderTopWidth = '1px';
 				this.primaryEditorContainer.style.borderTopStyle = 'solid';
-				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER) ?? '';
 
 				this.primaryEditorContainer.style.borderLeftWidth = '0';
 			}

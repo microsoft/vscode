@@ -8,36 +8,51 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { cleanData, cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mixin } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 
-export class ExtHostTelemetry implements ExtHostTelemetryShape {
-	private readonly _onDidChangeTelemetryEnabled = new Emitter<boolean>();
+export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShape {
+	private readonly _onDidChangeTelemetryEnabled = this._register(new Emitter<boolean>());
 	readonly onDidChangeTelemetryEnabled: Event<boolean> = this._onDidChangeTelemetryEnabled.event;
 
-	private readonly _onDidChangeTelemetryConfiguration = new Emitter<vscode.TelemetryConfiguration>();
+	private readonly _onDidChangeTelemetryConfiguration = this._register(new Emitter<vscode.TelemetryConfiguration>());
 	readonly onDidChangeTelemetryConfiguration: Event<vscode.TelemetryConfiguration> = this._onDidChangeTelemetryConfiguration.event;
 
 	private _productConfig: { usage: boolean; error: boolean } = { usage: true, error: true };
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
 	private _oldTelemetryEnablement: boolean | undefined;
-	private _inLoggingOnlyMode: boolean = false;
+	private readonly _inLoggingOnlyMode: boolean = false;
+	private readonly extHostTelemetryLogFile: URI;
 	private readonly _outputLogger: ILogger;
 	private readonly _telemetryLoggers = new Map<string, ExtHostTelemetryLogger>();
 
 	constructor(
 		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
-		@ILoggerService loggerService: ILoggerService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 	) {
-		this._outputLogger = loggerService.createLogger(URI.revive(this.initData.environment.extensionTelemetryLogResource), { hidden: true });
+		super();
+		this.extHostTelemetryLogFile = URI.revive(this.initData.environment.extensionTelemetryLogResource);
+		this._inLoggingOnlyMode = this.initData.environment.isExtensionTelemetryLoggingOnly;
+		this._outputLogger = loggerService.createLogger(this.extHostTelemetryLogFile, { id: extensionTelemetryLogChannelId, name: localize('extensionTelemetryLog', "Extension Telemetry{0}", this._inLoggingOnlyMode ? ' (Not Sent)' : ''), hidden: true });
+		this._register(loggerService.onDidChangeLogLevel(arg => {
+			if (isLogLevel(arg)) {
+				this.updateLoggerVisibility();
+			}
+		}));
 		this._outputLogger.info('Below are logs for extension telemetry events sent to the telemetry output channel API once the log level is set to trace.');
 		this._outputLogger.info('===========================================================');
+	}
+
+	private updateLoggerVisibility(): void {
+		this.loggerService.setVisibility(this.extHostTelemetryLogFile, this._level !== TelemetryLevel.NONE && this.loggerService.getLogLevel() === LogLevel.Trace);
 	}
 
 	getTelemetryConfiguration(): boolean {
@@ -67,10 +82,10 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 		return logger.apiTelemetryLogger;
 	}
 
-	$initializeTelemetryLevel(level: TelemetryLevel, loggingOnlyMode: boolean, productConfig?: { usage: boolean; error: boolean }): void {
+	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void {
 		this._level = level;
-		this._inLoggingOnlyMode = loggingOnlyMode;
 		this._productConfig = productConfig ?? { usage: true, error: true };
+		this.updateLoggerVisibility();
 	}
 
 	getBuiltInCommonProperties(extension: IExtensionDescription): Record<string, string | boolean | number | undefined> {
@@ -115,6 +130,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 			this._onDidChangeTelemetryEnabled.fire(this.getTelemetryConfiguration());
 		}
 		this._onDidChangeTelemetryConfiguration.fire(this.getTelemetryDetails());
+		this.updateLoggerVisibility();
 	}
 
 	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
@@ -128,13 +144,31 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 }
 
 export class ExtHostTelemetryLogger {
-	private _appender: vscode.TelemetrySender;
+
+	static validateSender(sender: vscode.TelemetrySender): void {
+		if (typeof sender !== 'object') {
+			throw new TypeError('TelemetrySender argument is invalid');
+		}
+		if (typeof sender.sendEventData !== 'function') {
+			throw new TypeError('TelemetrySender.sendEventData must be a function');
+		}
+		if (typeof sender.sendErrorData !== 'function') {
+			throw new TypeError('TelemetrySender.sendErrorData must be a function');
+		}
+		if (typeof sender.flush !== 'undefined' && typeof sender.flush !== 'function') {
+			throw new TypeError('TelemetrySender.flush must be a function or undefined');
+		}
+	}
+
+	private readonly _sender: vscode.TelemetrySender;
 	private readonly _onDidChangeEnableStates = new Emitter<vscode.TelemetryLogger>();
-	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
-	private _apiObject: vscode.TelemetryLogger | undefined;
 	private readonly _ignoreBuiltinCommonProperties: boolean;
 	private readonly _additionalCommonProperties: Record<string, any> | undefined;
 	public readonly ignoreUnhandledExtHostErrors: boolean;
+
+	private _telemetryEnablements: { isUsageEnabled: boolean; isErrorsEnabled: boolean };
+	private _apiObject: vscode.TelemetryLogger | undefined;
+
 	constructor(
 		sender: vscode.TelemetrySender,
 		options: vscode.TelemetryLoggerOptions | undefined,
@@ -147,7 +181,7 @@ export class ExtHostTelemetryLogger {
 		this.ignoreUnhandledExtHostErrors = options?.ignoreUnhandledErrors ?? false;
 		this._ignoreBuiltinCommonProperties = options?.ignoreBuiltInCommonProperties ?? false;
 		this._additionalCommonProperties = options?.additionalCommonProperties;
-		this._appender = sender;
+		this._sender = sender;
 		this._telemetryEnablements = { isUsageEnabled: telemetryEnablements.isUsageEnabled, isErrorsEnabled: telemetryEnablements.isErrorsEnabled };
 	}
 
@@ -192,7 +226,7 @@ export class ExtHostTelemetryLogger {
 		}
 		data = this.mixInCommonPropsAndCleanData(data || {});
 		if (!this._inLoggingOnlyMode) {
-			this._appender.sendEventData(eventName, data);
+			this._sender.sendEventData(eventName, data);
 		}
 		this._logger.trace(eventName, data);
 	}
@@ -212,7 +246,7 @@ export class ExtHostTelemetryLogger {
 			this.logEvent(eventNameOrException, data);
 		} else {
 			// TODO @lramos15, implement cleaning for and logging for this case
-			this._appender.sendErrorData(eventNameOrException, data);
+			this._sender.sendErrorData(eventNameOrException, data);
 		}
 	}
 
@@ -237,8 +271,8 @@ export class ExtHostTelemetryLogger {
 	}
 
 	dispose(): void {
-		if (this._appender?.flush) {
-			this._appender.flush();
+		if (this._sender?.flush) {
+			this._sender.flush();
 		}
 	}
 }

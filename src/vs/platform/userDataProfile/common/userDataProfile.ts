@@ -67,8 +67,6 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	);
 }
 
-export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfiles.enabled';
-
 export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
@@ -178,7 +176,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly _serviceBrand: undefined;
 
-	protected enabled: boolean = false;
+	protected enabled: boolean = true;
 	readonly profilesHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
@@ -212,6 +210,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	) {
 		super();
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
+	}
+
+	init(): void {
+		this._profilesObject = undefined;
 	}
 
 	setEnablement(enabled: boolean): void {
@@ -288,7 +290,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		const profile = await this.doCreateProfile(id, name, options);
@@ -338,7 +340,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async updateProfile(profileToUpdate: IUserDataProfile, options: IUserDataProfileUpdateOptions): Promise<IUserDataProfile> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		let profile = this.profiles.find(p => p.id === profileToUpdate.id);
@@ -354,7 +356,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 		if (profileToRemove.isDefault) {
 			throw new Error('Cannot remove default profile');
@@ -405,7 +407,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		const profile = this.profiles.find(p => p.id === profileToSet.id);
@@ -418,7 +420,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		this.updateWorkspaceAssociation(workspaceIdentifier, undefined, transient);

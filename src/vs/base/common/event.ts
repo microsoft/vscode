@@ -10,6 +10,7 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDispo
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 
 // -----------------------------------------------------------------------------------------------------------------------
@@ -197,15 +198,15 @@ export namespace Event {
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
+	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number | typeof MicrotaskDelay, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
 	/**
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number | typeof MicrotaskDelay, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
 
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
@@ -224,17 +225,25 @@ export namespace Event {
 						output = undefined;
 					}
 
-					clearTimeout(handle);
-					handle = setTimeout(() => {
+					const doFire = () => {
 						const _output = output;
 						output = undefined;
 						handle = undefined;
 						if (!leading || numDebouncedCalls > 1) {
 							emitter.fire(_output!);
 						}
-
 						numDebouncedCalls = 0;
-					}, delay);
+					};
+
+					if (typeof delay === 'number') {
+						clearTimeout(handle);
+						handle = setTimeout(doFire, delay);
+					} else {
+						if (handle === undefined) {
+							handle = 0;
+							queueMicrotask(doFire);
+						}
+					}
 				});
 			},
 			onDidRemoveLastListener() {

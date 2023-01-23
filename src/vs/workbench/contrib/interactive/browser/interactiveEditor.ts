@@ -34,7 +34,6 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -416,9 +415,6 @@ export class InteractiveEditor extends EditorPane {
 			this.#scrollIfNecessary(cvm);
 		}));
 		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocusWidget(() => this.#onDidFocusWidget.fire()));
-		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
-			(model as ComplexNotebookEditorModel).setDirty(false);
-		}));
 		this.#widgetDisposableStore.add(this.#notebookOptions.onDidChangeOptions(e => {
 			if (e.compactView || e.focusIndicator) {
 				// update the styling

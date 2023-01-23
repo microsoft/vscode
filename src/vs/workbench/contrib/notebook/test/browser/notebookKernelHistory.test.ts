@@ -19,6 +19,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
 import { IStorageService, IWillSaveStateEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 suite('NotebookKernelHistoryService', () => {
 
@@ -84,6 +85,10 @@ suite('NotebookKernelHistoryService', () => {
 			}
 		});
 
+		instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
+			override log() { }
+		});
+
 		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
 
 		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
@@ -128,6 +133,10 @@ suite('NotebookKernelHistoryService', () => {
 
 				return undefined;
 			}
+		});
+
+		instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
+			override log() { }
 		});
 
 		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
