@@ -191,10 +191,10 @@
   dependencies:
     "@types/node" "*"
 
-"@vscode/extension-telemetry@0.7.2-preview":
-  version "0.7.2-preview"
-  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.7.2-preview.tgz#1db9c7117c3d82859e61d123786c8aebdf70f2fa"
-  integrity sha512-X9/kIknUt+5xNZzmiunY0yqcpwwIAxUhb4hADjUtgSbkJjp+SjjxeFbLx7u0cWBJPweGxrrcWe3RUiu6s5hETw==
+"@vscode/extension-telemetry@^0.7.4-preview":
+  version "0.7.4-preview"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.7.4-preview.tgz#318d6bc54064e5f443b25dfb42fec724d888c36b"
+  integrity sha512-6OkvjCc+DaC9B26t3hj7vuAxf1ONm/p4LrVvFrapa+jBCKxXXUaV1Asz6+QxYaPfd4Ws/MlnFfCvlgvv3uYRwQ==
   dependencies:
     "@microsoft/1ds-core-js" "^3.2.8"
     "@microsoft/1ds-post-js" "^3.2.8"
