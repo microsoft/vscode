@@ -85,7 +85,7 @@ function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTem
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
 }
 
-
+const TEMP_PROFILE_NAME_SEPARATOR = '-';
 const EXPORT_PROFILE_PREVIEW_VIEW = 'workbench.views.profiles.export.preview';
 
 export class UserDataProfileImportExportService extends Disposable implements IUserDataProfileImportExportService, IURLHandler {
@@ -209,6 +209,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		disposables.add(toDisposable(() => this.isProfileImportInProgressContextKey.set(false)));
 
 		try {
+
+			let userDataProfileImportState: UserDataProfileImportState | undefined;
+			let importedProfile: IUserDataProfile | undefined;
+
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				command: showWindowLogActionId,
@@ -224,7 +228,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					throw new Error('Invalid profile content.');
 				}
 
-				const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
+				userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 
 				if (!userDataProfileImportState.isEmpty() && !options?.donotPrompt) {
 					const title = localize('import profile preview', "Import");
@@ -236,35 +240,40 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					}
 				}
 
-				const profile = await this.importAndSwitch(userDataProfileImportState, options, progress);
+				importedProfile = await this.importAndSwitch(userDataProfileImportState, options, progress);
 
-				if (!profile) {
+				if (!importedProfile) {
 					return;
 				}
-
-				if (options?.previewAsTempProfile) {
-					const actions: IAction[] = [];
-					actions.push(new Action('saveProfile', localize('save profile', "Save Profile"), undefined, true, async () => this.userDataProfilesService.updateProfile(profile, { transient: false })));
-					if (isWeb) {
-						actions.push(new Action('openInDesktop', localize('open in desktop', "Open in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true })));
-					}
-					this.showProfileContents(actions);
-				} else {
-					this.notificationService.notify({
-						severity: Severity.Info,
-						message: localize('imported profile', "Profile '{0}' is imported successfully.", profile.name),
-						actions: {
-							primary: [new Action('profiles.showProfileContents', localize('show profile contents', "Show Profile Contents"), undefined, true, () => this.showProfileContents())]
-						}
-					});
-				}
 			});
+
+			if (!importedProfile || !userDataProfileImportState) {
+				return;
+			}
+
+			if (options?.previewAsTempProfile) {
+				const actions: IAction[] = [];
+				if (isWeb) {
+					actions.push(new Action('openInDesktop', localize('open in desktop', "Open in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true })));
+				}
+				actions.push(new Action('saveProfile', localize('save profile', "Save Profile"), undefined, true, async () => this.saveTemporaryProfile(importedProfile!)));
+				userDataProfileImportState.canSelect = false;
+				await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, actions, new Action('close', localize('close', "Close")), userDataProfileImportState);
+			} else {
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: localize('imported profile', "Profile '{0}' is imported successfully.", importedProfile.name),
+					actions: {
+						primary: [new Action('profiles.showProfileContents', localize('show profile contents', "Show Profile Contents"), undefined, true, () => this.showProfileContents())]
+					}
+				});
+			}
 		} finally {
 			disposables.dispose();
 		}
 	}
 
-	async showProfileContents(actions?: IAction[]): Promise<void> {
+	async showProfileContents(): Promise<void> {
 		const view = this.viewsService.getViewWithId(EXPORT_PROFILE_PREVIEW_VIEW);
 		if (view) {
 			this.viewsService.openView(view.id, true);
@@ -273,8 +282,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const disposables = new DisposableStore();
 		try {
 			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
-			actions = actions?.length ? actions : [new Action('export', localize('export', "Export"), undefined, true, () => this.doExportProfile(userDataProfilesExportState))];
-			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, actions, new Action('close', localize('close', "Close")), userDataProfilesExportState);
+			const exportAction = new Action('export', localize('export', "Export"), undefined, true, () => this.doExportProfile(userDataProfilesExportState));
+			const closeAction = new Action('close', localize('close', "Close"));
+			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], closeAction, userDataProfilesExportState);
 		} finally {
 			disposables.dispose();
 		}
@@ -309,18 +319,31 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				}
 				const message = localize('export success', "Profile '{0}' is exported successfully.", profile.name);
 				if (profileContentHandler.extensionId) {
+					const actions: string[] = [];
+					const link = this.productService.webUrl ? `${this.productService.webUrl}${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
+					actions.push(localize('copy', "Copy Link"));
+					if (this.productService.webUrl) {
+						actions.push(localize('open', "Open Link"));
+					} else {
+						actions.push(localize('open in', "Open in {0}", profileContentHandler.name));
+					}
+					actions.push(localize('close', "Close"));
 					const result = await this.dialogService.show(
 						Severity.Info,
 						message,
-						[localize('copy', "Copy Link"), localize('open', "Open in {0}", profileContentHandler.name), localize('close', "Close")],
+						actions,
 						{ cancelId: 2 }
 					);
 					switch (result.choice) {
 						case 0:
-							await this.clipboardService.writeText(toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString());
+							await this.clipboardService.writeText(link);
 							break;
 						case 1:
-							await this.openerService.open(saveResult.link.toString());
+							if (this.productService.webUrl) {
+								await this.openerService.open(link);
+							} else {
+								await this.openerService.open(saveResult.link.toString());
+							}
 							break;
 
 					}
@@ -426,11 +449,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp?: boolean): Promise<IUserDataProfile | undefined> {
-		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileTemplate.name);
-		if (profile && !temp) {
+		let name: string | undefined = temp ? localize('temporary', "{0} {1} Temporary", profileTemplate.name, TEMP_PROFILE_NAME_SEPARATOR) : profileTemplate.name;
+		const profile = this.userDataProfilesService.profiles.find(p => p.name === name);
+		if (profile) {
+			if (temp) {
+				return this.userDataProfilesService.createNamedProfile(`${name} ${this.getProfileNameIndex(name)}`, { shortName: profileTemplate.shortName, transient: temp });
+			}
+
 			const result = await this.dialogService.show(
 				Severity.Info,
-				localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileTemplate.name),
+				localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", name),
 				[localize('overwrite', "Overwrite"), localize('create new', "Create New Profile"), localize('cancel', "Cancel")],
 				{ cancelId: 2 }
 			);
@@ -440,17 +468,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 
 			// Create new profile
-			const nameRegEx = new RegExp(`${escapeRegExpCharacters(profileTemplate.name)}\\s(\\d+)`);
-			let nameIndex = 0;
-			for (const profile of this.userDataProfilesService.profiles) {
-				const matches = nameRegEx.exec(profile.name);
-				const index = matches ? parseInt(matches[1]) : 0;
-				nameIndex = index > nameIndex ? index : nameIndex;
-			}
-			const name = await this.quickInputService.input({
+			name = await this.quickInputService.input({
 				placeHolder: localize('name', "Profile name"),
 				title: localize('create new', "Create New Profile"),
-				value: `${profileTemplate.name} ${nameIndex + 1}`,
+				value: `${name} ${this.getProfileNameIndex(name)}`,
 				validateInput: async (value: string) => {
 					if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
 						return localize('profileExists', "Profile with name {0} already exists.", value);
@@ -463,7 +484,38 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			return this.userDataProfilesService.createNamedProfile(name);
 		} else {
-			return this.userDataProfilesService.createNamedProfile(profileTemplate.name, { shortName: profileTemplate.shortName, transient: temp });
+			return this.userDataProfilesService.createNamedProfile(name, { shortName: profileTemplate.shortName, transient: temp });
+		}
+	}
+
+	private getProfileNameIndex(name: string): number {
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(name)}\\s(\\d+)`);
+		let nameIndex = 0;
+		for (const profile of this.userDataProfilesService.profiles) {
+			const matches = nameRegEx.exec(profile.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+		return nameIndex + 1;
+	}
+
+	private async saveTemporaryProfile(profile: IUserDataProfile): Promise<void> {
+		let name: string | undefined = profile.name.substring(0, profile.name.lastIndexOf(TEMP_PROFILE_NAME_SEPARATOR) - 1);
+		if (this.userDataProfilesService.profiles.some(p => p.name === name)) {
+			name = await this.quickInputService.input({
+				placeHolder: localize('name', "Profile name"),
+				title: localize('save profile', "Save Profile"),
+				value: `${name} ${this.getProfileNameIndex(name)}`,
+				validateInput: async (value: string) => {
+					if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
+						return localize('profileExists', "Profile with name {0} already exists.", value);
+					}
+					return undefined;
+				}
+			});
+		}
+		if (name) {
+			await this.userDataProfilesService.updateProfile(profile, { name, transient: false });
 		}
 	}
 
@@ -675,6 +727,15 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		super();
 	}
 
+	private _canSelect = true;
+	get canSelect(): boolean {
+		return this._canSelect;
+	}
+	set canSelect(canSelect: boolean) {
+		this._canSelect = canSelect;
+		this.rootsPromise = undefined;
+	}
+
 	onDidChangeCheckboxState(items: ITreeItem[]): ITreeItem[] {
 		const toRefresh: ITreeItem[] = [];
 		for (const item of items) {
@@ -712,6 +773,13 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		if (!this.rootsPromise) {
 			this.rootsPromise = (async () => {
 				this.roots = await this.fetchRoots();
+				for (const root of this.roots) {
+					if (this.canSelect) {
+						root.checkbox = { isChecked: true };
+					} else {
+						root.checkbox = undefined;
+					}
+				}
 				return this.roots;
 			})();
 		}
@@ -720,9 +788,9 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 
 	isEnabled(resourceType?: ProfileResourceType): boolean {
 		if (resourceType !== undefined) {
-			return this.roots.some(root => root.type === resourceType && root.checkbox?.isChecked);
+			return this.roots.some(root => root.type === resourceType && this.isSelected(root));
 		}
-		return this.roots.some(root => root.checkbox?.isChecked ?? true);
+		return this.roots.some(root => this.isSelected(root));
 	}
 
 	protected async getProfileTemplate(name: string, shortName: string | undefined): Promise<IUserDataProfileTemplate> {
@@ -734,7 +802,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		let extensions: string | undefined;
 		let globalState: string | undefined;
 		for (const root of roots) {
-			if (!root.checkbox?.isChecked) {
+			if (!this.isSelected(root)) {
 				continue;
 			}
 			if (root instanceof SettingsResourceTreeItem) {
@@ -762,6 +830,10 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 			extensions,
 			globalState
 		};
+	}
+
+	private isSelected(treeItem: IProfileResourceTreeItem): boolean {
+		return treeItem.checkbox?.isChecked ?? true;
 	}
 
 	protected abstract fetchRoots(): Promise<IProfileResourceTreeItem[]>;

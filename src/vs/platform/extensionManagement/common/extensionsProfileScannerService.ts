@@ -220,7 +220,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 			let extensions: IScannedProfileExtension[] = [];
 
 			// Read
-			let storedProfileExtensions;
+			let storedProfileExtensions: IStoredProfileExtension[] | undefined;
 			try {
 				const content = await this.fileService.readFile(file);
 				storedProfileExtensions = JSON.parse(content.value.toString());

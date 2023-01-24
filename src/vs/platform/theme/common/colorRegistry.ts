@@ -35,12 +35,12 @@ export function asCssVariableName(colorIdent: ColorIdentifier): string {
 	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
-export function asCssValue(color: ColorIdentifier): string {
+export function asCssVariable(color: ColorIdentifier): string {
 	return `var(${asCssVariableName(color)})`;
 }
 
-export function asCssValueWithDefault(color: ColorIdentifier, defaultValue: string): string {
-	return `var(${asCssVariableName(color)}, ${defaultValue})`;
+export function asCssVariableWithDefault(color: ColorIdentifier, defaultCssValue: string): string {
+	return `var(${asCssVariableName(color)}, ${defaultCssValue})`;
 }
 
 export const enum ColorTransformType {

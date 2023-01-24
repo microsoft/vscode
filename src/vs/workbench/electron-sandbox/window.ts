@@ -237,7 +237,7 @@ export class NativeWindow extends Disposable {
 			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
 					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					localize('cancelButton', "Cancel")
 				],
 				[
 					{ placeholder: localize('username', "Username"), value: payload.username },

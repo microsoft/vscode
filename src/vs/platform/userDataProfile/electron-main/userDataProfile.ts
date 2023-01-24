@@ -37,15 +37,6 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		super(stateMainService, uriIdentityService, environmentService, fileService, logService);
 	}
 
-	override setEnablement(enabled: boolean): void {
-		super.setEnablement(enabled);
-		if (!this.enabled) {
-			// reset
-			this.saveStoredProfiles([]);
-			this.saveStoredProfileAssociations({});
-		}
-	}
-
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[] {
 		const emptyWindows: IEmptyWorkspaceIdentifier[] = [];
 		for (const id of this.profilesObject.emptyWindows.keys()) {

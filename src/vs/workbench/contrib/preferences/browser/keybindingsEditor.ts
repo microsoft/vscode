@@ -30,7 +30,7 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor, asCssValue } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground, registerColor, tableOddRowsBackgroundColor, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
@@ -398,9 +398,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.monaco-count-badge.long.disabled'));
 		recordingBadge.textContent = localize('recording', "Recording Keys");
 
-		recordingBadge.style.backgroundColor = asCssValue(badgeBackground);
-		recordingBadge.style.color = asCssValue(badgeForeground);
-		recordingBadge.style.border = `1px solid ${asCssValue(contrastBorder)}`;
+		recordingBadge.style.backgroundColor = asCssVariable(badgeBackground);
+		recordingBadge.style.color = asCssVariable(badgeForeground);
+		recordingBadge.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		return recordingBadge;
 	}

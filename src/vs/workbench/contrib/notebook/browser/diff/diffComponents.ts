@@ -371,7 +371,9 @@ abstract class AbstractElementRenderer extends Disposable {
 				}
 			}
 
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			if (metadataLayoutChange || outputLayoutChange) {
+				this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			}
 		}));
 	}
 
@@ -811,7 +813,9 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				}
 			}
 
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			if (metadataLayoutChange || outputLayoutChange) {
+				this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			}
 		}));
 	}
 
