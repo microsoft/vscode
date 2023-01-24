@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
@@ -165,7 +165,11 @@ export abstract class TitleControl extends Themable {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
 
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
+				// ignore if the scheme of the breadcrumbs resource is not affected
+				return;
+			}
 			if (this.breadcrumbsControl?.update()) {
 				this.handleBreadcrumbsEnablementChange();
 			}
@@ -325,7 +329,7 @@ export abstract class TitleControl extends Themable {
 					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
 				}
 
-				applyDragImage(e, label, 'monaco-editor-group-drag-image');
+				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 			}
 		}));
 
@@ -443,16 +447,3 @@ export abstract class TitleControl extends Themable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Drag Feedback
-	const dragImageBackground = theme.getColor(listActiveSelectionBackground);
-	const dragImageForeground = theme.getColor(listActiveSelectionForeground);
-	collector.addRule(`
-		.monaco-editor-group-drag-image {
-			background: ${dragImageBackground};
-			color: ${dragImageForeground};
-		}
-	`);
-});

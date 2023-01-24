@@ -6,9 +6,10 @@
 import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun } from 'vs/base/common/observable';
+import { IObservable, autorun, observableFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class ReentrancyBarrier {
@@ -199,4 +200,15 @@ export class PersistentStore<T> {
 			StorageTarget.USER
 		);
 	}
+}
+
+export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
+	return observableFromEvent(
+		(handleChange) => configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				handleChange(e);
+			}
+		}),
+		() => configurationService.getValue<T>(key) ?? defaultValue,
+	);
 }

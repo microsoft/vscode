@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
-import { escapeIcons, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
+import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
 
 interface IIconFilter {
 	// Returns null if word doesn't match.
@@ -21,6 +21,26 @@ function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIco
 }
 
 suite('Icon Labels', () => {
+
+	test('Can get proper aria labels', () => {
+		// note, the spaces in the results are important
+		const testCases = new Map<string, string>([
+			['', ''],
+			['asdf', 'asdf'],
+			['asdf$(squirrel)asdf', 'asdf squirrel asdf'],
+			['asdf $(squirrel) asdf', 'asdf  squirrel  asdf'],
+			['$(rocket)asdf', 'rocket asdf'],
+			['$(rocket) asdf', 'rocket  asdf'],
+			['$(rocket)$(rocket)$(rocket)asdf', 'rocket  rocket  rocket asdf'],
+			['$(rocket) asdf $(rocket)', 'rocket  asdf  rocket'],
+			['$(rocket)asdf$(rocket)', 'rocket asdf rocket'],
+		]);
+
+		for (const [input, expected] of testCases) {
+			assert.strictEqual(getCodiconAriaLabel(input), expected);
+		}
+	});
+
 	test('matchesFuzzyIconAware', () => {
 
 		// Camel Case

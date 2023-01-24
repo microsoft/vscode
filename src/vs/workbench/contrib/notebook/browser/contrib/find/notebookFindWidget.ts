@@ -57,7 +57,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 
 	show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
-		return this.widget.getValue().show(initialInput, options);
+		return this.widget.value.show(initialInput, options);
 	}
 
 	hide() {
@@ -65,7 +65,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 
 	replace(searchString: string | undefined) {
-		return this.widget.getValue().replace(searchString);
+		return this.widget.value.replace(searchString);
 	}
 }
 
@@ -332,7 +332,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content

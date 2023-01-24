@@ -11,6 +11,7 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 export class ConfigureDisplayLanguageAction extends Action2 {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -30,6 +31,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		const languagePackService: ILanguagePackService = accessor.get(ILanguagePackService);
 		const quickInputService: IQuickInputService = accessor.get(IQuickInputService);
 		const localeService: ILocaleService = accessor.get(ILocaleService);
+		const extensionWorkbenchService: IExtensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 
 		const installedLanguages = await languagePackService.getInstalledLanguages();
 
@@ -38,7 +40,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 
 		if (installedLanguages?.length) {
 			const items: Array<ILanguagePackItem | IQuickPickSeparator> = [{ type: 'separator', label: localize('installed', "Installed") }];
-			qp.items = items.concat(installedLanguages);
+			qp.items = items.concat(this.withMoreInfoButton(installedLanguages));
 		}
 
 		const disposables = new DisposableStore();
@@ -55,7 +57,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 				qp.items = [
 					...qp.items,
 					{ type: 'separator', label: localize('available', "Available") },
-					...newLanguages
+					...this.withMoreInfoButton(newLanguages)
 				];
 			}
 			qp.busy = false;
@@ -67,8 +69,27 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 			await localeService.setLocale(selectedLanguage);
 		}));
 
+		disposables.add(qp.onDidTriggerItemButton(async e => {
+			qp.hide();
+			if (e.item.extensionId) {
+				await extensionWorkbenchService.open(e.item.extensionId);
+			}
+		}));
+
 		qp.show();
 		qp.busy = true;
+	}
+
+	private withMoreInfoButton(items: ILanguagePackItem[]): ILanguagePackItem[] {
+		for (const item of items) {
+			if (item.extensionId) {
+				item.buttons = [{
+					tooltip: localize('moreInfo', "More Info"),
+					iconClass: 'codicon-info'
+				}];
+			}
+		}
+		return items;
 	}
 }
 

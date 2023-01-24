@@ -89,6 +89,14 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 		return super.getInstalled(type, profileLocation);
 	}
 
+	override getMetadata(local: ILocalExtension, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<Metadata | undefined> {
+		return super.getMetadata(local, profileLocation);
+	}
+
+	override updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI = this.userDataProfileService.currentProfile.extensionsResource): Promise<ILocalExtension> {
+		return super.updateMetadata(local, metadata, profileLocation);
+	}
+
 	private async downloadVsix(vsix: URI): Promise<{ location: URI; cleanup: () => Promise<void> }> {
 		if (vsix.scheme === Schemas.file) {
 			return { location: vsix, async cleanup() { } };
@@ -114,12 +122,11 @@ export class NativeExtensionManagementService extends ExtensionManagementChannel
 				.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
 				.map(async e => ([e, await this.getMetadata(e)])));
 			await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, e.profile.extensionsResource!);
+			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const newExtensions = await this.getInstalled(ExtensionType.User);
 			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			if (added.length || removed.length) {
-				this._onDidChangeProfile.fire({ added, removed });
-			}
+			this._onDidChangeProfile.fire({ added, removed });
 		}
 	}
 

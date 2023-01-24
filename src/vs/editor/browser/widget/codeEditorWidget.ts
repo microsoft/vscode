@@ -398,6 +398,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
+	public writeScreenReaderContent(reason: string): void {
+		this._modelData?.view.writeScreenReaderContent(reason);
+	}
+
 	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
 		return new EditorConfiguration(isSimpleWidget, options, this._domElement, accessibilityService);
 	}
@@ -1392,6 +1396,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		this._modelData.view.delegateVerticalScrollbarPointerDown(browserEvent);
+	}
+
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	public layout(dimension?: IDimension): void {

@@ -37,10 +37,16 @@ export class TestView implements IView {
 	private _height = 0;
 	get height(): number { return this._height; }
 
+	private _top = 0;
+	get top(): number { return this._top; }
+
+	private _left = 0;
+	get left(): number { return this._left; }
+
 	get size(): [number, number] { return [this.width, this.height]; }
 
-	private readonly _onDidLayout = new Emitter<{ width: number; height: number }>();
-	readonly onDidLayout: Event<{ width: number; height: number }> = this._onDidLayout.event;
+	private readonly _onDidLayout = new Emitter<{ width: number; height: number; top: number; left: number }>();
+	readonly onDidLayout: Event<{ width: number; height: number; top: number; left: number }> = this._onDidLayout.event;
 
 	private readonly _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
@@ -55,10 +61,12 @@ export class TestView implements IView {
 		assert(_minimumHeight <= _maximumHeight, 'gridview view minimum height must be <= maximum height');
 	}
 
-	layout(width: number, height: number): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		this._width = width;
 		this._height = height;
-		this._onDidLayout.fire({ width, height });
+		this._top = top;
+		this._left = left;
+		this._onDidLayout.fire({ width, height, top, left });
 	}
 
 	focus(): void {

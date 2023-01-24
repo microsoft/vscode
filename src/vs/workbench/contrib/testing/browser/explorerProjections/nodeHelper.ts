@@ -8,22 +8,9 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 
-export const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
+const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
 	getId(element) {
 		return element.treeId + '\0' + (element instanceof TestTreeErrorMessage ? 'error' : element.test.expand);
-	}
-};
-
-/**
- * Removes nodes from the set whose parents don't exist in the tree. This is
- * useful to remove nodes that are queued to be updated or rendered, who will
- * be rendered by a call to setChildren.
- */
-export const pruneNodesWithParentsNotInTree = <T extends TestItemTreeElement>(nodes: Set<T | null>, tree: ObjectTree<TestExplorerTreeElement, any>) => {
-	for (const node of nodes) {
-		if (node && node.parent && !tree.hasElement(node.parent)) {
-			nodes.delete(node);
-		}
 	}
 };
 

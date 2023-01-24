@@ -249,15 +249,6 @@ impl std::fmt::Display for NoAttachedServerError {
 }
 
 #[derive(Debug)]
-pub struct ServerWriteError();
-
-impl std::fmt::Display for ServerWriteError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error writing to the server, it should be restarted")
-	}
-}
-
-#[derive(Debug)]
 pub struct RefreshTokenNotAvailableError();
 
 impl std::fmt::Display for RefreshTokenNotAvailableError {
@@ -380,6 +371,15 @@ impl std::fmt::Display for WindowsNeedsElevation {
 }
 
 #[derive(Debug)]
+pub struct InvalidRpcDataError(pub String);
+
+impl std::fmt::Display for InvalidRpcDataError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "parse error: {}", self.0)
+	}
+}
+
+#[derive(Debug)]
 pub struct CorruptDownload(pub String);
 
 impl std::fmt::Display for CorruptDownload {
@@ -398,6 +398,23 @@ pub struct MissingHomeDirectory();
 impl std::fmt::Display for MissingHomeDirectory {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "Could not find your home directory. Please ensure this command is running in the context of an normal user.")
+	}
+}
+
+#[derive(Debug)]
+pub struct OAuthError {
+	pub error: String,
+	pub error_description: Option<String>,
+}
+
+impl std::fmt::Display for OAuthError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Error getting authorization: {} {}",
+			self.error,
+			self.error_description.as_deref().unwrap_or("")
+		)
 	}
 }
 
@@ -474,7 +491,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	ServerWriteError,
 	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
@@ -487,7 +503,9 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed
+	CommandFailed,
+	OAuthError,
+	InvalidRpcDataError
 );
 
 impl From<reqwest::Error> for AnyError {

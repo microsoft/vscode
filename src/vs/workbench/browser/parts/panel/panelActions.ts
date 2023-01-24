@@ -6,7 +6,6 @@
 import 'vs/css!./media/panelpart';
 import { localize } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Action } from 'vs/base/common/actions';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
@@ -137,7 +136,7 @@ function createAlignmentPanelActionConfig(id: string, title: ICommandActionTitle
 }
 
 
-export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
+const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 	createPositionPanelActionConfig(PositionPanelActionId.LEFT, { value: localize('positionPanelLeft', 'Move Panel Left'), original: 'Move Panel Left' }, localize('positionPanelLeftShort', "Left"), Position.LEFT),
 	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, { value: localize('positionPanelRight', 'Move Panel Right'), original: 'Move Panel Right' }, localize('positionPanelRightShort', "Right"), Position.RIGHT),
 	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, { value: localize('positionPanelBottom', 'Move Panel To Bottom'), original: 'Move Panel To Bottom' }, localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
@@ -151,24 +150,10 @@ const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
 	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, { value: localize('alignPanelJustify', 'Set Panel Alignment to Justify'), original: 'Set Panel Alignment to Justify' }, localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
-const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
-export class SetPanelPositionAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-	}
 
-	override async run(): Promise<void> {
-		const position = positionByActionId.get(this.id);
-		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
-	}
-}
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	submenu: MenuId.MenubarPanelPositionMenu,
+	submenu: MenuId.PanelPositionMenu,
 	title: localize('positionPanel', "Panel Position"),
 	group: '3_workbench_layout_move',
 	order: 4
@@ -192,7 +177,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 		}
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarPanelPositionMenu, {
+	MenuRegistry.appendMenuItem(MenuId.PanelPositionMenu, {
 		command: {
 			id,
 			title: shortLabel,
@@ -203,7 +188,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	submenu: MenuId.MenubarPanelAlignmentMenu,
+	submenu: MenuId.PanelAlignmentMenu,
 	title: localize('alignPanel', "Align Panel"),
 	group: '3_workbench_layout_move',
 	order: 5
@@ -227,7 +212,7 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 		}
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarPanelAlignmentMenu, {
+	MenuRegistry.appendMenuItem(MenuId.PanelAlignmentMenu, {
 		command: {
 			id,
 			title: shortLabel,

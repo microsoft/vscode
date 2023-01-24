@@ -16,8 +16,8 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -237,7 +237,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			for (const e of result) {
 				// If the window had last focus and the install didn't specify to skip the walkthrough
 				// Then add it to the sessionInstallExtensions to be opened
-				if (hadLastFoucs && !e?.context?.skipWalkthrough) {
+				if (hadLastFoucs && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);

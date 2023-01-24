@@ -12,10 +12,10 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -497,10 +497,14 @@ export class Git {
 							),
 						);
 						if (networkPath !== undefined) {
+							// If the repository is at the root of the mapped drive then we
+							// have to append `\` (ex: D:\) otherwise the path is not valid.
+							const isDriveRoot = pathEquals(repoUri.fsPath, networkPath);
+
 							return path.normalize(
 								repoUri.fsPath.replace(
 									networkPath,
-									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+									`${letter.toLowerCase()}:${isDriveRoot || networkPath.endsWith('\\') ? '\\' : ''}`
 								),
 							);
 						}
@@ -673,7 +677,7 @@ export class Git {
 		}
 
 		try {
-			const result = await this.exec('', args);
+			const result = await this.exec(os.homedir(), args);
 			return result.stdout;
 		} catch (err) {
 			if (typeof err.stdout === 'string') {
@@ -686,10 +690,7 @@ export class Git {
 	}
 
 	async addSafeDirectory(repositoryPath: string): Promise<void> {
-		// safe.directory only supports paths with `/` as separator
-		repositoryPath = repositoryPath.replaceAll('\\', '/');
-
-		await this.exec(repositoryPath, ['config', '--global', '--add', 'safe.directory', repositoryPath]);
+		await this.exec(os.homedir(), ['config', '--global', '--add', 'safe.directory', repositoryPath]);
 		return;
 	}
 }
@@ -714,7 +715,7 @@ interface GitConfigSection {
 class GitConfigParser {
 	private static readonly _lineSeparator = /\r?\n/;
 
-	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*(.*)$/;
+	private static readonly _propertyRegex = /^\s*(\w+)\s*=\s*"?([^"]+)"?$/;
 	private static readonly _sectionRegex = /^\s*\[\s*([^\]]+?)\s*(\"[^"]+\")*\]\s*$/;
 
 	static parse(raw: string): GitConfigSection[] {
@@ -837,8 +838,8 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
-export function parseGitRemotes(raw: string): Remote[] {
-	const remotes: Remote[] = [];
+export function parseGitRemotes(raw: string): MutableRemote[] {
+	const remotes: MutableRemote[] = [];
 
 	for (const remoteSection of GitConfigParser.parse(raw).filter(s => s.name === 'remote')) {
 		if (remoteSection.subSectionName) {
@@ -846,8 +847,7 @@ export function parseGitRemotes(raw: string): Remote[] {
 				name: remoteSection.subSectionName,
 				fetchUrl: remoteSection.properties['url'],
 				pushUrl: remoteSection.properties['pushurl'] ?? remoteSection.properties['url'],
-				// https://github.com/microsoft/vscode/issues/45271
-				isReadOnly: remoteSection.properties['pushurl'] === 'no_push'
+				isReadOnly: false
 			});
 		}
 	}
@@ -1458,6 +1458,8 @@ export class Repository {
 			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 				err.gitTreeish = treeish;
+			} else if (/You are on a branch yet to be born/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BranchNotYetBorn;
 			}
 
 			throw err;
@@ -1633,6 +1635,11 @@ export class Repository {
 
 	async deleteTag(name: string): Promise<void> {
 		const args = ['tag', '-d', name];
+		await this.exec(args);
+	}
+
+	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
+		const args = ['push', '--delete', remoteName, tagName];
 		await this.exec(args);
 	}
 
@@ -1911,12 +1918,16 @@ export class Repository {
 		}
 	}
 
-	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
+	async createStash(message?: string, includeUntracked?: boolean, staged?: boolean): Promise<void> {
 		try {
 			const args = ['stash', 'push'];
 
 			if (includeUntracked) {
 				args.push('-u');
+			}
+
+			if (staged) {
+				args.push('-S');
 			}
 
 			if (message) {
@@ -2074,17 +2085,22 @@ export class Repository {
 		}
 	}
 
-	async getHEADBranch(): Promise<Branch | undefined> {
+	async getHEADRef(): Promise<Branch | undefined> {
 		let HEAD: Branch | undefined;
 
 		try {
 			HEAD = await this.getHEAD();
 
 			if (HEAD.name) {
-				try {
-					HEAD = await this.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
+				// Branch
+				HEAD = await this.getBranch(HEAD.name);
+			} else if (HEAD.commit) {
+				// Tag || Commit
+				const tags = await this.getRefs({ pattern: 'refs/tags' });
+				const tag = tags.find(tag => tag.commit === HEAD!.commit);
+
+				if (tag) {
+					HEAD = { ...HEAD, name: tag.name, type: RefType.Tag };
 				}
 			}
 		} catch (err) {
@@ -2152,32 +2168,32 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number; cancellationToken?: CancellationToken }): Promise<Ref[]> {
-		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+	async getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
 
 		const args = ['for-each-ref'];
 
-		if (opts?.count) {
-			args.push(`--count=${opts.count}`);
+		if (query.count) {
+			args.push(`--count=${query.count}`);
 		}
 
-		if (opts && opts.sort && opts.sort !== 'alphabetically') {
-			args.push('--sort', `-${opts.sort}`);
+		if (query.sort && query.sort !== 'alphabetically') {
+			args.push('--sort', `-${query.sort}`);
 		}
 
 		args.push('--format', '%(refname) %(objectname) %(*objectname)');
 
-		if (opts?.pattern) {
-			args.push(opts.pattern);
+		if (query.pattern) {
+			args.push(query.pattern.startsWith('refs/') ? query.pattern : `refs/${query.pattern}`);
 		}
 
-		if (opts?.contains) {
-			args.push('--contains', opts.contains);
+		if (query.contains) {
+			args.push('--contains', query.contains);
 		}
 
-		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
+		const result = await this.exec(args, { cancellationToken });
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
@@ -2188,6 +2204,43 @@ export class Repository {
 				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
 			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
 				return { name: match[1], commit: match[3] ?? match[2], type: RefType.Tag };
+			}
+
+			return null;
+		};
+
+		return result.stdout.split('\n')
+			.filter(line => !!line)
+			.map(fn)
+			.filter(ref => !!ref) as Ref[];
+	}
+
+	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean; cancellationToken?: CancellationToken }): Promise<Ref[]> {
+		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		const args = ['ls-remote'];
+
+		if (opts?.heads) {
+			args.push('--heads');
+		}
+
+		if (opts?.tags) {
+			args.push('--tags');
+		}
+
+		args.push(remote);
+
+		const result = await this.exec(args, { cancellationToken: opts?.cancellationToken });
+
+		const fn = (line: string): Ref | null => {
+			let match: RegExpExecArray | null;
+
+			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
+				return { name: match[1], commit: match[2], type: RefType.Head };
+			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
+				return { name: match[2], commit: match[1], type: RefType.Tag };
 			}
 
 			return null;
@@ -2212,23 +2265,41 @@ export class Repository {
 	}
 
 	async getRemotes(): Promise<Remote[]> {
+		const remotes: MutableRemote[] = [];
+
 		try {
 			// Attempt to parse the config file
-			const remotes = await this.getRemotesFS();
-			if (remotes.length === 0) {
-				throw new Error('No remotes found in the git config file.');
-			}
+			remotes.push(...await this.getRemotesFS());
 
-			return remotes;
+			if (remotes.length === 0) {
+				this.logger.info('No remotes found in the git config file.');
+			}
 		}
 		catch (err) {
-			this.logger.warn(err.message);
+			this.logger.warn(`getRemotes() - ${err.message}`);
+
+			// Fallback to using git to get the remotes
+			remotes.push(...await this.getRemotesGit());
 		}
 
-		// Fallback to using git to determine remotes
+		for (const remote of remotes) {
+			// https://github.com/microsoft/vscode/issues/45271
+			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
+		}
+
+		return remotes;
+	}
+
+	private async getRemotesFS(): Promise<MutableRemote[]> {
+		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
+		return parseGitRemotes(raw);
+	}
+
+	private async getRemotesGit(): Promise<MutableRemote[]> {
+		const remotes: MutableRemote[] = [];
+
 		const result = await this.exec(['remote', '--verbose']);
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
-		const remotes: MutableRemote[] = [];
 
 		for (const line of lines) {
 			const parts = line.split(/\s/);
@@ -2249,17 +2320,9 @@ export class Repository {
 				remote.fetchUrl = url;
 				remote.pushUrl = url;
 			}
-
-			// https://github.com/microsoft/vscode/issues/45271
-			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
 		}
 
 		return remotes;
-	}
-
-	private async getRemotesFS(): Promise<Remote[]> {
-		const raw = await fs.readFile(path.join(this.dotGit.commonPath ?? this.dotGit.path, 'config'), 'utf8');
-		return parseGitRemotes(raw);
 	}
 
 	async getBranch(name: string): Promise<Branch> {
@@ -2343,11 +2406,6 @@ export class Repository {
 		}
 
 		return Promise.reject<Branch>(new Error('No such branch'));
-	}
-
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		const refs = await this.getRefs({ contains: query.contains, pattern: query.pattern ? `refs/${query.pattern}` : undefined, count: query.count });
-		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
 	}
 
 	// TODO: Support core.commentChar

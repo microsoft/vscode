@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -21,7 +21,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, IntervalTimer } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -263,6 +263,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		let logger: IRPCProtocolLogger | null = null;
 		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
 			logger = new RPCLogger(kind);
+		} else if (TelemetryRPCLogger.isEnabled()) {
+			logger = new TelemetryRPCLogger(this._telemetryService);
 		}
 
 		this._rpcProtocol = new RPCProtocol(protocol, logger);
@@ -377,8 +379,15 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
+		const sw = StopWatch.create(false);
+		const prefix = () => `[${extensionHostKindToString(this._extensionHost.runningLocation.kind)}${this._extensionHost.runningLocation.affinity}][resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)},${resolveAttempt})][${sw.elapsed()}ms] `;
+		const logInfo = (msg: string) => this._logService.info(`${prefix()}${msg}`);
+		const logError = (msg: string, err: any = undefined) => this._logService.error(`${prefix()}${msg}`, err);
+
+		logInfo(`obtaining proxy...`);
 		const proxy = await this._proxy;
 		if (!proxy) {
+			logError(`no proxy`);
 			return {
 				type: 'error',
 				error: {
@@ -388,10 +397,21 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				}
 			};
 		}
-
+		logInfo(`invoking...`);
+		const intervalLogger = new IntervalTimer();
 		try {
-			return proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.cancelAndSet(() => logInfo('waiting...'), 1000);
+			const resolverResult = await proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+			intervalLogger.dispose();
+			if (resolverResult.type === 'ok') {
+				logInfo(`returned ${resolverResult.value.authority.host}:${resolverResult.value.authority.port}`);
+			} else {
+				logError(`returned an error`, resolverResult.error);
+			}
+			return resolverResult;
 		} catch (err) {
+			intervalLogger.dispose();
+			logError(`returned an error`, err);
 			return {
 				type: 'error',
 				error: {
@@ -670,6 +690,62 @@ class RPCLogger implements IRPCProtocolLogger {
 	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
 		this._totalOutgoing += msgLength;
 		this._log('Win \u2192 Ext', this._totalOutgoing, msgLength, req, initiator, str, data);
+	}
+}
+
+interface RPCTelemetryData {
+	type: string;
+	length: number;
+}
+
+type RPCTelemetryDataClassification = {
+	owner: 'jrieken';
+	comment: 'Insights about RPC message sizes';
+	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the RPC message' };
+	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The byte-length of the RPC message' };
+};
+
+class TelemetryRPCLogger implements IRPCProtocolLogger {
+
+	static isEnabled(): boolean {
+		// this will be a very high frequency event, so we only log a small percentage of them
+		return Math.trunc(Math.random() * 1000) < 0.5;
+	}
+
+	private readonly _pendingRequests = new Map<number, string>();
+
+	constructor(@ITelemetryService private readonly _telemetryService: ITelemetryService) { }
+
+	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string): void {
+
+		if (initiator === RequestInitiator.LocalSide && /^receiveReply(Err)?:/.test(str)) {
+			// log the size of reply messages
+			const requestStr = this._pendingRequests.get(req) ?? 'unknown_reply';
+			this._pendingRequests.delete(req);
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+				type: `${str} ${requestStr}`,
+				length: msgLength
+			});
+		}
+
+		if (initiator === RequestInitiator.OtherSide && /^receiveRequest /.test(str)) {
+			// incoming request
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.incoming', {
+				type: `${str}`,
+				length: msgLength
+			});
+		}
+	}
+
+	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string): void {
+
+		if (initiator === RequestInitiator.LocalSide && str.startsWith('request: ')) {
+			this._pendingRequests.set(req, str);
+			this._telemetryService.publicLog2<RPCTelemetryData, RPCTelemetryDataClassification>('extensionhost.outgoing', {
+				type: str,
+				length: msgLength
+			});
+		}
 	}
 }
 

@@ -147,7 +147,7 @@ export class ExtHostConsumerFileSystem {
 		}
 
 		// no provider (unknown scheme) error
-		if (err.name === 'ENOPRO') {
+		if (err.name === 'ENOPRO' || err.message.includes('ENOPRO')) {
 			throw FileSystemError.Unavailable(err.message);
 		}
 

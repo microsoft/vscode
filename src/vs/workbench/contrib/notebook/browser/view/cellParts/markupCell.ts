@@ -7,7 +7,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -169,8 +170,6 @@ export class MarkupCell extends Disposable {
 			const layoutInfo = this.editor?.getLayoutInfo();
 			if (e.outerWidth && this.viewCell.getEditState() === CellEditState.Editing && layoutInfo && layoutInfo.width !== this.viewCell.layoutInfo.editorWidth) {
 				this.onCellEditorWidthChange();
-			} else if (e.totalHeight || e.outerWidth) {
-				this.relayoutCell();
 			}
 		}));
 
@@ -255,7 +254,7 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.innerText = '';
 
 		const markdownIcon = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('span'));
-		markdownIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.markdown));
+		markdownIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.markdown));
 
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
@@ -264,10 +263,10 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
-			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double-click to expand cell input ({0})", keybinding.getLabel());
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 
@@ -445,12 +444,15 @@ export class MarkupCell extends Disposable {
 	private layoutFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
+				this.templateData.foldingIndicator.style.display = 'none';
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
 				break;
 			case CellFoldingState.Expanded:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
 				break;
 
@@ -465,16 +467,8 @@ export class MarkupCell extends Disposable {
 		this.focusSwitchDisposable.clear();
 
 		this.localDisposables.add(editor.onDidContentSizeChange(e => {
-			const viewLayout = editor.getLayoutInfo();
-
 			if (e.contentHeightChanged) {
-				this.viewCell.editorHeight = e.contentHeight;
-				editor.layout(
-					{
-						width: viewLayout.width,
-						height: e.contentHeight
-					}
-				);
+				this.onCellEditorHeightChange(editor, e.contentHeight);
 			}
 		}));
 
@@ -487,6 +481,12 @@ export class MarkupCell extends Disposable {
 			const selections = editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(editor, contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
@@ -509,5 +509,16 @@ export class MarkupCell extends Disposable {
 		}));
 
 		updateFocusMode();
+	}
+
+	private onCellEditorHeightChange(editor: CodeEditorWidget, newHeight: number): void {
+		const viewLayout = editor.getLayoutInfo();
+		this.viewCell.editorHeight = newHeight;
+		editor.layout(
+			{
+				width: viewLayout.width,
+				height: newHeight
+			}
+		);
 	}
 }

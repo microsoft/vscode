@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -28,8 +27,9 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class ReleaseNotesManager {
 
@@ -37,6 +37,7 @@ export class ReleaseNotesManager {
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
+	private disposables = new DisposableStore();
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -57,9 +58,12 @@ export class ReleaseNotesManager {
 			}
 			const html = await this.renderBody(this._lastText);
 			if (this._currentReleaseNotes) {
-				this._currentReleaseNotes.webview.html = html;
+				this._currentReleaseNotes.webview.setHtml(html);
 			}
 		});
+
+		_configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		_webviewWorkbenchService.onDidChangeActiveWebviewEditor(this.onDidChangeActiveWebviewEditor, this, this.disposables);
 	}
 
 	public async show(version: string): Promise<boolean> {
@@ -71,17 +75,19 @@ export class ReleaseNotesManager {
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.webview.html = html;
+			this._currentReleaseNotes.webview.setHtml(html);
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
 				{
+					title,
 					options: {
 						tryRestoreScrollPosition: true,
 						enableFindWidget: true,
 					},
 					contentOptions: {
-						localResourceRoots: []
+						localResourceRoots: [],
+						allowScripts: true
 					},
 					extension: undefined
 				},
@@ -90,9 +96,20 @@ export class ReleaseNotesManager {
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });
 
-			this._currentReleaseNotes.webview.html = html;
+			const disposables = new DisposableStore();
+			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
+				if (e.message.type === 'showReleaseNotes') {
+					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
+				}
+			}));
+
+			disposables.add(this._currentReleaseNotes.onWillDispose(() => {
+				disposables.dispose();
+				this._currentReleaseNotes = undefined;
+			}));
+
+			this._currentReleaseNotes.webview.setHtml(html);
 		}
 
 		return true;
@@ -125,7 +142,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb);
 
 				if (!keybinding) {
 					return unassigned;
@@ -206,18 +223,80 @@ export class ReleaseNotesManager {
 		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, false);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
+
 		return `<!DOCTYPE html>
 		<html>
 			<head>
 				<base href="https://code.visualstudio.com/raw/">
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://code.visualstudio.com;">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://code.visualstudio.com; script-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
+					header { display: flex; align-items: center; padding-top: 1em; }
 				</style>
 			</head>
-			<body>${content}</body>
+			<body>
+				${content}
+				<script nonce="${nonce}">
+					const vscode = acquireVsCodeApi();
+					const container = document.createElement('p');
+					container.style.display = 'flex';
+					container.style.alignItems = 'center';
+
+					const input = document.createElement('input');
+					input.type = 'checkbox';
+					input.id = 'showReleaseNotes';
+					input.checked = ${showReleaseNotes};
+					container.appendChild(input);
+
+					const label = document.createElement('label');
+					label.htmlFor = 'showReleaseNotes';
+					label.textContent = '${nls.localize('showOnUpdate', "Show release notes after an update")}';
+					container.appendChild(label);
+
+					const beforeElement = document.querySelector("body > h1")?.nextElementSibling;
+					console.log(beforeElement);
+
+					if (beforeElement) {
+						document.body.insertBefore(container, beforeElement);
+					} else {
+						document.body.appendChild(container);
+					}
+
+					window.addEventListener('message', event => {
+						if (event.data.type === 'showReleaseNotes') {
+							input.checked = event.data.value;
+						}
+					});
+
+					input.addEventListener('change', event => {
+						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
+					});
+				</script>
+			</body>
 		</html>`;
+	}
+
+	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
+		if (e.affectsConfiguration('update.showReleaseNotes')) {
+			this.updateWebview();
+		}
+	}
+
+	private onDidChangeActiveWebviewEditor(input: WebviewInput | undefined): void {
+		if (input && input === this._currentReleaseNotes) {
+			this.updateWebview();
+		}
+	}
+
+	private updateWebview() {
+		if (this._currentReleaseNotes) {
+			this._currentReleaseNotes.webview.postMessage({
+				type: 'showReleaseNotes',
+				value: this._configurationService.getValue<boolean>('update.showReleaseNotes')
+			});
+		}
 	}
 }

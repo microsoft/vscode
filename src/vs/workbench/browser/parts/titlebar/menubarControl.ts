@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/menubarControl';
 import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -17,9 +17,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -27,7 +26,6 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
 import { Direction } from 'vs/base/browser/ui/menu/menu';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -42,6 +40,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -317,12 +316,12 @@ export abstract class MenubarControl extends Disposable {
 
 		if (isRecentFolder(recent)) {
 			uri = recent.folderUri;
-			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: true });
+			label = recent.label || this.labelService.getWorkspaceLabel(uri, { verbose: Verbosity.LONG });
 			commandId = 'openRecentFolder';
 			openable = { folderUri: uri };
 		} else if (isRecentWorkspace(recent)) {
 			uri = recent.workspace.configPath;
-			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+			label = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 			commandId = 'openRecentWorkspace';
 			openable = { workspaceUri: uri };
 		} else {
@@ -397,7 +396,6 @@ export class CustomMenubarControl extends MenubarControl {
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
@@ -420,98 +418,6 @@ export class CustomMenubarControl extends MenubarControl {
 		this.registerListeners();
 
 		this.registerActions();
-
-		registerThemingParticipant((theme, collector) => {
-			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
-			if (menubarActiveWindowFgColor) {
-				collector.addRule(`
-				.monaco-workbench .menubar > .menubar-menu-button,
-				.monaco-workbench .menubar .toolbar-toggle-more {
-					color: ${menubarActiveWindowFgColor};
-				}
-				`);
-			}
-
-			const activityBarInactiveFgColor = theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND);
-			if (activityBarInactiveFgColor) {
-				collector.addRule(`
-				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button,
-				.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
-					color: ${activityBarInactiveFgColor};
-				}
-				`);
-			}
-
-			const activityBarFgColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-			if (activityBarFgColor) {
-				collector.addRule(`
-				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open,
-				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus,
-				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
-				.monaco-workbench .activitybar .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
-				.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
-				.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
-					color: ${activityBarFgColor};
-				}
-			`);
-			}
-
-			const menubarInactiveWindowFgColor = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
-			if (menubarInactiveWindowFgColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
-					.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more  {
-						color: ${menubarInactiveWindowFgColor};
-					}
-				`);
-			}
-
-			const menubarSelectedFgColor = theme.getColor(MENUBAR_SELECTION_FOREGROUND);
-			if (menubarSelectedFgColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .toolbar-toggle-more,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .toolbar-toggle-more,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .toolbar-toggle-more {
-						color: ${menubarSelectedFgColor};
-					}
-				`);
-			}
-
-			const menubarSelectedBgColor = theme.getColor(MENUBAR_SELECTION_BACKGROUND);
-			if (menubarSelectedBgColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .menubar-menu-title,
-					.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title,
-					.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .menubar-menu-title {
-						background-color: ${menubarSelectedBgColor};
-					}
-				`);
-			}
-
-			const menubarSelectedBorderColor = theme.getColor(MENUBAR_SELECTION_BORDER);
-			if (menubarSelectedBorderColor) {
-				collector.addRule(`
-					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
-						outline: dashed 1px;
-					}
-
-					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
-					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
-						outline: solid 1px;
-					}
-
-					.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
-					.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
-					.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
-						outline-color: ${menubarSelectedBorderColor};
-						outline-offset: -1px;
-					}
-				`);
-			}
-		});
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
@@ -665,7 +571,7 @@ export class CustomMenubarControl extends MenubarControl {
 				this.reinstallDisposables.clear();
 			}
 
-			this.menubar = this.reinstallDisposables.add(new MenuBar(this.container, this.getMenuBarOptions()));
+			this.menubar = this.reinstallDisposables.add(new MenuBar(this.container, this.getMenuBarOptions(), defaultMenuStyles));
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
 				this.alwaysOnMnemonics = val;
@@ -698,8 +604,6 @@ export class CustomMenubarControl extends MenubarControl {
 			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
 				this.focusInsideMenubar = false;
 			}));
-
-			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
 
 			// Fire visibility change for the first install if menu is shown
 			if (this.menubar.isVisible) {

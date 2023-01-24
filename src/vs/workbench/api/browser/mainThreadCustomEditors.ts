@@ -161,7 +161,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					return;
 				}
 
@@ -195,14 +195,14 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, {
+					await this._proxyCustomEditors.$resolveCustomEditor(resource, handle, viewType, {
 						title: webviewInput.getTitle(),
 						contentOptions: webviewInput.webview.contentOptions,
 						options: webviewInput.webview.options,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					modelRef.dispose();
 					return;
 				}

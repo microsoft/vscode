@@ -54,7 +54,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 	public $setHtml(handle: extHostProtocol.WebviewHandle, value: string): void {
 		const webview = this.getWebview(handle);
-		webview.html = value;
+		webview.setHtml(value);
 	}
 
 	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewContentOptions): void {

@@ -16,8 +16,8 @@ import { Promises, readdirSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { Schemas } from 'vs/base/common/network';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -1109,7 +1109,7 @@ flakySuite('WorkingCopyBackupService', () => {
 		test('file with binary data', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 
-			const sourceDir = getPathFromAmdModule(require, './fixtures');
+			const sourceDir = FileAccess.asFileUri('vs/workbench/services/workingCopy/test/electron-browser/fixtures').fsPath;
 
 			const buffer = await Promises.readFile(join(sourceDir, 'binary.txt'));
 			const hash = createHash('md5').update(buffer).digest('base64');

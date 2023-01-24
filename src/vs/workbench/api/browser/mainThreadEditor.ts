@@ -379,11 +379,7 @@ export class MainThreadTextEditor {
 			newOpts.tabSize = newConfiguration.tabSize;
 		}
 		if (typeof newConfiguration.indentSize !== 'undefined') {
-			if (newConfiguration.indentSize === 'tabSize') {
-				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
-			} else {
-				newOpts.indentSize = newConfiguration.indentSize;
-			}
+			newOpts.indentSize = newConfiguration.indentSize;
 		}
 		this._model.updateOptions(newOpts);
 	}
@@ -527,8 +523,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
-			// ignored because emmet tests fail...
-			// return false;
+			return false;
 		}
 
 		const snippetController = SnippetController2.get(this._codeEditor);

@@ -7,7 +7,7 @@ import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join } from 'vs/base/common/path';
@@ -26,7 +26,7 @@ import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensi
 import { IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
-import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
@@ -39,7 +39,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
@@ -58,9 +58,11 @@ import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LogService } from 'vs/platform/log/common/logService';
 
 class CliMain extends Disposable {
 
@@ -125,13 +127,13 @@ class CliMain extends Disposable {
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
-		const loggers: ILogger[] = [];
-		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel));
+		const spdLogLogger = new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel);
+		const otherLoggers: ILogger[] = [];
 		if (logLevel === LogLevel.Trace) {
-			loggers.push(new ConsoleLogger(logLevel));
+			otherLoggers.push(new ConsoleLogger(logLevel));
 		}
 
-		const logService = this._register(new MultiplexLogService(loggers));
+		const logService = this._register(new LogService(spdLogLogger, otherLoggers));
 		services.set(ILogService, logService);
 
 		// Files
@@ -169,7 +171,8 @@ class CliMain extends Disposable {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		// Initialize user data profiles after initializing the state
+		userDataProfilesService.init();
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
@@ -240,12 +243,23 @@ class CliMain extends Disposable {
 		});
 
 		// Handle unhandled errors that can occur
-		process.on('uncaughtException', err => onUnexpectedError(err));
+		process.on('uncaughtException', err => {
+			if (!isSigPipeError(err)) {
+				onUnexpectedError(err);
+			}
+		});
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 	}
 
 	private async doRun(environmentService: INativeEnvironmentService, fileService: IFileService, userDataProfilesService: IUserDataProfilesService, instantiationService: IInstantiationService): Promise<void> {
-		const profileLocation = (environmentService.args.profile ? userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile) ?? userDataProfilesService.defaultProfile : userDataProfilesService.defaultProfile).extensionsResource;
+		let profile: IUserDataProfile | undefined = undefined;
+		if (environmentService.args.profile) {
+			profile = userDataProfilesService.profiles.find(p => p.name === environmentService.args.profile);
+			if (!profile) {
+				throw new Error(`Profile '${environmentService.args.profile}' not found.`);
+			}
+		}
+		const profileLocation = (profile ?? userDataProfilesService.defaultProfile).extensionsResource;
 
 		// Install Source
 		if (this.argv['install-source']) {

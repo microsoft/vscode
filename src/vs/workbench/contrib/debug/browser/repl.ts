@@ -54,7 +54,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -174,6 +175,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			if (!input || input.state === State.Inactive) {
 				await this.selectSession(newSession);
 			}
+			this.multiSessionRepl.set(this.isMultiSessionView);
+		}));
+		this._register(this.debugService.onDidEndSession(async session => {
+			// Update view, since orphaned sessions might now be separate
+			await Promise.resolve(); // allow other listeners to go first, so sessions can update parents
 			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
 		this._register(this.themeService.onDidColorThemeChange(() => {
@@ -486,10 +492,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replInput.layout({ width: width - 30, height: replInputHeight });
 	}
 
-	override shouldShowFilterInHeader(): boolean {
-		return true;
-	}
-
 	collapseAll(): void {
 		this.tree.collapseAll();
 	}
@@ -646,6 +648,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
+		// We must respect some accessibility related settings
+		options.accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+		options.cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
