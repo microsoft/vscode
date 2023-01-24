@@ -113,12 +113,12 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				[
 					localize('open', 'Open'),
 					localize('copy', 'Copy'),
-					localize('cancel', 'Cancel'),
-					localize('configureTrustedDomains', 'Configure Trusted Domains')
+					localize('configureTrustedDomains', 'Configure Trusted Domains'),
+					localize('cancel', 'Cancel')
 				],
 				{
 					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
-					cancelId: 2
+					cancelId: 3
 				}
 			);
 
@@ -131,7 +131,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
 			}
 			// Configure Trusted Domains
-			else if (choice === 3) {
+			else if (choice === 2) {
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
 					trustedDomains,
 					domainToOpen,
