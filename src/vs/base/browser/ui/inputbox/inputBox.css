@@ -14,10 +14,6 @@
 	font-size: inherit;
 }
 
-.monaco-inputbox.idle {
-	border: 1px solid transparent;
-}
-
 .monaco-inputbox > .ibwrapper > .input,
 .monaco-inputbox > .ibwrapper > .mirror {
 

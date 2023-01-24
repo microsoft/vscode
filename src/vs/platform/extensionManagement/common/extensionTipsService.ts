@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
-import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionTipsService, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, IRequestService } from 'vs/platform/request/common/request';
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
@@ -25,8 +22,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		if (this.productService.configBasedExtensionTips) {
@@ -36,10 +31,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> {
 		return this.getValidConfigBasedTips(folder);
-	}
-
-	getAllWorkspacesTips(): Promise<IWorkspaceTips[]> {
-		return this.fetchWorkspacesTips();
 	}
 
 	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
@@ -92,27 +83,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			} catch (error) { /* Ignore */ }
 		}
 		return result;
-	}
-
-
-	private async fetchWorkspacesTips(): Promise<IWorkspaceTips[]> {
-		if (!this.productService.extensionsGallery?.recommendationsUrl) {
-			return [];
-		}
-		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.productService.extensionsGallery?.recommendationsUrl }, CancellationToken.None);
-			if (context.res.statusCode !== 200) {
-				return [];
-			}
-			const result = await asJson<{ workspaceRecommendations?: IWorkspaceTips[] }>(context);
-			if (!result) {
-				return [];
-			}
-			return result.workspaceRecommendations || [];
-		} catch (error) {
-			this.logService.error(error);
-			return [];
-		}
 	}
 
 }

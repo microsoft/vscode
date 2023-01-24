@@ -26,13 +26,14 @@ import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/co
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -66,6 +67,11 @@ class DiffEntry {
 	}
 }
 
+const enum DiffEditorLineClasses {
+	Insert = 'line-insert',
+	Delete = 'line-delete'
+}
+
 class Diff {
 	readonly entries: DiffEntry[];
 
@@ -95,7 +101,8 @@ export class DiffReview extends Disposable {
 
 	constructor(
 		diffEditor: DiffEditorWidget,
-		@ILanguageService private readonly _languageService: ILanguageService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 		this._diffEditor = diffEditor;
@@ -149,7 +156,7 @@ export class DiffReview extends Disposable {
 				|| e.equals(KeyMod.Alt | KeyCode.DownArrow)
 			) {
 				e.preventDefault();
-				this._goToRow(this._getNextRow());
+				this._goToRow(this._getNextRow(), 'next');
 			}
 
 			if (
@@ -158,7 +165,7 @@ export class DiffReview extends Disposable {
 				|| e.equals(KeyMod.Alt | KeyCode.UpArrow)
 			) {
 				e.preventDefault();
-				this._goToRow(this._getPrevRow());
+				this._goToRow(this._getPrevRow(), 'previous');
 			}
 
 			if (
@@ -166,13 +173,7 @@ export class DiffReview extends Disposable {
 				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
 				|| e.equals(KeyMod.Alt | KeyCode.Escape)
 				|| e.equals(KeyMod.Shift | KeyCode.Escape)
-			) {
-				e.preventDefault();
-				this.hide();
-			}
-
-			if (
-				e.equals(KeyCode.Space)
+				|| e.equals(KeyCode.Space)
 				|| e.equals(KeyCode.Enter)
 			) {
 				e.preventDefault();
@@ -215,7 +216,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
-		this._goToRow(this._getNextRow());
+		this._goToRow(this._getPrevRow(), 'previous');
 	}
 
 	public next(): void {
@@ -250,7 +251,7 @@ export class DiffReview extends Disposable {
 		this._isVisible = true;
 		this._diffEditor.doLayout();
 		this._render();
-		this._goToRow(this._getNextRow());
+		this._goToRow(this._getNextRow(), 'next');
 	}
 
 	private accept(): void {
@@ -312,12 +313,18 @@ export class DiffReview extends Disposable {
 		return null;
 	}
 
-	private _goToRow(row: HTMLElement): void {
-		const prev = this._getCurrentFocusedRow();
+	private _goToRow(row: HTMLElement, type?: 'next' | 'previous'): void {
+		const current = this._getCurrentFocusedRow();
 		row.tabIndex = 0;
 		row.focus();
-		if (prev && prev !== row) {
-			prev.tabIndex = -1;
+		if (current && current !== row) {
+			current.tabIndex = -1;
+		}
+		const element = !type ? current : type === 'next' ? current?.nextElementSibling : current?.previousElementSibling;
+		if (element?.classList.contains(DiffEditorLineClasses.Insert)) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+		} else if (element?.classList.contains(DiffEditorLineClasses.Delete)) {
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
 		}
 		this.scrollbar.scanDomNode();
 	}

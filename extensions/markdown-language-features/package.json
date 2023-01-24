@@ -16,7 +16,6 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "telemetryLogger",
     "documentPaste"
   ],
   "activationEvents": [
@@ -571,6 +570,13 @@
           "default": false,
           "description": "%configuration.markdown.occurrencesHighlight.enabled%",
           "scope": "resource"
+        },
+        "markdown.experimental.copyFiles.destination": {
+          "type": "object",
+          "markdownDescription": "%configuration.markdown.copyFiles.destination%",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
@@ -621,7 +627,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.1-preview",
+    "@vscode/extension-telemetry": "0.7.4-preview",
     "dompurify": "^2.4.1",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",
@@ -640,7 +646,7 @@
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "^0.2.0"
+    "vscode-markdown-languageservice": "^0.3.0-alpha.3"
   },
   "repository": {
     "type": "git",

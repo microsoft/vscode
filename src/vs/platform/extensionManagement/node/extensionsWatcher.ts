@@ -9,6 +9,7 @@ import { ResourceSet } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { DidAddProfileExtensionsEvent, DidRemoveProfileExtensionsEvent, IExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionIdentifier, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -31,6 +32,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	constructor(
 		private readonly extensionManagementService: INativeServerExtensionManagementService,
+		private readonly extensionsScannerService: IExtensionsScannerService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -42,7 +44,7 @@ export class ExtensionsWatcher extends Disposable {
 	}
 
 	private async initialize(): Promise<void> {
-		await this.extensionManagementService.migrateDefaultProfileExtensions();
+		await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		await this.onDidChangeProfiles(this.userDataProfilesService.profiles, []);
 		this.registerListeners();
 		await this.uninstallExtensionsNotInProfiles();
@@ -63,11 +65,7 @@ export class ExtensionsWatcher extends Disposable {
 				this.extensionsProfileWatchDisposables.deleteAndDispose(profile.id);
 				return this.removeExtensionsFromProfile(profile.extensionsResource);
 			}));
-		} catch (error) {
-			this.logService.error(error);
-		}
 
-		try {
 			if (added.length) {
 				await Promise.all(added.map(profile => {
 					this.extensionsProfileWatchDisposables.set(profile.id, combinedDisposable(
@@ -80,6 +78,7 @@ export class ExtensionsWatcher extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
+			throw error;
 		}
 	}
 
@@ -178,7 +177,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	private async uninstallExtensionsNotInProfiles(): Promise<void> {
 		const installed = await this.extensionManagementService.getAllUserInstalled();
-		const toUninstall = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+		const toUninstall = installed.filter(installedExtension => installedExtension.installedTimestamp /* Installed by VS Code */ && !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		if (toUninstall.length) {
 			await this.extensionManagementService.markAsUninstalled(...toUninstall);
 		}

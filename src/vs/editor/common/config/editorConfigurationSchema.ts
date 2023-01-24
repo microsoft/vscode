@@ -26,20 +26,20 @@ const editorConfiguration: IConfigurationNode = {
 			minimum: 1,
 			markdownDescription: nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when {0} is on.", '`#editor.detectIndentation#`')
 		},
-		// 'editor.indentSize': {
-		// 	'anyOf': [
-		// 		{
-		// 			type: 'string',
-		// 			enum: ['tabSize']
-		// 		},
-		// 		{
-		// 			type: 'number',
-		// 			minimum: 1
-		// 		}
-		// 	],
-		// 	default: 'tabSize',
-		// 	markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
-		// },
+		'editor.indentSize': {
+			'anyOf': [
+				{
+					type: 'string',
+					enum: ['tabSize']
+				},
+				{
+					type: 'number',
+					minimum: 1
+				}
+			],
+			default: 'tabSize',
+			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or `\"tabSize\"` to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+		},
 		'editor.insertSpaces': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,
@@ -88,7 +88,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.stablePeek': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
+			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double-clicking their content or when hitting `Escape`.")
 		},
 		'editor.maxTokenizationLineLength': {
 			type: 'integer',

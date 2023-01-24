@@ -76,7 +76,7 @@ suite('standardLinesDiffCompute', () => {
 		}
 `.split('\n');
 
-		const diff = c.computeDiff(lines1, lines2, { maxComputationTime: 1000, ignoreTrimWhitespace: false });
+		const diff = c.computeDiff(lines1, lines2, { maxComputationTimeMs: 1000, ignoreTrimWhitespace: false });
 
 		// TODO this diff should only have one inner, not two.
 		assert.deepStrictEqual(

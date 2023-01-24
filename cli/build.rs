@@ -5,11 +5,54 @@
 
 const FILE_HEADER: &str = "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/";
 
-use std::{env, fs, io, path::PathBuf, process};
+use std::{
+	env, fs, io,
+	path::PathBuf,
+	process::{self, Command},
+	str::FromStr,
+};
 
 fn main() {
 	let files = enumerate_source_files().expect("expected to enumerate files");
 	ensure_file_headers(&files).expect("expected to ensure file headers");
+	apply_build_environment_variables();
+}
+
+fn apply_build_environment_variables() {
+	// only do this for local, debug builds
+	if env::var("PROFILE").unwrap() != "debug" {
+		return;
+	}
+
+	let pkg_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+	let mut cmd = Command::new("node");
+	cmd.arg("../build/azure-pipelines/cli/prepare.js");
+	cmd.current_dir(&pkg_dir);
+	cmd.env("VSCODE_CLI_PREPARE_OUTPUT", "json");
+
+	let mut distro_location = PathBuf::from_str(&pkg_dir).unwrap();
+	distro_location.pop(); // vscode dir
+	distro_location.pop(); // parent dir
+	distro_location.push("vscode-distro"); // distro dir, perhaps?
+	if distro_location.exists() {
+		cmd.env("VSCODE_CLI_PREPARE_ROOT", distro_location);
+		cmd.env("VSCODE_QUALITY", "insider");
+	}
+
+	let output = cmd.output().expect("expected to run prepare script");
+	if !output.status.success() {
+		eprint!(
+			"error running prepare script: {}",
+			String::from_utf8_lossy(&output.stderr)
+		);
+		process::exit(output.status.code().unwrap_or(1));
+	}
+
+	let vars = serde_json::from_slice::<Vec<(String, String)>>(&output.stdout)
+		.expect("expected to deserialize output");
+	for (key, value) in vars {
+		println!("cargo:rustc-env={}={}", key, value);
+	}
 }
 
 fn ensure_file_headers(files: &[PathBuf]) -> Result<(), io::Error> {

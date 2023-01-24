@@ -20,8 +20,10 @@ import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private'
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 
-const MINIMUM_FONT_SIZE = 6;
-const MAXIMUM_FONT_SIZE = 100;
+const enum FontConstants {
+	MinimumFontSize = 6,
+	MaximumFontSize = 100,
+}
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -156,20 +158,23 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		let fontSize = this._clampInt(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		let fontSize = this._clampInt(this.config.fontSize, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
 			if (this._linuxDistro === LinuxDistro.Fedora) {
-				fontFamily = '\'DejaVu Sans Mono\', monospace';
+				fontFamily = '\'DejaVu Sans Mono\'';
 			}
 			if (this._linuxDistro === LinuxDistro.Ubuntu) {
-				fontFamily = '\'Ubuntu Mono\', monospace';
+				fontFamily = '\'Ubuntu Mono\'';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
-				fontSize = this._clampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+				fontSize = this._clampInt(fontSize + 2, FontConstants.MinimumFontSize, FontConstants.MaximumFontSize, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
+
+		// Always fallback to monospace, otherwise a proportional font may become the default
+		fontFamily += ', monospace';
 
 		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;

@@ -131,7 +131,7 @@ export class RipgrepTextSearchEngine {
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */
-export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
+function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const lines = msg.split('\n');
 	const firstLine = lines[0].trim();
 
@@ -161,7 +161,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	return undefined;
 }
 
-export function buildRegexParseError(lines: string[]): string {
+function buildRegexParseError(lines: string[]): string {
 	const errorMessage: string[] = ['Regex parse error'];
 	const pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
 	if (pcre2ErrorLine.length >= 1) {
@@ -495,7 +495,7 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 /**
  * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
  */
-export function spreadGlobComponents(globArg: string): string[] {
+function spreadGlobComponents(globArg: string): string[] {
 	const components = splitGlobAware(globArg, '/');
 	return components.map((_, i) => components.slice(0, i + 1).join('/'));
 }

@@ -49,8 +49,10 @@ export namespace inputLatency {
 	 * Mark the end of the keydown event.
 	 */
 	function markKeyDownEnd() {
-		performance.mark('keydown/end');
-		state.keydown = EventPhase.Finished;
+		if (state.keydown === EventPhase.InProgress) {
+			performance.mark('keydown/end');
+			state.keydown = EventPhase.Finished;
+		}
 	}
 
 	/**
@@ -67,12 +69,18 @@ export namespace inputLatency {
 	 * Record the start of the input event.
 	 */
 	export function onInput() {
+		if (state.input === EventPhase.Before) {
+			// it looks like we didn't receive a `beforeinput`
+			onBeforeInput();
+		}
 		queueMicrotask(markInputEnd);
 	}
 
 	function markInputEnd() {
-		performance.mark('input/end');
-		state.input = EventPhase.Finished;
+		if (state.input === EventPhase.InProgress) {
+			performance.mark('input/end');
+			state.input = EventPhase.Finished;
+		}
 	}
 
 	/**
@@ -110,8 +118,10 @@ export namespace inputLatency {
 	 * Mark the end of the animation frame performing the rendering.
 	 */
 	function markRenderEnd() {
-		performance.mark('render/end');
-		state.render = EventPhase.Finished;
+		if (state.render === EventPhase.InProgress) {
+			performance.mark('render/end');
+			state.render = EventPhase.Finished;
+		}
 	}
 
 	function scheduleRecordIfFinishedTask() {

@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import 'vs/css!./media/quickInput';
@@ -21,11 +21,13 @@ export class QuickInputBox extends Disposable {
 	private findInput: FindInput;
 
 	constructor(
-		private parent: HTMLElement
+		private parent: HTMLElement,
+		inputBoxStyles: IInputBoxStyles,
+		toggleStyles: IToggleStyles
 	) {
 		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.findInput = this._register(new FindInput(this.container, undefined, { label: '' }));
+		this.findInput = this._register(new FindInput(this.container, undefined, { label: '', inputBoxStyles, toggleStyles }));
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -89,7 +91,15 @@ export class QuickInputBox extends Disposable {
 	}
 
 	set enabled(enabled: boolean) {
-		this.findInput.setEnabled(enabled);
+		// We can't disable the input box because it is still used for
+		// navigating the list. Instead, we disable the list and the OK
+		// so that nothing can be selected.
+		// TODO: should this be what we do for all find inputs? Or maybe some _other_ API
+		// on findInput to change it to readonly?
+		this.findInput.inputBox.inputElement.toggleAttribute('readonly', !enabled);
+		// TODO: styles of the quick pick need to be moved to the CSS instead of being in line
+		// so things like this can be done in CSS
+		// this.findInput.inputBox.inputElement.classList.toggle('disabled', !enabled);
 	}
 
 	set toggles(toggles: Toggle[] | undefined) {
@@ -126,9 +136,5 @@ export class QuickInputBox extends Disposable {
 
 	layout(): void {
 		this.findInput.inputBox.layout();
-	}
-
-	style(styles: IInputBoxStyles): void {
-		this.findInput.style(styles);
 	}
 }

@@ -120,6 +120,9 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	private set initialCollapsibleState(initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined) {
 		this._initialCollapsibleState = initialCollapsibleState;
+		if (this.collapsibleState === undefined) {
+			this.collapsibleState = this.initialCollapsibleState;
+		}
 		this._onDidChangeInitialCollapsibleState.fire(initialCollapsibleState);
 	}
 
@@ -166,6 +169,9 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		private _isTemplate: boolean
 	) {
 		this._isDisposed = false;
+		if (_isTemplate) {
+			this.comments = [];
+		}
 	}
 
 	batchUpdate(changes: CommentThreadChanges<T>) {

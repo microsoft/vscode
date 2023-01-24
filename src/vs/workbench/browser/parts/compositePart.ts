@@ -31,7 +31,8 @@ import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export interface ICompositeTitleLabel {
 
@@ -70,6 +71,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private contentAreaSize: Dimension | undefined;
 	private readonly telemetryActionsListener = this._register(new MutableDisposable());
 	private currentCompositeOpenToken: string | undefined;
+	private boundarySashes: IBoundarySashes | undefined;
 
 	constructor(
 		private readonly notificationService: INotificationService,
@@ -284,6 +286,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.contentAreaSize) {
 			composite.layout(this.contentAreaSize);
 		}
+
+		// Make sure boundary sashes are propagated
+		if (this.boundarySashes) {
+			composite.setBoundarySashes(this.boundarySashes);
+		}
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
@@ -380,7 +387,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	override createTitleArea(parent: HTMLElement): HTMLElement {
+	protected override createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
@@ -455,10 +462,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return null;
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const contentContainer = append(parent, $('.content'));
 
-		this.progressBar = this._register(new ProgressBar(contentContainer, getProgressBarStyles()));
+		this.progressBar = this._register(new ProgressBar(contentContainer, defaultProgressBarStyles));
 		this.progressBar.hide();
 
 		return contentContainer;
@@ -482,6 +489,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Layout composite
 		this.activeComposite?.layout(this.contentAreaSize);
+	}
+
+	setBoundarySashes?(sashes: IBoundarySashes): void {
+		this.boundarySashes = sashes;
+		this.activeComposite?.setBoundarySashes(sashes);
 	}
 
 	protected removeComposite(compositeId: string): boolean {

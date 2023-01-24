@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-6s2fEapj0jmA7ZDjzz23Uv4xLlM7KX3p9DYidJX7Zmk=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-RaCvj6SRgHm+2C3LKzSAamDwa3Bp4u4iQ1Y2Sm+97tE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -767,20 +767,7 @@
 		}
 
 		/**
-		 * @typedef {{
-		 *     contents: string;
-		 *     options: {
-		 *         readonly allowScripts: boolean;
-		 *         readonly allowForms: boolean;
-		 *         readonly allowMultipleAPIAcquire: boolean;
-		 *     }
-		 *     state: any;
-		 *     cspSource: string;
-		 * }} ContentUpdateData
-		 */
-
-		/**
-		 * @param {ContentUpdateData} data
+		 * @param {import('../webviewMessages').UpdateContentEvent} data
 		 * @return {string}
 		 */
 		function toContentHtml(data) {
@@ -891,7 +878,7 @@
 
 			// update iframe-contents
 			let updateId = 0;
-			hostMessaging.onMessage('content', async (_event, /** @type {ContentUpdateData} */ data) => {
+			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
 				const currentUpdateId = ++updateId;
 				try {
 					await workerReady;
@@ -944,6 +931,7 @@
 				}
 
 				const newFrame = document.createElement('iframe');
+				newFrame.title = data.title;
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
 
@@ -1127,6 +1115,13 @@
 					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+			});
+
+			hostMessaging.onMessage('set-title', async (_event, data) => {
+				const target = getActiveFrame();
+				if (target) {
+					target.title = data;
 				}
 			});
 

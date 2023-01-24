@@ -15,7 +15,7 @@
 <path d="M365.457 30.3539L369.105 34.0019L369.809 33.2979L366.161 29.6499L369.809 26.0019L369.105 25.2979L365.457 28.9459L361.809 25.2979L361.105 26.0019L364.753 29.6499L361.105 33.2979L361.809 34.0019L365.457 30.3539Z" fill="var(--vscode-tab-inactiveForeground)"/>
 </g>
 </g>
-<path d="M12 49H514V336C514 337.105 513.105 338 512 338H14C12.8954 338 12 337.105 12 336V49Z" fill="var(--vscode-editor-background, #1e1e1e)"/>
+<path d="M12 49H514V336C514 337.105 513.105 338 512 338H14C12.8954 338 12 337.105 12 336V49Z" fill="var(--vscode-quickInput-background, #252526)"/>
 <rect x="36" y="73" width="75" height="8" rx="4" fill="#B180D7"/>
 <rect x="288" y="73" width="34" height="8" rx="4" fill="#B180D7"/>
 <rect x="36" y="92" width="75" height="8" rx="4" fill="#B180D7"/>

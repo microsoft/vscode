@@ -93,7 +93,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('Method not implemented.');
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+	setExceptionBreakpointsForSession(session: IDebugSession, data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -194,6 +194,10 @@ export class MockSession implements IDebugSession {
 	}
 
 	get isSimpleUI(): boolean {
+		return false;
+	}
+
+	get lifecycleManagedByParent(): boolean {
 		return false;
 	}
 

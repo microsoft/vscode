@@ -6,7 +6,6 @@
 import * as cp from 'child_process';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
-// import { IProcessTreeNode } from 'windows-process-tree';
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {

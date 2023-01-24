@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
+import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
+import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
+import RemoteRepositories from './remoteRepositories.browser';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { WorkerServerProcess } from './tsServer/serverProcess.browser';
@@ -17,9 +19,10 @@ import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { BrowserServiceConfigurationProvider } from './utils/configuration.browser';
-import { PluginManager } from './utils/plugins';
-import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { getPackageInfo } from './utils/packageInfo';
+import { PluginManager } from './utils/plugins';
+import { Logger } from './utils/logger';
+import { isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -39,9 +42,7 @@ class StaticVersionProvider implements ITypeScriptVersionProvider {
 	readonly localVersions = [];
 }
 
-export function activate(
-	context: vscode.ExtensionContext
-): Api {
+export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	const pluginManager = new PluginManager();
 	context.subscriptions.push(pluginManager);
 
@@ -58,7 +59,7 @@ export function activate(
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('4.8.2')));
+			API.fromSimpleString('4.9.3')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -68,6 +69,8 @@ export function activate(
 		experimentTelemetryReporter = new ExperimentationTelemetryReporter(vscTelemetryReporter);
 		context.subscriptions.push(experimentTelemetryReporter);
 	}
+
+	const logger = new Logger();
 
 	const lazyClientHost = createLazyClientHost(context, false, {
 		pluginManager,
@@ -79,6 +82,7 @@ export function activate(
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new BrowserServiceConfigurationProvider(),
 		experimentTelemetryReporter,
+		logger,
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
@@ -91,7 +95,35 @@ export function activate(
 		context.subscriptions.push(module.register());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
+	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
+		await preload(logger);
+	}));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
+}
+
+async function preload(logger: Logger): Promise<void> {
+	if (!isWebAndHasSharedArrayBuffers()) {
+		return;
+	}
+
+	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
+	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || workspaceUri.authority !== 'github') {
+		return undefined;
+	}
+
+	try {
+		const remoteHubApi = await RemoteRepositories.getApi();
+		if (remoteHubApi.loadWorkspaceContents !== undefined) {
+			if (await remoteHubApi.loadWorkspaceContents(workspaceUri)) {
+				logger.info(`Successfully loaded workspace content for repository ${workspaceUri.toString()}`);
+			} else {
+				logger.info(`Failed to load workspace content for repository ${workspaceUri.toString()}`);
+			}
+
+		}
+	} catch (error) {
+		logger.info(`Loading workspace content for repository ${workspaceUri.toString()} failed: ${error instanceof Error ? error.toString() : 'Unknown reason'}`);
+		console.error(error);
+	}
 }

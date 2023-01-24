@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
@@ -14,6 +14,8 @@ import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleW
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
+export type DiffAlgorithmName = 'smart' | 'experimental';
+
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
@@ -21,7 +23,7 @@ export interface IEditorWorkerService {
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
 	/** Implementation in {@link EditorSimpleWorker.computeDiff} */
-	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions): Promise<IDiffComputationResult | null>;
+	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;

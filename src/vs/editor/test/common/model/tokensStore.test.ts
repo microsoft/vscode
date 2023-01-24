@@ -19,7 +19,7 @@ import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/
 
 suite('TokensStore', () => {
 
-	const SEMANTIC_COLOR: ColorId = 5;
+	const SEMANTIC_COLOR = 5 as ColorId;
 
 	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens } {
 		const text: string[] = [];
