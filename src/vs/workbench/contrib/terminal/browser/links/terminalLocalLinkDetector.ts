@@ -71,7 +71,7 @@ const fallbackMatchers: RegExp[] = [
 	// A C++ compile error
 	/^(?<link>(?<path>.+)\((?<line>\d+),(?<col>\d+)\)) :/,
 	// The whole line is the path
-	/^ *(?<link>(?<path>.+)) */
+	/^ *(?<link>(?<path>.+))/
 ];
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
