@@ -250,7 +250,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const changeTypeColor = getChangeTypeColor(this.themeService.getColorTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
-		this._actionbarWidget!.context = [diffEditorModel.modified.uri, this.model.changes, index];
+		this._actionbarWidget!.context = [diffEditorModel.modified.uri, this.model.changes.map(change => change.change), index];
 		this.show(position, height);
 		this.editor.focus();
 	}
