@@ -75,6 +75,10 @@ export interface IModelRegistry {
 	getModel(editorModel: IEditorModel): DirtyDiffModel | undefined;
 }
 
+export interface DirtyDiffContribution extends IEditorContribution {
+	getChanges(): IChange[];
+}
+
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
 function getChangeHeight(change: IChange): number {
@@ -590,7 +594,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-export class DirtyDiffController extends Disposable implements IEditorContribution {
+export class DirtyDiffController extends Disposable implements IEditorContribution, DirtyDiffContribution {
 
 	public static readonly ID = 'editor.contrib.dirtydiff';
 
@@ -862,6 +866,23 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		} else {
 			this.next(lineNumber);
 		}
+	}
+
+	getChanges(): IChange[] {
+		if (!this.modelRegistry) {
+			return [];
+		}
+		if (!this.editor.hasModel()) {
+			return [];
+		}
+
+		const model = this.modelRegistry.getModel(this.editor.getModel());
+
+		if (!model) {
+			return [];
+		}
+
+		return model.changes.map(change => change.change);
 	}
 
 	override dispose(): void {
