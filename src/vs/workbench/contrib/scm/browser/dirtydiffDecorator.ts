@@ -594,7 +594,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-export class DirtyDiffController extends Disposable implements IEditorContribution, DirtyDiffContribution {
+export class DirtyDiffController extends Disposable implements DirtyDiffContribution {
 
 	public static readonly ID = 'editor.contrib.dirtydiff';
 
