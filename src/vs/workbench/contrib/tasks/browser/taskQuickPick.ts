@@ -216,10 +216,10 @@ export class TaskQuickPick extends Disposable {
 		const changeSettingResult = await this._dialogService.show(Severity.Warning,
 			nls.localize('TaskQuickPick.changeSettingDetails',
 				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[noButton, yesButton],
+			[yesButton, noButton],
 			{ cancelId: 1 }
 		);
-		if (changeSettingResult.choice === 1) {
+		if (changeSettingResult.choice === 0) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);
