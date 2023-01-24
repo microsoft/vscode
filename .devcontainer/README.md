@@ -1,5 +1,7 @@
 # Code - OSS Development Container
 
+DO NOT MERGE
+
 This dev container includes configuration for a development container for working with Code - OSS in a local container. For using [GitHub Codespaces](https://github.com/features/codespaces) follow the [prebuilt setup](prebuilt/README.md) which installs VNC for displaying the application window.
 
 > **Note:** You will need X11's `DISPLAY` or Wayland's `WAYLAND_DISPLAY` environment variable set locally to allow for the Code - OSS window to display. See [Running GUI app on WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps) for Windows and [Quartz](https://www.xquartz.org) for Mac.
