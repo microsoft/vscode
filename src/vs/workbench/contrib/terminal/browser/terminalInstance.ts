@@ -1997,10 +1997,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
 			}
 			const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (screenReaderOptimized && isMacintosh) {
-				label += nls.localize('terminalTextBoxAriaLabelMacKeybinding', 'Press alt+f1 for terminal accessibility help');
+			if (!screenReaderOptimized) {
+				label += nls.localize('terminalScreenReaderMode', " To enter screen reader optimized mode, run the command Toggle Screen Reader Accessibility Mode.");
+			}
+			if (isMacintosh) {
+				label += nls.localize('terminalTextBoxAriaLabelMacKeybinding', " Press alt+f1 for terminal accessibility help");
 			} else if (screenReaderOptimized) {
-				label += nls.localize('terminalTextBoxAriaLabelLinuxWinKeybinding', 'Press shift+f1 for terminal accessibility help');
+				label += nls.localize('terminalTextBoxAriaLabelLinuxWinKeybinding', " Press shift+f1 for terminal accessibility help");
 			}
 			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
 			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
