@@ -282,10 +282,6 @@ export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean)
 	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId, args.extensionEnvironment);
 }
 
-export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild, args.extensionEnvironment);
-}
-
 export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
 	return parseDebugParams(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuild, args.extensionEnvironment);
 }

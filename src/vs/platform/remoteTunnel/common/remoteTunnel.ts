@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export interface IRemoteTunnelAccount {
 	readonly providerId: string;
@@ -62,7 +63,8 @@ export interface ConnectionInfo {
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';
 export const CONFIGURATION_KEY_HOST_NAME = CONFIGURATION_KEY_PREFIX + '.hostNameOverride';
+export const CONFIGURATION_KEY_PREVENT_SLEEP = CONFIGURATION_KEY_PREFIX + '.preventSleep';
 
 export const LOG_FILE_NAME = 'remoteTunnelService.log';
-export const LOGGER_NAME = 'remoteTunnelService';
+export const LOGGER_NAME = localize('remoteTunnelLog', "Remote Tunnel Service");
 export const LOG_CHANNEL_ID = 'remoteTunnelServiceLog';

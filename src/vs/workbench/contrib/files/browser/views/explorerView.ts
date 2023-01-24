@@ -42,9 +42,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -57,14 +54,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
+import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
 
-interface IExplorerViewColors extends IColorMapping {
-	listDropBackground?: ColorValue | undefined;
-}
-
-interface IExplorerViewStyles {
-	listDropBackground?: Color;
-}
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
 	for (const folder of treeInput) {
@@ -169,7 +160,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private renderer!: FilesRenderer;
 
-	private styleElement!: HTMLStyleElement;
 	private treeContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private compressedFocusContext: IContextKey<boolean>;
@@ -282,9 +272,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.container = container;
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 
-		this.styleElement = DOM.createStyleSheet(this.treeContainer);
-		attachStyler<IExplorerViewColors>(this.themeService, { listDropBackground }, this.styleListDropBackground.bind(this));
-
 		this.createTree(this.treeContainer);
 
 		this._register(this.labelService.onDidChangeFormatters(() => {
@@ -292,8 +279,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		this.onConfigurationUpdated(undefined);
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -301,7 +287,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		// Also handle configuration updates
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
@@ -526,8 +512,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	// React on events
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration?.explorer?.autoReveal;
+	private onConfigurationUpdated(event: IConfigurationChangeEvent | undefined): void {
+		if (!event || event.affectsConfiguration('explorer.autoReveal')) {
+			const configuration = this.configurationService.getValue<IFilesConfiguration>();
+			this.autoReveal = configuration?.explorer?.autoReveal;
+		}
 
 		// Push down config updates to components of viewer
 		if (event && (event.affectsConfiguration('explorer.decorations.colors') || event.affectsConfiguration('explorer.decorations.badges'))) {
@@ -553,6 +542,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
 		const stat = e.element;
 		let anchor = e.anchor;
 
@@ -873,19 +866,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const treeInputArray = Array.isArray(treeInput) ? treeInput : Array.from(treeInput.children.values());
 		// Has collapsible root when anything is expanded
 		this.viewHasSomeCollapsibleRootItem.set(hasExpandedNode(this.tree, treeInputArray));
-	}
-
-	styleListDropBackground(styles: IExplorerViewStyles): void {
-		const content: string[] = [];
-
-		if (styles.listDropBackground) {
-			content.push(`.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target > .monaco-highlighted-label { background-color: ${styles.listDropBackground}; }`);
-		}
-
-		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.textContent) {
-			this.styleElement.textContent = newStyles;
-		}
 	}
 
 	override dispose(): void {

@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -36,13 +36,18 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-
-// How long in milliseconds should an average frame take to render for a notification to appear
-// which suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 50;
-const NUMBER_OF_FRAMES_TO_MEASURE = 20;
-const SMOOTH_SCROLL_DURATION = 125;
+const enum RenderConstants {
+	/**
+	 * How long in milliseconds should an average frame take to render for a notification to appear
+	 * which suggests the fallback DOM-based renderer.
+	 */
+	SlowCanvasRenderThreshold = 50,
+	NumberOfFramestoMeasure = 20,
+	SmoothScrollDuration = 125
+}
 
 let CanvasAddon: typeof CanvasAddonType;
 let SearchAddon: typeof SearchAddonType;
@@ -126,6 +131,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	private _decorationAddon: DecorationAddon;
+	private _suggestAddon: SuggestAddon;
 
 	// Optional addons
 	private _canvasAddon?: CanvasAddonType;
@@ -136,9 +142,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
+	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestFocus = new Emitter<void>();
+	readonly onDidRequestFocus = this._onDidRequestFocus.event;
+	private readonly _onDidRequestSendText = new Emitter<string>();
+	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 	private readonly _onDidRequestFreePort = new Emitter<string>();
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
@@ -148,6 +159,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
+	get suggestController(): ISuggestController | undefined { return this._suggestAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -174,6 +186,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		rows: number,
 		location: TerminalLocation,
 		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		disableShellIntegrationReporting: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -205,6 +218,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
+			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
 			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
@@ -216,7 +230,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
 			overviewRulerWidth: 10,
-			smoothScrollDuration: config.smoothScrolling ? SMOOTH_SCROLL_DURATION : 0
+			smoothScrollDuration: config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -252,6 +266,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
+		// may still come in
+		this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+		this.raw.loadAddon(this._suggestAddon);
+		this._suggestAddon.onAcceptedCompletion(async text => {
+			this._onDidRequestFocus.fire();
+			this._onDidRequestSendText.fire(text);
+		});
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -287,6 +310,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		} else if (this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
 		}
+
+		this._suggestAddon.setContainer(container);
+
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
@@ -301,6 +327,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
+		this.raw.options.tabStopWidth = config.tabStopWidth;
 		this.raw.options.fastScrollSensitivity = config.fastScrollSensitivity;
 		this.raw.options.scrollSensitivity = config.mouseWheelScrollSensitivity;
 		this.raw.options.macOptionIsMeta = config.macOptionIsMeta;
@@ -310,7 +337,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		this.raw.options.smoothScrollDuration = config.smoothScrolling ? SMOOTH_SCROLL_DURATION : 0;
+		this.raw.options.smoothScrollDuration = config.smoothScrolling ? RenderConstants.SmoothScrollDuration : 0;
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else {
@@ -620,7 +647,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			frameTimes.shift();
 
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
-			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
+			if (medianTime > RenderConstants.SlowCanvasRenderThreshold) {
 				if (this._configHelper.config.gpuAcceleration === 'auto') {
 					XtermTerminal._suggestedRendererType = 'dom';
 					this.updateConfig();
@@ -653,7 +680,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			const startTime = performance.now();
 			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
 			frameTimes.push(performance.now() - startTime);
-			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
+			if (frameTimes.length === RenderConstants.NumberOfFramestoMeasure) {
 				evaluateCanvasRenderer();
 				// Restore original function
 				textRenderLayer.onGridChanged = originalOnGridChanged;

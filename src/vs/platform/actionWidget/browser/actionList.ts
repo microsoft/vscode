@@ -8,6 +8,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
@@ -16,6 +17,8 @@ import { localize } from 'vs/nls';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -28,7 +31,7 @@ export interface IRenderDelegate {
 export interface IListMenuItem<T extends IActionItem> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
-	readonly group?: { kind?: any; icon?: { codicon: Codicon; color?: string }; title: string };
+	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;
@@ -102,10 +105,12 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 
 	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
-			data.icon.className = element.group.icon.codicon.classNames;
-			data.icon.style.color = element.group.icon.color ?? '';
+			data.icon.className = ThemeIcon.asClassName(element.group.icon);
+			if (element.group.icon.color) {
+				data.icon.style.color = asCssVariable(element.group.icon.color.id);
+			}
 		} else {
-			data.icon.className = Codicon.lightBulb.classNames;
+			data.icon.className = ThemeIcon.asClassName(Codicon.lightBulb);
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 
@@ -149,6 +154,14 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 	}
 }
 
+class AcceptSelectedEvent extends UIEvent {
+	constructor() { super('acceptSelectedAction'); }
+}
+
+class PreviewSelectedEvent extends UIEvent {
+	constructor() { super('previewSelectedAction'); }
+}
+
 export class ActionList<T extends IActionItem> extends Disposable {
 
 	public readonly domNode: HTMLElement;
@@ -176,11 +189,15 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
-		this._list = this._register(new List(user, this.domNode, virtualDelegate, [new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService), new HeaderRenderer()], {
+
+		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
+			new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService),
+			new HeaderRenderer(),
+		], {
 			keyboardSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
-					if (element.kind === 'action') {
+					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
@@ -190,10 +207,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 					return null;
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
-				getRole: () => 'option',
-				getWidgetRole: () => user
+				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
+				getWidgetRole: () => 'listbox'
 			},
 		}));
+		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
@@ -202,7 +220,10 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
-		this.focusNext();
+
+		if (this._list.length) {
+			this.focusNext();
+		}
 	}
 
 	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
@@ -217,8 +238,8 @@ export class ActionList<T extends IActionItem> extends Disposable {
 	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this._allMenuItems.filter(item => item.kind === 'header').length;
-		const height = this._allMenuItems.length * this._actionLineHeight;
-		const heightWithHeaders = height + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
+		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
+		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
 
 		// For finding width dynamically (not using resize observer)
@@ -235,9 +256,12 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		// resize observer - can be used in the future since list widget supports dynamic height but not width
 		const width = Math.max(...itemWidths, minWidth);
-		this._list.layout(heightWithHeaders, width);
 
-		this.domNode.style.height = `${heightWithHeaders}px`;
+		const maxVhPrecentage = 0.7;
+		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
+		this._list.layout(height, width);
+
+		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
 		return width;
@@ -263,7 +287,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 			return;
 		}
 
-		const event = new UIEvent(preview ? 'previewSelectedCodeAction' : 'acceptSelectedCodeAction');
+		const event = preview ? new PreviewSelectedEvent() : new AcceptSelectedEvent();
 		this._list.setSelection([focusIndex], event);
 	}
 
@@ -274,7 +298,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		const element = e.elements[0];
 		if (element.item && this.focusCondition(element)) {
-			this._delegate.onSelect(element.item, e.browserEvent?.type === 'previewSelectedEventType');
+			this._delegate.onSelect(element.item, e.browserEvent instanceof PreviewSelectedEvent);
 		} else {
 			this._list.setSelection([]);
 		}

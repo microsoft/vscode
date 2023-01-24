@@ -50,8 +50,8 @@
 	border-width: 0 !important;
 }
 
-.action-widget .monaco-list .monaco-scrollable-element .monaco-list-rows {
-	height: 100% !important;
+.action-widget .monaco-list:focus:before {
+	outline: 0 !important;
 }
 
 .action-widget .monaco-list .monaco-scrollable-element {
@@ -68,14 +68,14 @@
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
-	background-color: var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-quickInputList-focusBackground) !important;
 	color: var(--vscode-quickInputList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }
 
 .action-widget .monaco-list-row.group-header {
-	color: var(--vscode-pickerGroup-foreground);
+	color: var(--vscode-pickerGroup-foreground) !important;
 	font-weight: 600;
 }
 
@@ -119,7 +119,6 @@
 /* Action bar */
 
 .action-widget .action-widget-action-bar {
-	margin-top: 4px;
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }

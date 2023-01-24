@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_FILE_NAME, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_CHANNEL_ID, LOG_FILE_NAME, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -29,6 +29,11 @@ type RemoteTunnelEnablementClassification = {
 type RemoteTunnelEnablementEvent = {
 	enabled: boolean;
 };
+
+const restartTunnelOnConfigurationChanges: readonly string[] = [
+	CONFIGURATION_KEY_HOST_NAME,
+	CONFIGURATION_KEY_PREVENT_SLEEP,
+];
 
 /**
  * This service runs on the shared service. It is running the `code-tunnel` command
@@ -68,7 +73,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	) {
 		super();
 		const remoteTunnelLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
-		this._logger = this._register(loggerService.createLogger(remoteTunnelLogResource, { name: LOGGER_NAME }));
+		this._logger = this._register(loggerService.createLogger(remoteTunnelLogResource, { name: LOGGER_NAME, id: LOG_CHANNEL_ID }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
@@ -82,7 +87,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		}));
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CONFIGURATION_KEY_HOST_NAME)) {
+			if (restartTunnelOnConfigurationChanges.some(c => e.affectsConfiguration(c))) {
 				this._startTunnelProcessDelayer.trigger(() => this.updateTunnelProcess());
 			}
 		}));
@@ -182,6 +187,9 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			args.push('--name', hostName);
 		} else {
 			args.push('--random-name');
+		}
+		if (this._preventSleep()) {
+			args.push('--no-sleep');
 		}
 		const serveCommand = this.runCodeTunneCommand('tunnel', args, (message: string, isErr: boolean) => {
 			if (isErr) {
@@ -283,9 +291,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		return this._getHostName();
 	}
 
+	private _preventSleep() {
+		return !!this.configurationService.getValue<boolean>(CONFIGURATION_KEY_PREVENT_SLEEP);
+	}
+
 	private _getHostName(): string | undefined {
 		let name = this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname();
-		name = name.replace(/[^\w-]/g, '').substring(0, 20);
+		name = name.replace(/^-+/g, '').replace(/[^\w-]/g, '').substring(0, 20);
 		return name || undefined;
 	}
 

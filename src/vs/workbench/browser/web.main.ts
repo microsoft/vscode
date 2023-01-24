@@ -5,8 +5,9 @@
 
 import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
+import { assertIsDefined } from 'vs/base/common/types';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogger, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -22,7 +23,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
-import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
@@ -34,12 +35,11 @@ import { SignService } from 'vs/platform/sign/browser/signService';
 import { IWorkbenchConstructionOptions, IWorkbench, ITunnel } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/workbench/services/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { BufferLogger } from 'vs/platform/log/common/bufferLog';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/window/common/window';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDBFileSystemProviderErrorDataClassification, IndexedDBFileSystemProvider, IndexedDBFileSystemProviderErrorData } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
@@ -73,7 +73,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
@@ -82,7 +82,8 @@ import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/co
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
 import { timeout } from 'vs/base/common/async';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { rendererLogId } from 'vs/workbench/common/logConstants';
+import { LogService } from 'vs/platform/log/common/logService';
 
 export class BrowserMain extends Disposable {
 
@@ -144,7 +145,7 @@ export class BrowserMain extends Disposable {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const labelService = accessor.get(ILabelService);
 
-			const embedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('vscode.dev', "vscode.dev"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
+			let logger: DelayedLogChannel | undefined = undefined;
 
 			return {
 				commands: {
@@ -165,15 +166,19 @@ export class BrowserMain extends Disposable {
 				},
 				logger: {
 					log: (level, message) => {
-						embedderLogger.log(level, message);
+						if (!logger) {
+							logger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || productService.nameShort, joinPath(dirname(environmentService.logFile), 'webEmbedder.log'));
+						}
+
+						logger.log(level, message);
 					}
 				},
 				window: {
 					withProgress: (options, task) => progressService.withProgress(options, task)
 				},
 				workspace: {
-					openTunnel: async (tunnelOptions) => {
-						const tunnel = await remoteExplorerService.forward({
+					openTunnel: async tunnelOptions => {
+						const tunnel = assertIsDefined(await remoteExplorerService.forward({
 							remote: tunnelOptions.remoteAddress,
 							local: tunnelOptions.localAddressPort,
 							name: tunnelOptions.label,
@@ -188,16 +193,15 @@ export class BrowserMain extends Disposable {
 							elevateIfNeeded: undefined,
 							onAutoForward: undefined,
 							requireLocalPort: undefined,
-							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http,
-
-						});
-						if (!tunnel) {
-							throw new Error('cannot open tunnel');
-						}
+							protocol: tunnelOptions.protocol === TunnelProtocol.Https ? tunnelOptions.protocol : TunnelProtocol.Http
+						}));
 
 						return new class extends DisposableTunnel implements ITunnel {
 							declare localAddress: string;
-						}({ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }, tunnel.localAddress, () => tunnel.dispose());
+						}({
+							port: tunnel.tunnelRemotePort,
+							host: tunnel.tunnelRemoteHost
+						}, tunnel.localAddress, () => tunnel.dispose());
 					}
 				},
 				shutdown: () => lifecycleService.shutdown()
@@ -238,12 +242,18 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IBrowserWorkbenchEnvironmentService, environmentService);
 
 		// Log
-		const logService = new BufferLogService(getLogLevel(environmentService));
+		const logLevel = getLogLevel(environmentService);
+		const bufferLogger = new BufferLogger(logLevel);
+		const otherLoggers = [new ConsoleLogger(logLevel)];
+		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+			otherLoggers.push(new ConsoleLogInAutomationLogger(logLevel));
+		}
+		const logService = new LogService(bufferLogger, otherLoggers);
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, connectionToken, this.configuration.resourceUriProvider);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -270,10 +280,10 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkbenchFileService, fileService);
 
 		// Logger
-		const loggerService = new FileLoggerService(logService, fileService);
+		const loggerService = new FileLoggerService(logLevel, fileService);
 		serviceCollection.set(ILoggerService, loggerService);
 
-		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, loggerService, logsPath);
+		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, bufferLogger, logService, loggerService, logsPath);
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -282,23 +292,12 @@ export class BrowserMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		let isProfilesEnablementConfigured = false;
 		if (environmentService.remoteAuthority) {
 			// Always Disabled in web with remote connection
 			userDataProfilesService.setEnablement(false);
-		} else {
-			if (productService.quality === 'stable') {
-				// Enabled from Config
-				userDataProfilesService.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
-				isProfilesEnablementConfigured = true;
-			} else {
-				// Always Enabled
-				userDataProfilesService.setEnablement(true);
-			}
 		}
 
-		const lastActiveProfile = environmentService.lastActiveProfile ? userDataProfilesService.profiles.find(p => p.id === environmentService.lastActiveProfile) : undefined;
-		const currentProfile = userDataProfilesService.getOrSetProfileForWorkspace(isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace) ? workspace : 'empty-window', lastActiveProfile ?? userDataProfilesService.defaultProfile);
+		const currentProfile = userDataProfilesService.getProfileForWorkspace(workspace) ?? userDataProfilesService.defaultProfile;
 		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
@@ -323,15 +322,6 @@ export class BrowserMain extends Disposable {
 				return service;
 			})
 		]);
-
-		if (isProfilesEnablementConfigured) {
-			userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
-			this._register(configurationService.onDidChangeConfiguration(e => {
-				if (e.source !== ConfigurationTarget.DEFAULT && e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
-					window.localStorage.setItem(PROFILES_ENABLEMENT_CONFIG, !!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG) ? 'true' : 'false');
-				}
-			}));
-		}
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -408,7 +398,7 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {
+	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, bufferLogger: BufferLogger, logService: ILogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {
 
 		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
@@ -433,12 +423,7 @@ export class BrowserMain extends Disposable {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
 
-		logService.logger = new MultiplexLogService(coalesce([
-			new ConsoleLogger(logService.getLevel()),
-			loggerService.createLogger(environmentService.logFile, { name: 'window' }),
-			// Extension development test CLI: forward everything to test runner
-			environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
-		]));
+		bufferLogger.logger = loggerService.createLogger(environmentService.logFile, { id: rendererLogId, name: localize('rendererLog', "Window") });
 
 		// User data
 		let userDataProvider;
@@ -558,6 +543,6 @@ export class BrowserMain extends Disposable {
 		}
 
 		// Empty window workspace
-		return { id: 'empty-window' };
+		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
 }

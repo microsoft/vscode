@@ -135,7 +135,7 @@
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
-	color: var(--vscode-editor-hoverHighlightForeground);
+	color: var(--vscode-editorHoverWidget-highlightForeground);
 	font-weight: bold;
 }
 

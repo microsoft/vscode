@@ -48,8 +48,8 @@ import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { ConsoleLogger, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { FollowerLogService, LoggerChannelClient, LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { ConsoleLogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -101,7 +101,7 @@ import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profili
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfilesNativeService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfile';
@@ -113,6 +113,9 @@ import { IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunn
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
 import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/contrib/extensions';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
+import { localize } from 'vs/nls';
+import { LogService } from 'vs/platform/log/common/logService';
 
 class SharedProcessMain extends Disposable {
 
@@ -214,17 +217,13 @@ class SharedProcessMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
-		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter));
-		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })), mainProcessService.getChannel('logger'));
 		services.set(ILoggerService, loggerService);
 
 		// Log
-		const multiplexLogger = this._register(new MultiplexLogService([
-			this._register(new ConsoleLogger(this.configuration.logLevel)),
-			this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { name: 'sharedprocess' }))
-		]));
-
-		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
+		const logger = this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { id: 'sharedLog', name: localize('sharedLog', "Shared") }));
+		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
+		const logService = this._register(new LogService(logger, [consoleLogger]));
 		services.set(ILogService, logService);
 
 		// Lifecycle
@@ -274,7 +273,8 @@ class SharedProcessMain extends Disposable {
 		]);
 
 		// URI Identity
-		services.set(IUriIdentityService, new UriIdentityService(fileService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
 		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, productService, logService));
@@ -302,7 +302,7 @@ class SharedProcessMain extends Disposable {
 		const appenders: ITelemetryAppender[] = [];
 		const internalTelemetry = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
-			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
+			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
 			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
@@ -327,7 +327,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, logService, loggerService, environmentService, productService);
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
@@ -371,9 +371,11 @@ class SharedProcessMain extends Disposable {
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		},
+			localize('ptyHost', "Pty Host"),
 			configurationService,
 			environmentService,
-			logService
+			logService,
+			loggerService
 		);
 		ptyHostService.initialize();
 
@@ -393,10 +395,6 @@ class SharedProcessMain extends Disposable {
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
-
-		// Log Level
-		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService), accessor.get(ILoggerService));
-		this.server.registerChannel('logLevel', logLevelChannel);
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);

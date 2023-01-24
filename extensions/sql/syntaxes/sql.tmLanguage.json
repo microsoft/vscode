@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-mssql/commit/c005d9d720049d86938467992bd8189a6aa32a6d",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/998c713b179e2e5256b8bf1aeb8ecda3433e6112",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [
@@ -135,7 +135,7 @@
 			"name": "constant.numeric.sql"
 		},
 		{
-			"match": "(?i:\\b(select(\\s+distinct)?|insert\\s+(ignore\\s+)?into|update|delete|from|set|where|group\\s+by|or|like|and|union(\\s+all)?|having|order\\s+by|limit|(inner|cross)\\s+join|join|straight_join|full\\s+outer\\s+join|(left|right)(\\s+outer)?\\s+join|natural(\\s+(left|right)(\\s+outer)?)?\\s+join)\\b)",
+			"match": "(?i:\\b(select(\\s+(all|distinct))?|insert\\s+(ignore\\s+)?into|update|delete|from|set|where|group\\s+by|or|like|and|union(\\s+all)?|having|order\\s+by|limit|cross\\s+join|join|straight_join|(inner|(left|right|full)(\\s+outer)?)\\s+join|natural(\\s+(inner|(left|right|full)(\\s+outer)?))?\\s+join)\\b)",
 			"name": "keyword.other.DML.sql"
 		},
 		{

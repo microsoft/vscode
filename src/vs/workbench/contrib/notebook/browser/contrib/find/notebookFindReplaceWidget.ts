@@ -19,7 +19,8 @@ import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } 
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

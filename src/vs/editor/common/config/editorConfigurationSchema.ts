@@ -88,7 +88,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.stablePeek': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
+			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double-clicking their content or when hitting `Escape`.")
 		},
 		'editor.maxTokenizationLineLength': {
 			type: 'integer',

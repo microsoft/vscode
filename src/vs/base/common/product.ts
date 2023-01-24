@@ -52,6 +52,7 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
@@ -90,6 +91,8 @@ export interface IProductConfiguration {
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
 	readonly trustedExtensionAuthAccess?: readonly string[];
+
+	readonly commandPaletteSuggestedCommandIds?: string[];
 
 	readonly crashReporter?: {
 		readonly companyName: string;

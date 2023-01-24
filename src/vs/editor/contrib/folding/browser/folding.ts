@@ -63,7 +63,7 @@ export interface FoldingLimitInfo {
 	limited: number | false;
 }
 
-export type FoldingRangeProviderSelector = (formatter: FoldingRangeProvider[], document: ITextModel) => FoldingRangeProvider[] | undefined;
+export type FoldingRangeProviderSelector = (provider: FoldingRangeProvider[], document: ITextModel) => FoldingRangeProvider[] | undefined;
 
 export class FoldingController extends Disposable implements IEditorContribution {
 
@@ -286,12 +286,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (this.rangeProvider) {
 			return this.rangeProvider;
 		}
-		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter); // fallback
+		const indentRangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter);
+		this.rangeProvider = indentRangeProvider; // fallback
 		if (this._useFoldingProviders && this.foldingModel) {
 			const foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
 			const selectedProviders = (FoldingController._foldingRangeSelector?.(foldingProviders, editorModel)) ?? foldingProviders;
 			if (selectedProviders.length > 0) {
-				this.rangeProvider = new SyntaxRangeProvider(editorModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter);
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, indentRangeProvider);
 			}
 		}
 		return this.rangeProvider;
@@ -1085,8 +1086,8 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.createFoldingRangeFromSelection',
-			label: nls.localize('createManualFoldRange.label', "Create Manual Folding Range from Selection"),
-			alias: 'Create Manual Folding Range from Selection',
+			label: nls.localize('createManualFoldRange.label', "Create Folding Range from Selection"),
+			alias: 'Create Folding Range from Selection',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

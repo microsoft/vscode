@@ -239,11 +239,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	 */
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
-	/* Following features are enabled from the runtime.
-	 * `AutoDisableAccessibility` - https://github.com/microsoft/vscode/issues/162331#issue-1390744354
-	 */
-	app.commandLine.appendSwitch('enable-features', 'AutoDisableAccessibility');
-
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
@@ -580,17 +575,26 @@ async function resolveNlsConfiguration() {
 		// VS Code moves to Electron 22.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
-		if ('getPreferredSystemLanguages' in app
+		if (process.platform === 'win32'
+			&& 'getPreferredSystemLanguages' in app
 			&& typeof app.getPreferredSystemLanguages === 'function'
 			&& app.getPreferredSystemLanguages().length) {
+			// Use the most preferred OS language for language recommendation.
 			appLocale = app.getPreferredSystemLanguages()[0];
 		}
+
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
 
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
+
+			if (appLocale.startsWith('zh-hans')) {
+				appLocale = 'zh-cn';
+			} else if (appLocale.startsWith('zh-hant')) {
+				appLocale = 'zh-tw';
+			}
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);

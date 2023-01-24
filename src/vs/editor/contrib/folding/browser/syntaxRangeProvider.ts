@@ -24,19 +24,22 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	readonly id = ID_SYNTAX_PROVIDER;
 
-	readonly disposables: DisposableStore | undefined;
+	readonly disposables: DisposableStore;
 
 	constructor(
 		private readonly editorModel: ITextModel,
 		private readonly providers: FoldingRangeProvider[],
 		readonly handleFoldingRangesChange: () => void,
-		private readonly foldingRangesLimit: FoldingLimitReporter
+		private readonly foldingRangesLimit: FoldingLimitReporter,
+		private readonly fallbackRangeProvider: RangeProvider | undefined // used when all providers return null
 	) {
+		this.disposables = new DisposableStore();
+		if (fallbackRangeProvider) {
+			this.disposables.add(fallbackRangeProvider);
+		}
+
 		for (const provider of providers) {
 			if (typeof provider.onDidChange === 'function') {
-				if (!this.disposables) {
-					this.disposables = new DisposableStore();
-				}
 				this.disposables.add(provider.onDidChange(handleFoldingRangesChange));
 			}
 		}
@@ -48,12 +51,12 @@ export class SyntaxRangeProvider implements RangeProvider {
 				const res = sanitizeRanges(ranges, this.foldingRangesLimit);
 				return res;
 			}
-			return null;
+			return this.fallbackRangeProvider?.compute(cancellationToken) ?? null;
 		});
 	}
 
 	dispose() {
-		this.disposables?.dispose();
+		this.disposables.dispose();
 	}
 }
 

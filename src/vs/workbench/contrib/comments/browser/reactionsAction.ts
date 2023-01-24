@@ -41,13 +41,11 @@ export class ReactionActionViewItem extends ActionViewItem {
 		if (action.class) {
 			this.label.classList.add(action.class);
 		}
-
 		if (!action.icon) {
 			const reactionLabel = dom.append(this.label, dom.$('span.reaction-label'));
 			reactionLabel.innerText = action.label;
 		} else {
 			const reactionIcon = dom.append(this.label, dom.$('.reaction-icon'));
-			reactionIcon.style.display = '';
 			const uri = URI.revive(action.icon);
 			reactionIcon.style.backgroundImage = dom.asCSSUrl(uri);
 			reactionIcon.title = action.label;
@@ -56,6 +54,20 @@ export class ReactionActionViewItem extends ActionViewItem {
 			const reactionCount = dom.append(this.label, dom.$('span.reaction-count'));
 			reactionCount.innerText = `${action.count}`;
 		}
+	}
+
+	protected override getTooltip(): string | undefined {
+		const action = this.action as ReactionAction;
+		const toggleMessage = action.enabled ? nls.localize('comment.toggleableReaction', "Toggle reaction, ") : '';
+
+		if (action.count === undefined) {
+			return nls.localize('comment.reactionLabelNone', "{0}{1} reaction", toggleMessage, action.label);
+		} else if (action.count === 1) {
+			return nls.localize('comment.reactionLabelOne', "{0}1 reaction with {1}", toggleMessage, action.label);
+		} else if (action.count > 1) {
+			return nls.localize('comment.reactionLabelMany', "{0}{1} reactions with {2}", toggleMessage, action.count, action.label);
+		}
+		return undefined;
 	}
 }
 export class ReactionAction extends Action {

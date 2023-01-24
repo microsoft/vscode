@@ -41,7 +41,8 @@ import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPai
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -193,7 +194,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
-				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
+				indentSize: 'tabSize', // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
@@ -201,15 +202,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			});
 		}
 
-		return new model.TextModelResolvedOptions({
-			tabSize: options.tabSize,
-			indentSize: options.indentSize,
-			insertSpaces: options.insertSpaces,
-			trimAutoWhitespace: options.trimAutoWhitespace,
-			defaultEOL: options.defaultEOL,
-			bracketPairColorizationOptions: options.bracketPairColorizationOptions,
-		});
-
+		return new model.TextModelResolvedOptions(options);
 	}
 
 	//#region Events
@@ -629,7 +622,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
 		this._assertNotDisposed();
 		const tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
-		const indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
+		const indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.originalIndentSize;
 		const insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		const trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 		const bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;

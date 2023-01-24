@@ -6,7 +6,8 @@
 import { $, append, hide, show } from 'vs/base/browser/dom';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,7 +21,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { FileKind } from 'vs/platform/files/common/files';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionItem } from './suggest';
 import { canExpandCompletionItem } from './suggestWidgetDetails';
 
@@ -199,7 +200,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			data.iconContainer.classList.add('suggest-icon', ...CSSIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
+			data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
 		}
 
 		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {

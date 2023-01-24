@@ -153,8 +153,22 @@ export class SCMStatusController implements IWorkbenchContribution {
 			const command = commands[index];
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
+			// Get a repository agnostic name for the status bar action, derive this from the
+			// first command argument which is in the form "git.<command>/<number>"
+			let repoAgnosticActionName = command.arguments?.[0];
+			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
+				repoAgnosticActionName = repoAgnosticActionName
+					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
+					.replace(/^git\./, '');
+				if (repoAgnosticActionName.length > 1) {
+					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
+				}
+			} else {
+				repoAgnosticActionName = '';
+			}
+
 			disposables.add(this.statusbarService.addEntry({
-				name: localize('status.scm', "Source Control"),
+				name: localize('status.scm', "Source Control") + (repoAgnosticActionName ? ` ${repoAgnosticActionName}` : ''),
 				text: command.title,
 				ariaLabel: tooltip,
 				tooltip,
