@@ -71,7 +71,7 @@ export class SetLogLevelAction extends Action {
 		entries.push(...extensionLogs.sort((a, b) => a.label.localeCompare(b.label)));
 		const entry = await this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Set Log Level") });
 		return entry
-			? (<LogLevelQuickPickItem>entry).level ? (<LogLevelQuickPickItem>entry).level : <LogChannelQuickPickItem>entry
+			? (<LogLevelQuickPickItem>entry).level ?? <LogChannelQuickPickItem>entry
 			: null;
 	}
 
