@@ -84,8 +84,9 @@ export class ReadonlyHelper extends Disposable {
 	/** return true if associated resource is treated as nonEditable. */
 	isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
-			this.globReadonly ||
-			(this.legacyReadonlyStat ? false : this.lastResolvedFileStat?.readonly) ||
-			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
+			this.pathReadonly !== null ? this.pathReadonly : (
+				this.globReadonly ||
+				(this.legacyReadonlyStat ? false : this.lastResolvedFileStat?.readonly) ||
+				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)));
 	}
 }
