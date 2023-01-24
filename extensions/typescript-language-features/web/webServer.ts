@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib='webworker.importscripts' />
-/// <reference lib='dom' />
+/// <reference lib='webworker' />
 
 import * as ts from 'typescript/lib/tsserverlibrary';
 import { ApiClient, FileType, Requests } from '@vscode/sync-api-client';
@@ -33,7 +33,7 @@ const matchFiles: (
 ) => string[] = (ts as any).matchFiles;
 const generateDjb2Hash = (ts as any).generateDjb2Hash;
 // End misc internals
-// BEGIN webServer/webServer.ts
+
 function fromResource(extensionUri: URI, uri: URI) {
 	if (uri.scheme === extensionUri.scheme
 		&& uri.authority === extensionUri.authority
@@ -80,6 +80,8 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	// Later we could map ^memfs:/ to do something special if we want to enable more functionality like module resolution or something like that
 	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;
 
+	const textDecoder = new TextDecoder();
+	const textEncoder = new TextEncoder();
 
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
@@ -150,7 +152,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return true;
 		},
 		readFile(path) {
-			if (!fs) {
+			if (!fs || path.startsWith('/')) {
 				const webPath = getWebPath(path);
 				if (webPath) {
 					const request = new XMLHttpRequest();
@@ -163,8 +165,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 
 			try {
-				// @vscode/sync-api-common/connection says that Uint8Array is only a view on the bytes, so slice is needed
-				return new TextDecoder().decode(new Uint8Array(fs.readFile(toResource(path))).slice());
+				return textDecoder.decode(fs.readFile(toResource(path)));
 			} catch (e) {
 				logger.info(`Error fs.readFile`);
 				logger.info(JSON.stringify(e));
@@ -192,7 +193,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				data = byteOrderMarkIndicator + data;
 			}
 			try {
-				fs.writeFile(toResource(path), new TextEncoder().encode(data));
+				fs.writeFile(toResource(path), textEncoder.encode(data));
 			} catch (e) {
 				logger.info(`Error fs.writeFile`);
 				logger.info(JSON.stringify(e));
@@ -375,9 +376,11 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 class WasmCancellationToken implements ts.server.ServerCancellationToken {
 	shouldCancel: (() => boolean) | undefined;
 	currentRequestId: number | undefined = undefined;
+
 	setRequest(requestId: number) {
 		this.currentRequestId = requestId;
 	}
+
 	resetRequest(requestId: number) {
 		if (requestId === this.currentRequestId) {
 			this.currentRequestId = undefined;
@@ -385,6 +388,7 @@ class WasmCancellationToken implements ts.server.ServerCancellationToken {
 			throw new Error(`Mismatched request id, expected ${this.currentRequestId} but got ${requestId}`);
 		}
 	}
+
 	isCancellationRequested(): boolean {
 		return this.currentRequestId !== undefined && !!this.shouldCancel && this.shouldCancel();
 	}
@@ -400,6 +404,7 @@ interface StartSessionOptions {
 	noGetErrOnBackgroundUpdate: ts.server.SessionOptions['noGetErrOnBackgroundUpdate'];
 	serverMode: ts.server.SessionOptions['serverMode'];
 }
+
 class WorkerSession extends ts.server.Session<{}> {
 	wasmCancellationToken: WasmCancellationToken;
 	listener: (message: any) => void;
@@ -470,8 +475,7 @@ class WorkerSession extends ts.server.Session<{}> {
 		this.port.onmessage = this.listener;
 	}
 }
-// END webServer/webServer.ts
-// BEGIN tsserver/webServer.ts
+
 function parseServerMode(args: string[]): ts.LanguageServiceMode | string | undefined {
 	const mode = findArgument(args, '--serverMode');
 	if (!mode) { return undefined; }
@@ -504,30 +508,29 @@ function hrtime(previous?: [number, number]): [number, number] {
 	return [seconds, nanoseconds];
 }
 
-// END tsserver/webServer.ts
-// BEGIN tsserver/server.ts
 function hasArgument(args: readonly string[], name: string): boolean {
 	return args.indexOf(name) >= 0;
 }
+
 function findArgument(args: readonly string[], name: string): string | undefined {
 	const index = args.indexOf(name);
 	return 0 <= index && index < args.length - 1
 		? args[index + 1]
 		: undefined;
 }
+
 function findArgumentStringArray(args: readonly string[], name: string): readonly string[] {
 	const arg = findArgument(args, name);
 	return arg === undefined ? [] : arg.split(',').filter(name => name !== '');
 }
 
-async function initializeSession(args: string[], extensionUri: URI, platform: string, ports: { tsserver: MessagePort; sync: MessagePort; watcher: MessagePort }, logger: ts.server.Logger): Promise<void> {
+async function initializeSession(args: string[], extensionUri: URI, ports: { tsserver: MessagePort; sync: MessagePort; watcher: MessagePort }, logger: ts.server.Logger): Promise<void> {
 	const modeOrUnknown = parseServerMode(args);
 	const serverMode = typeof modeOrUnknown === 'number' ? modeOrUnknown : undefined;
 	const unknownServerMode = typeof modeOrUnknown === 'string' ? modeOrUnknown : undefined;
 	logger.info(`Starting TS Server`);
 	logger.info(`Version: 0.0.0`);
 	logger.info(`Arguments: ${args.join(' ')}`);
-	logger.info(`Platform: ${platform} CaseSensitive: true`);
 	logger.info(`ServerMode: ${serverMode} unknownServerMode: ${unknownServerMode}`);
 	const options = {
 		globalPlugins: findArgumentStringArray(args, '--globalPlugins'),
@@ -576,7 +579,7 @@ const listener = async (e: any) => {
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			const extensionUri = URI.from(e.data.extensionUri);
 			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
-			await initializeSession(e.data.args, extensionUri, 'vscode-web', { sync, tsserver, watcher }, logger);
+			await initializeSession(e.data.args, extensionUri, { sync, tsserver, watcher }, logger);
 		} else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
 		}
@@ -585,4 +588,4 @@ const listener = async (e: any) => {
 	console.error(`unexpected message on main channel: ${JSON.stringify(e)}`);
 };
 addEventListener('message', listener);
-// END tsserver/server.ts
+
