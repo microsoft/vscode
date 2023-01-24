@@ -67,11 +67,11 @@ export const lineAndColumnClause = [
 
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
-	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
 	// A C++ compile error
 	/^(?<link>(?<path>.+)\((?<line>\d+),(?<col>\d+)\)) :/,
 	// The whole line is the path
-	/^(?<link>(?<path>.+))/
+	/^ *(?<link>(?<path>.+))/
 ];
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
