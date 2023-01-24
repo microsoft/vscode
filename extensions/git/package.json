@@ -723,7 +723,8 @@
       {
         "command": "git.continueInLocalClone",
         "qualifiedName": "%command.continueInLocalClone.qualifiedName%",
-        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName",
+        "remoteGroup": "remote_42_git_0_local@0"
       }
     ],
     "keybindings": [
