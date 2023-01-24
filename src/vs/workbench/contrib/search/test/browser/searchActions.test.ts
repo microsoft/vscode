@@ -14,8 +14,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IFileMatch } from 'vs/workbench/services/search/common/search';
-import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from 'vs/workbench/contrib/search/browser/searchActions';
+import { IFileMatch, QueryType } from 'vs/workbench/services/search/common/search';
+import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -32,7 +32,7 @@ suite('Search Actions', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
 		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
-		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => [new USLayoutResolvedKeybinding(keybinding, OS)]);
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS));
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		counter = 0;
@@ -112,7 +112,7 @@ suite('Search Actions', () => {
 
 		const searchModel = instantiationService.createInstance(SearchModel);
 		const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
-			type: 1, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
 		}, searchModel.searchResult, searchModel, null);

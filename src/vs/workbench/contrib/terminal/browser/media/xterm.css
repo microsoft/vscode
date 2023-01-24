@@ -208,3 +208,24 @@
 	z-index: 2;
 	position: relative;
 }
+
+.xterm .xterm-accessibility-buffer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	padding: .5em;
+	opacity: 0;
+	overflow: scroll;
+	overflow-x: hidden;
+}
+
+.xterm .xterm-accessibility-buffer:focus {
+	opacity: 1;
+	z-index: 33;
+	top: -5px;
+	left: 5px;
+	pointer-events: none;
+	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+}

@@ -232,7 +232,14 @@ const notebookPreloadContribution: IJSONSchema = {
 
 export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>({
 	extensionPoint: 'notebooks',
-	jsonSchema: notebookProviderContribution
+	jsonSchema: notebookProviderContribution,
+	activationEventsGenerator: (contribs: INotebookEditorContribution[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.type) {
+				result.push(`onNotebookSerializer:${contrib.type}`);
+			}
+		}
+	}
 });
 
 export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>({

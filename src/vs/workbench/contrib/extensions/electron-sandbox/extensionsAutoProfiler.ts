@@ -139,7 +139,8 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			await this._profileAnalysisService.analyseBottomUp(
 				profile.data,
 				url => searchTree.findSubstr(URI.parse(url))?.identifier.value ?? '<<not-found>>',
-				this._perfBaseline
+				this._perfBaseline,
+				false
 			);
 		}
 

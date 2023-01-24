@@ -42,6 +42,7 @@ import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCo
 import { timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -529,7 +530,7 @@ export class ToggleAutoSaveAction extends Action2 {
 	}
 }
 
-export abstract class BaseSaveAllAction extends Action {
+abstract class BaseSaveAllAction extends Action {
 	private lastDirtyState: boolean;
 
 	constructor(
@@ -578,7 +579,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	override get class(): string {
-		return 'explorer-action ' + Codicon.saveAll.classNames;
+		return 'explorer-action ' + ThemeIcon.asClassName(Codicon.saveAll);
 	}
 
 	protected doRun(context: unknown): Promise<void> {
@@ -592,7 +593,7 @@ export class CloseGroupAction extends Action {
 	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, Codicon.closeAll.classNames);
+		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
 	}
 
 	override run(context?: unknown): Promise<void> {
@@ -753,6 +754,31 @@ function getWellFormedFileName(filename: string): string {
 	filename = rtrim(filename, '\\');
 
 	return filename;
+}
+
+export class CompareNewUntitledTextFilesAction extends Action2 {
+
+	static readonly ID = 'workbench.files.action.compareNewUntitledTextFiles';
+	static readonly LABEL = nls.localize('compareNewUntitledTextFiles', "Compare New Untitled Text Files");
+
+	constructor() {
+		super({
+			id: CompareNewUntitledTextFilesAction.ID,
+			title: { value: CompareNewUntitledTextFilesAction.LABEL, original: 'Compare New Untitled Text Files' },
+			f1: true,
+			category: fileCategory
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		await editorService.openEditor({
+			original: { resource: undefined },
+			modified: { resource: undefined },
+			options: { pinned: true }
+		});
+	}
 }
 
 export class CompareWithClipboardAction extends Action2 {

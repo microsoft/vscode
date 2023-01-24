@@ -14,7 +14,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
  * Provider specific options for this particular showing of the
  * quick access.
  */
-export interface IQuickAccessProviderRunOptions { }
+export interface IQuickAccessProviderRunOptions {
+	from?: string;
+}
 
 /**
  * The specific options for the AnythingQuickAccessProvider. Put here to share between layers.

@@ -24,6 +24,12 @@ export class ReadonlyHelper extends Disposable {
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
+	setLastResolvedFileStat(fileStat: IFileStatWithMetadata) {
+		this.lastResolvedFileStat = fileStat;
+	}
+
+	private legacyReadonlyStat: boolean = this.configurationService.getValue('files.legacyReadonlyStat');
+
 	private anyGlobMatches(key: string, path: string): boolean {
 		const globs: { [glob: string]: boolean } = this.configurationService.getValue<{ [glob: string]: boolean }>(key);
 		return !!(globs && Object.keys(globs).find(glob => globs[glob] && matchGlobPattern(glob, path)));
@@ -35,6 +41,9 @@ export class ReadonlyHelper extends Disposable {
 	}
 
 	private onDidChangeConfiguration(event: IConfigurationChangeEvent) {
+		if (event.affectsConfiguration('files.legacyReadonlyStat')) {
+			this.legacyReadonlyStat = this.configurationService.getValue('files.legacyReadonlyStat');
+		}
 		if (event.affectsConfiguration('files.readonlyInclude') ||
 			event.affectsConfiguration('files.readonlyExclude')) {
 			this.setGlobReadonly();
@@ -75,9 +84,8 @@ export class ReadonlyHelper extends Disposable {
 	/** return true if associated resource is treated as nonEditable. */
 	isReadonly(): boolean {
 		return this.checkDidChangeReadonly(
-			this.pathReadonly !== null ? this.pathReadonly :
-				this.globReadonly ||
-				this.lastResolvedFileStat?.readonly ||
-				this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
+			this.globReadonly ||
+			(this.legacyReadonlyStat ? false : this.lastResolvedFileStat?.readonly) ||
+			this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly));
 	}
 }

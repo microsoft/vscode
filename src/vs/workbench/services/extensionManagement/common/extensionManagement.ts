@@ -65,7 +65,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
-	installWebExtension(location: URI): Promise<ILocalExtension>;
+	installFromLocation(location: URI): Promise<ILocalExtension>;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null;
@@ -176,6 +176,7 @@ export interface IWebExtensionsScannerService {
 	removeExtension(extension: IScannedExtension, profileLocation: URI): Promise<void>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void>;
 
-	scanMetadata(extensionLocation: URI, profileLocation: URI): Promise<Metadata | undefined>;
+	updateMetadata(extension: IScannedExtension, metaData: Partial<Metadata>, profileLocation: URI): Promise<IScannedExtension>;
+
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }

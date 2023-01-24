@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watch } from 'fs';
-import { ThrottledDelayer, ThrottledWorker } from 'vs/base/common/async';
+import { RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -26,25 +26,26 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	// A delay for collecting file changes from node.js
 	// before collecting them for coalescing and emitting
-	// (same delay as Parcel is using)
-	private static readonly FILE_CHANGES_HANDLER_DELAY = 50;
+	// Same delay as used for the recursive watcher.
+	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// These numbers are a bit more aggressive compared to the
 	// recursive watcher because we can have many individual
 	// node.js watchers per request.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesWorker = new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IDiskFileChange>(
 		{
 			maxWorkChunkSize: 100,	// only process up to 100 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
 			maxBufferedWork: 10000 	// ...but never buffering more than 10000 events in memory
 		},
 		events => this.onDidFilesChange(events)
-	);
+	));
 
-	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
-	private fileChangesBuffer: IDiskFileChange[] = [];
+	// Aggregate file changes over FILE_CHANGES_HANDLER_DELAY
+	// to coalesce events and reduce spam.
+	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IDiskFileChange>(events => this.handleFileChanges(events), NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
@@ -324,12 +325,13 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
 
-								// Important to await the event delivery
+								// Important to flush the event delivery
 								// before disposing the watcher, otherwise
 								// we will loose this event.
-								await eventPromise;
+								this.fileChangesAggregator.flush();
+
 								this.dispose();
 							}
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
@@ -358,7 +360,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		});
 	}
 
-	private async onFileChange(event: IDiskFileChange, skipIncludeExcludeChecks = false): Promise<void> {
+	private onFileChange(event: IDiskFileChange, skipIncludeExcludeChecks = false): void {
 		if (this.cts.token.isCancellationRequested) {
 			return;
 		}
@@ -368,7 +370,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
-		// Add to buffer unless excluded or not included (not if explicitly disabled)
+		// Add to aggregator unless excluded or not included (not if explicitly disabled)
 		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.path))) {
 			if (this.verboseLogging) {
 				this.trace(` >> ignored (excluded) ${event.path}`);
@@ -378,42 +380,34 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				this.trace(` >> ignored (not included) ${event.path}`);
 			}
 		} else {
-			this.fileChangesBuffer.push(event);
+			this.fileChangesAggregator.work(event);
 		}
+	}
 
-		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		try {
-			await this.fileChangesDelayer.trigger(async () => {
-				const fileChanges = this.fileChangesBuffer;
-				this.fileChangesBuffer = [];
+	private handleFileChanges(fileChanges: IDiskFileChange[]): void {
 
-				// Coalesce events: merge events of same kind
-				const coalescedFileChanges = coalesceEvents(fileChanges);
+		// Coalesce events: merge events of same kind
+		const coalescedFileChanges = coalesceEvents(fileChanges);
+		if (coalescedFileChanges.length > 0) {
 
-				if (coalescedFileChanges.length > 0) {
-
-					// Logging
-					if (this.verboseLogging) {
-						for (const event of coalescedFileChanges) {
-							this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-						}
-					}
-
-					// Broadcast to clients via throttler
-					const worked = this.throttledFileChangesWorker.work(coalescedFileChanges);
-
-					// Logging
-					if (!worked) {
-						this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-					} else {
-						if (this.throttledFileChangesWorker.pending > 0) {
-							this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesWorker.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-						}
-					}
+			// Logging
+			if (this.verboseLogging) {
+				for (const event of coalescedFileChanges) {
+					this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 				}
-			});
-		} catch (error) {
-			// ignore (we are likely disposed and cancelled)
+			}
+
+			// Broadcast to clients via throttled emitter
+			const worked = this.throttledFileChangesEmitter.work(coalescedFileChanges);
+
+			// Logging
+			if (!worked) {
+				this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			} else {
+				if (this.throttledFileChangesEmitter.pending > 0) {
+					this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				}
+			}
 		}
 	}
 

@@ -194,9 +194,9 @@ suite('PersistentProtocol reconnection', () => {
 
 	test('acks get piggybacked with messages', async () => {
 		const ether = new Ether();
-		const a = new PersistentProtocol(new NodeSocket(ether.a));
+		const a = new PersistentProtocol({ socket: new NodeSocket(ether.a) });
 		const aMessages = new MessageStream(a);
-		const b = new PersistentProtocol(new NodeSocket(ether.b));
+		const b = new PersistentProtocol({ socket: new NodeSocket(ether.b) });
 		const bMessages = new MessageStream(b);
 
 		a.send(VSBuffer.fromString('a1'));
@@ -257,10 +257,10 @@ suite('PersistentProtocol reconnection', () => {
 			};
 			const ether = new Ether();
 			const aSocket = new NodeSocket(ether.a);
-			const a = new PersistentProtocol(aSocket, null, loadEstimator);
+			const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 			const aMessages = new MessageStream(a);
 			const bSocket = new NodeSocket(ether.b);
-			const b = new PersistentProtocol(bSocket, null, loadEstimator);
+			const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 			const bMessages = new MessageStream(b);
 
 			// send one message A -> B
@@ -302,10 +302,10 @@ suite('PersistentProtocol reconnection', () => {
 				};
 				const ether = new Ether();
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator, sendKeepAlive: false });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator, sendKeepAlive: false });
 				const bMessages = new MessageStream(b);
 
 				// send message a1 before reconnection to get _recvAckCheck() scheduled
@@ -384,10 +384,10 @@ suite('PersistentProtocol reconnection', () => {
 				const wireLatency = 1000;
 				const ether = new Ether(wireLatency);
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 				const bMessages = new MessageStream(b);
 
 				// send message a1 to have something unacknowledged
@@ -445,10 +445,10 @@ suite('PersistentProtocol reconnection', () => {
 				};
 				const ether = new Ether();
 				const aSocket = new NodeSocket(ether.a);
-				const a = new PersistentProtocol(aSocket, null, loadEstimator);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 				const aMessages = new MessageStream(a);
 				const bSocket = new NodeSocket(ether.b);
-				const b = new PersistentProtocol(bSocket, null, loadEstimator);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 				const bMessages = new MessageStream(b);
 
 				// never receive acks
@@ -490,10 +490,10 @@ suite('PersistentProtocol reconnection', () => {
 			};
 			const ether = new Ether();
 			const aSocket = new NodeSocket(ether.a);
-			const a = new PersistentProtocol(aSocket, null, loadEstimator);
+			const a = new PersistentProtocol({ socket: aSocket, loadEstimator });
 			const aMessages = new MessageStream(a);
 			const bSocket = new NodeSocket(ether.b);
-			const b = new PersistentProtocol(bSocket, null, loadEstimator);
+			const b = new PersistentProtocol({ socket: bSocket, loadEstimator });
 			const bMessages = new MessageStream(b);
 
 			// send one message A -> B

@@ -45,9 +45,11 @@ import './mainThreadLogService';
 import './mainThreadMessageService';
 import './mainThreadOutputService';
 import './mainThreadProgress';
+import './mainThreadQuickDiff';
 import './mainThreadQuickOpen';
 import './mainThreadRemoteConnectionData';
 import './mainThreadSaveParticipant';
+import './mainThreadEditSessionIdentityParticipant';
 import './mainThreadSCM';
 import './mainThreadSearch';
 import './mainThreadStatusBar';
@@ -75,6 +77,7 @@ import './mainThreadAuthentication';
 import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
+import './mainThreadProfilContentHandlers';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

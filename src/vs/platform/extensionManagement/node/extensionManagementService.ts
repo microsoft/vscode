@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises, Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -25,9 +24,9 @@ import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
-	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
+	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions, InstallVSIXOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -40,7 +39,7 @@ import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/ex
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtension, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -57,7 +56,6 @@ interface InstallableExtension {
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
-	migrateDefaultProfileExtensions(): Promise<void>;
 	markAsUninstalled(...extensions: IExtension[]): Promise<void>;
 	removeUninstalledExtensions(): Promise<void>;
 	getAllUserInstalled(): Promise<ILocalExtension[]>;
@@ -68,6 +66,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	private readonly extensionsScanner: ExtensionsScanner;
 	private readonly manifestCache: ExtensionsManifestCache;
 	private readonly extensionsDownloader: ExtensionsDownloader;
+
+	private readonly _onDidUpdateExtensionMetadata = this._register(new Emitter<ILocalExtension>());
+	override readonly onDidUpdateExtensionMetadata = this._onDidUpdateExtensionMetadata.event;
 
 	private readonly installGalleryExtensionsTasks = new Map<string, InstallGalleryExtensionTask>();
 
@@ -91,7 +92,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 
-		const extensionsWatcher = this._register(new ExtensionsWatcher(this, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
+		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
 		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(e => this.onDidChangeExtensionsFromAnotherSource(e)));
 		this.watchForExtensionsNotInstalledBySystem();
 	}
@@ -152,29 +153,37 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
-		return this.extensionsScannerService.scanMetadata(extension.location);
-	}
-
-	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		const localMetadata: Metadata = { ...metadata };
-		if (metadata.isPreReleaseVersion) {
-			localMetadata.preRelease = true;
+	async installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
+		this.logService.trace('ExtensionManagementService#installFromLocation', location.toString());
+		const local = await this.extensionsScanner.scanUserExtensionAtLocation(location);
+		if (!local) {
+			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
-		local = await this.extensionsScanner.updateMetadata(local, localMetadata);
-		this.manifestCache.invalidate();
+		await this.addExtensionsToProfile([local], profileLocation);
+		this.logService.info('Successfully installed extension', local.identifier.id, profileLocation.toString());
 		return local;
 	}
 
-	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#updateExtensionScope', local.identifier.id);
-		local = await this.extensionsScanner.updateMetadata(local, { isMachineScoped });
+	getMetadata(extension: ILocalExtension, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<Metadata | undefined> {
+		return this.extensionsScanner.scanMetadata(extension, profileLocation);
+	}
+
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<ILocalExtension> {
+		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
+		if (metadata.isPreReleaseVersion) {
+			metadata.preRelease = true;
+		}
+		// unset if false
+		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
+		metadata.isBuiltin = metadata.isBuiltin || undefined;
+		metadata.pinned = metadata.pinned || undefined;
+		local = await this.extensionsScanner.updateMetadata(local, metadata, profileLocation);
 		this.manifestCache.invalidate();
+		this._onDidUpdateExtensionMetadata.fire(local);
 		return local;
 	}
 
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	async reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
 		if (!this.galleryService.isEnabled()) {
 			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
@@ -192,7 +201,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		} catch (e) {
 			throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
 		}
-		await this.installFromGallery(galleryExtension);
+		return this.installFromGallery(galleryExtension);
 	}
 
 	markAsUninstalled(...extensions: IExtension[]): Promise<void> {
@@ -201,10 +210,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	removeUninstalledExtensions(): Promise<void> {
 		return this.extensionsScanner.cleanUp();
-	}
-
-	migrateDefaultProfileExtensions(): Promise<void> {
-		return this.extensionsScanner.migrateDefaultProfileExtensions();
 	}
 
 	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
@@ -246,7 +251,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				installExtensionTask.waitUntilTaskIsFinished().then(() => this.installGalleryExtensionsTasks.delete(key));
 			}
 		}
-		return new InstallExtensionInProfileTask(installExtensionTask, options.profileLocation, this.extensionsProfileScannerService);
+		return new InstallExtensionInProfileTask(installExtensionTask, options.profileLocation, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService);
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
@@ -309,6 +314,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
+		if (!e.affects(this.extensionsScannerService.userExtensionsLocation, FileChangeType.ADDED)) {
+			return;
+		}
+
 		const added: ILocalExtension[] = [];
 		for (const resource of e.rawAdded) {
 			// Check if this is a known directory
@@ -346,9 +355,14 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 
 		if (added.length) {
-			await this.extensionsProfileScannerService.addExtensionsToProfile(added.map(local => ([local, undefined])), this.userDataProfilesService.defaultProfile.extensionsResource);
-			this._onDidInstallExtensions.fire(added.map(local => ({ local, version: local.manifest.version, identifier: local.identifier, operation: InstallOperation.None, profileLocation: this.userDataProfilesService.defaultProfile.extensionsResource })));
+			await this.addExtensionsToProfile(added, this.userDataProfilesService.defaultProfile.extensionsResource);
+			this.logService.info('Added extensions to default profile from external source', added.map(e => e.identifier.id));
 		}
+	}
+
+	private async addExtensionsToProfile(extensions: ILocalExtension[], profileLocation: URI): Promise<void> {
+		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions.map(local => ([local, undefined])), profileLocation);
+		this._onDidInstallExtensions.fire(extensions.map(local => ({ local, identifier: local.identifier, operation: InstallOperation.None, profileLocation })));
 	}
 
 }
@@ -365,7 +379,6 @@ export class ExtensionsScanner extends Disposable {
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -379,7 +392,6 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI | undefined): Promise<ILocalExtension[]> {
-		await this.migrateDefaultProfileExtensions();
 		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation };
 		let scannedExtensions: IScannedExtension[] = [];
 		if (type === null || type === ExtensionType.System) {
@@ -409,7 +421,6 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata, token: CancellationToken): Promise<ILocalExtension> {
-		await this.migrateDefaultProfileExtensions();
 		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName);
@@ -442,8 +453,21 @@ export class ExtensionsScanner extends Disposable {
 		return this.scanLocalExtension(URI.file(extensionPath), ExtensionType.User);
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
-		await this.extensionsScannerService.updateMetadata(local.location, metadata);
+	async scanMetadata(local: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
+		if (profileLocation) {
+			const extensions = await this.extensionsProfileScannerService.scanProfileExtensions(profileLocation);
+			return extensions.find(e => areSameExtensions(e.identifier, local.identifier))?.metadata;
+		} else {
+			return this.extensionsScannerService.scanMetadata(local.location);
+		}
+	}
+
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+		if (profileLocation) {
+			await this.extensionsProfileScannerService.updateMetadata([[local, metadata]], profileLocation);
+		} else {
+			await this.extensionsScannerService.updateMetadata(local.location, metadata);
+		}
 		return this.scanLocalExtension(local.location, local.type);
 	}
 
@@ -586,6 +610,7 @@ export class ExtensionsScanner extends Disposable {
 			preRelease: !!extension.metadata?.preRelease,
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
+			pinned: !!extension.metadata?.pinned,
 		};
 	}
 
@@ -605,37 +630,8 @@ export class ExtensionsScanner extends Disposable {
 				await this.beforeRemovingExtension(await this.toLocalExtension(latest));
 			}
 		}));
-		const toRemove = extensions.filter(e => uninstalled[ExtensionKey.create(e).toString()]);
+		const toRemove = extensions.filter(e => e.metadata /* Installed by VS Code */ && uninstalled[ExtensionKey.create(e).toString()]);
 		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
-	}
-
-	private _migrateDefaultProfileExtensionsPromise: Promise<void> | undefined = undefined;
-	migrateDefaultProfileExtensions(): Promise<void> {
-		if (!this._migrateDefaultProfileExtensionsPromise) {
-			this._migrateDefaultProfileExtensionsPromise = (async () => {
-				try {
-					const migrationMarkerFile = joinPath(this.userDataProfilesService.defaultProfile.location, '.migrated-default-profile');
-					if (await this.fileService.exists(migrationMarkerFile)) {
-						return;
-					}
-					if (!(await this.fileService.exists(this.userDataProfilesService.defaultProfile.extensionsResource))) {
-						this.logService.info('Started migrating default profile extensions from extensions installation folder to extensions manifest.');
-						const userExtensions = await this.extensionsScannerService.scanUserExtensions({ includeInvalid: true });
-						await this.extensionsProfileScannerService.addExtensionsToProfile(userExtensions.map(e => [e, e.metadata]), this.userDataProfilesService.defaultProfile.extensionsResource);
-						this.logService.info('Completed migrating default profile extensions from extensions installation folder to extensions manifest.');
-					}
-					try {
-						await this.fileService.createFile(migrationMarkerFile, VSBuffer.fromString(''));
-					} catch (error) {
-						this.logService.warn('Failed to create migration marker file for default profile extensions migration.', getErrorMessage(error));
-					}
-				} catch (error) {
-					this.logService.error(error);
-					throw error;
-				}
-			})();
-		}
-		return this._migrateDefaultProfileExtensionsPromise;
 	}
 
 	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
@@ -652,7 +648,8 @@ export class ExtensionsScanner extends Disposable {
 
 abstract class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtension; metadata: Metadata }> implements IInstallExtensionTask {
 
-	public wasVerified: boolean = false;
+	protected _verificationStatus = ExtensionVerificationStatus.Unverified;
+	get verificationStatus() { return this._verificationStatus; }
 
 	protected _operation = InstallOperation.Install;
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
@@ -724,7 +721,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 	}
 
 	protected async doRun(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
-		const installed = await this.extensionsScanner.scanExtensions(null, undefined);
+		const installed = await this.extensionsScanner.scanExtensions(null, this.options.profileLocation);
 		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.gallery.identifier));
 
 		if (existingExtension) {
@@ -743,6 +740,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			updated: !!existingExtension,
 			isPreReleaseVersion: this.gallery.properties.isPreReleaseVersion,
 			installedTimestamp: Date.now(),
+			pinned: this.options.installGivenVersion ? true : undefined,
 			preRelease: this.gallery.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
@@ -754,9 +752,9 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return { local, metadata };
 		}
 
-		const { location, verified } = await this.extensionsDownloader.download(this.gallery, this._operation);
+		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation);
 		try {
-			this.wasVerified = !!verified;
+			this._verificationStatus = verificationStatus;
 			this.validateManifest(location.fsPath);
 			const local = await this.installExtension({ zipPath: location.fsPath, key: ExtensionKey.create(this.gallery), metadata }, token);
 			return { local, metadata };
@@ -796,13 +794,14 @@ class InstallVSIXTask extends InstallExtensionTask {
 
 	protected async doRun(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
 		const extensionKey = new ExtensionKey(this.identifier, this.manifest.version);
-		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, undefined);
+		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, this.options.profileLocation);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
 		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
 		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
 		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
 		metadata.installedTimestamp = Date.now();
+		metadata.pinned = this.options.installGivenVersion ? true : undefined;
 
 		if (existing) {
 			this._operation = InstallOperation.Update;
@@ -858,13 +857,20 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 
 	readonly identifier = this.task.identifier;
 	readonly source = this.task.source;
-	readonly operation = this.task.operation;
+	get operation() { return this.task.operation; }
+
+	get verificationStatus() {
+		return this.task.verificationStatus;
+	}
 
 	private readonly promise: Promise<{ local: ILocalExtension; metadata: Metadata }>;
 
 	constructor(
 		private readonly task: IInstallExtensionTask,
 		private readonly profileLocation: URI,
+		private readonly uriIdentityService: IUriIdentityService,
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly extensionsScannerService: IExtensionsScannerService,
 		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
 		this.promise = this.waitAndAddExtensionToProfile();
@@ -872,6 +878,9 @@ class InstallExtensionInProfileTask implements IInstallExtensionTask {
 
 	private async waitAndAddExtensionToProfile(): Promise<{ local: ILocalExtension; metadata: Metadata }> {
 		const result = await this.task.waitUntilTaskIsFinished();
+		if (this.uriIdentityService.extUri.isEqual(this.userDataProfilesService.defaultProfile.extensionsResource, this.profileLocation)) {
+			await this.extensionsScannerService.initializeDefaultProfileExtensions();
+		}
 		await this.extensionsProfileScannerService.addExtensionsToProfile([[result.local, result.metadata]], this.profileLocation);
 		return result;
 	}

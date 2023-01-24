@@ -10,6 +10,7 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDispo
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 
 // -----------------------------------------------------------------------------------------------------------------------
@@ -27,8 +28,7 @@ const _enableSnapshotPotentialLeakWarning = false;
 // _enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
 
 /**
- * To an event a function with one or zero parameters
- * can be subscribed. The event is the subscriber function itself.
+ * An event with zero or one parameters that can be subscribed to. The event is a function itself.
  */
 export interface Event<T> {
 	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
@@ -36,7 +36,6 @@ export interface Event<T> {
 
 export namespace Event {
 	export const None: Event<any> = () => Disposable.None;
-
 
 	function _addLeakageTraceLogic(options: EmitterOptions) {
 		if (_enableSnapshotPotentialLeakWarning) {
@@ -65,30 +64,18 @@ export namespace Event {
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function defer(event: Event<unknown>, disposable?: DisposableStore): Event<void> {
 		return debounce<unknown, void>(event, () => void 0, 0, undefined, undefined, disposable);
 	}
 
 	/**
-	 * Debounces an event, firing after some delay (default=0) with an array of all event original objects.
-	 *
-	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
-	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
-	 * returned event causes this utility to leak a listener on the original event.
-	 */
-	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
-		return Event.debounce<T, T[]>(event, (last, e) => {
-			if (!last) {
-				return [e];
-			}
-			last.push(e);
-			return last;
-		}, delay, undefined, undefined, disposable);
-	}
-
-	/**
 	 * Given an event, returns another event which only fires once.
+	 *
+	 * @param event The event source for the new event.
 	 */
 	export function once<T>(event: Event<T>): Event<T> {
 		return (listener, thisArgs = null, disposables?) => {
@@ -116,9 +103,16 @@ export namespace Event {
 	}
 
 	/**
+	 * Maps an event of one type into an event of another type using a mapping function, similar to how
+	 * `Array.prototype.map` works.
+	 *
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param map The mapping function.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O, disposable?: DisposableStore): Event<O> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables), disposable);
@@ -204,15 +198,15 @@ export namespace Event {
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
+	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number | typeof MicrotaskDelay, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
 	/**
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number | typeof MicrotaskDelay, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
 
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
@@ -231,17 +225,25 @@ export namespace Event {
 						output = undefined;
 					}
 
-					clearTimeout(handle);
-					handle = setTimeout(() => {
+					const doFire = () => {
 						const _output = output;
 						output = undefined;
 						handle = undefined;
 						if (!leading || numDebouncedCalls > 1) {
 							emitter.fire(_output!);
 						}
-
 						numDebouncedCalls = 0;
-					}, delay);
+					};
+
+					if (typeof delay === 'number') {
+						clearTimeout(handle);
+						handle = setTimeout(doFire, delay);
+					} else {
+						if (handle === undefined) {
+							handle = 0;
+							queueMicrotask(doFire);
+						}
+					}
 				});
 			},
 			onDidRemoveLastListener() {
@@ -258,6 +260,23 @@ export namespace Event {
 		disposable?.add(emitter);
 
 		return emitter.event;
+	}
+
+	/**
+	 * Debounces an event, firing after some delay (default=0) with an array of all event original objects.
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 */
+	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+		return Event.debounce<T, T[]>(event, (last, e) => {
+			if (!last) {
+				return [e];
+			}
+			last.push(e);
+			return last;
+		}, delay, undefined, undefined, disposable);
 	}
 
 	/**
@@ -278,9 +297,21 @@ export namespace Event {
 	}
 
 	/**
+	 * Splits an event whose parameter is a union type into 2 separate events for each type in the union.
+	 *
 	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @example
+	 * ```
+	 * const event = new EventEmitter<number | undefined>().event;
+	 * const [numberEvent, undefinedEvent] = Event.split(event, isUndefined);
+	 * ```
+	 *
+	 * @param event The event source for the new event.
+	 * @param isT A function that determines what event is of the first type.
+	 * @param disposable A disposable store to add the new EventEmitter to.
 	 */
 	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T, disposable?: DisposableStore): [Event<T>, Event<U>] {
 		return [

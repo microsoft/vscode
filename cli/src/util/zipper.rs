@@ -54,12 +54,7 @@ where
 	let mut archive = zip::ZipArchive::new(file)
 		.map_err(|e| wrap(e, format!("failed to open zip archive {}", path.display())))?;
 
-	let skip_segments_no = if should_skip_first_segment(&mut archive) {
-		1
-	} else {
-		0
-	};
-
+	let skip_segments_no = usize::from(should_skip_first_segment(&mut archive));
 	for i in 0..archive.len() {
 		reporter.report_progress(i as u64, archive.len() as u64);
 		let mut file = archive
@@ -83,7 +78,7 @@ where
 		}
 
 		if let Some(p) = outpath.parent() {
-			fs::create_dir_all(&p)
+			fs::create_dir_all(p)
 				.map_err(|e| wrap(e, format!("could not create dir for {}", outpath.display())))?;
 		}
 
@@ -138,7 +133,7 @@ fn apply_permissions(file: &ZipFile, outpath: &Path) -> Result<(), WrappedError>
 	use std::os::unix::fs::PermissionsExt;
 
 	if let Some(mode) = file.unix_mode() {
-		fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).map_err(|e| {
+		fs::set_permissions(outpath, fs::Permissions::from_mode(mode)).map_err(|e| {
 			wrap(
 				e,
 				format!("error setting permissions on {}", outpath.display()),

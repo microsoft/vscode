@@ -24,6 +24,7 @@ import { WindowError } from 'vs/platform/window/electron-main/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -42,6 +43,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
@@ -244,7 +246,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			profiles: this.userDataProfilesService.profiles,
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
-			logLevel: this.logService.getLevel(),
+			logLevel: this.loggerMainService.getLogLevel(),
+			loggers: this.loggerMainService.getRegisteredLoggers(),
 			product,
 			policiesData: this.policyService.serialize()
 		});

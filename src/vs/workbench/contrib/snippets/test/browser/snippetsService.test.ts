@@ -666,7 +666,7 @@ suite('SnippetsService', function () {
 
 	});
 
-	test('still show suggestions in string when disable string suggestion #136611', async function () {
+	test('still show suggestions in string when disable string suggestion #136611 (part 2)', async function () {
 
 		snippetService = new SimpleSnippetService([
 			new Snippet(false, ['fooLang'], 'aaa', 'aaa', '', 'value', '', SnippetSource.User, generateUuid()),
@@ -798,5 +798,22 @@ suite('SnippetsService', function () {
 		assert.strictEqual(result2.suggestions[0].insertText, 'div.');
 
 		model.dispose();
+	});
+
+	test('Hyphen in snippet prefix de-indents snippet #139016', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], 'foo', 'Foo- Bar', '', 'Foo', '', SnippetSource.User, generateUuid()),
+		]);
+		const model = instantiateTextModel(instantiationService, '    bar', 'fooLang');
+		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 8),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		);
+
+		assert.strictEqual(result.suggestions.length, 1);
+		const first = result.suggestions[0];
+		assert.strictEqual((<CompletionItemRanges>first.range).insert.startColumn, 5);
 	});
 });

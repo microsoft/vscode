@@ -158,12 +158,12 @@ class DefaultFoldingRangeProvider extends Disposable implements IWorkbenchContri
 		}
 	}
 
-	private _selectFoldingRangeProvider(providers: FoldingRangeProvider[], document: ITextModel): FoldingRangeProvider[] {
+	private _selectFoldingRangeProvider(providers: FoldingRangeProvider[], document: ITextModel): FoldingRangeProvider[] | undefined {
 		const value = this._configurationService.getValue<string>(DefaultFoldingRangeProvider.configName, { overrideIdentifier: document.getLanguageId() });
 		if (value) {
 			return providers.filter(p => p.id === value);
 		}
-		return providers;
+		return undefined;
 	}
 }
 
@@ -171,7 +171,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	...editorConfigurationBaseNode,
 	properties: {
 		[DefaultFoldingRangeProvider.configName]: {
-			description: nls.localize('formatter.default', "Defines a default folding range provider which takes precedence over all other folding range provider. Must be the identifier of an extension contributing a folding range provider."),
+			description: nls.localize('formatter.default', "Defines a default folding range provider that takes precedence over all other folding range providers. Must be the identifier of an extension contributing a folding range provider."),
 			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFoldingRangeProvider.extensionIds,

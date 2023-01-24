@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
@@ -21,10 +21,10 @@ export class CellProgressBar extends CellContentPart {
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService) {
 		super();
 
-		this._progressBar = this._register(new ProgressBar(editorContainer, getProgressBarStyles()));
+		this._progressBar = this._register(new ProgressBar(editorContainer, defaultProgressBarStyles));
 		this._progressBar.hide();
 
-		this._collapsedProgressBar = this._register(new ProgressBar(collapsedInputContainer, getProgressBarStyles()));
+		this._collapsedProgressBar = this._register(new ProgressBar(collapsedInputContainer, defaultProgressBarStyles));
 		this._collapsedProgressBar.hide();
 	}
 

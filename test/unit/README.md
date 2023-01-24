@@ -27,7 +27,7 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
 ## Run (with node)
 
-    yarn run mocha --ui tdd --run src/vs/editor/test/browser/controller/cursor.test.ts
+    yarn test-node --run src/vs/editor/test/browser/controller/cursor.test.ts
 
 ## Coverage
 

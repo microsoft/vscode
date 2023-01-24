@@ -45,10 +45,17 @@ interface NodeRequire {
 	 * @deprecated use `FileAccess.asFileUri()` for node.js contexts or `FileAccess.asBrowserUri` for browser contexts.
 	 */
 	toUrl(path: string): string;
+
+	/**
+	 * @deprecated MUST not be used anymore
+	 *
+	 * With the move from AMD to ESM we cannot use this anymore. There will be NO MORE node require like this.
+	 */
+	__$__nodeRequire<T>(moduleName: string): T;
+
 	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
 	config(data: any): any;
 	onError: Function;
-	__$__nodeRequire<T>(moduleName: string): T;
 	getStats?(): ReadonlyArray<LoaderEvent>;
 	hasDependencyCycle?(): boolean;
 	define(amdModuleId: string, dependencies: string[], callback: (...args: any[]) => any): any;

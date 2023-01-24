@@ -62,14 +62,6 @@ export async function asJson<T = {}>(context: IRequestContext): Promise<T | null
 }
 
 
-export interface IHTTPConfiguration {
-	http?: {
-		proxy?: string;
-		proxyStrictSSL?: boolean;
-		proxyAuthorization?: string;
-	};
-}
-
 export function updateProxyConfigurationsScope(scope: ConfigurationScope): void {
 	registerProxyConfigurations(scope);
 }

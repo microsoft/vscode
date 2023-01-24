@@ -35,7 +35,7 @@ import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 import { URI } from 'vs/base/common/uri';
 import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
-import { getProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -136,7 +136,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		const progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
 
-		this._progressBar = new ProgressBar(progressContainer, getProgressBarStyles());
+		this._progressBar = new ProgressBar(progressContainer, defaultProgressBarStyles);
 
 		this._treeContainer = dom.$('.outline-tree');
 		dom.append(container, progressContainer, this._message, this._treeContainer);
