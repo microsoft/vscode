@@ -398,7 +398,6 @@ interface StartSessionOptions {
 	useInferredProjectPerProjectRoot: ts.server.SessionOptions['useInferredProjectPerProjectRoot'];
 	suppressDiagnosticEvents: ts.server.SessionOptions['suppressDiagnosticEvents'];
 	noGetErrOnBackgroundUpdate: ts.server.SessionOptions['noGetErrOnBackgroundUpdate'];
-	syntaxOnly: ts.server.SessionOptions['syntaxOnly'];
 	serverMode: ts.server.SessionOptions['serverMode'];
 }
 class WorkerSession extends ts.server.Session<{}> {
@@ -489,7 +488,7 @@ function parseServerMode(args: string[]): ts.LanguageServiceMode | string | unde
 	}
 }
 
-function hrtime(previous?: number[]) {
+function hrtime(previous?: [number, number]): [number, number] {
 	const now = self.performance.now() * 1e-3;
 	let seconds = Math.floor(now);
 	let nanoseconds = Math.floor((now % 1) * 1e9);
@@ -525,12 +524,11 @@ async function initializeSession(args: string[], extensionUri: URI, platform: st
 	const modeOrUnknown = parseServerMode(args);
 	const serverMode = typeof modeOrUnknown === 'number' ? modeOrUnknown : undefined;
 	const unknownServerMode = typeof modeOrUnknown === 'string' ? modeOrUnknown : undefined;
-	const syntaxOnly = hasArgument(args, '--syntaxOnly');
 	logger.info(`Starting TS Server`);
 	logger.info(`Version: 0.0.0`);
 	logger.info(`Arguments: ${args.join(' ')}`);
 	logger.info(`Platform: ${platform} CaseSensitive: true`);
-	logger.info(`ServerMode: ${serverMode} syntaxOnly: ${syntaxOnly} unknownServerMode: ${unknownServerMode}`);
+	logger.info(`ServerMode: ${serverMode} unknownServerMode: ${unknownServerMode}`);
 	const options = {
 		globalPlugins: findArgumentStringArray(args, '--globalPlugins'),
 		pluginProbeLocations: findArgumentStringArray(args, '--pluginProbeLocations'),
@@ -539,7 +537,6 @@ async function initializeSession(args: string[], extensionUri: URI, platform: st
 		useInferredProjectPerProjectRoot: hasArgument(args, '--useInferredProjectPerProjectRoot'),
 		suppressDiagnosticEvents: hasArgument(args, '--suppressDiagnosticEvents'),
 		noGetErrOnBackgroundUpdate: hasArgument(args, '--noGetErrOnBackgroundUpdate'),
-		syntaxOnly,
 		serverMode
 	};
 

@@ -168,6 +168,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 			preserveValue: true,
 			providerOptions: {
 				includeHelp: true,
+				from: 'commandCenter',
 			} as AnythingQuickAccessProviderRunOptions
 		});
 	}
