@@ -5,5 +5,6 @@
 	"newUntitledIpynb.title": "New Jupyter Notebook",
 	"newUntitledIpynb.shortTitle": "Jupyter Notebook",
 	"openIpynbInNotebookEditor.title": "Open ipynb file in notebook editor",
-	"cleanInvalidImageAttachment.title": "Clean invalid image attachment reference"
+	"cleanInvalidImageAttachment.title": "Clean invalid image attachment reference",
+	"markdownAttachmentRenderer.displayName": "Markdown it ipynb Cell Attachment renderer"
 }
