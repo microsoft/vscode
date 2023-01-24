@@ -1922,6 +1922,10 @@ export class Repository implements Disposable {
 				this.state = RepositoryState.Disposed;
 			}
 
+			if (!operation.readOnly) {
+				await this.updateModelState();
+			}
+
 			throw err;
 		} finally {
 			this._operations.end(operation);
