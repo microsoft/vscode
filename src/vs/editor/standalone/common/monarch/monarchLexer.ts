@@ -518,7 +518,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 		let hasEmbeddedPopRule = false;
 
 		for (const rule of rules) {
-			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
+			if (!monarchCommon.isIAction(rule.action) || !(rule.action.nextEmbedded === '@pop' || rule.action.hasEmbeddedEndInCases)) {
 				continue;
 			}
 			hasEmbeddedPopRule = true;
