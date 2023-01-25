@@ -18,7 +18,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { isWeb } from 'vs/base/common/platform';
-import { workerUrlPolicy } from 'vs/base/browser/defaultWorkerFactory';
+import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -546,7 +546,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				const blob = new Blob([`${jsSrc};\ncomputeBaseline();`], { type: 'application/javascript' });
 				const blobUrl = URL.createObjectURL(blob);
 
-				const worker = new Worker(workerUrlPolicy ? workerUrlPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { name: 'perfBaseline' });
+				const worker = createBlobWorker(blobUrl, { name: 'perfBaseline' });
 				return new Promise<number>(resolve => {
 					worker.onmessage = e => resolve(e.data.value);
 
