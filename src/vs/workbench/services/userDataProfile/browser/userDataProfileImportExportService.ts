@@ -179,29 +179,12 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	async exportProfile(): Promise<void> {
-		const view = this.viewsService.getViewWithId(EXPORT_PROFILE_PREVIEW_VIEW);
-		if (view) {
-			this.viewsService.openView(view.id, true);
-			return;
-		}
-
 		if (this.isProfileExportInProgressContextKey.get()) {
 			this.logService.warn('Profile export already in progress.');
 			return;
 		}
 
-		const disposables = new DisposableStore();
-		try {
-			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
-			const barrier = new Barrier();
-			const exportAction = this.getExportAction(barrier, userDataProfilesExportState);
-			const cancelAction = new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel")));
-			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], cancelAction, true, userDataProfilesExportState);
-			await barrier.wait();
-			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
-		} finally {
-			disposables.dispose();
-		}
+		return this.showProfileContents();
 	}
 
 	async importProfile(uri: URI, options?: IProfileImportOptions): Promise<void> {
@@ -243,22 +226,18 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		try {
 			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
 			const barrier = new Barrier();
-			const exportAction = this.getExportAction(barrier, userDataProfilesExportState);
+			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, () => {
+				exportAction.enabled = false;
+				return this.doExportProfile(userDataProfilesExportState);
+			}));
 			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")));
 			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], closeAction, true, userDataProfilesExportState);
+			disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(e => barrier.open()));
 			await barrier.wait();
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
 		} finally {
 			disposables.dispose();
 		}
-	}
-
-	private getExportAction(barrier: Barrier, userDataProfilesExportState: UserDataProfileExportState) {
-		const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, () => {
-			exportAction.enabled = false;
-			return this.doExportProfile(userDataProfilesExportState);
-		}));
-		return exportAction;
 	}
 
 	private async doExportProfile(userDataProfilesExportState: UserDataProfileExportState): Promise<void> {
@@ -749,7 +728,6 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService);
 	}
 
-
 	protected override renderTreeView(container: HTMLElement): void {
 		this.treeView.dataProvider = this.userDataProfileData;
 		super.renderTreeView(DOM.append(container, DOM.$('')));
@@ -759,13 +737,17 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 			this.updateConfirmButtonEnablement();
 		}));
 		this.computeAndLayout();
-		this._register(this.userDataProfileData.onDidChangeRoots(() => this.computeAndLayout()));
+		this._register(Event.any(this.userDataProfileData.onDidChangeRoots, this.treeView.onDidCollapseItem, this.treeView.onDidExpandItem)(() => this.computeAndLayout()));
 	}
 
 	private async computeAndLayout() {
 		const roots = await this.userDataProfileData.getRoots();
 		const children = await Promise.all(roots.map(async (root) => {
-			if (root.collapsibleState === TreeItemCollapsibleState.Expanded) {
+			let expanded = root.collapsibleState === TreeItemCollapsibleState.Expanded;
+			try {
+				expanded = !this.treeView.isCollapsed(root);
+			} catch (error) { /* Ignore because element might not be added yet */ }
+			if (expanded) {
 				const children = await root.getChildren();
 				return children ?? [];
 			}
@@ -806,14 +788,13 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 		}));
 	}
 
-
 	protected override layoutTreeView(height: number, width: number): void {
 		this.dimension = new DOM.Dimension(width, height);
 		const buttonContainerHeight = 108;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
 
-		super.layoutTreeView(Math.min(height - buttonContainerHeight, 22 * (Math.max(this.totalTreeItemsCount, 6) || 12)), width);
+		super.layoutTreeView(Math.min(height - buttonContainerHeight, 22 * this.totalTreeItemsCount), width);
 	}
 
 	private updateConfirmButtonEnablement(): void {
