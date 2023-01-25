@@ -320,7 +320,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				const message = localize('export success', "Profile '{0}' was exported successfully.", profile.name);
 				if (profileContentHandler.extensionId) {
 					const actions: string[] = [];
-					const link = this.productService.webUrl ? `${this.productService.webUrl}${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
+					const link = this.productService.webUrl ? `${this.productService.webUrl}/${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
 					actions.push(localize('copy', "Copy Link"));
 					if (this.productService.webUrl) {
 						actions.push(localize('open', "Open Link"));
