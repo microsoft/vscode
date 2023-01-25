@@ -317,10 +317,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (!saveResult) {
 					return;
 				}
-				const message = localize('export success', "Profile '{0}' is exported successfully.", profile.name);
+				const message = localize('export success', "Profile '{0}' was exported successfully.", profile.name);
 				if (profileContentHandler.extensionId) {
 					const actions: string[] = [];
-					const link = this.productService.webUrl ? `${this.productService.webUrl}${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
+					const link = this.productService.webUrl ? `${this.productService.webUrl}/${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
 					actions.push(localize('copy', "Copy Link"));
 					if (this.productService.webUrl) {
 						actions.push(localize('open', "Open Link"));
@@ -934,6 +934,12 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			name = await this.quickInputService.input({
 				placeHolder: localize('export profile name', "Name the profile"),
 				title: localize('export profile title', "Export Profile"),
+				async validateInput(input) {
+					if (!input.trim()) {
+						return localize('profile name required', "Profile name must be provided.");
+					}
+					return undefined;
+				},
 			});
 			if (!name) {
 				return null;

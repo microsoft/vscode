@@ -41,6 +41,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellStatusBarServiceImpl';
 import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -213,6 +214,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		}
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
+		override onDidChangeCellState: Event<NotebookCellStateChangedEvent> = new Emitter<NotebookCellStateChangedEvent>().event;
 		override _getViewModel(): NotebookViewModel {
 			return viewModel;
 		}

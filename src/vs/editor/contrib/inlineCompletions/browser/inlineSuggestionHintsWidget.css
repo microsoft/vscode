@@ -34,3 +34,7 @@
 	min-width: 19px;
 	justify-content: center;
 }
+
+.monaco-editor .inlineSuggestionStatusBarItemLabel {
+	margin-right: 4px;
+}
