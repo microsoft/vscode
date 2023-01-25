@@ -55,7 +55,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
@@ -576,6 +576,10 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 	private formatPath(uri: URI): string {
 		if (uri.scheme === Schemas.file) {
+			if (hasDriveLetter(uri.fsPath, isWindows)) {
+				return uri.fsPath.charAt(0).toUpperCase() + uri.fsPath.substring(1);
+			}
+
 			return uri.fsPath;
 		}
 
