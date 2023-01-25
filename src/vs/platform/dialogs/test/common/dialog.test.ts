@@ -80,28 +80,28 @@ suite('Dialog', () => {
 			assertOptions(fourButtonCancel_4, ['1', '2', '3', '4'], 0, 4, [0, 1, 2, 3]);
 		}
 
-		// macOS: returns buttons as is
+		// macOS: puts cancel button after the first button
 		else if (isMacintosh) {
 			assertOptions(oneButtonNoCancel, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_0, ['1'], 0, 0, [0]);
 			assertOptions(oneButtonCancel_1, ['1'], 0, 1, [0]);
 
-			assertOptions(twoButtonNoCancel, ['1', '2'], 0, 1, [0, 1]);
+			assertOptions(twoButtonNoCancel, ['2', '1'], 0, 0, [1, 0]);
 			assertOptions(twoButtonCancel_0, ['1', '2'], 0, 0, [0, 1]);
-			assertOptions(twoButtonCancel_1, ['1', '2'], 0, 1, [0, 1]);
+			assertOptions(twoButtonCancel_1, ['2', '1'], 0, 0, [1, 0]);
 			assertOptions(twoButtonCancel_2, ['1', '2'], 0, 2, [0, 1]);
 
-			assertOptions(threeButtonNoCancel, ['1', '2', '3'], 0, 2, [0, 1, 2]);
-			assertOptions(threeButtonCancel_0, ['1', '2', '3'], 0, 0, [0, 1, 2]);
+			assertOptions(threeButtonNoCancel, ['1', '3', '2'], 0, 1, [0, 2, 1]);
+			assertOptions(threeButtonCancel_0, ['2', '1', '3'], 0, 1, [1, 0, 2]);
 			assertOptions(threeButtonCancel_1, ['1', '2', '3'], 0, 1, [0, 1, 2]);
-			assertOptions(threeButtonCancel_2, ['1', '2', '3'], 0, 2, [0, 1, 2]);
+			assertOptions(threeButtonCancel_2, ['1', '3', '2'], 0, 1, [0, 2, 1]);
 			assertOptions(threeButtonCancel_3, ['1', '2', '3'], 0, 3, [0, 1, 2]);
 
-			assertOptions(fourButtonNoCancel, ['1', '2', '3', '4'], 0, 3, [0, 1, 2, 3]);
-			assertOptions(fourButtonCancel_0, ['1', '2', '3', '4'], 0, 0, [0, 1, 2, 3]);
-			assertOptions(fourButtonCancel_1, ['1', '2', '3', '4'], 0, 1, [0, 1, 2, 3]);
+			assertOptions(fourButtonNoCancel, ['1', '2', '4', '3'], 0, 2, [0, 1, 3, 2]);
+			assertOptions(fourButtonCancel_0, ['2', '3', '1', '4'], 0, 2, [1, 2, 0, 3]);
+			assertOptions(fourButtonCancel_1, ['1', '3', '2', '4'], 0, 2, [0, 2, 1, 3]);
 			assertOptions(fourButtonCancel_2, ['1', '2', '3', '4'], 0, 2, [0, 1, 2, 3]);
-			assertOptions(fourButtonCancel_3, ['1', '2', '3', '4'], 0, 3, [0, 1, 2, 3]);
+			assertOptions(fourButtonCancel_3, ['1', '2', '4', '3'], 0, 2, [0, 1, 3, 2]);
 			assertOptions(fourButtonCancel_4, ['1', '2', '3', '4'], 0, 4, [0, 1, 2, 3]);
 		}
 
