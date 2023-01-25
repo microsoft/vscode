@@ -9367,7 +9367,7 @@ declare module 'vscode' {
 		 * Creates a new {@link TelemetryLogger telemetry logger}.
 		 *
 		 * @param sender The telemetry sender that is used by the telemetry logger.
-		 * @param options Options for the telementry logger.
+		 * @param options Options for the telemetry logger.
 		 * @returns A new telemetry logger
 		 */
 		export function createTelemetryLogger(sender: TelemetrySender, options?: TelemetryLoggerOptions): TelemetryLogger;

@@ -96,7 +96,7 @@ export class NativeDialogHandler implements IDialogHandler {
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			message,
 			buttons,
-			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
+			type: (severity === Severity.Info) ? 'info' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
 			detail: dialogOptions ? dialogOptions.detail : undefined,
 			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
