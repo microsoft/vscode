@@ -9,7 +9,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineSuggestionHintsWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -20,19 +20,16 @@ import { PositionAffinity } from 'vs/editor/common/model';
 import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class InlineSuggestionHintsWidget extends Disposable {
 	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor));
