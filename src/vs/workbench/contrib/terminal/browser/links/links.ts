@@ -12,7 +12,7 @@ import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/
 export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
 export interface ITerminalLinkResolverService {
 	readonly _serviceBrand: undefined;
-	resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink>;
+	resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink>;
 }
 
 /**

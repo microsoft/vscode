@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -83,17 +83,15 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	// - Linux max length: 4096 ($PATH_MAX)
 	readonly maxLinkLength = 500;
 
-	private _os: OperatingSystem;
-
 	constructor(
 		readonly xterm: Terminal,
 		private readonly _capabilities: ITerminalCapabilityStore,
-		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
+		private readonly _resolveOs: () => Promise<OperatingSystem>,
+		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
 		@ITerminalLinkResolverService private readonly _terminalLinkResolverService: ITerminalLinkResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
-		this._os = _processManager.os || OS;
 	}
 
 	async detect(lines: IBufferLine[], startLine: number, endLine: number): Promise<ITerminalSimpleLink[]> {
@@ -106,7 +104,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		}
 
 		// clone regex to do a global search on text
-		const rex = new RegExp(getLocalLinkRegex(this._os), 'g');
+		const rex = new RegExp(getLocalLinkRegex(await this._resolveOs()), 'g');
 		let match;
 		let stringIndex = -1;
 		let resolvedLinkCount = 0;
@@ -169,11 +167,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
-			if (osPathModule(this._os).isAbsolute(link) || link.startsWith('~')) {
+			if (osPathModule(await this._resolveOs()).isAbsolute(link) || link.startsWith('~')) {
 				linkCandidates.push(link);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const osModule = osPathModule(this._os);
+					const osModule = osPathModule(await this._resolveOs());
 					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osModule);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does

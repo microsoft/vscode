@@ -172,13 +172,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('platform independent', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-				initialCwd: '/parent/cwd',
-				os: OperatingSystem.Linux,
-				remoteAuthority: undefined,
-				userHome: '/home',
-				backend: undefined
-			});
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), async () => OperatingSystem.Linux,
+				{
+					initialCwd: '/parent/cwd',
+					remoteAuthority: undefined,
+					userHome: '/home',
+					backend: undefined
+				});
 		});
 
 		test('should support multiple link results', async () => {
@@ -195,13 +195,13 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('macOS/Linux', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-				initialCwd: '/parent/cwd',
-				os: OperatingSystem.Linux,
-				remoteAuthority: undefined,
-				userHome: '/home',
-				backend: undefined
-			});
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), async () => OperatingSystem.Linux,
+				{
+					initialCwd: '/parent/cwd',
+					remoteAuthority: undefined,
+					userHome: '/home',
+					backend: undefined
+				});
 		});
 
 		for (const l of unixLinks) {
@@ -237,20 +237,20 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			const wslUnixToWindowsPathMap: Map<string, string> = new Map();
 
 			setup(() => {
-				detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), {
-					initialCwd: 'C:\\Parent\\Cwd',
-					os: OperatingSystem.Windows,
-					remoteAuthority: undefined,
-					userHome: 'C:\\Home',
-					backend: {
-						async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix') {
-							if (direction === 'unix-to-win') {
-								return wslUnixToWindowsPathMap.get(original) ?? original;
-							}
-							return original;
-						},
-					}
-				});
+				detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), async () => OperatingSystem.Windows,
+					{
+						initialCwd: 'C:\\Parent\\Cwd',
+						remoteAuthority: undefined,
+						userHome: 'C:\\Home',
+						backend: {
+							async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix') {
+								if (direction === 'unix-to-win') {
+									return wslUnixToWindowsPathMap.get(original) ?? original;
+								}
+								return original;
+							},
+						}
+					});
 				wslUnixToWindowsPathMap.clear();
 			});
 
