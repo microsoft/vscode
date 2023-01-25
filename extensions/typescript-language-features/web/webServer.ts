@@ -83,24 +83,41 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const textDecoder = new TextDecoder();
 	const textEncoder = new TextEncoder();
 
+	const log = (level: ts.server.LogLevel, message: string, data?: any) => {
+		if (logger.hasLevel(level)) {
+			logger.info(message + (data ? ' ' + JSON.stringify(data) : ''));
+		}
+	};
+
+	const logNormal = log.bind(null, ts.server.LogLevel.normal);
+	const logVerbose = log.bind(null, ts.server.LogLevel.verbose);
+
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
+			logVerbose('fs.watchFile', { path });
+
 			watchFiles.set(path, { path, callback, pollingInterval, options });
 			watchId++;
 			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId });
 			return {
 				close() {
+					logVerbose('fs.watchFile.close', { path });
+
 					watchFiles.delete(path);
 					fsWatcher.postMessage({ type: 'dispose', id: watchId });
 				}
 			};
 		},
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
+			logVerbose('fs.watchDirectory', { path });
+
 			watchDirectories.set(path, { path, callback, recursive, options });
 			watchId++;
 			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId });
 			return {
 				close() {
+					logVerbose('fs.watchDirectory.close', { path });
+
 					watchDirectories.delete(path);
 					fsWatcher.postMessage({ type: 'dispose', id: watchId });
 				}
@@ -152,6 +169,8 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return true;
 		},
 		readFile(path) {
+			logVerbose('fs.readFile', { path });
+
 			if (!fs || path.startsWith('/')) {
 				const webPath = getWebPath(path);
 				if (webPath) {
@@ -166,43 +185,48 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 			try {
 				return textDecoder.decode(fs.readFile(toResource(path)));
-			} catch (e) {
-				logger.info(`Error fs.readFile`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.readFile', { path, error });
 				return undefined;
 			}
 		},
 		getFileSize(path) {
+			logVerbose('fs.getFileSize', { path });
+
 			if (!fs) {
 				throw new Error('not supported');
 			}
 
 			try {
 				return fs.stat(toResource(path)).size;
-			} catch (e) {
-				logger.info(`Error fs.getFileSize`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.getFileSize', { path, error });
 				return 0;
 			}
 		},
 		writeFile(path, data, writeByteOrderMark) {
+			logVerbose('fs.writeFile', { path });
+
 			if (!fs) {
 				throw new Error('not supported');
 			}
+
 			if (writeByteOrderMark) {
 				data = byteOrderMarkIndicator + data;
 			}
+
 			try {
 				fs.writeFile(toResource(path), textEncoder.encode(data));
-			} catch (e) {
-				logger.info(`Error fs.writeFile`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.writeFile', { path, error });
 			}
 		},
 		resolvePath(path: string): string {
 			return path;
 		},
 		fileExists(path: string): boolean {
+			logVerbose('fs.fileExists', { path });
+
 			if (!fs) {
 				const webPath = getWebPath(path);
 				if (!webPath) {
@@ -217,35 +241,36 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 			try {
 				return fs.stat(toResource(path)).type === FileType.File;
-			} catch (e) {
-				logger.info(`Error fs.fileExists for ${path}`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.fileExists', { path, error });
 				return false;
 			}
 		},
 		directoryExists(path: string): boolean {
+			logVerbose('fs.directoryExists', { path });
+
 			if (!fs) {
 				return false;
 			}
 
 			try {
 				return fs.stat(toResource(path)).type === FileType.Directory;
-			} catch (e) {
-				logger.info(`Error fs.directoryExists for ${path}`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.directoryExists', { path, error });
 				return false;
 			}
 		},
 		createDirectory(path: string): void {
+			logVerbose('fs.createDirectory', { path });
+
 			if (!fs) {
 				throw new Error('not supported');
 			}
 
 			try {
 				fs.createDirectory(toResource(path));
-			} catch (e) {
-				logger.info(`Error fs.createDirectory`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.createDirectory', { path, error });
 			}
 		},
 		getExecutingFilePath(): string {
@@ -261,28 +286,30 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
 		},
 		getModifiedTime(path: string): Date | undefined {
+			logVerbose('fs.getModifiedTime', { path });
+
 			if (!fs) {
 				throw new Error('not supported');
 			}
 
 			try {
 				return new Date(fs.stat(toResource(path)).mtime);
-			} catch (e) {
-				logger.info(`Error fs.getModifiedTime`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.getModifiedTime', { path, error });
 				return undefined;
 			}
 		},
 		deleteFile(path: string): void {
+			logVerbose('fs.deleteFile', { path });
+
 			if (!fs) {
 				throw new Error('not supported');
 			}
 
 			try {
 				fs.delete(toResource(path));
-			} catch (e) {
-				logger.info(`Error fs.deleteFile`);
-				logger.info(JSON.stringify(e));
+			} catch (error) {
+				logNormal('Error fs.deleteFile', { path, error });
 			}
 		},
 		createHash: generateDjb2Hash,
