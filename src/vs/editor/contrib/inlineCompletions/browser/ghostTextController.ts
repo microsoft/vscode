@@ -426,7 +426,7 @@ export class UndoAcceptPart extends EditorAction {
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
-				title: 'Undo Accept Word',
+				title: nls.localize('undoAcceptWord', 'Undo Accept Word'),
 				group: 'secondary',
 				order: 3,
 			}],
