@@ -166,6 +166,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 	readonly handle = ProfileResourceType.Extensions;
 	readonly label = { label: localize('extensions', "Extensions") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
+	contextValue = ProfileResourceType.Extensions;
 	checkbox: ITreeItemCheckboxState | undefined;
 
 	protected readonly excludedExtensions = new Set<string>();
