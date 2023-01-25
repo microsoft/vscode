@@ -34,3 +34,7 @@
 	min-width: 19px;
 	justify-content: center;
 }
+
+.inlineSuggestionStatusBarItemLabel {
+	margin-right: 4px;
+}
