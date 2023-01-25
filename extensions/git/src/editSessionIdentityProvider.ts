@@ -16,10 +16,7 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
 
 		vscode.workspace.onWillCreateEditSessionIdentity((e) => {
-			const publishBeforeContinueOn = vscode.workspace.getConfiguration('git').get<'never' | 'always' | 'prompt'>('publishBeforeContinueOn', 'prompt');
-			if (publishBeforeContinueOn !== 'never') {
-				e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder, e.token, publishBeforeContinueOn));
-			}
+			e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder));
 		});
 	}
 
@@ -67,12 +64,11 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 		}
 	}
 
-	private async _onWillCreateEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, cancellationToken: vscode.CancellationToken, publishBeforeContinueOn: 'always' | 'prompt'): Promise<void> {
-		const cancellationPromise = createCancellationPromise(cancellationToken);
-		await Promise.race([this._doPublish(workspaceFolder, publishBeforeContinueOn), cancellationPromise]);
+	private async _onWillCreateEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
+		await this._doPublish(workspaceFolder);
 	}
 
-	private async _doPublish(workspaceFolder: vscode.WorkspaceFolder, publishBeforeContinueOn: 'always' | 'prompt') {
+	private async _doPublish(workspaceFolder: vscode.WorkspaceFolder) {
 		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
 
 		const repository = this.model.getRepository(workspaceFolder.uri);
@@ -86,31 +82,17 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 		// ensure that it is published before Continue On is invoked
 		if (!repository.HEAD?.upstream && repository.HEAD?.type === RefType.Head) {
 
-			if (publishBeforeContinueOn === 'prompt') {
-				const always = vscode.l10n.t('Always');
-				const never = vscode.l10n.t('Never');
-				const selection = await vscode.window.showInformationMessage(
-					vscode.l10n.t('The current branch is not published to the remote. Would you like to publish it to access your changes elsewhere?'),
-					{ modal: true },
-					...[always, never]
-				);
-				switch (selection) {
-					case always:
-						vscode.workspace.getConfiguration('git').update('publishBeforeContinueOn', 'always');
-						break;
-					case never:
-						vscode.workspace.getConfiguration('git').update('publishBeforeContinueOn', 'never');
-					default:
-						return;
-				}
+			const publishBranch = vscode.l10n.t('Publish Branch');
+			const selection = await vscode.window.showInformationMessage(
+				vscode.l10n.t('The current branch is not published to the remote. Would you like to publish it to access your changes elsewhere?'),
+				{ modal: true },
+				publishBranch
+			);
+			if (selection !== publishBranch) {
+				throw new vscode.CancellationError();
 			}
 
-			await vscode.window.withProgress({
-				location: vscode.ProgressLocation.Notification,
-				title: vscode.l10n.t('Publishing branch...')
-			}, async () => {
-				await vscode.commands.executeCommand('git.publish');
-			});
+			await vscode.commands.executeCommand('git.publish');
 		}
 	}
 }
@@ -127,15 +109,4 @@ function normalizeEditSessionIdentity(identity: string) {
 		ref,
 		sha
 	};
-}
-
-function createCancellationPromise(cancellationToken: vscode.CancellationToken) {
-	return new Promise((resolve, _) => {
-		if (cancellationToken.isCancellationRequested) {
-			resolve(undefined);
-		}
-		cancellationToken.onCancellationRequested(() => {
-			resolve(undefined);
-		});
-	});
 }
