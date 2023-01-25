@@ -16,7 +16,10 @@
 		"vscode": {
 			"extensions": [
 				"mutantdino.resourcemonitor"
-			]
+			],
+			"settings": {
+				"workbench.startupEditor": "readme"
+			}
 		}
 	}
 }
