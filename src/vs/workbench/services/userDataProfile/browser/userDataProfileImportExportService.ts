@@ -196,7 +196,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const barrier = new Barrier();
 			const exportAction = this.getExportAction(barrier, userDataProfilesExportState);
 			const cancelAction = new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel")));
-			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], cancelAction, userDataProfilesExportState);
+			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], cancelAction, true, userDataProfilesExportState);
 			await barrier.wait();
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
 		} finally {
@@ -245,7 +245,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const barrier = new Barrier();
 			const exportAction = this.getExportAction(barrier, userDataProfilesExportState);
 			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")));
-			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], closeAction, userDataProfilesExportState);
+			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], closeAction, true, userDataProfilesExportState);
 			await barrier.wait();
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
 		} finally {
@@ -372,7 +372,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				? new Action('importInDesktop', localize('import in desktop', "Import {0} profile in {1}", importedProfile.name, this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
 				: new BarrierAction(barrier, new Action('close', localize('close', "Close")));
 
-			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, [importAction], secondaryAction, userDataProfileImportState);
+			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, [importAction], secondaryAction, false, userDataProfileImportState);
 			if (!extensions) {
 				userDataProfileImportState.setDescription(ProfileResourceType.Extensions, localize('not applied', "Not Applied"));
 				const that = this;
@@ -433,7 +433,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (userDataProfileImportState.isEmpty()) {
 				await importAction.run();
 			} else {
-				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, [importAction], new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel"))), userDataProfileImportState);
+				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, [importAction], new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel"))), false, userDataProfileImportState);
 			}
 			await barrier.wait();
 			await this.hideProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW);
@@ -618,10 +618,12 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return nameIndex + 1;
 	}
 
-	private async showProfilePreviewView(id: string, name: string, primary: IAction[], secondary: IAction, userDataProfilesData: UserDataProfileImportExportState): Promise<UserDataProfilePreviewViewPane> {
+	private async showProfilePreviewView(id: string, name: string, primary: IAction[], secondary: IAction, refreshAction: boolean, userDataProfilesData: UserDataProfileImportExportState): Promise<UserDataProfilePreviewViewPane> {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
-		treeView.showRefreshAction = true;
+		if (refreshAction) {
+			treeView.showRefreshAction = true;
+		}
 		const actionRunner = new ActionRunner();
 		const descriptor: ITreeViewDescriptor = {
 			id,
