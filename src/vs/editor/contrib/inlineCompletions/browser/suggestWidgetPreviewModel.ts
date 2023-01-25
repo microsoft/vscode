@@ -21,7 +21,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		new SuggestWidgetInlineCompletionProvider(
 			this.editor,
 			// Use the first cache item (if any) as preselection.
-			() => this.cache.value?.completions[0]?.toLiveInlineCompletion()
+			() => {
+				// We might get asked in a content change event before the cache has received that event.
+				this.cache.value?.updateRanges();
+				return this.cache.value?.completions[0]?.toLiveInlineCompletion();
+			}
 		)
 	);
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
