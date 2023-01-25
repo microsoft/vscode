@@ -171,7 +171,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		readFile(path) {
 			logVerbose('fs.readFile', { path });
 
-			if (!fs || path.startsWith('/')) {
+			if (!fs || path.startsWith('/lib.')) {
 				const webPath = getWebPath(path);
 				if (webPath) {
 					const request = new XMLHttpRequest();
