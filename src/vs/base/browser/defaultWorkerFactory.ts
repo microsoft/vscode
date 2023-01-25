@@ -7,7 +7,8 @@ import { COI } from 'vs/base/common/network';
 import { globals } from 'vs/base/common/platform';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
-const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+export const workerUrlPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+
 
 function getWorker(label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
@@ -17,7 +18,7 @@ function getWorker(label: string): Worker | Promise<Worker> {
 		}
 		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
 			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl('workerMain.js', label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+			return new Worker(workerUrlPolicy ? workerUrlPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 		}
 	}
 	// ESM-comment-begin
@@ -25,7 +26,7 @@ function getWorker(label: string): Worker | Promise<Worker> {
 		// check if the JS lives on a different origin
 		const workerMain = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+		return new Worker(workerUrlPolicy ? workerUrlPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
 	// ESM-comment-end
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
