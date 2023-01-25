@@ -736,8 +736,10 @@ export function createRandomIPCHandle(): string {
 	// Mac/Unix: use socket file and prefer
 	// XDG_RUNTIME_DIR over tmpDir
 	let result: string;
-	if (XDG_RUNTIME_DIR) {
-		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
+
+	const customSocketsDir = process.env['VSCODE_SOCKETS_DIR'] ?? XDG_RUNTIME_DIR ?? undefined;
+	if (customSocketsDir) {
+		result = join(customSocketsDir, `vscode-ipc-${randomSuffix}.sock`);
 	} else {
 		result = join(getNodeDependencies().os.tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
@@ -760,10 +762,13 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 	// XDG_RUNTIME_DIR over user data path
 	// unless portable
 	let result: string;
+	const versionForSocket = version.substr(0, 4);
+	const typeForSocket = type.substr(0, 6);
+
 	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
+		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${versionForSocket}-${typeForSocket}.sock`);
 	} else {
-		result = join(directoryPath, `${version}-${type}.sock`);
+		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}
 
 	// Validate length

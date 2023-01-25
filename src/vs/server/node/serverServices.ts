@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises as fs } from 'fs';
 import { hostname, release } from 'os';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
@@ -196,6 +197,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
+
+	if (process.env.USE_DEFAULT_VSCODE_SOCKETS_DIR && !process.env.VSCODE_SOCKETS_DIR) {
+		const pathVal = path.join(environmentService.userHome.fsPath, '.vscode-sockets');
+		await fs.mkdir(pathVal, { recursive: true });
+		process.env.VSCODE_SOCKETS_DIR = pathVal;
+	}
 
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
