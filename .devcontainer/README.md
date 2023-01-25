@@ -1,4 +1,5 @@
 # Code - OSS Development Container
+DO NOT MERGE
 
 This dev container includes configuration for a development container for working with Code - OSS in a local container. For using [GitHub Codespaces](https://github.com/features/codespaces) follow the [prebuilt setup](prebuilt/README.md) which installs VNC for displaying the application window.
 
