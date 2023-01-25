@@ -15,7 +15,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Schemas } from 'vs/base/common/network';
@@ -55,7 +55,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
@@ -576,11 +576,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 	private formatPath(uri: URI): string {
 		if (uri.scheme === Schemas.file) {
-			if (hasDriveLetter(uri.fsPath, isWindows)) {
-				return uri.fsPath.charAt(0).toUpperCase() + uri.fsPath.substring(1);
-			}
-
-			return uri.fsPath;
+			return normalizeDriveLetter(uri.fsPath);
 		}
 
 		// If the path is not a file uri, but points to a windows remote, we should create windows fs path
@@ -589,7 +585,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			const pathWithoutLeadingSeparator = uri.path.substring(1);
 			const isWindowsPath = hasDriveLetter(pathWithoutLeadingSeparator, true);
 			if (isWindowsPath) {
-				return win32.normalize(pathWithoutLeadingSeparator);
+				return normalizeDriveLetter(win32.normalize(pathWithoutLeadingSeparator), true);
 			}
 		}
 
