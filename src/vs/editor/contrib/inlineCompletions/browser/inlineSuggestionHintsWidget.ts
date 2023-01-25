@@ -10,7 +10,7 @@ import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineSuggestionHintsWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -234,7 +234,8 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		}
 		if (this.label) {
 			const div = h('div.keybinding').root;
-			const k = new KeybindingLabel(div, OperatingSystem.Linux);
+
+			const k = new KeybindingLabel(div, OS);
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
