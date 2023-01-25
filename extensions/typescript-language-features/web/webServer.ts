@@ -184,7 +184,9 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 
 			try {
-				return textDecoder.decode(fs.readFile(toResource(path)));
+				// We need to slice the bytes since we can't pass a shared array to text decoder
+				const contents = fs.readFile(toResource(path)).slice();
+				return textDecoder.decode(contents);
 			} catch (error) {
 				logNormal('Error fs.readFile', { path, error });
 				return undefined;
