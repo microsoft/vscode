@@ -43,8 +43,7 @@ export class WorkerServerProcess implements TsServerProcess {
 		extensionUri: vscode.Uri,
 	) {
 		const tsServerPath = version.tsServerPath;
-		const worker = new Worker(tsServerPath);
-		return new WorkerServerProcess(kind, worker, extensionUri, [
+		return new WorkerServerProcess(kind, tsServerPath, extensionUri, [
 			...args,
 
 			// Explicitly give TS Server its path so it can
@@ -62,6 +61,8 @@ export class WorkerServerProcess implements TsServerProcess {
 	private readonly _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
 	private readonly watches = new FileWatcherManager();
 
+	private readonly worker: Worker;
+
 	/** For communicating with TS server synchronously */
 	private readonly tsserver: MessagePort;
 	/** For communicating watches asynchronously */
@@ -71,11 +72,12 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	public constructor(
 		private readonly kind: TsServerProcessKind,
-		/** For logging and initial setup */
-		private readonly mainChannel: Worker,
+		tsServerPath: string,
 		extensionUri: vscode.Uri,
 		args: readonly string[],
 	) {
+		this.worker = new Worker(tsServerPath, { name: `TS ${kind} server #${this.id}` });
+
 		const tsserverChannel = new MessageChannel();
 		const watcherChannel = new MessageChannel();
 		const syncChannel = new MessageChannel();
@@ -113,7 +115,7 @@ export class WorkerServerProcess implements TsServerProcess {
 			}
 		};
 
-		mainChannel.onmessage = (msg: any) => {
+		this.worker.onmessage = (msg: any) => {
 			// for logging only
 			if (msg.data.type === 'log') {
 				this.appendOutput(msg.data.body);
@@ -122,7 +124,7 @@ export class WorkerServerProcess implements TsServerProcess {
 			console.error(`unexpected message on main channel: ${JSON.stringify(msg)}`);
 		};
 
-		mainChannel.onerror = (err: ErrorEvent) => {
+		this.worker.onerror = (err: ErrorEvent) => {
 			console.error('error! ' + JSON.stringify(err));
 			for (const handler of this._onErrorHandlers) {
 				// TODO: The ErrorEvent type might be wrong; previously this was typed as Error and didn't have the property access.
@@ -131,7 +133,7 @@ export class WorkerServerProcess implements TsServerProcess {
 		};
 
 		this.appendOutput(`creating new MessageChannel and posting its port2 + args: ${args.join(' ')}\n`);
-		mainChannel.postMessage(
+		this.worker.postMessage(
 			{ args, extensionUri },
 			[syncChannel.port1, tsserverChannel.port1, watcherChannel.port1]
 		);
@@ -160,7 +162,7 @@ export class WorkerServerProcess implements TsServerProcess {
 	}
 
 	kill(): void {
-		this.mainChannel.terminate();
+		this.worker.terminate();
 		this.tsserver.close();
 		this.watcher.close();
 		this.syncFs.close();
