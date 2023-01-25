@@ -313,7 +313,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
-				title: nls.localize('acceptPart', 'Accept Part'),
+				title: nls.localize('acceptWord', 'Accept Word'),
 				group: 'primary',
 				order: 2,
 			}],
@@ -416,8 +416,8 @@ export class UndoAcceptPart extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.undo',
-			label: nls.localize('action.inlineSuggest.undo', "Undo Accept Part"),
-			alias: 'Undo Accept Part',
+			label: nls.localize('action.inlineSuggest.undo', "Undo Accept Word"),
+			alias: 'Undo Accept Word',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.canUndoInlineSuggestion),
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -426,7 +426,7 @@ export class UndoAcceptPart extends EditorAction {
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
-				title: 'Undo Accept Part',
+				title: nls.localize('undoAcceptWord', 'Undo Accept Word'),
 				group: 'secondary',
 				order: 3,
 			}],

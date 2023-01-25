@@ -23,37 +23,58 @@ extern "C" {
 	pub fn IOPMAssertionRelease(assertion_id: u32) -> c_int;
 }
 
-pub struct SleepInhibitor {
-	assertion_id: u32,
-}
+const NUM_ASSERTIONS: usize = 2;
 
-impl SleepInhibitor {
-	pub async fn new() -> io::Result<Self> {
+const ASSERTIONS: [&str; NUM_ASSERTIONS] = ["PreventUserIdleSystemSleep", "PreventSystemSleep"];
+
+struct Assertion(u32);
+
+impl Assertion {
+	pub fn make(typ: &CFString, name: &CFString) -> io::Result<Self> {
 		let mut assertion_id = 0;
-		let assertion_type = CFString::from_static_string("PreventSystemSleep");
-		let assertion_name =
-			CFString::from_static_string(concatcp!(APPLICATION_NAME, " running tunnel"));
 		let result = unsafe {
 			IOPMAssertionCreateWithName(
-				assertion_type.as_concrete_TypeRef(),
+				typ.as_concrete_TypeRef(),
 				255,
-				assertion_name.as_concrete_TypeRef(),
+				name.as_concrete_TypeRef(),
 				&mut assertion_id,
 			)
 		};
 
 		if result != 0 {
-			return Err(io::Error::last_os_error());
+			Err(io::Error::last_os_error())
+		} else {
+			Ok(Self(assertion_id))
 		}
-
-		Ok(Self { assertion_id })
 	}
 }
 
-impl Drop for SleepInhibitor {
+impl Drop for Assertion {
 	fn drop(&mut self) {
 		unsafe {
-			IOPMAssertionRelease(self.assertion_id);
+			IOPMAssertionRelease(self.0);
 		}
+	}
+}
+
+pub struct SleepInhibitor {
+	_assertions: Vec<Assertion>,
+}
+
+impl SleepInhibitor {
+	pub async fn new() -> io::Result<Self> {
+		let mut assertions = Vec::with_capacity(NUM_ASSERTIONS);
+		let assertion_name =
+			CFString::from_static_string(concatcp!(APPLICATION_NAME, " running tunnel"));
+		for typ in ASSERTIONS {
+			assertions.push(Assertion::make(
+				&CFString::from_static_string(typ),
+				&assertion_name,
+			)?);
+		}
+
+		Ok(Self {
+			_assertions: assertions,
+		})
 	}
 }

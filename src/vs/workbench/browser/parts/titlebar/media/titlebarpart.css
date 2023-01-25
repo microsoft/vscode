@@ -120,8 +120,8 @@
 	/* see #55435 */
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container .monaco-toolbar .action-item {
-	margin-right: 4px;
+.monaco-workbench .part.titlebar > .titlebar-container .monaco-toolbar .actions-container {
+	gap: 4px;
 }
 
 /* Window Title Menu */

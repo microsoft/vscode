@@ -2699,25 +2699,6 @@
           "default": "prompt",
           "markdownDescription": "%config.openRepositoryInParentFolders%",
           "scope": "resource"
-        },
-        "git.publishBeforeContinueOn": {
-          "type": "string",
-          "enum": [
-            "prompt",
-            "always",
-            "never"
-          ],
-          "markdownEnumDescriptions": [
-            "%config.publishBeforeContinueOn.prompt%",
-            "%config.publishBeforeContinueOn.always%",
-            "%config.publishBeforeContinueOn.never%"
-          ],
-          "default": "prompt",
-          "markdownDescription": "%config.publishBeforeContinueOn%",
-          "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
         }
       }
     },
