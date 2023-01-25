@@ -152,7 +152,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return true;
 		},
 		readFile(path) {
-			if (!fs || path.startsWith('/')) {
+			if (!fs || path.startsWith('/lib.')) {
 				const webPath = getWebPath(path);
 				if (webPath) {
 					const request = new XMLHttpRequest();
