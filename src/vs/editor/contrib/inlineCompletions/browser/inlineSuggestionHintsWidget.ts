@@ -7,6 +7,7 @@ import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -132,6 +133,14 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this._contextKeyService
 	));
 
+	private readonly clearAvailableSuggestionCountLabelDebounced = this._register(new RunOnceScheduler(() => {
+		this.availableSuggestionCountAction.label = '';
+	}, 100));
+
+	private readonly disableButtonsDebounced = this._register(new RunOnceScheduler(() => {
+		this.previousAction.enabled = this.nextAction.enabled = false;
+	}, 100));
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -160,8 +169,19 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	public update(position: Position | null, currentSuggestionIdx: number, suggestionCount: number | undefined, extraCommands: Command[]): void {
 		this.position = position;
 
-		this.previousAction.enabled = this.nextAction.enabled = suggestionCount !== undefined && suggestionCount > 1;
-		this.availableSuggestionCountAction.label = suggestionCount !== undefined ? `${currentSuggestionIdx + 1}/${suggestionCount}` : '1/?';
+		if (suggestionCount !== undefined && suggestionCount > 1) {
+			this.disableButtonsDebounced.cancel();
+			this.previousAction.enabled = this.nextAction.enabled = true;
+		} else {
+			this.disableButtonsDebounced.schedule();
+		}
+
+		if (suggestionCount !== undefined) {
+			this.clearAvailableSuggestionCountLabelDebounced.cancel();
+			this.availableSuggestionCountAction.label = `${currentSuggestionIdx + 1}/${suggestionCount}`;
+		} else {
+			this.clearAvailableSuggestionCountLabelDebounced.schedule();
+		}
 
 		this.editor.layoutContentWidget(this);
 
