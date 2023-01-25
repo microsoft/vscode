@@ -538,7 +538,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		const forceReadFromFile = options?.forceReadFromFile;
 
-		// Decide on etag
+		// Decide on etag cool!
 		let etag: string | undefined;
 		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
