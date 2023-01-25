@@ -757,6 +757,9 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			disposables.add(quickPick.onDidAccept(async () => {
 				resolve(quickPick.selectedItems[0]);
 			}));
+			disposables.add(quickPick.onDidHide(() => {
+				resolve(undefined);
+			}));
 
 			this._calculdateKernelSources(editor).then(quickPickItems => {
 				quickPick.items = quickPickItems;

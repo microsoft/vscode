@@ -689,7 +689,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
-		this.rootElement.style.visibility = 'hidden';
 
 		this.createHeaderElement(this.rootElement);
 
@@ -901,7 +900,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
-		this.rootElement.style.visibility = '';
 		this.rendering = false;
 	}
 

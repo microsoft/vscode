@@ -831,7 +831,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		const always = l10n.t('Always');
 		const never = l10n.t('Never');
 
-		const choice = await window.showWarningMessage(message, yes, always, never);
+		const choice = await window.showInformationMessage(message, yes, always, never);
 		if (choice === yes) {
 			// Open Parent Repositories
 			commands.executeCommand('git.openRepositoriesInParentFolders');
