@@ -934,6 +934,12 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			name = await this.quickInputService.input({
 				placeHolder: localize('export profile name', "Name the profile"),
 				title: localize('export profile title', "Export Profile"),
+				async validateInput(input) {
+					if (!input.trim()) {
+						return localize('profile name required', "Profile name must be provided.");
+					}
+					return undefined;
+				},
 			});
 			if (!name) {
 				return null;

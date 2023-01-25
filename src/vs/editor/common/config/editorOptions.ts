@@ -4282,7 +4282,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					enum: ['always', 'never', 'whenTriggerCharacter', 'whenQuickSuggestion'],
 					enumDescriptions: [
 						nls.localize('suggest.insertMode.always', "Always activate the suggest widget when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.never', "Never activate the suggest when when triggering IntelliSense automatically."),
+						nls.localize('suggest.insertMode.never', "Never activate the suggest widget when triggering IntelliSense automatically."),
 						nls.localize('suggest.insertMode.whenTriggerCharacter', "Activate the suggest widget only when triggering IntelliSense from a trigger character."),
 						nls.localize('suggest.insertMode.whenQuickSuggestion', "Activate the suggest widget only when triggering IntelliSense as you type."),
 					],

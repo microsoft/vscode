@@ -1989,25 +1989,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
+		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
-			let label: string = '';
 			if (title && title.length > 0) {
-				label = nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title);
+				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
 			} else {
-				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
+				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
 			}
 			const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (screenReaderOptimized && isMacintosh) {
-				label += nls.localize('terminalTextBoxAriaLabelMacKeybinding', 'Press alt+f1 for terminal accessibility help');
-			} else if (screenReaderOptimized) {
-				label += nls.localize('terminalTextBoxAriaLabelLinuxWinKeybinding', 'Press shift+f1 for terminal accessibility help');
+			if (!screenReaderOptimized) {
+				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
+			}
+			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ShowTerminalAccessibilityHelp)?.getLabel();
+			if (accessibilityHelpKeybinding) {
+				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
 			}
 			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
 			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
 			if (navigateUpKeybinding && navigateDownKeybinding) {
-				label += `\n${nls.localize('terminalNavigationMode', "Use {0} and {1} to navigate the terminal buffer", navigateUpKeybinding, navigateDownKeybinding)}`;
+				labelParts.push(nls.localize('terminalNavigationMode', "Use {0} and {1} to navigate the terminal buffer", navigateUpKeybinding, navigateDownKeybinding));
 			}
-			xterm.textarea.setAttribute('aria-label', label);
+			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
 		}
 	}
 

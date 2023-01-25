@@ -13,7 +13,6 @@ import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localization/electron-sandbox/minimalTranslations';
@@ -41,7 +40,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILocaleService private readonly localeService: ILocaleService,
 		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
@@ -191,9 +189,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									id: locale,
 									label: languageName,
 									extensionId: extensionToInstall?.identifier.id,
+									galleryExtension: extensionToInstall
 									// The user will be prompted if they want to install the language pack before this.
 								}, true);
-								await this.hostService.restart();
 							}
 						};
 
