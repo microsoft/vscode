@@ -239,6 +239,7 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
+			this.label.classList.add('inlineSuggestionStatusBarItemLabel');
 		}
 	}
 }
