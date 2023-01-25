@@ -3817,8 +3817,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.showToolbar,
 					enum: ['always', 'onHover'],
 					enumDescriptions: [
-						nls.localize('inlineSuggest.showToolbar.always', "Always show the inline suggestion toolbar."),
-						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over the inline suggestion."),
+						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
