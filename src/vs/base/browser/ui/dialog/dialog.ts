@@ -429,8 +429,8 @@ export class Dialog extends Disposable {
 
 		this.shadowElement.style.boxShadow = shadowColor;
 
-		this.element.style.color = fgColor?.toString() ?? '';
-		this.element.style.backgroundColor = bgColor?.toString() ?? '';
+		this.element.style.color = fgColor ?? '';
+		this.element.style.backgroundColor = bgColor ?? '';
 		this.element.style.border = border;
 
 		// TODO fix

@@ -102,6 +102,7 @@ interface IUserFriendlyViewDescriptor {
 	// From 'remoteViewDescriptor' type
 	group?: string;
 	remoteName?: string | string[];
+	virtualWorkspace?: string;
 }
 
 enum InitialVisibility {
@@ -546,6 +547,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						originalContainerId: key,
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
+						virtualWorkspace: item.virtualWorkspace,
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
 						workspace: viewContainer?.id === REMOTE ? true : undefined,
 						weight

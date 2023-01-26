@@ -219,7 +219,7 @@ class MenuActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
 
 	protected async resolveMainMenuActions(menu: IMenu, _disposable: DisposableStore): Promise<IAction[]> {
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions });
+		createAndFillInActionBarActions(menu, { renderShortTitle: true }, { primary: [], secondary: actions });
 		return actions;
 	}
 

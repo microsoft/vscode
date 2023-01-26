@@ -29,6 +29,7 @@ import { COI, FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/iframe';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -290,6 +291,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,

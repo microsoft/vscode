@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -31,6 +30,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -51,14 +51,15 @@ import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/work
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { InteractiveWindowFileSystem } from 'vs/workbench/contrib/interactive/browser/interactiveWindowFileSystem';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, ICellOutput, INTERACTIVE_WINDOW_EDITOR_ID, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookSerializer, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -83,6 +84,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService
 	) {
 		super();
 
@@ -93,87 +96,73 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			cellContentMetadata: {}
 		};
 
-		const controller: INotebookContentProvider = {
-			get options() {
-				return contentOptions;
-			},
-			set options(newOptions) {
-				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
-				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
-				contentOptions.transientOutputs = newOptions.transientOutputs;
-			},
-			open: async (_uri: URI, _backupId: string | VSBuffer | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
-				if (_backupId instanceof VSBuffer) {
-					const backup = _backupId.toString();
+		const interactiveWindowFS = new InteractiveWindowFileSystem();
+		this._register(fileService.registerProvider(Schemas.vscodeInteractive, interactiveWindowFS));
+
+		const serializer: INotebookSerializer = {
+			options: contentOptions,
+			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
+				if (data.byteLength > 0) {
 					try {
-						const document = JSON.parse(backup) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
+						const document = JSON.parse(data.toString()) as { cells: { kind: CellKind; language: string; metadata: any; mime: string | undefined; content: string; outputs?: ICellOutput[] }[] };
 						return {
-							data: {
-								metadata: {},
-								cells: document.cells.map(cell => ({
-									source: cell.content,
-									language: cell.language,
-									cellKind: cell.kind,
-									mime: cell.mime,
-									outputs: cell.outputs
-										? cell.outputs.map(output => ({
-											outputId: output.outputId,
-											outputs: output.outputs.map(ot => ({
-												mime: ot.mime,
-												data: ot.data
-											}))
+							cells: document.cells.map(cell => ({
+								source: cell.content,
+								language: cell.language,
+								cellKind: cell.kind,
+								mime: cell.mime,
+								outputs: cell.outputs
+									? cell.outputs.map(output => ({
+										outputId: output.outputId,
+										outputs: output.outputs.map(ot => ({
+											mime: ot.mime,
+											data: ot.data
 										}))
-										: [],
-									metadata: cell.metadata
-								}))
-							},
-							transientOptions: contentOptions
+									}))
+									: [],
+								metadata: cell.metadata
+							})),
+							metadata: {}
 						};
-					} catch (_e) { }
+					} catch (e) {
+						logService.error(`error when converting data to notebook data object: ${e}`);
+					}
 				}
 
 				return {
-					data: {
-						metadata: {},
-						cells: []
-					},
-					transientOptions: contentOptions
+					metadata: {},
+					cells: []
 				};
+
 			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
-				if (doc) {
-					const cells = doc.cells.map(cell => ({
-						kind: cell.cellKind,
-						language: cell.language,
-						metadata: cell.metadata,
-						mine: cell.mime,
-						outputs: cell.outputs.map(output => {
-							return {
-								outputId: output.outputId,
-								outputs: output.outputs.map(ot => ({
-									mime: ot.mime,
-									data: ot.data
-								}))
-							};
-						}),
-						content: cell.getValue()
-					}));
+			notebookToData: async (data: NotebookData): Promise<VSBuffer> => {
+				const cells = data.cells.map(cell => ({
+					kind: cell.cellKind,
+					language: cell.language,
+					metadata: cell.metadata,
+					mine: cell.mime,
+					outputs: cell.outputs.map(output => {
+						return {
+							outputId: output.outputId,
+							outputs: output.outputs.map(ot => ({
+								mime: ot.mime,
+								data: ot.data
+							}))
+						};
+					}),
+					content: cell.source
+				}));
 
-					const buffer = VSBuffer.fromString(JSON.stringify({
-						cells: cells
-					}));
-
-					return buffer;
-				} else {
-					return '';
-				}
+				return VSBuffer.fromString(JSON.stringify({
+					cells: cells
+				}));
 			}
 		};
-		this._register(notebookService.registerNotebookController('interactive', {
+
+		this._register(notebookService.registerNotebookSerializer('interactive', {
 			id: new ExtensionIdentifier('interactive.builtin'),
 			location: undefined
-		}, controller));
+		}, serializer));
 
 		const info = notebookService.getContributedNotebookType('interactive');
 
@@ -412,7 +401,7 @@ registerAction2(class extends Action2 {
 		let inputUri: URI | undefined = undefined;
 		let counter = 1;
 		do {
-			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `/Interactive-${counter}.interactive` });
 			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;

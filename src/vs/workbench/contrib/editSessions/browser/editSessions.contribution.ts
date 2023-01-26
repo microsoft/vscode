@@ -500,13 +500,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					conflictingChanges.length > 1 ?
 						localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
 						localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
-					[cancel, yes],
+					[yes, cancel],
 					{
 						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
-						cancelId: 0
+						cancelId: 1
 					});
 
-				if (result.choice === 0) {
+				if (result.choice === 1) {
 					return;
 				}
 			}

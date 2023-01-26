@@ -233,6 +233,8 @@ export class Checkbox extends Widget {
 		this.styles = styles;
 
 		this.applyStyles();
+
+		this._register(this.checkbox.onChange(() => this.applyStyles()));
 	}
 
 	get checked(): boolean {
@@ -241,6 +243,8 @@ export class Checkbox extends Widget {
 
 	set checked(newIsChecked: boolean) {
 		this.checkbox.checked = newIsChecked;
+
+		this.applyStyles();
 	}
 
 	focus(): void {

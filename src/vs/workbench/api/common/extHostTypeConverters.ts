@@ -2008,7 +2008,7 @@ export namespace DataTransferItem {
 		if (mime === Mimes.uriList) {
 			return {
 				id: (item as IDataTransferItem | types.DataTransferItem).id,
-				asString: '',
+				asString: stringValue,
 				fileData: undefined,
 				uriListData: serializeUriList(stringValue),
 			};

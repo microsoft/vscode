@@ -20,9 +20,8 @@ use windows_service::{
 };
 
 use crate::{
-	commands::tunnels::ShutdownSignal,
 	constants::QUALITYLESS_PRODUCT_NAME,
-	util::errors::{wrap, wrapdbg, AnyError, WindowsNeedsElevation},
+	util::errors::{wrap, wrapdbg, AnyError, WindowsNeedsElevation}, tunnels::shutdown_signal::ShutdownSignal,
 };
 use crate::{
 	log::{self, FileLogSink},

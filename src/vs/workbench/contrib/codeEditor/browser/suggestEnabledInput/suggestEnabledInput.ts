@@ -24,7 +24,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, asCssValue, asCssValueWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -37,6 +37,7 @@ import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 
 export interface SuggestResultsProvider {
 	/**
@@ -53,6 +54,20 @@ export interface SuggestResultsProvider {
 	 * Defaults to the empty array.
 	 */
 	triggerCharacters?: string[];
+
+	/**
+	 * Optional regular expression that describes what a word is
+	 *
+	 * Defaults to space separated words.
+	 */
+	wordDefinition?: RegExp;
+
+	/**
+	 * Show suggestions even if the trigger character is not present.
+	 *
+	 * Defaults to false.
+	 */
+	alwaysShowSuggestions?: boolean;
 
 	/**
 	 * Defines the sorting function used when showing results.
@@ -199,7 +214,9 @@ export class SuggestEnabledInput extends Widget {
 		const validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
 			sortKey: suggestionProvider.sortKey || (a => a),
-			triggerCharacters: suggestionProvider.triggerCharacters || []
+			triggerCharacters: suggestionProvider.triggerCharacters || [],
+			wordDefinition: suggestionProvider.wordDefinition ? ensureValidWordDefinition(suggestionProvider.wordDefinition) : undefined,
+			alwaysShowSuggestions: !!suggestionProvider.alwaysShowSuggestions,
 		};
 
 		this.setValue(options.value || '');
@@ -210,12 +227,19 @@ export class SuggestEnabledInput extends Widget {
 				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
+				let alreadyTypedCount = 0, zeroIndexedWordStart = 0;
 
-				const zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				const alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				if (validatedSuggestProvider.wordDefinition) {
+					const wordAtText = getWordAtText(position.column, validatedSuggestProvider.wordDefinition, query, 0);
+					alreadyTypedCount = wordAtText?.word.length ?? 0;
+					zeroIndexedWordStart = wordAtText ? wordAtText.startColumn - 1 : 0;
+				} else {
+					zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+					alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				}
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
+				if (!validatedSuggestProvider.alwaysShowSuggestions && alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters?.indexOf(query[zeroIndexedWordStart]) === -1) {
 					return { suggestions: [] };
 				}
 
@@ -267,16 +291,16 @@ export class SuggestEnabledInput extends Widget {
 	}
 
 	private style(styleOverrides: ISuggestEnabledInputStyleOverrides): void {
-		this.stylingContainer.style.backgroundColor = asCssValue(styleOverrides.inputBackground ?? inputBackground);
-		this.stylingContainer.style.color = asCssValue(styleOverrides.inputForeground ?? inputForeground);
-		this.placeholderText.style.color = asCssValue(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
+		this.stylingContainer.style.backgroundColor = asCssVariable(styleOverrides.inputBackground ?? inputBackground);
+		this.stylingContainer.style.color = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
+		this.placeholderText.style.color = asCssVariable(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
-		this.stylingContainer.style.borderColor = asCssValueWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
+		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = asCssValue(styleOverrides.inputForeground ?? inputForeground);
+			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
 		}
 	}
 

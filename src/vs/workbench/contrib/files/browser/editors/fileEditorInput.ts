@@ -9,7 +9,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { ByteSize, FileSystemProviderCapabilities, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, FileSystemProviderCapabilities, IFileReadLimits, IFileService, getLargeFileConfirmationLimit } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -372,15 +372,16 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			return options.limits; // respect passed in limits if any
 		}
 
-		let sizeLimit: number | undefined = undefined;
+		const defaultSizeLimit = getLargeFileConfirmationLimit(this.resource);
+		let configuredSizeLimit: number | undefined = undefined;
 
-		const largeFileThresholdMB = this.textResourceConfigurationService.getValue<number>(this.resource, 'workbench.editorLargeFileConfirmation');
-		if (typeof largeFileThresholdMB === 'number') {
-			sizeLimit = largeFileThresholdMB * ByteSize.MB;
+		const configuredSizeLimitMb = this.textResourceConfigurationService.getValue<number>(this.resource, 'workbench.editorLargeFileConfirmation');
+		if (typeof configuredSizeLimitMb === 'number') {
+			configuredSizeLimit = configuredSizeLimitMb * ByteSize.MB; // normalize to MB
 		}
 
 		return {
-			size: sizeLimit
+			size: Math.max(defaultSizeLimit, configuredSizeLimit ?? defaultSizeLimit) // pick the highest limit
 		};
 	}
 

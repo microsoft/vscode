@@ -10,7 +10,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, editorBackground, asCssValue, asCssValueWithDefault, widgetBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, editorBackground, asCssVariable, asCssVariableWithDefault, widgetBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { append, $, addDisposableListener, EventType, EventHelper, prepend } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -291,19 +291,19 @@ export class FeedbackWidget extends Disposable {
 		this.sendButton.onDidClick(() => this.onSubmit());
 
 		if (this.feedbackForm) {
-			this.feedbackForm.style.backgroundColor = asCssValue(editorWidgetBackground);
-			this.feedbackForm.style.color = asCssValue(editorWidgetForeground);
-			this.feedbackForm.style.boxShadow = `0 0 8px 2px ${asCssValue(widgetShadow)}`;
-			this.feedbackForm.style.border = `1px solid ${asCssValue(widgetBorder)}`;
+			this.feedbackForm.style.backgroundColor = asCssVariable(editorWidgetBackground);
+			this.feedbackForm.style.color = asCssVariable(editorWidgetForeground);
+			this.feedbackForm.style.boxShadow = `0 0 8px 2px ${asCssVariable(widgetShadow)}`;
+			this.feedbackForm.style.border = `1px solid ${asCssVariable(widgetBorder)}`;
 		}
 		if (this.feedbackDescriptionInput) {
-			this.feedbackDescriptionInput.style.backgroundColor = asCssValue(inputBackground);
-			this.feedbackDescriptionInput.style.color = asCssValue(inputForeground);
-			this.feedbackDescriptionInput.style.border = `1px solid ${asCssValueWithDefault(inputBorder, 'transparent')}`;
+			this.feedbackDescriptionInput.style.backgroundColor = asCssVariable(inputBackground);
+			this.feedbackDescriptionInput.style.color = asCssVariable(inputForeground);
+			this.feedbackDescriptionInput.style.border = `1px solid ${asCssVariableWithDefault(inputBorder, 'transparent')}`;
 		}
 
-		contactUsContainer.style.backgroundColor = asCssValue(editorBackground);
-		contactUsContainer.style.border = `1px solid ${asCssValueWithDefault(contrastBorder, 'transparent')}`;
+		contactUsContainer.style.backgroundColor = asCssVariable(editorBackground);
+		contactUsContainer.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, 'transparent')}`;
 
 
 		return {

@@ -18,7 +18,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
@@ -262,7 +262,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryInsertSnippet(id: string, modelVersionId: number, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
-	$getDiffInformation(id: string): Promise<ILineChange[]>;
+	$getDiffInformation(id: string): Promise<IChange[]>;
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
@@ -1822,7 +1822,7 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$initializeTelemetryLevel(level: TelemetryLevel, debugLoggingOnly: boolean, productConfig?: { usage: boolean; error: boolean }): void;
+	$initializeTelemetryLevel(level: TelemetryLevel, supportsTelemetry: boolean, productConfig?: { usage: boolean; error: boolean }): void;
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 
@@ -1997,6 +1997,7 @@ export interface MainThreadLoggerShape {
 	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
 	$registerLogger(logger: UriDto<ILoggerResource>): Promise<void>;
 	$deregisterLogger(resource: UriComponents): Promise<void>;
+	$setVisibility(resource: UriComponents, visible: boolean): Promise<void>;
 }
 
 export interface ExtHostOutputServiceShape {

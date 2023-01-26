@@ -17,7 +17,7 @@ fi
 
 TAG="branch-${BRANCH//\//-}"
 echo "[$(date)] ${BRANCH} => ${TAG}"
-cd "${SCRIPT_PATH}/../.."
+cd "${SCRIPT_PATH}/../../.."
 
 echo "[$(date)] Starting image build and push..."
 export DOCKER_BUILDKIT=1
