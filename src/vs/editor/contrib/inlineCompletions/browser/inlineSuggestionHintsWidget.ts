@@ -235,7 +235,7 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const div = h('div.keybinding').root;
 
-			const k = new KeybindingLabel(div, OS);
+			const k = new KeybindingLabel(div, OS, { disableTitle: true });
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
