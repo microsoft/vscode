@@ -644,6 +644,7 @@ export class TunnelModel extends Disposable {
 				this._onForwardPort.fire(newForward);
 				return tunnel;
 			}
+			this.inProgress.delete(key);
 		} else {
 			const newName = attributes?.label ?? tunnelProperties.name;
 			if (newName !== existingTunnel.name) {

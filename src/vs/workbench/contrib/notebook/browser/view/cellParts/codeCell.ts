@@ -269,7 +269,7 @@ export class CodeCell extends Disposable {
 					this.onCellEditorHeightChange(contentHeight);
 				}
 				const lastSelection = selections[selections.length - 1];
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
 		}));
 	}

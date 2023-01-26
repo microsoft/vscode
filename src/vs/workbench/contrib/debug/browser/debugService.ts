@@ -181,7 +181,8 @@ export class DebugService implements IDebugService {
 				if (editorService.activeEditor === DisassemblyViewInput.instance) {
 					this.disassemblyViewFocus.set(true);
 				} else {
-					this.disassemblyViewFocus.reset();
+					// This key can be initialized a tick after this event is fired
+					this.disassemblyViewFocus?.reset();
 				}
 			});
 		}));

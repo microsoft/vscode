@@ -334,5 +334,9 @@
 	{ // Reason: Missing license file
 		"name": "const_format",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
+	},
+	{ // License is MIT/Apache and tool doesn't understand this syntax
+		"name": "toml",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml/LICENSE-MIT"
 	}
 ]

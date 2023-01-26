@@ -252,8 +252,14 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			throw new Error('CANNOT open file notebook with this provider');
 		}
 
-		const bytes = await streamToBuffer(stream);
-		const data = await info.serializer.dataToNotebook(bytes);
+		let data: NotebookData = {
+			metadata: {},
+			cells: []
+		};
+		if (resource.scheme !== Schemas.vscodeInteractive) {
+			const bytes = await streamToBuffer(stream);
+			data = await info.serializer.dataToNotebook(bytes);
+		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
