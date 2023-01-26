@@ -90,6 +90,9 @@ const inlineSuggestionHintsNextIcon = registerIcon('inline-suggestion-hints-next
 const inlineSuggestionHintsPreviousIcon = registerIcon('inline-suggestion-hints-previous', Codicon.chevronLeft, localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
 
 export class InlineSuggestionHintsContentWidget extends Disposable implements IContentWidget {
+	private static _dropDownVisible = false;
+	public static get dropDownVisible() { return this._dropDownVisible; }
+
 	private static id = 0;
 
 	private readonly id = `InlineSuggestionHintsContentWidget${InlineSuggestionHintsContentWidget.id++}`;
@@ -164,6 +167,10 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			actionViewItemProvider: (action, options) => {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
 			},
+		}));
+
+		this._register(this.toolBar.onDidChangeDropdownVisibility(e => {
+			InlineSuggestionHintsContentWidget._dropDownVisible = e;
 		}));
 	}
 
