@@ -129,7 +129,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 			lineMatcher: GitPushOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 5
+			length: 15
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
@@ -175,7 +175,7 @@ export function gitCreatePr(): IInternalOptions {
 			lineMatcher: GitCreatePrOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 5
+			length: 15
 		},
 		commandExitResult: 'success',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {

@@ -672,6 +672,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SelectNextPageSuggestion,
 	TerminalCommandId.AcceptSelectedSuggestion,
 	TerminalCommandId.HideSuggestWidget,
+	TerminalCommandId.ShowTerminalAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',

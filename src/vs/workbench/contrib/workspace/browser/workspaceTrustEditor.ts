@@ -15,7 +15,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Schemas } from 'vs/base/common/network';
@@ -576,7 +576,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 	private formatPath(uri: URI): string {
 		if (uri.scheme === Schemas.file) {
-			return uri.fsPath;
+			return normalizeDriveLetter(uri.fsPath);
 		}
 
 		// If the path is not a file uri, but points to a windows remote, we should create windows fs path
@@ -585,7 +585,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			const pathWithoutLeadingSeparator = uri.path.substring(1);
 			const isWindowsPath = hasDriveLetter(pathWithoutLeadingSeparator, true);
 			if (isWindowsPath) {
-				return win32.normalize(pathWithoutLeadingSeparator);
+				return normalizeDriveLetter(win32.normalize(pathWithoutLeadingSeparator), true);
 			}
 		}
 

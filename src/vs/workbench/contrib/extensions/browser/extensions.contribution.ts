@@ -136,8 +136,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('none', "None"),
 				],
 				enumDescriptions: [
-					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
-					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions. Disabled extensions will not be updated automatically.'),
+					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions except for those updates are ignored.'),
+					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions except for those updates are ignored. Disabled extensions are not updated automatically.'),
 					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
 				],
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
@@ -262,9 +262,11 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
-	if (extension.length === 1) {
-		extensionService.open(extension[0], { tab, preserveFocus });
+	const extension = extensionService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
+	if (extension) {
+		extensionService.open(extension, { tab, preserveFocus });
+	} else {
+		throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
 	}
 });
 
