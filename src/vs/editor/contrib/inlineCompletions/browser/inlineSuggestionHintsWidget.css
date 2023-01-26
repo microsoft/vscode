@@ -21,7 +21,7 @@
 .monaco-editor .inlineSuggestionsHints .keybinding {
 	display: flex;
 	margin-left: 4px;
-	opacity: 0.5;
+	opacity: 0.6;
 }
 
 .monaco-editor .inlineSuggestionsHints .keybinding .monaco-keybinding-key {
