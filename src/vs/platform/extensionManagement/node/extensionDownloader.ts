@@ -68,11 +68,14 @@ export class ExtensionsDownloader extends Disposable {
 				}
 				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
 			} catch (error) {
-				const code: string = (error as ExtensionSignatureVerificationError).code;
+				const sigError = error as ExtensionSignatureVerificationError;
+				const code: string = sigError.code;
 
 				if (code === 'UnknownError') {
 					verificationStatus = ExtensionVerificationStatus.UnknownError;
 					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
+				} else if (!sigError.didExecute) {
+					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus} (${code})`);
 				} else {
 					await this.delete(signatureArchiveLocation);
 					await this.delete(location);
