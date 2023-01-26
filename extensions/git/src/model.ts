@@ -820,18 +820,14 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private async showParentRepositoryNotification(): Promise<void> {
 		const message = this.parentRepositories.size === 1 ?
-			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found a git repository in one of the parent folders of this workspace. Would you like to open the repository?') :
-				l10n.t('We found a git repository in one of the parent folders of the open file(s). Would you like to open the repository?') :
-			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found git repositories in one of the parent folders of this workspace. Would you like to open the repositories?') :
-				l10n.t('We found git repositories in one of the parent folders of the open file(s). Would you like to open the repositories?');
+			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
+			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
 
 		const yes = l10n.t('Yes');
 		const always = l10n.t('Always');
 		const never = l10n.t('Never');
 
-		const choice = await window.showWarningMessage(message, yes, always, never);
+		const choice = await window.showInformationMessage(message, yes, always, never);
 		if (choice === yes) {
 			// Open Parent Repositories
 			commands.executeCommand('git.openRepositoriesInParentFolders');

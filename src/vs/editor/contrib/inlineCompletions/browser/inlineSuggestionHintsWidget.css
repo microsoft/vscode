@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .inlineSuggestionsHints {
+.monaco-editor .inlineSuggestionsHints.withBorder {
 	z-index: 39;
 	color: var(--vscode-editor-hoverForeground);
 	background-color: var(--vscode-editorHoverWidget-background);
@@ -21,7 +21,7 @@
 .monaco-editor .inlineSuggestionsHints .keybinding {
 	display: flex;
 	margin-left: 4px;
-	opacity: 0.5;
+	opacity: 0.6;
 }
 
 .monaco-editor .inlineSuggestionsHints .keybinding .monaco-keybinding-key {
@@ -33,4 +33,8 @@
 	display: flex;
 	min-width: 19px;
 	justify-content: center;
+}
+
+.monaco-editor .inlineSuggestionStatusBarItemLabel {
+	margin-right: 2px;
 }

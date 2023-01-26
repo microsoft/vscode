@@ -166,12 +166,13 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 	readonly handle = ProfileResourceType.Extensions;
 	readonly label = { label: localize('extensions', "Extensions") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
+	contextValue = ProfileResourceType.Extensions;
 	checkbox: ITreeItemCheckboxState | undefined;
 
 	protected readonly excludedExtensions = new Set<string>();
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
-		const extensions = await this.getExtensions();
+		const extensions = (await this.getExtensions()).sort((a, b) => (a.displayName ?? a.identifier.id).localeCompare(b.displayName ?? b.identifier.id));
 		const that = this;
 		return extensions.map<IProfileResourceChildTreeItem>(e => ({
 			handle: e.identifier.id.toLowerCase(),
