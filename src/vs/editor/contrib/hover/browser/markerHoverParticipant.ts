@@ -66,7 +66,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range && !anchor.supportsMarkerHover) {
 			return [];
 		}
 
