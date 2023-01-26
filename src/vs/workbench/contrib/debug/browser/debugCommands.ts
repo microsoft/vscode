@@ -156,6 +156,8 @@ function getFrame(debugService: IDebugService, context: CallStackContext | unkno
 				return thread.getCallStack().find(sf => sf.getId() === context.frameId);
 			}
 		}
+	} else {
+		return debugService.getViewModel().focusedStackFrame;
 	}
 
 	return undefined;
@@ -299,7 +301,8 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 		const clipboardService = accessor.get(IClipboardService);
-		const frame = getFrame(accessor.get(IDebugService), context);
+		const debugService = accessor.get(IDebugService);
+		const frame = getFrame(debugService, context);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
 			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
@@ -458,7 +461,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		} else {
 			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			// Stop should be sent to the root parent session
-			while (!showSubSessions && session && session.parentSession) {
+			while (!showSubSessions && session.lifecycleManagedByParent && session.parentSession) {
 				session = session.parentSession;
 			}
 			session.removeReplExpressions();
@@ -605,7 +608,7 @@ async function stopHandler(accessor: ServicesAccessor, _: string, context: CallS
 	const configurationService = accessor.get(IConfigurationService);
 	const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 	// Stop should be sent to the root parent session
-	while (!showSubSessions && session && session.parentSession) {
+	while (!showSubSessions && session && session.lifecycleManagedByParent && session.parentSession) {
 		session = session.parentSession;
 	}
 

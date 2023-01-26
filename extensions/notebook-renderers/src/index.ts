@@ -48,6 +48,14 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 		}
 	};
 
+	if (element.firstChild) {
+		const display = element.firstChild as HTMLElement;
+		if (display.firstChild && display.firstChild.nodeName === 'IMG' && display.firstChild instanceof HTMLImageElement) {
+			display.firstChild.src = src;
+			return disposable;
+		}
+	}
+
 	const image = document.createElement('img');
 	image.src = src;
 	const display = document.createElement('div');
@@ -143,7 +151,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 		stack.classList.add('traceback');
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
-		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element);
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
 		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
@@ -172,10 +180,18 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 		const outputElement = (prev.firstChild as HTMLElement | null);
 		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
 			// same stream
-			const text = outputInfo.text();
 
-			const element = document.createElement('span');
-			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element);
+			// find child with same id
+			const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+			if (existing) {
+				clearContainer(existing);
+			}
+
+			const text = outputInfo.text();
+			const element = existing ?? document.createElement('span');
+			element.classList.add('output-stream');
+			element.setAttribute('output-item-id', outputInfo.id);
+			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -183,9 +199,10 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const element = document.createElement('span');
 	element.classList.add('output-stream');
+	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
@@ -201,7 +218,7 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
 	container.appendChild(contentNode);
 }
 
@@ -218,7 +235,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-stream,
 	.traceback {
 		display: inline-block;
-		white-space: pre-wrap;
 		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
@@ -228,11 +244,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
+	.output-plaintext,
+	.output-stream {
+		white-space: pre-wrap;
+	}
 	output-plaintext,
 	.traceback {
 		word-wrap: break-word;
 	}
-	.output > span.scrollable {
+	.output > .scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
 		border: var(--vscode-editorWidget-border);
@@ -289,6 +309,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'image/jpeg':
 				case 'image/git':
 					{
+						disposables.get(outputInfo.id)?.dispose();
 						const disposable = renderImage(outputInfo, element);
 						disposables.set(outputInfo.id, disposable);
 					}

@@ -158,12 +158,12 @@ class DefaultFoldingRangeProvider extends Disposable implements IWorkbenchContri
 		}
 	}
 
-	private _selectFoldingRangeProvider(providers: FoldingRangeProvider[], document: ITextModel): FoldingRangeProvider[] {
+	private _selectFoldingRangeProvider(providers: FoldingRangeProvider[], document: ITextModel): FoldingRangeProvider[] | undefined {
 		const value = this._configurationService.getValue<string>(DefaultFoldingRangeProvider.configName, { overrideIdentifier: document.getLanguageId() });
 		if (value) {
 			return providers.filter(p => p.id === value);
 		}
-		return providers;
+		return undefined;
 	}
 }
 

@@ -466,8 +466,8 @@ export class InputBox extends Widget {
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
-				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
-				spanElement.style.color = styles.foreground ? styles.foreground.toString() : '';
+				spanElement.style.backgroundColor = styles.background ?? '';
+				spanElement.style.color = styles.foreground ?? '';
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);
@@ -673,14 +673,26 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 	}
 
-	public addToHistory(): void {
-		if (this.value && this.value !== this.getCurrentValue()) {
+	public addToHistory(always?: boolean): void {
+		if (this.value && (always || this.value !== this.getCurrentValue())) {
 			this.history.add(this.value);
 		}
 	}
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
+	}
+
+	public isAtFirstInHistory(): boolean {
+		return this.history.isFirst();
+	}
+
+	public isAtLastInHistory(): boolean {
+		return this.history.isLast();
+	}
+
+	public isNowhereInHistory(): boolean {
+		return this.history.isNowhere();
 	}
 
 	public showNextValue(): void {

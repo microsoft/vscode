@@ -65,11 +65,7 @@ export class ExtensionsWatcher extends Disposable {
 				this.extensionsProfileWatchDisposables.deleteAndDispose(profile.id);
 				return this.removeExtensionsFromProfile(profile.extensionsResource);
 			}));
-		} catch (error) {
-			this.logService.error(error);
-		}
 
-		try {
 			if (added.length) {
 				await Promise.all(added.map(profile => {
 					this.extensionsProfileWatchDisposables.set(profile.id, combinedDisposable(
@@ -82,6 +78,7 @@ export class ExtensionsWatcher extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
+			throw error;
 		}
 	}
 

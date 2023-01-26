@@ -22,6 +22,12 @@ or exit
 
 set --global VSCODE_SHELL_INTEGRATION 1
 
+# Apply any explicit path prefix (see #99878)
+if status --is-login; and set -q VSCODE_PATH_PREFIX
+	fish_add_path -p $VSCODE_PATH_PREFIX
+end
+set -e VSCODE_PATH_PREFIX
+
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
 	builtin printf "\e]633;%s\a" (string join ";" $argv)
@@ -41,22 +47,10 @@ end
 # Escape a value for use in the 'P' ("Property") or 'E' ("Command Line") sequences.
 # Backslashes are doubled and non-alphanumeric characters are hex encoded.
 function __vsc_escape_value
-	# Replace all non-alnum characters with %XX hex form.
-	string escape --style=url "$argv" \
-	# The characters [-./_~] are not encoded in the builtin url escaping, despite not being alphanumeric.
-	# See: https://github.com/fish-shell/fish-shell/blob/f82537bcdcb32f85a530395f00e7be1aa9afc592/src/common.cpp#L738
-	# For consistency, also encode those characters.
-	| string replace --all '-' '%2D' \
-	| string replace --all '.' '%2E' \
-	| string replace --all '/' '%2F' \
-	| string replace --all '_' '%5F' \
-	| string replace --all '~' '%7E' \
-	# Now everything is either alphanumeric [0-9A-Za-z] or %XX escapes.
-	# Change the hex escape representation from '%' to '\x'. (e.g. ' ' → '%20' → '\x20').
-	# Note that all '%' characters are escapes: literal '%' will already have been encoded.
-	| string replace --all '%' '\\x' \
-	# For readability, prefer to represent literal backslashes with doubling. ('\' → '%5C' → '\x5C' → '\\').
-	| string replace --all --ignore-case '%5C' '\\\\' \
+	# Escape backslashes and semi-colons
+	echo $argv \
+	| string replace --all '\\' '\\\\' \
+	| string replace --all ';' '\\x3b' \
 	;
 end
 
@@ -75,7 +69,7 @@ end
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
-	__vsc_esc P "Cwd=$(__vsc_escape_value "$PWD")"
+	__vsc_esc P Cwd=(__vsc_escape_value "$PWD")
 
 	# If a command marker exists, remove it.
 	# Otherwise, the commandline is empty and no command was run.

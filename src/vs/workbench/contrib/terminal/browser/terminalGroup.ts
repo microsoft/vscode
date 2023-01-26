@@ -11,7 +11,7 @@ import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, Direction, ITerminalGroup, ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalTabLayoutInfoById, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { getPartByLocation } from 'vs/workbench/browser/parts/views/viewsService';
 
@@ -19,7 +19,7 @@ const enum Constants {
 	/**
 	 * The minimum size in pixels of a split pane.
 	 */
-	SplitPaneMinSize = 180,
+	SplitPaneMinSize = 80,
 	/**
 	 * The number of cells the terminal gets added or removed when asked to increase or decrease
 	 * the view size.
@@ -310,7 +310,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if ('instanceId' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
 		} else {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfigOrInstance);
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfigOrInstance, TerminalLocation.Panel);
 		}
 		if (this._terminalInstances.length === 0) {
 			this._terminalInstances.push(instance);
@@ -512,7 +512,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	private _getBellTitle(instance: ITerminalInstance) {
-		if (this._terminalService.configHelper.config.enableBell && instance.statusList.statuses.find(e => e.id === TerminalStatus.Bell)) {
+		if (this._terminalService.configHelper.config.enableBell && instance.statusList.statuses.some(e => e.id === TerminalStatus.Bell)) {
 			return '*';
 		}
 		return '';
@@ -526,7 +526,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
+		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel);
 		this.addInstance(instance, shellLaunchConfig.parentTerminalId);
 		this._setActiveInstance(instance);
 		return instance;

@@ -83,6 +83,11 @@ export class TimerService extends AbstractTimerService {
 			// ignore, be on the safe side with these hardware method calls
 		}
 	}
+
+	protected override _shouldReportPerfMarks(): boolean {
+		// always send when running with the prof-append-timers flag
+		return super._shouldReportPerfMarks() || Boolean(this._environmentService.args['prof-append-timers']);
+	}
 }
 
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);

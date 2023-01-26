@@ -14,7 +14,7 @@ import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { fromNow } from 'vs/base/common/date';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -31,13 +31,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
-import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
@@ -267,7 +267,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
 			if (e.default.length && this.currentSettingsModel) {
-				this.updateElementsByKey([...e.default]);
+				this.updateElementsByKey(new Set(e.default));
 			}
 		}));
 
@@ -336,7 +336,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		const model = await this.input.resolve();
+		const model = await this.input.resolve(options);
 		if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
 			return;
 		}
@@ -573,29 +573,20 @@ export class SettingsEditor2 extends EditorPane {
 		}, searchBoxLabel, 'settingseditor:searchinput' + SettingsEditor2.NUM_INSTANCES++, {
 			placeholderText: searchBoxLabel,
 			focusContextKey: this.searchFocusContextKey,
+			styleOverrides: {
+				inputBorder: settingsTextInputBorder
+			}
 			// TODO: Aria-live
 		}));
 		this._register(this.searchWidget.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
 
-		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
-			inputBorder: settingsTextInputBorder
-		}));
-
 		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
 
-			this.countElement.style.backgroundColor = background;
-			this.countElement.style.color = foreground;
-
-			this.countElement.style.borderWidth = border ? '1px' : '';
-			this.countElement.style.borderStyle = border ? 'solid' : '';
-			this.countElement.style.borderColor = border;
-		}));
+		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
+		this.countElement.style.color = asCssVariable(badgeForeground);
+		this.countElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
@@ -604,10 +595,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
-		this._register(attachStylerCallback(this.themeService, { settingsHeaderBorder }, colors => {
-			const border = colors.settingsHeaderBorder ? colors.settingsHeaderBorder.toString() : '';
-			headerControlsContainer.style.borderColor = border;
-		}));
+		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
 
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
@@ -765,9 +753,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
 
-		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
-			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : '';
-		}));
+		this.noResultsMessage.style.color = asCssVariable(editorForeground);
 
 		this.tocTreeContainer = $('.settings-toc-container');
 		this.settingsTreeContainer = $('.settings-tree-container');
@@ -981,7 +967,7 @@ export class SettingsEditor2 extends EditorPane {
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean, scope: ConfigurationScope | undefined): void {
 		const parsedQuery = parseQuery(this.searchWidget.getValue());
 		const languageFilter = parsedQuery.languageFilter;
-		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
+		if (manualReset || (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key)) {
 			this.updateChangedSetting(key, value, manualReset, languageFilter, scope);
 		}
 
@@ -1078,7 +1064,7 @@ export class SettingsEditor2 extends EditorPane {
 			value = undefined;
 		}
 
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
+		return this.configurationService.updateValue(key, value, overrides, configurationTarget, { handleDirtyFile: 'save' })
 			.then(() => {
 				const query = this.searchWidget.getValue();
 				if (query.includes(`@${MODIFIED_SETTING_TAG}`)) {
@@ -1189,11 +1175,11 @@ export class SettingsEditor2 extends EditorPane {
 		scheduledRefreshTracker.onDidBlur(() => {
 			scheduledRefreshTracker.dispose();
 			this.scheduledRefreshes.delete(key);
-			this.onConfigUpdate([key]);
+			this.onConfigUpdate(new Set([key]));
 		});
 	}
 
-	private async onConfigUpdate(keys?: string[], forceRefresh = false, schemaChange = false): Promise<void> {
+	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -1259,8 +1245,8 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private updateElementsByKey(keys: string[]): void {
-		if (keys.length) {
+	private updateElementsByKey(keys: ReadonlySet<string>): void {
+		if (keys.size) {
 			if (this.searchResultModel) {
 				keys.forEach(key => this.searchResultModel!.updateElementsByName(key));
 			}
@@ -1633,21 +1619,21 @@ export class SettingsEditor2 extends EditorPane {
 				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
-					type SettingsSearchErrorEvent = {
-						'message': string;
-					};
-					type SettingsSearchErrorClassification = {
-						owner: 'rzhao271';
-						comment: 'Helps understand when settings search errors out';
-						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
-					};
+					// type SettingsSearchErrorEvent = {
+					// 	'message': string;
+					// };
+					// type SettingsSearchErrorClassification = {
+					// 	owner: 'rzhao271';
+					// 	comment: 'Helps understand when settings search errors out';
+					// 	'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
+					// };
 
-					const message = getErrorMessage(err).trim();
-					if (message && message !== 'Error') {
-						// "Error" = any generic network error
-						this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
-						this.logService.info('Setting search error: ' + message);
-					}
+					// const message = getErrorMessage(err).trim();
+					// if (message && message !== 'Error') {
+					// 	// "Error" = any generic network error
+					// 	this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
+					// 	this.logService.info('Setting search error: ' + message);
+					// }
 					return null;
 				}
 			});
@@ -1744,7 +1730,7 @@ class SyncControls extends Disposable {
 		const last = this.userDataSyncService.lastSyncTime;
 		let label: string;
 		if (typeof last === 'number') {
-			const d = fromNow(last, true);
+			const d = fromNow(last, true, undefined, true);
 			label = localize('lastSyncedLabel', "Last synced: {0}", d);
 		} else {
 			label = '';

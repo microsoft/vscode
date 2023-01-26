@@ -31,7 +31,7 @@ registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
 				value: nls.localize('clearSearchHistoryLabel', "Clear Search History"),
 				original: 'Clear Search History'
 			},
-			category: category,
+			category,
 			f1: true
 		});
 

@@ -16,7 +16,7 @@ import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
@@ -24,9 +24,9 @@ import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 
 // Register Icons
@@ -362,7 +362,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			toggled: {
 				condition: SideBarVisibleContext,
 				title: localize('primary sidebar', "Primary Side Bar"),
-				mnemonicTitle: localize('primary sidebar mnemonic', "&&Primary Side Bar"),
+				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
 			},
 			category: Categories.View,
 			f1: true,
@@ -521,7 +521,7 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.toggleZenMode',
 			title: {
 				value: localize('toggleZenMode', "Toggle Zen Mode"),
-				mnemonicTitle: localize('miToggleZenMode', "Zen Mode"),
+				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
 			category: Categories.View,
@@ -1110,10 +1110,10 @@ interface CustomizeLayoutItem {
 	id: string;
 	active: ContextKeyExpression;
 	label: string;
-	activeIcon: Codicon;
+	activeIcon: ThemeIcon;
 	visualIcon?: LayoutVisualIcon;
 	activeAriaLabel: string;
-	inactiveIcon?: Codicon;
+	inactiveIcon?: ThemeIcon;
 	inactiveAriaLabel?: string;
 	useButtons: boolean;
 }
@@ -1126,8 +1126,8 @@ const CreateToggleLayoutItem = (id: string, active: ContextKeyExpression, label:
 		visualIcon,
 		activeIcon: Codicon.eye,
 		inactiveIcon: Codicon.eyeClosed,
-		activeAriaLabel: localize('visible', "Visible"),
-		inactiveAriaLabel: localize('hidden', "Hidden"),
+		activeAriaLabel: localize('selectToHide', "Select to Hide"),
+		inactiveAriaLabel: localize('selectToShow', "Select to Show"),
 		useButtons: true,
 	};
 };
@@ -1184,6 +1184,9 @@ for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...
 }
 
 registerAction2(class CustomizeLayoutAction extends Action2 {
+
+	private _currentQuickPick?: IQuickPick<IQuickPickItem>;
+
 	constructor() {
 		super({
 			id: 'workbench.action.customizeLayout',
@@ -1223,6 +1226,8 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				label = `$(${icon.id}) ${label}`;
 			}
 
+			const icon = toggled ? item.activeIcon : item.inactiveIcon;
+
 			return {
 				type: 'item',
 				id: item.id,
@@ -1232,7 +1237,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					{
 						alwaysVisible: false,
 						tooltip: ariaLabel,
-						iconClass: toggled ? item.activeIcon.classNames : item.inactiveIcon?.classNames
+						iconClass: icon ? ThemeIcon.asClassName(icon) : undefined
 					}
 				]
 			};
@@ -1262,21 +1267,38 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
+		if (this._currentQuickPick) {
+			this._currentQuickPick.hide();
+			return;
+		}
+
+		const configurationService = accessor.get(IConfigurationService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const quickPick = quickInputService.createQuickPick();
+
+		this._currentQuickPick = quickPick;
 		quickPick.items = this.getItems(contextKeyService);
 		quickPick.ignoreFocusOut = true;
 		quickPick.hideInput = true;
 		quickPick.title = localize('customizeLayoutQuickPickTitle', "Customize Layout");
 
+		const closeButton = {
+			alwaysVisible: true,
+			iconClass: ThemeIcon.asClassName(Codicon.close),
+			tooltip: localize('close', "Close")
+		};
+
+		const resetButton = {
+			alwaysVisible: true,
+			iconClass: ThemeIcon.asClassName(Codicon.discard),
+			tooltip: localize('restore defaults', "Restore Defaults")
+		};
+
 		quickPick.buttons = [
-			{
-				alwaysVisible: true,
-				iconClass: Codicon.close.classNames,
-				tooltip: localize('close', "Close")
-			}
+			resetButton,
+			closeButton
 		];
 
 		const disposables = new DisposableStore();
@@ -1306,12 +1328,38 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			}
 		});
 
-		// Only one button, close
-		quickPick.onDidTriggerButton(() => {
-			quickPick.hide();
+		quickPick.onDidTriggerButton((button) => {
+			if (button === closeButton) {
+				quickPick.hide();
+			} else if (button === resetButton) {
+
+				const resetSetting = (id: string) => {
+					const config = configurationService.inspect(id);
+					configurationService.updateValue(id, config.defaultValue);
+				};
+
+				// Reset all layout options
+				resetSetting('workbench.activityBar.visible');
+				resetSetting('workbench.sideBar.location');
+				resetSetting('workbench.statusBar.visible');
+				resetSetting('workbench.panel.defaultLocation');
+
+				if (!isMacintosh || !isNative) {
+					resetSetting('window.menuBarVisibility');
+				}
+
+				commandService.executeCommand('workbench.action.alignPanelCenter');
+			}
 		});
 
-		quickPick.onDispose(() => disposables.dispose());
+		quickPick.onDidHide(() => {
+			quickPick.dispose();
+		});
+
+		quickPick.onDispose(() => {
+			this._currentQuickPick = undefined;
+			disposables.dispose();
+		});
 
 		quickPick.show();
 	}

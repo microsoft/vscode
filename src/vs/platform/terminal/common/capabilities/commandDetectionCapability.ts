@@ -649,12 +649,15 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
+function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
-	const startLine = executedMarker.line;
 	const endLine = endMarker.line;
+	if (endLine === -1) {
+		return undefined;
+	}
+	const startLine = Math.max(executedMarker.line, 0);
 
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
@@ -669,14 +672,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			}
 			i = wrappedLineStart;
 			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
-			if (lines.length > linesToCheck) {
-				lines.pop();
+			if (lines.length >= linesToCheck) {
+				break;
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
-				if (!outputMatcher.multipleMatches && match) {
-					return { regexMatch: match };
-				}
 			}
 		}
 	} else {
@@ -688,14 +688,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			}
 			i = wrappedLineEnd;
 			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
-			if (lines.length === linesToCheck) {
-				lines.shift();
+			if (lines.length >= linesToCheck) {
+				break;
 			}
 			if (!match) {
 				match = lines.join('\n').match(matcher);
-				if (!outputMatcher.multipleMatches && match) {
-					return { regexMatch: match };
-				}
 			}
 		}
 	}
@@ -709,7 +706,7 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	const executedMarker = command.executedMarker;
 	const endMarker = command.endMarker;
 	if (!executedMarker || !endMarker) {
-		throw new Error('No marker for command');
+		return undefined;
 	}
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;

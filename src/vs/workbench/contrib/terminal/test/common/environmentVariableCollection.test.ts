@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 
 suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	suite('ctor', () => {

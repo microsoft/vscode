@@ -12,7 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -147,6 +147,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'view/item/context',
 		id: MenuId.ViewItemContext,
 		description: localize('view.itemContext', "The contributed view item context menu")
+	},
+	{
+		key: 'comments/comment/editorActions',
+		id: MenuId.CommentEditorActions,
+		description: localize('commentThread.editorActions', "The contributed comment editor actions"),
+		proposed: 'contribCommentEditorActionsMenu'
 	},
 	{
 		key: 'comments/commentThread/title',
@@ -669,7 +675,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
-			source: extension.description.displayName ?? extension.description.name,
+			source: { id: extension.description.identifier.value, title: extension.description.displayName ?? extension.description.name },
 			shortTitle,
 			tooltip: title,
 			category,

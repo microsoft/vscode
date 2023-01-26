@@ -20,7 +20,7 @@ import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withNullAsUndefined, assertType } from 'vs/base/common/types';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -452,7 +452,7 @@ export abstract class EditorAction2 extends Action2 {
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
 			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
-				return this.runEditorCommand(editorAccessor, editor!, args);
+				return this.runEditorCommand(editorAccessor, editor!, ...args);
 			}
 		});
 	}

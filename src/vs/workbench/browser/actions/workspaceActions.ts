@@ -231,7 +231,7 @@ export class AddRootFolderAction extends Action2 {
 	}
 }
 
-class RemoveRootFolderAction extends Action2 {
+export class RemoveRootFolderAction extends Action2 {
 
 	static readonly ID = 'workbench.action.removeRootFolder';
 

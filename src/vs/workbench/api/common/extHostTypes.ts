@@ -46,13 +46,13 @@ function es5ClassCompat(target: Function): any {
 }
 
 export enum TerminalOutputAnchor {
-	top = 'top',
-	bottom = 'bottom'
+	Top = 0,
+	Bottom = 1
 }
 
 export enum TerminalQuickFixType {
-	command = 'command',
-	opener = 'opener'
+	Command = 0,
+	Opener = 1
 }
 
 @es5ClassCompat
@@ -492,7 +492,7 @@ export class ResolvedAuthority {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
-			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z\-]+$/.test(connectionToken)) {
+			if (typeof connectionToken !== 'string' || connectionToken.length === 0 || !/^[0-9A-Za-z_\-]+$/.test(connectionToken)) {
 				throw illegalArgument('connectionToken');
 			}
 		}
@@ -1926,6 +1926,20 @@ export class TerminalLink implements vscode.TerminalLink {
 	}
 }
 
+export class TerminalQuickFixOpener {
+	uri: vscode.Uri;
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+export class TerminalQuickFixCommand {
+	terminalCommand: string;
+	constructor(terminalCommand: string) {
+		this.terminalCommand = terminalCommand;
+	}
+}
+
 export enum TerminalLocation {
 	Panel = 1,
 	Editor = 2,
@@ -2745,6 +2759,20 @@ export class RelativePattern implements IRelativePattern {
 	}
 }
 
+const breakpointIds = new WeakMap<Breakpoint, string>();
+
+/**
+ * We want to be able to construct Breakpoints internally that have a particular id, but we don't want extensions to be
+ * able to do this with the exposed Breakpoint classes in extension API.
+ * We also want "instanceof" to work with debug.breakpoints and the exposed breakpoint classes.
+ * And private members will be renamed in the built js, so casting to any and setting a private member is not safe.
+ * So, we store internal breakpoint IDs in a WeakMap. This function must be called after constructing a Breakpoint
+ * with a known id.
+ */
+export function setBreakpointId(bp: Breakpoint, id: string) {
+	breakpointIds.set(bp, id);
+}
+
 @es5ClassCompat
 export class Breakpoint {
 
@@ -2770,7 +2798,7 @@ export class Breakpoint {
 
 	get id(): string {
 		if (!this._id) {
-			this._id = generateUuid();
+			this._id = breakpointIds.get(this) ?? generateUuid();
 		}
 		return this._id;
 	}
@@ -2815,7 +2843,6 @@ export class DataBreakpoint extends Breakpoint {
 		this.canPersist = canPersist;
 	}
 }
-
 
 @es5ClassCompat
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
@@ -3733,6 +3760,18 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
 	) { }
+}
+
+@es5ClassCompat
+export class TestRunRequest2 extends TestRunRequest implements vscode.TestRunRequest2 {
+	constructor(
+		include: vscode.TestItem[] | undefined = undefined,
+		exclude: vscode.TestItem[] | undefined = undefined,
+		profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
+	) {
+		super(include, exclude, profile);
+	}
 }
 
 @es5ClassCompat

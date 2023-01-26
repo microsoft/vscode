@@ -39,8 +39,10 @@ export class HoverService implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
-		if (document.activeElement) {
+		if (options.trapFocus && document.activeElement) {
 			this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
+		} else {
+			this._lastFocusedElementBeforeOpen = undefined;
 		}
 
 		const hoverDisposables = new DisposableStore();
@@ -115,10 +117,10 @@ export class HoverService implements IHoverService {
 		}
 		const event = new StandardKeyboardEvent(e);
 		const keybinding = this._keybindingService.resolveKeyboardEvent(event);
-		if (keybinding.getSingleModifierDispatchParts().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
+		if (keybinding.getSingleModifierDispatchChords().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
 			return;
 		}
-		if (e.key !== 'Tab') {
+		if (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab') {
 			this.hideHover();
 			this._lastFocusedElementBeforeOpen?.focus();
 		}
