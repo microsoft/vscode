@@ -4,7 +4,7 @@
 	"ipynb.pasteImagesAsAttachments.enabled": "Enable/disable pasting of images into Markdown cells in ipynb notebook files. Pasted images are inserted as attachments to the cell.",
 	"newUntitledIpynb.title": "New Jupyter Notebook",
 	"newUntitledIpynb.shortTitle": "Jupyter Notebook",
-	"openIpynbInNotebookEditor.title": "Open ipynb file in notebook editor",
-	"cleanInvalidImageAttachment.title": "Clean invalid image attachment reference",
+	"openIpynbInNotebookEditor.title": "Open IPYNB File In Notebook Editor",
+	"cleanInvalidImageAttachment.title": "Clean Invalid Image Attachment Reference",
 	"markdownAttachmentRenderer.displayName": "Markdown it ipynb Cell Attachment renderer"
 }
