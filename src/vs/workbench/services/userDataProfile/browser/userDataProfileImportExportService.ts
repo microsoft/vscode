@@ -44,7 +44,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
-import { getErrorMessage } from 'vs/base/common/errors';
+import { getErrorMessage, onUnexpectedError } from 'vs/base/common/errors';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -68,6 +68,8 @@ import { Barrier } from 'vs/base/common/async';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -340,7 +342,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				: new BarrierAction(barrier, new Action('close', localize('close', "Close")));
 
 			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, importAction, secondaryAction, false, userDataProfileImportState);
-			view.setMessage(localize('preview profile message', "Extensions are not installed, please install them to preview.", importedProfile.name));
+			const message = new MarkdownString();
+			message.appendMarkdown(localize('preview profile message', "By default, extensions aren't installed when previewing a profile on the web. You can still install them manually before importing the profile. "));
+			message.appendMarkdown(`[${localize('learn more', "Learn more")}](https://aka.ms/vscode-extension-marketplace#_can-i-trust-extensions-from-the-marketplace).`);
+			view.setMessage(message);
 
 			const that = this;
 			const disposable = disposables.add(registerAction2(class extends Action2 {
@@ -361,7 +366,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 						location: IMPORT_PROFILE_PREVIEW_VIEW,
 					}, async progress => {
 						disposable.dispose();
-						view.setMessage('');
+						view.setMessage(undefined);
 						const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 						if (profileTemplate.extensions) {
 							await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
@@ -691,7 +696,6 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 	private primaryButton!: Button;
 	private secondaryButton!: Button;
 	private messageContainer!: HTMLElement;
-	private messageElement!: HTMLElement;
 	private dimension: DOM.Dimension | undefined;
 	private totalTreeItemsCount: number = 0;
 
@@ -719,7 +723,6 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 		this.treeView.dataProvider = this.userDataProfileData;
 		super.renderTreeView(DOM.append(container, DOM.$('.profile-view-tree-container')));
 		this.messageContainer = DOM.append(container, DOM.$('.profile-view-message-container.hide'));
-		this.messageElement = DOM.append(this.messageContainer, DOM.$('.profile-view-message-element'));
 		this.createButtons(container);
 		this._register(this.treeView.onDidChangeCheckboxState(items => {
 			this.treeView.refresh(this.userDataProfileData.onDidChangeCheckboxState(items));
@@ -778,25 +781,38 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 	protected override layoutTreeView(height: number, width: number): void {
 		this.dimension = new DOM.Dimension(width, height);
 
-		let messageElementHeight = 0;
-		if (!this.messageElement.classList.contains('hide')) {
-			messageElementHeight = DOM.getClientArea(this.messageElement).height;
+		let messageContainerHeight = 0;
+		if (!this.messageContainer.classList.contains('hide')) {
+			messageContainerHeight = DOM.getClientArea(this.messageContainer).height;
 		}
 
 		const buttonContainerHeight = 108;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
 
-		super.layoutTreeView(Math.min(height - buttonContainerHeight - messageElementHeight, 22 * this.totalTreeItemsCount), width);
+		super.layoutTreeView(Math.min(height - buttonContainerHeight - messageContainerHeight, 22 * this.totalTreeItemsCount), width);
 	}
 
 	private updateConfirmButtonEnablement(): void {
 		this.primaryButton.enabled = this.primaryAction.enabled && this.userDataProfileData.isEnabled();
 	}
 
-	setMessage(message: string | undefined): void {
+	private readonly renderDisposables = this._register(new DisposableStore());
+	setMessage(message: MarkdownString | undefined): void {
 		this.messageContainer.classList.toggle('hide', !message);
-		this.messageElement.textContent = message ?? '';
+		DOM.clearNode(this.messageContainer);
+		if (message) {
+			this.renderDisposables.clear();
+			const rendered = this.renderDisposables.add(renderMarkdown(message, {
+				actionHandler: {
+					callback: (content) => {
+						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+					},
+					disposables: this.renderDisposables
+				}
+			}));
+			DOM.append(this.messageContainer, rendered.element);
+		}
 	}
 
 	refresh(): Promise<void> {
