@@ -1343,7 +1343,8 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private throwIfFileIsReadonly(resource: URI, stat: IStat): void {
-		if ((stat.permissions ?? 0) & FilePermission.Readonly) {
+		if ((stat.permissions ?? 0) & FilePermission.Readonly &&
+			!((stat.permissions ?? 0) & FilePermission.IgnoreReadonly)) {
 			throw new FileOperationError(localize('err.readonly', "Unable to modify readonly file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_PERMISSION_DENIED);
 		}
 	}

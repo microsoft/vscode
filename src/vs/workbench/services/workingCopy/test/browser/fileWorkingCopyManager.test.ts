@@ -38,7 +38,7 @@ suite('FileWorkingCopyManager', () => {
 			new TestUntitledFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.filesConfigurationService, accessor.testConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
 			accessor.environmentService, accessor.dialogService, accessor.decorationsService
 		);

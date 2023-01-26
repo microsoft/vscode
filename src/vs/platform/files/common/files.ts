@@ -401,7 +401,12 @@ export enum FilePermission {
 	/**
 	 * File is readonly.
 	 */
-	Readonly = 1
+	Readonly = 1 << 0,
+
+	/**
+	 * Ignore readonly stat, try to unlock/sudo [for DiskFileProvider]
+	 */
+	IgnoreReadonly = 1 << 1,
 }
 
 export interface IStat {

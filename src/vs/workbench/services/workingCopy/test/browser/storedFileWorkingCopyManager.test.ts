@@ -36,7 +36,7 @@ suite('StoredFileWorkingCopyManager', () => {
 			new TestStoredFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService,
-			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.filesConfigurationService, accessor.testConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService
 		);
 	});
