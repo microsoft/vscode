@@ -378,6 +378,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 							const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 							if (profileTemplate.extensions) {
 								await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
+								userDataProfileImportState.setDescription(ProfileResourceType.Extensions, undefined);
+								await view.refresh();
 							}
 						});
 					}
