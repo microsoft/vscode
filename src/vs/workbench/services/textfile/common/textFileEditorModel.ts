@@ -102,6 +102,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
+	// private _readonlyHelper needs access to private _onDidChangeReadonly Emitter
 	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
 
 	private dirty = false;

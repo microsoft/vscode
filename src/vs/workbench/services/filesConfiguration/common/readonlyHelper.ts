@@ -61,6 +61,7 @@ export class ReadonlyHelper extends Disposable {
 					}
 				}
 			}
+			this.isReadonly(); // fire event if/when onDidChangeReadonly
 		}
 	}
 
