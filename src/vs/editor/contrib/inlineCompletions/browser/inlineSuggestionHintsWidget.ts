@@ -33,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export class InlineSuggestionHintsWidget extends Disposable {
-	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor));
+	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor, true));
 
 	private sessionPosition: Position | undefined = undefined;
 
@@ -96,7 +96,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	public readonly allowEditorOverflow = true;
 	public readonly suppressMouseDown = false;
 
-	private readonly nodes = h('div.inlineSuggestionsHints', [
+	private readonly nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? '.withBorder' : '' }, [
 		h('div', { style: { display: 'flex' } }, [
 			h('div@actionBar', { className: 'custom-actions' }),
 			h('div@toolBar'),
@@ -143,6 +143,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly withBorder: boolean,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
