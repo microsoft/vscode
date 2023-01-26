@@ -1370,7 +1370,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToMerge: options.filesToOpen?.filesToMerge,
 			filesToWait: options.filesToOpen?.filesToWait,
 
-			logLevel: this.logService.getLevel(),
+			logLevel: this.loggerService.getLogLevel(),
 			loggers: {
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()

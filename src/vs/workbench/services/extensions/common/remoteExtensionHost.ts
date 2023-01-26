@@ -22,6 +22,7 @@ import { connectRemoteAgentExtensionHost, IConnectionOptions, IRemoteExtensionHo
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -215,6 +216,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,

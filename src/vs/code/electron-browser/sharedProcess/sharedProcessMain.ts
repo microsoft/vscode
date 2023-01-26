@@ -222,7 +222,7 @@ class SharedProcessMain extends Disposable {
 
 		// Log
 		const logger = this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { id: 'sharedLog', name: localize('sharedLog', "Shared") }));
-		const consoleLogger = this._register(new ConsoleLogger(this.configuration.logLevel));
+		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
 		const logService = this._register(new LogService(logger, [consoleLogger]));
 		services.set(ILogService, logService);
 

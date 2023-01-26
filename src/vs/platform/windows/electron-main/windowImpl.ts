@@ -1084,7 +1084,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			all: this.userDataProfilesService.profiles,
 			profile: this.profile || this.userDataProfilesService.defaultProfile
 		};
-		configuration.logLevel = this.logService.getLevel();
+		configuration.logLevel = this.loggerMainService.getLogLevel();
 		configuration.loggers = {
 			window: this.loggerMainService.getRegisteredLoggers(this.id),
 			global: this.loggerMainService.getRegisteredLoggers()

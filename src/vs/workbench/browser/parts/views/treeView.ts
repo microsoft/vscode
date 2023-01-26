@@ -900,6 +900,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	isCollapsed(item: ITreeItem): boolean {
+		return !!this.tree?.isCollapsed(item);
+	}
+
 	setSelection(items: ITreeItem[]): void {
 		this.tree?.setSelection(items);
 	}

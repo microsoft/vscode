@@ -75,8 +75,7 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 }
 
 export interface IProfileImportOptions {
-	readonly donotPrompt?: boolean;
-	readonly previewAsTempProfile?: boolean;
+	readonly preview?: boolean;
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');

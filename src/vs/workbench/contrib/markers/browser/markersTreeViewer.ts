@@ -52,9 +52,8 @@ import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface IResourceMarkersTemplateData {
-	resourceLabel: IResourceLabel;
-	count: CountBadge;
-	styler: IDisposable;
+	readonly resourceLabel: IResourceLabel;
+	readonly count: CountBadge;
 }
 
 interface IMarkerTemplateData {
@@ -165,15 +164,13 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	templateId = TemplateId.ResourceMarkers;
 
 	renderTemplate(container: HTMLElement): IResourceMarkersTemplateData {
-		const data = <IResourceMarkersTemplateData>Object.create(null);
-
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.labels.create(resourceLabelContainer, { supportHighlights: true });
+		const resourceLabel = this.labels.create(resourceLabelContainer, { supportHighlights: true });
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
-		data.count = new CountBadge(badgeWrapper, {}, defaultCountBadgeStyles);
+		const count = new CountBadge(badgeWrapper, {}, defaultCountBadgeStyles);
 
-		return data;
+		return { count, resourceLabel };
 	}
 
 	renderElement(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>, _: number, templateData: IResourceMarkersTemplateData): void {
@@ -196,7 +193,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 
 	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
 		templateData.resourceLabel.dispose();
-		templateData.styler.dispose();
 	}
 
 	private onDidChangeRenderNodeCount(node: ITreeNode<ResourceMarkers, ResourceMarkersFilterData>): void {

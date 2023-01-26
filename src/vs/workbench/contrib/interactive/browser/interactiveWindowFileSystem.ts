@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export class InteractiveWindowFileSystem implements IFileSystemProvider {
 
@@ -17,6 +17,8 @@ export class InteractiveWindowFileSystem implements IFileSystemProvider {
 	async readFile(_resource: URI): Promise<Uint8Array> {
 		return new Uint8Array();
 	}
+
+	async writeFile(_resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> { }
 
 	async stat(_resource: URI): Promise<IStat> {
 		return {

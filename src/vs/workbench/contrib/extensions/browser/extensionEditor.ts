@@ -1532,19 +1532,20 @@ export class ExtensionEditor extends EditorPane {
 
 		const menus = manifest.contributes?.menus || {};
 
-		Object.keys(menus).forEach(context => {
-			menus[context].forEach(menu => {
-				let command = byId[menu.command];
-
-				if (command) {
-					command.menus.push(context);
-				} else {
-					command = { id: menu.command, title: '', keybindings: [], menus: [context] };
-					byId[command.id] = command;
-					commands.push(command);
+		for (const context in menus) {
+			for (const menu of menus[context]) {
+				if (menu.command) {
+					let command = byId[menu.command];
+					if (command) {
+						command.menus.push(context);
+					} else {
+						command = { id: menu.command, title: '', keybindings: [], menus: [context] };
+						byId[command.id] = command;
+						commands.push(command);
+					}
 				}
-			});
-		});
+			}
+		}
 
 		const rawKeybindings = manifest.contributes?.keybindings ? (Array.isArray(manifest.contributes.keybindings) ? manifest.contributes.keybindings : [manifest.contributes.keybindings]) : [];
 
