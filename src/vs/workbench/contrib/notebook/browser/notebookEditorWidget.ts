@@ -2630,10 +2630,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const existingOutput = this._webview.insetMapping.get(output.source);
 			if (!existingOutput
 				|| (!existingOutput.renderer && output.type === RenderOutputType.Extension)
-				|| (existingOutput.renderer
-					&& output.type === RenderOutputType.Extension
-					&& existingOutput.renderer.id !== output.renderer.id)
 			) {
+				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+			} else if (existingOutput.renderer
+				&& output.type === RenderOutputType.Extension
+				&& existingOutput.renderer.id !== output.renderer.id) {
+				// switch mimetype
+				this._webview.removeInsets([output.source]);
 				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
