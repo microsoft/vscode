@@ -31,6 +31,11 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		}
 	}
 
+	override setVisibility(resource: URI, visibility: boolean): void {
+		super.setVisibility(resource, visibility);
+		this._proxy.$setVisibility(resource, visibility);
+	}
+
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
 		return new Logger(this._proxy, resource, logLevel, options);
 	}

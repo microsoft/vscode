@@ -104,8 +104,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly pluginPathsProvider: TypeScriptPluginPathsProvider;
 	private readonly _versionManager: TypeScriptVersionManager;
 
-	private readonly logger = new Logger();
-	private readonly tracer = new Tracer(this.logger);
+	private readonly logger: Logger;
+	private readonly tracer: Tracer;
 
 	private readonly typescriptServerSpawner: TypeScriptServerSpawner;
 	private serverState: ServerState.State = ServerState.None;
@@ -137,10 +137,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			processFactory: TsServerProcessFactory;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
 			experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+			logger: Logger;
 		},
 		allModeIds: readonly string[]
 	) {
 		super();
+
+		this.logger = services.logger;
+		this.tracer = new Tracer(this.logger);
 
 		this.workspaceState = context.workspaceState;
 

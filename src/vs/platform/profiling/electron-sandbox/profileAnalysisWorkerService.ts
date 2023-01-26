@@ -31,7 +31,7 @@ export const IProfileAnalysisWorkerService = createDecorator<IProfileAnalysisWor
 
 export interface IProfileAnalysisWorkerService {
 	readonly _serviceBrand: undefined;
-	analyseBottomUp(profile: IV8Profile, callFrameClassifier: IScriptUrlClassifier, perfBaseline: number): Promise<ProfilingOutput>;
+	analyseBottomUp(profile: IV8Profile, callFrameClassifier: IScriptUrlClassifier, perfBaseline: number, sendAsErrorTelemtry: boolean): Promise<ProfilingOutput>;
 	analyseByLocation(profile: IV8Profile, locations: [location: URI, id: string][]): Promise<[category: string, aggregated: number][]>;
 }
 
@@ -65,7 +65,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 		}
 	}
 
-	async analyseBottomUp(profile: IV8Profile, callFrameClassifier: IScriptUrlClassifier, perfBaseline: number): Promise<ProfilingOutput> {
+	async analyseBottomUp(profile: IV8Profile, callFrameClassifier: IScriptUrlClassifier, perfBaseline: number, sendAsErrorTelemtry: boolean): Promise<ProfilingOutput> {
 		return this._withWorker(async worker => {
 			const result = await worker.analyseBottomUp(profile);
 			if (result.kind === ProfilingOutput.Interesting) {
@@ -74,7 +74,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 						sample,
 						perfBaseline,
 						source: callFrameClassifier(sample.url)
-					}, this._telemetryService, this._logService);
+					}, this._telemetryService, this._logService, sendAsErrorTelemtry);
 				}
 			}
 			return result.kind;

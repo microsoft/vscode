@@ -198,7 +198,7 @@ export class EditorPanes extends Disposable {
 				buttons.push(errorAction.label);
 			}
 		} else {
-			buttons.push(localize('ok', 'OK'));
+			buttons.push(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"));
 		}
 
 		let cancelId: number | undefined = undefined;

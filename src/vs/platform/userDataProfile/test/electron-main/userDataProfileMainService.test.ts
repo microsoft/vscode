@@ -45,7 +45,6 @@ suite('UserDataProfileMainService', () => {
 
 		testObject = new UserDataProfilesMainService(stateService, new UriIdentityService(fileService), environmentService, fileService, logService);
 		await stateService.init();
-		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());
@@ -84,7 +83,7 @@ suite('UserDataProfileMainService', () => {
 
 		testObject.setProfileForWorkspace(workspace, profile);
 
-		assert.deepStrictEqual(testObject.getProfileForWorkspace(workspace), profile);
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 	test('set profile to a folder', async () => {
@@ -93,7 +92,7 @@ suite('UserDataProfileMainService', () => {
 
 		testObject.setProfileForWorkspace(workspace, profile);
 
-		assert.deepStrictEqual(testObject.getProfileForWorkspace(workspace), profile);
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 	test('set profile to a window', async () => {
@@ -102,7 +101,7 @@ suite('UserDataProfileMainService', () => {
 
 		testObject.setProfileForWorkspace(workspace, profile);
 
-		assert.deepStrictEqual(testObject.getProfileForWorkspace(workspace), profile);
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 });

@@ -751,7 +751,7 @@ var requirejs = (function() {
 						return;
 					}
 
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell)) {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						this._handleResourceOpening(data.href);
@@ -1306,7 +1306,7 @@ var requirejs = (function() {
 		}
 	}
 
-	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1376,7 +1376,7 @@ var requirejs = (function() {
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
-	async updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1415,7 +1415,7 @@ var requirejs = (function() {
 		return;
 	}
 
-	removeInsets(outputs: readonly ICellOutputViewModel[]) {
+	removeInsets(outputs: readonly ICellOutputViewModel[]): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1440,7 +1440,7 @@ var requirejs = (function() {
 		}
 	}
 
-	hideInset(output: ICellOutputViewModel) {
+	hideInset(output: ICellOutputViewModel): void {
 		if (this._disposed) {
 			return;
 		}

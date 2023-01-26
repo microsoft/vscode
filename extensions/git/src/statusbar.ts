@@ -69,7 +69,7 @@ class CheckoutStatusBar {
 		}
 
 		// Branch
-		if (this.repository.HEAD.type !== RefType.Tag) {
+		if (this.repository.HEAD.type === RefType.Head && this.repository.HEAD.name) {
 			return this.repository.isBranchProtected() ? '$(lock)' : '$(git-branch)';
 		}
 

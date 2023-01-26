@@ -21,7 +21,7 @@ import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workb
 export function formatCellDuration(duration: number): string {
 	const minutes = Math.floor(duration / 1000 / 60);
 	const seconds = Math.floor(duration / 1000) % 60;
-	const tenths = String(duration - minutes * 60 * 1000 - seconds * 1000).charAt(0);
+	const tenths = Math.floor((duration % 1000) / 100);
 
 	if (minutes > 0) {
 		return `${minutes}m ${seconds}.${tenths}s`;

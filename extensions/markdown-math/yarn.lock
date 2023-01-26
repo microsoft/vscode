@@ -3,8 +3,8 @@
 
 
 "@iktakahiro/markdown-it-katex@mjbvz/markdown-it-katex":
-  version "4.0.4"
-  resolved "https://codeload.github.com/mjbvz/markdown-it-katex/tar.gz/cfcbc640a2780f2349d4e137ad51638f39279aa7"
+  version "4.0.1"
+  resolved "https://codeload.github.com/mjbvz/markdown-it-katex/tar.gz/88f39cedd35bba713ebe26bdc153b378b17fde24"
   dependencies:
     katex "^0.16.2"
 

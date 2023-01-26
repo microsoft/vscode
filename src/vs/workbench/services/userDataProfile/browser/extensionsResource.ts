@@ -7,9 +7,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -63,7 +62,7 @@ export class ExtensionsResource implements IProfileResource {
 					extensionsToEnableOrDisable.push({ extension: installedExtension, enable: !e.disabled });
 				}
 			}
-			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => extension.type === ExtensionType.User && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
+			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
 			for (const { extension, enable } of extensionsToEnableOrDisable) {
 				if (enable) {
 					this.logService.trace(`Importing Profile (${profile.name}): Enabling extension...`, extension.identifier.id);
@@ -89,7 +88,8 @@ export class ExtensionsResource implements IProfileResource {
 							donotIncludePackAndDependencies: true,
 							installGivenVersion: !!e.version,
 							installPreReleaseVersion: e.preRelease,
-							profileLocation: profile.extensionsResource
+							profileLocation: profile.extensionsResource,
+							context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
 						});
 						this.logService.info(`Importing Profile (${profile.name}): Installed extension...`, extension.identifier.id, extension.version);
 					} else {
@@ -111,11 +111,11 @@ export class ExtensionsResource implements IProfileResource {
 			for (const extension of installedExtensions) {
 				const { identifier, preRelease } = extension;
 				const disabled = disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier));
-				if (extension.type === ExtensionType.System && !disabled) {
-					// skip enabled system extensions
+				if (extension.isBuiltin && !disabled) {
+					// skip enabled builtin extensions
 					continue;
 				}
-				if (extension.type === ExtensionType.User) {
+				if (!extension.isBuiltin) {
 					if (!extension.identifier.uuid) {
 						// skip user extensions without uuid
 						continue;
@@ -129,7 +129,7 @@ export class ExtensionsResource implements IProfileResource {
 				if (disabled) {
 					profileExtension.disabled = true;
 				}
-				if (extension.type === ExtensionType.User && extension.pinned) {
+				if (!extension.isBuiltin && extension.pinned) {
 					profileExtension.version = extension.manifest.version;
 				}
 				if (!profileExtension.version && preRelease) {
@@ -166,12 +166,13 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 	readonly handle = ProfileResourceType.Extensions;
 	readonly label = { label: localize('extensions', "Extensions") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	contextValue = ProfileResourceType.Extensions;
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	protected readonly excludedExtensions = new Set<string>();
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
-		const extensions = await this.getExtensions();
+		const extensions = (await this.getExtensions()).sort((a, b) => (a.displayName ?? a.identifier.id).localeCompare(b.displayName ?? b.identifier.id));
 		const that = this;
 		return extensions.map<IProfileResourceChildTreeItem>(e => ({
 			handle: e.identifier.id.toLowerCase(),
@@ -179,7 +180,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 			label: { label: e.displayName || e.identifier.id },
 			description: e.disabled ? localize('disabled', "Disabled") : undefined,
 			collapsibleState: TreeItemCollapsibleState.None,
-			checkbox: {
+			checkbox: that.checkbox ? {
 				get isChecked() { return !that.excludedExtensions.has(e.identifier.id.toLowerCase()); },
 				set isChecked(value: boolean) {
 					if (value) {
@@ -188,7 +189,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 						that.excludedExtensions.add(e.identifier.id.toLowerCase());
 					}
 				}
-			},
+			} : undefined,
 			command: {
 				id: 'extension.open',
 				title: '',
