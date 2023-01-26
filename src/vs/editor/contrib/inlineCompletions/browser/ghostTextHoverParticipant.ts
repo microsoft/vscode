@@ -125,7 +125,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
-		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor);
+		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor, false);
 		context.fragment.appendChild(w.getDomNode());
 
 		w.update(null, part.getInlineCompletionIndex() || 0, part.getInlineCompletionsCount(), part.commands);
