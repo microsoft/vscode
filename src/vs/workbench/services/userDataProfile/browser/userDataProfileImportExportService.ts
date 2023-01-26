@@ -32,7 +32,7 @@ import { TasksResource, TasksResourceTreeItem } from 'vs/workbench/services/user
 import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem, ExtensionsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
 import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceImportTreeItem, GlobalStateResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/globalStateResource';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -231,7 +231,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				return this.doExportProfile(userDataProfilesExportState);
 			}));
 			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")));
-			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, [exportAction], closeAction, true, userDataProfilesExportState);
+			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, exportAction, closeAction, true, userDataProfilesExportState);
 			disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(e => barrier.open()));
 			await barrier.wait();
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
@@ -327,19 +327,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 			profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 
-			let extensions = false;
-			if (profileTemplate.extensions) {
-				const result = await this.dialogService.confirm({
-					title: localize('preview profile', "Preview Profile"),
-					message: localize('apply extensions', "Would you like to apply the extensions from the profile you are previewing or go through them manually?"),
-					type: 'info',
-					primaryButton: localize('apply extensions automatically', "Apply Extensions"),
-					secondaryButton: localize('apply extensions manually', "Apply Extensions (Manually)"),
-				});
-				extensions = result.confirmed;
-			}
-
-			const importedProfile = await this.importAndSwitch(profileTemplate, true, extensions, localize('preview profile', "Preview Profile"));
+			const importedProfile = await this.importAndSwitch(profileTemplate, true, false, localize('preview profile', "Preview Profile"));
 
 			if (!importedProfile) {
 				return;
@@ -348,55 +336,50 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const barrier = new Barrier();
 			const importAction = this.getImportAction(barrier, userDataProfileImportState);
 			const secondaryAction = isWeb
-				? new Action('importInDesktop', localize('import in desktop', "Import {0} profile in {1}", importedProfile.name, this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
+				? new Action('importInDesktop', localize('import in desktop', "Import Profile in {1}", importedProfile.name, this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
 				: new BarrierAction(barrier, new Action('close', localize('close', "Close")));
 
-			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, [importAction], secondaryAction, false, userDataProfileImportState);
-			if (!extensions) {
-				userDataProfileImportState.setDescription(ProfileResourceType.Extensions, localize('not applied', "Not Applied"));
-				const that = this;
-				const disposable = disposables.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: 'previewProfile.applyExtensions',
-							title: localize('apply extensions title', "Apply Extensions"),
-							icon: Codicon.cloudDownload,
-							menu: {
-								id: MenuId.ViewItemContext,
-								group: 'inline',
-								when: ContextKeyExpr.and(ContextKeyExpr.equals('view', IMPORT_PROFILE_PREVIEW_VIEW), ContextKeyExpr.equals('viewItem', ProfileResourceType.Extensions)),
-							}
-						});
-					}
-					override async run(): Promise<void> {
-						return that.progressService.withProgress({
-							location: IMPORT_PROFILE_PREVIEW_VIEW,
-						}, async progress => {
-							disposable.dispose();
-							userDataProfileImportState.setDescription(ProfileResourceType.Extensions, localize('applying', "Applying..."));
-							view.refresh();
-							const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
-							if (profileTemplate.extensions) {
-								await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
-								userDataProfileImportState.setDescription(ProfileResourceType.Extensions, undefined);
-								await view.refresh();
-							}
-						});
-					}
-				}));
-				disposables.add(Event.debounce(this.extensionManagementService.onDidInstallExtensions, () => undefined, 100)(async () => {
-					const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
-					if (profileTemplate.extensions) {
-						const profileExtensions = await that.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(profileTemplate.extensions!);
-						const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-						if (profileExtensions.every(e => installed.some(i => areSameExtensions(e.identifier, i.identifier)))) {
-							disposable.dispose();
-							userDataProfileImportState.setDescription(ProfileResourceType.Extensions, undefined);
-							await view.refresh();
+			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, importAction, secondaryAction, false, userDataProfileImportState);
+			view.setMessage(localize('preview profile message', "Extensions are not installed, please install them to preview.", importedProfile.name));
+
+			const that = this;
+			const disposable = disposables.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: 'previewProfile.installExtensions',
+						title: localize('install extensions title', "Install Extensions"),
+						icon: Codicon.cloudDownload,
+						menu: {
+							id: MenuId.ViewItemContext,
+							group: 'inline',
+							when: ContextKeyExpr.and(ContextKeyExpr.equals('view', IMPORT_PROFILE_PREVIEW_VIEW), ContextKeyExpr.equals('viewItem', ProfileResourceType.Extensions)),
 						}
+					});
+				}
+				override async run(): Promise<void> {
+					return that.progressService.withProgress({
+						location: IMPORT_PROFILE_PREVIEW_VIEW,
+					}, async progress => {
+						disposable.dispose();
+						view.setMessage('');
+						const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
+						if (profileTemplate.extensions) {
+							await that.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, importedProfile);
+						}
+					});
+				}
+			}));
+			disposables.add(Event.debounce(this.extensionManagementService.onDidInstallExtensions, () => undefined, 100)(async () => {
+				const profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
+				if (profileTemplate.extensions) {
+					const profileExtensions = await that.instantiationService.createInstance(ExtensionsResource).getProfileExtensions(profileTemplate.extensions!);
+					const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+					if (profileExtensions.every(e => installed.some(i => areSameExtensions(e.identifier, i.identifier)))) {
+						disposable.dispose();
 					}
-				}));
-			}
+				}
+			}));
+
 			await barrier.wait();
 			await this.hideProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW);
 		} finally {
@@ -414,7 +397,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (userDataProfileImportState.isEmpty()) {
 				await importAction.run();
 			} else {
-				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, [importAction], new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel"))), false, userDataProfileImportState);
+				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, importAction, new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel"))), false, userDataProfileImportState);
 			}
 			await barrier.wait();
 			await this.hideProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW);
@@ -424,7 +407,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private getImportAction(barrier: Barrier, userDataProfileImportState: UserDataProfileImportState): IAction {
-		const title = localize('import', "Import {0} profile", userDataProfileImportState.profile.name);
+		const title = localize('import', "Import Profile", userDataProfileImportState.profile.name);
 		const importAction = new BarrierAction(barrier, new Action('import', title, undefined, true, () => {
 			const importProfileFn = async () => {
 				importAction.enabled = false;
@@ -599,7 +582,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return nameIndex + 1;
 	}
 
-	private async showProfilePreviewView(id: string, name: string, primary: IAction[], secondary: IAction, refreshAction: boolean, userDataProfilesData: UserDataProfileImportExportState): Promise<UserDataProfilePreviewViewPane> {
+	private async showProfilePreviewView(id: string, name: string, primary: IAction, secondary: IAction, refreshAction: boolean, userDataProfilesData: UserDataProfileImportExportState): Promise<UserDataProfilePreviewViewPane> {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		if (refreshAction) {
@@ -705,15 +688,17 @@ class FileUserDataProfileContentHandler implements IUserDataProfileContentHandle
 class UserDataProfilePreviewViewPane extends TreeViewPane {
 
 	private buttonsContainer!: HTMLElement;
-	private confirmButton!: Button | ButtonWithDropdown;
-	private cancelButton!: Button;
+	private primaryButton!: Button;
+	private secondaryButton!: Button;
+	private messageContainer!: HTMLElement;
+	private messageElement!: HTMLElement;
 	private dimension: DOM.Dimension | undefined;
 	private totalTreeItemsCount: number = 0;
 
 	constructor(
 		private readonly userDataProfileData: UserDataProfileImportExportState,
-		private readonly confirmActions: Action[],
-		private readonly cancelAction: Action,
+		private readonly primaryAction: Action,
+		private readonly secondaryAction: Action,
 		private readonly actionRunner: IActionRunner,
 		options: IViewletViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -732,7 +717,9 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 
 	protected override renderTreeView(container: HTMLElement): void {
 		this.treeView.dataProvider = this.userDataProfileData;
-		super.renderTreeView(DOM.append(container, DOM.$('')));
+		super.renderTreeView(DOM.append(container, DOM.$('.profile-view-tree-container')));
+		this.messageContainer = DOM.append(container, DOM.$('.profile-view-message-container.hide'));
+		this.messageElement = DOM.append(this.messageContainer, DOM.$('.profile-view-message-element'));
 		this.createButtons(container);
 		this._register(this.treeView.onDidChangeCheckboxState(items => {
 			this.treeView.refresh(this.userDataProfileData.onDidChangeCheckboxState(items));
@@ -765,42 +752,51 @@ class UserDataProfilePreviewViewPane extends TreeViewPane {
 	private createButtons(container: HTMLElement): void {
 		this.buttonsContainer = DOM.append(container, DOM.$('.profile-view-buttons-container'));
 
-		this.confirmButton = this._register(this.confirmActions.length > 1
-			? new ButtonWithDropdown(this.buttonsContainer, { ...defaultButtonStyles, actions: this.confirmActions.slice(1), contextMenuProvider: this.contextMenuService, actionRunner: this.actionRunner, addPrimaryActionToDropdown: false })
-			: new Button(this.buttonsContainer, { ...defaultButtonStyles }));
-		this.confirmButton.element.classList.add('profile-view-button');
-		this.confirmButton.label = this.confirmActions[0].label;
-		this.confirmButton.enabled = this.confirmActions[0].enabled;
-		this._register(this.confirmButton.onDidClick(() => this.actionRunner.run(this.confirmActions[0])));
-		this._register(this.confirmActions[0].onDidChange(e => {
+		this.primaryButton = this._register(new Button(this.buttonsContainer, { ...defaultButtonStyles }));
+		this.primaryButton.element.classList.add('profile-view-button');
+		this.primaryButton.label = this.primaryAction.label;
+		this.primaryButton.enabled = this.primaryAction.enabled;
+		this._register(this.primaryButton.onDidClick(() => this.actionRunner.run(this.primaryAction)));
+		this._register(this.primaryAction.onDidChange(e => {
 			if (e.enabled !== undefined) {
-				this.confirmButton.enabled = e.enabled;
+				this.primaryButton.enabled = e.enabled;
 			}
 		}));
 
-		this.cancelButton = this._register(new Button(this.buttonsContainer, { secondary: true, ...defaultButtonStyles }));
-		this.cancelButton.label = this.cancelAction.label;
-		this.cancelButton.element.classList.add('profile-view-button');
-		this.cancelButton.enabled = this.cancelAction.enabled;
-		this._register(this.cancelButton.onDidClick(() => this.actionRunner.run(this.cancelAction)));
-		this._register(this.cancelAction.onDidChange(e => {
+		this.secondaryButton = this._register(new Button(this.buttonsContainer, { secondary: true, ...defaultButtonStyles }));
+		this.secondaryButton.label = this.secondaryAction.label;
+		this.secondaryButton.element.classList.add('profile-view-button');
+		this.secondaryButton.enabled = this.secondaryAction.enabled;
+		this._register(this.secondaryButton.onDidClick(() => this.actionRunner.run(this.secondaryAction)));
+		this._register(this.secondaryAction.onDidChange(e => {
 			if (e.enabled !== undefined) {
-				this.cancelButton.enabled = e.enabled;
+				this.secondaryButton.enabled = e.enabled;
 			}
 		}));
 	}
 
 	protected override layoutTreeView(height: number, width: number): void {
 		this.dimension = new DOM.Dimension(width, height);
+
+		let messageElementHeight = 0;
+		if (!this.messageElement.classList.contains('hide')) {
+			messageElementHeight = DOM.getClientArea(this.messageElement).height;
+		}
+
 		const buttonContainerHeight = 108;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
 
-		super.layoutTreeView(Math.min(height - buttonContainerHeight, 22 * this.totalTreeItemsCount), width);
+		super.layoutTreeView(Math.min(height - buttonContainerHeight - messageElementHeight, 22 * this.totalTreeItemsCount), width);
 	}
 
 	private updateConfirmButtonEnablement(): void {
-		this.confirmButton.enabled = this.confirmActions[0].enabled && this.userDataProfileData.isEnabled();
+		this.primaryButton.enabled = this.primaryAction.enabled && this.userDataProfileData.isEnabled();
+	}
+
+	setMessage(message: string | undefined): void {
+		this.messageContainer.classList.toggle('hide', !message);
+		this.messageElement.textContent = message ?? '';
 	}
 
 	refresh(): Promise<void> {

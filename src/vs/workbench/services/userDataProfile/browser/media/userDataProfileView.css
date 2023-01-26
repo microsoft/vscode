@@ -3,6 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.profile-view-tree-container .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
+	display: inherit;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container {
+	display: flex;
+	padding: 13px 20px 0px 20px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane > .pane-body > .profile-view-message-container.hide {
+	display: none;
+}
+
 .monaco-workbench .pane > .pane-body > .profile-view-buttons-container {
 	display: flex;
 	flex-direction: column;
