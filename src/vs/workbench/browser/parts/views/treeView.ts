@@ -732,7 +732,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					args = [...args, e];
 				}
 
-				this.commandService.executeCommand(command.id, ...args);
+				try {
+					await this.commandService.executeCommand(command.id, ...args);
+				} catch (err) {
+					this.notificationService.error(err);
+				}
 			}
 		}));
 

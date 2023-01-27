@@ -28,6 +28,10 @@ export interface Matches {
 
 export interface KeybindingLabelOptions extends IKeybindingLabelStyles {
 	renderUnboundKeybindings?: boolean;
+	/**
+	 * Default false.
+	 */
+	disableTitle?: boolean;
 }
 
 export type CSSValueString = string;
@@ -101,7 +105,12 @@ export class KeybindingLabel {
 				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
 				this.renderChord(this.domNode, secondChord, this.matches ? this.matches.chordPart : null);
 			}
-			this.domNode.title = this.keybinding.getAriaLabel() || '';
+			const title = (this.options.disableTitle ?? false) ? undefined : this.keybinding.getAriaLabel() || undefined;
+			if (title !== undefined) {
+				this.domNode.title = title;
+			} else {
+				this.domNode.removeAttribute('title');
+			}
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
 		}

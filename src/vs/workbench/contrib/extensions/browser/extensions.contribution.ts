@@ -262,9 +262,11 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	const extension = extensionService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }));
-	if (extension.length === 1) {
-		extensionService.open(extension[0], { tab, preserveFocus });
+	const extension = extensionService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
+	if (extension) {
+		extensionService.open(extension, { tab, preserveFocus });
+	} else {
+		throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
 	}
 });
 

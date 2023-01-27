@@ -33,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export class InlineSuggestionHintsWidget extends Disposable {
-	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor));
+	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor, true));
 
 	private sessionPosition: Position | undefined = undefined;
 
@@ -90,13 +90,16 @@ const inlineSuggestionHintsNextIcon = registerIcon('inline-suggestion-hints-next
 const inlineSuggestionHintsPreviousIcon = registerIcon('inline-suggestion-hints-previous', Codicon.chevronLeft, localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
 
 export class InlineSuggestionHintsContentWidget extends Disposable implements IContentWidget {
+	private static _dropDownVisible = false;
+	public static get dropDownVisible() { return this._dropDownVisible; }
+
 	private static id = 0;
 
 	private readonly id = `InlineSuggestionHintsContentWidget${InlineSuggestionHintsContentWidget.id++}`;
 	public readonly allowEditorOverflow = true;
 	public readonly suppressMouseDown = false;
 
-	private readonly nodes = h('div.inlineSuggestionsHints', [
+	private readonly nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? '.withBorder' : '' }, [
 		h('div', { style: { display: 'flex' } }, [
 			h('div@actionBar', { className: 'custom-actions' }),
 			h('div@toolBar'),
@@ -143,6 +146,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly withBorder: boolean,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -163,6 +167,11 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			actionViewItemProvider: (action, options) => {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
 			},
+			telemetrySource: 'InlineSuggestionToolbar',
+		}));
+
+		this._register(this.toolBar.onDidChangeDropdownVisibility(e => {
+			InlineSuggestionHintsContentWidget._dropDownVisible = e;
 		}));
 	}
 
@@ -235,7 +244,7 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const div = h('div.keybinding').root;
 
-			const k = new KeybindingLabel(div, OS);
+			const k = new KeybindingLabel(div, OS, { disableTitle: true });
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);
