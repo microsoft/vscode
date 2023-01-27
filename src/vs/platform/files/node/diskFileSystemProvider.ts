@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { Barrier, retry } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -27,26 +26,41 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
 import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
 
-// ESM-comment-begin
-import { gracefulify } from 'graceful-fs';
-// ESM-comment-end
-// ESM-uncomment-begin
-// import pkg from 'graceful-fs';
-// const { gracefulify } = pkg;
-// ESM-uncomment-end
-
 /**
  * Enable graceful-fs very early from here to have it enabled
  * in all contexts that leverage the disk file system provider.
  */
+
+// ESM-comment-begin
+import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 (() => {
 	try {
 		gracefulify(fs);
 	} catch (error) {
 		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
-		console.error(error);
 	}
 })();
+// ESM-comment-end
+
+// ESM-uncomment-begin
+//// HACK: when importing 'fs' it comes out as non-configurable and
+//// HACK: therefore we cannot patch it with graceful-fs. As a workaround
+//// HACK: we use the CJS module (fingers crossed that this works)
+// import pkg from 'graceful-fs';
+// const { gracefulify } = pkg;
+// import type * as fs from 'fs';
+// const _fs = globalThis._VSCODE_NODE_MODULES.fs;
+// (() => {
+// 	try {
+// 		gracefulify(_fs);
+// 	} catch (error) {
+// 		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
+// 	}
+// })();
+// ESM-uncomment-end
+
+
 
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
