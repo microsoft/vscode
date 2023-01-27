@@ -950,6 +950,9 @@ export class DeletedElement extends SingleSideDiffElement {
 		this.cell.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
+			if (this._editorLayoutInProgress) {
+				return;
+			}
 			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
 				this.cell.editorHeight = e.contentHeight;
 			}
@@ -968,8 +971,11 @@ export class DeletedElement extends SingleSideDiffElement {
 		});
 	}
 
+	private _editorLayoutInProgress = false;
+
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
+			this._editorLayoutInProgress = true;
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -995,6 +1001,7 @@ export class DeletedElement extends SingleSideDiffElement {
 				this._diagonalFill.style.height = `${this.cell.layoutInfo.totalHeight - 32}px`;
 			}
 
+			this._editorLayoutInProgress = false;
 			this.layoutNotebookCell();
 		});
 	}
@@ -1103,6 +1110,9 @@ export class InsertElement extends SingleSideDiffElement {
 		this.cell.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
+			if (this._editorLayoutInProgress) {
+				return;
+			}
 			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
 				this.cell.editorHeight = e.contentHeight;
 			}
@@ -1171,8 +1181,11 @@ export class InsertElement extends SingleSideDiffElement {
 		}
 	}
 
+	private _editorLayoutInProgress = false;
+
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
+			this._editorLayoutInProgress = true;
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -1194,6 +1207,7 @@ export class InsertElement extends SingleSideDiffElement {
 				});
 			}
 
+			this._editorLayoutInProgress = false;
 			this.layoutNotebookCell();
 
 			if (this._diagonalFill) {
