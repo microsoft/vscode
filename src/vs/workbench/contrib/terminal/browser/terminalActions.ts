@@ -188,12 +188,8 @@ export function registerTerminalActions() {
 					primary: KeyMod.Alt | KeyCode.F1,
 					weight: KeybindingWeight.WorkbenchContrib,
 					linux: {
-						primary: KeyMod.Shift | KeyCode.F1,
-						secondary: [KeyMod.Shift | KeyCode.F1]
-					},
-					win: {
-						primary: KeyMod.Shift | KeyCode.F1,
-						secondary: [KeyMod.Shift | KeyCode.F1]
+						primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+						secondary: [KeyMod.Alt | KeyCode.F1]
 					},
 					when: TerminalContextKeys.focus
 				}

@@ -13,6 +13,9 @@ const messageWriter = new BrowserMessageWriter(self);
 
 const connection = createConnection(messageReader, messageWriter);
 
+console.log = connection.console.log.bind(connection.console);
+console.error = connection.console.error.bind(connection.console);
+
 const runtime: RuntimeEnvironment = {
 	timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {

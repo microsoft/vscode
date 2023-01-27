@@ -2460,7 +2460,20 @@ export class CommandCenter {
 		}
 
 		const remoteTagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRemoteRefs(remoteName, { tags: true });
+			const remoteTagsRaw = await repository.getRemoteRefs(remoteName, { tags: true });
+
+			// Deduplicate annotated and lightweight tags
+			const remoteTagNames = new Set<string>();
+			const remoteTags: Ref[] = [];
+
+			for (const tag of remoteTagsRaw) {
+				const tagName = (tag.name ?? '').replace(/\^{}$/, '');
+				if (!remoteTagNames.has(tagName)) {
+					remoteTags.push({ ...tag, name: tagName });
+					remoteTagNames.add(tagName);
+				}
+			}
+
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
 		};
 
