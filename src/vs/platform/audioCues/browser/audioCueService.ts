@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
