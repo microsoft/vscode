@@ -100,12 +100,12 @@ suite('InstallGalleryExtensionTask Tests', () => {
 		assert.strictEqual(testObject.installed, true);
 	});
 
-	test('if verification is disabled in stable, the task completes', async () => {
-		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: false, verificationResult: 'error', didExecute: true, quality: 'stable' }));
+	test('if verification is enabled in stable, the task completes', async () => {
+		const testObject = new TestInstallGalleryExtensionTask(aGalleryExtension('a', { isSigned: true }), anExtensionsDownloader({ isSignatureVerificationEnabled: true, verificationResult: true, didExecute: true, quality: 'stable' }));
 
 		await testObject.run();
 
-		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Unverified);
+		assert.strictEqual(testObject.verificationStatus, ExtensionVerificationStatus.Verified);
 		assert.strictEqual(testObject.installed, true);
 	});
 
