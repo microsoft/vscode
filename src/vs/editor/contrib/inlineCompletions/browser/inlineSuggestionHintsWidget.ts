@@ -167,6 +167,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			actionViewItemProvider: (action, options) => {
 				return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
 			},
+			telemetrySource: 'InlineSuggestionToolbar',
 		}));
 
 		this._register(this.toolBar.onDidChangeDropdownVisibility(e => {

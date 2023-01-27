@@ -20,6 +20,7 @@ import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -71,7 +72,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 	}
 
@@ -86,20 +88,20 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			// handle the case where the mouse is over the view zone
 			const viewZoneData = target.detail;
 			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
-				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(this._editor.getModel()!.validatePosition(viewZoneData.positionBefore || viewZoneData.position)), mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(this._editor.getModel()!.validatePosition(viewZoneData.positionBefore || viewZoneData.position)), mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_EMPTY) {
 			// handle the case where the mouse is over the empty portion of a line following ghost text
 			if (controller.shouldShowHoverAt(target.range)) {
-				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			// handle the case where the mouse is directly over ghost text
 			const mightBeForeignElement = target.detail.mightBeForeignElement;
 			if (mightBeForeignElement && controller.shouldShowHoverAt(target.range)) {
-				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
 		return null;
@@ -120,6 +122,11 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): IDisposable {
 		const disposableStore = new DisposableStore();
 		const part = hoverParts[0];
+
+		this._telemetryService.publicLog2<{}, {
+			owner: 'hediet';
+			comment: 'This event tracks whenever an inline completion hover is shown.';
+		}>('inlineCompletionHover.shown');
 
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			this.renderScreenReaderText(context, part, disposableStore);
