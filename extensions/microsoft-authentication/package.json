@@ -14,7 +14,6 @@
   ],
   "activationEvents": [],
   "enabledApiProposals": [
-    "telemetryLogger",
     "idToken"
   ],
   "capabilities": {

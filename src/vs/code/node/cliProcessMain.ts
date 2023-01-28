@@ -58,7 +58,7 @@ import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfile, IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
@@ -171,7 +171,8 @@ class CliMain extends Disposable {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		// Initialize user data profiles after initializing the state
+		userDataProfilesService.init();
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));

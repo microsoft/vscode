@@ -384,6 +384,10 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		this._kernelSourceActionProviders.set(viewType, providers);
 		this._onDidChangeSourceActions.fire({ viewType: viewType });
 
+		const eventEmitterDisposable = provider.onDidChangeSourceActions?.(() => {
+			this._onDidChangeSourceActions.fire({ viewType: viewType });
+		});
+
 		return toDisposable(() => {
 			const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
 			const idx = providers.indexOf(provider);
@@ -391,6 +395,8 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 				providers.splice(idx, 1);
 				this._kernelSourceActionProviders.set(viewType, providers);
 			}
+
+			eventEmitterDisposable?.dispose();
 		});
 	}
 

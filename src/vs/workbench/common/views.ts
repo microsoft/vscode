@@ -295,6 +295,7 @@ export interface IViewDescriptor {
 	readonly group?: string;
 
 	readonly remoteAuthority?: string | string[];
+	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 }
@@ -692,6 +693,8 @@ export interface ITreeView extends IDisposable {
 	reveal(item: ITreeItem): Promise<void>;
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
+
+	isCollapsed(item: ITreeItem): boolean;
 
 	setSelection(items: ITreeItem[]): void;
 

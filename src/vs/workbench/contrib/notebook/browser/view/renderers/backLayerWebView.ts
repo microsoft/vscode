@@ -751,7 +751,7 @@ var requirejs = (function() {
 						return;
 					}
 
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell)) {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						this._handleResourceOpening(data.href);
@@ -1011,6 +1011,7 @@ var requirejs = (function() {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
+			title: nls.localize('webview title', "Notebook webview content"),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,
 				enableFindWidget: false,
@@ -1024,7 +1025,7 @@ var requirejs = (function() {
 			extension: undefined
 		});
 
-		webview.html = content;
+		webview.setHtml(content);
 		return webview;
 	}
 
@@ -1305,7 +1306,7 @@ var requirejs = (function() {
 		}
 	}
 
-	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1375,7 +1376,7 @@ var requirejs = (function() {
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
-	async updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1414,7 +1415,7 @@ var requirejs = (function() {
 		return;
 	}
 
-	removeInsets(outputs: readonly ICellOutputViewModel[]) {
+	removeInsets(outputs: readonly ICellOutputViewModel[]): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1439,7 +1440,7 @@ var requirejs = (function() {
 		}
 	}
 
-	hideInset(output: ICellOutputViewModel) {
+	hideInset(output: ICellOutputViewModel): void {
 		if (this._disposed) {
 			return;
 		}

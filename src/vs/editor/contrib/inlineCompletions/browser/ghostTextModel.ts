@@ -130,9 +130,9 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 		this.activeInlineCompletionsModel?.showPrevious();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.activeInlineCompletionsModel?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	public async getInlineCompletionsCount(): Promise<number> {
+		const result = await this.activeInlineCompletionsModel?.getInlineCompletionsCount();
+		return result ?? 0;
 	}
 }
 

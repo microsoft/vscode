@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_CHANNEL_ID, LOG_FILE_NAME } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_CHANNEL_ID, LOG_FILE_NAME } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -506,6 +506,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				if (connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(connectionInfo);
 					const remoteExtension = that.serverConfiguration.extension;
+					const linkToOpenForMarkdown = linkToOpen.toString().replace(/\)/g, '%29');
 					await notificationService.notify({
 						severity: Severity.Info,
 						message:
@@ -515,11 +516,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 									comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extesnion name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 								},
 								"Remote tunnel access is enabled for [{0}](command:{4}). To access from a different machine, open [{1}]({2}) or use the {6} extension. Use the Account menu to [configure](command:{3}) or [turn off](command:{5}).",
-								connectionInfo.hostName, connectionInfo.domain, linkToOpen, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName
+								connectionInfo.hostName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName
 							),
 						actions: {
 							primary: [
-								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen)),
+								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen.toString())),
 								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
 									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
 								})
@@ -661,7 +662,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const clipboardService = accessor.get(IClipboardService);
 				if (that.connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(that.connectionInfo);
-					clipboardService.writeText(linkToOpen);
+					clipboardService.writeText(linkToOpen.toString());
 				}
 
 			}
@@ -684,7 +685,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private getLinkToOpen(connectionInfo: ConnectionInfo): string {
+	private getLinkToOpen(connectionInfo: ConnectionInfo): URI {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
 		let resource;
@@ -695,9 +696,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}
 		const link = URI.parse(connectionInfo.link);
 		if (resource?.scheme === Schemas.file) {
-			return joinPath(link, resource.path).toString(true);
+			return joinPath(link, resource.path);
 		}
-		return joinPath(link, this.environmentService.userHome.path).toString(true);
+		return joinPath(link, this.environmentService.userHome.path);
 	}
 
 
@@ -752,10 +753,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
 			scope: ConfigurationScope.MACHINE,
-			pattern: '^\\w[\\w-]*$',
+			pattern: '^(\\w[\\w-]*)?$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash."),
 			maxLength: 20,
 			default: ''
+		},
+		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
+			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
+			type: 'boolean',
+			scope: ConfigurationScope.MACHINE,
+			default: false,
 		}
 	}
 });

@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isWeb } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 //#region file service & providers
 
@@ -1354,25 +1355,31 @@ export function getPlatformFileLimits(arch: Arch): IFileLimits {
 	};
 }
 
-export function getLargeFileConfirmationLimit(remoteAuthority?: string): number {
+export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
+export function getLargeFileConfirmationLimit(uri?: URI): number;
+export function getLargeFileConfirmationLimit(arg?: string | URI): number {
+	const isRemote = typeof arg === 'string' || arg?.scheme === Schemas.vscodeRemote;
+	const isLocal = typeof arg !== 'string' && arg?.scheme === Schemas.file;
 
-	// These numbers are picked somewhat randomly but with the intent to:
-	// - avoid performance issues (in web)
-	// - avoid network cost (in remote)
-	// - have a good default experinece in local desktop
+	if (isLocal) {
+		// Local almost has no limit in file size
+		return 1024 * ByteSize.MB;
+	}
+
+	if (isRemote) {
+		// With a remote, pick a low limit to avoid
+		// potentially costly file transfers
+		return 10 * ByteSize.MB;
+	}
 
 	if (isWeb) {
-		if (remoteAuthority) {
-			return 10 * ByteSize.MB;
-		}
-
+		// Web: we cannot know for sure if a cost
+		// is associated with the file transfer
+		// so we pick a reasonably small limit
 		return 50 * ByteSize.MB;
 	}
 
-	if (remoteAuthority) {
-		return 100 * ByteSize.MB;
-	}
-
+	// Local desktop: almost no limit in file size
 	return 1024 * ByteSize.MB;
 }
 
