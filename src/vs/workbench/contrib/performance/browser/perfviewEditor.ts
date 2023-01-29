@@ -126,7 +126,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				md.blank();
 				// this._addLoaderStats(md, stats);
 				// md.blank();
-				this._addCachedDataStats(md);
+				// this._addCachedDataStats(md);
 
 				this._model.setValue(md.value);
 			}
@@ -249,42 +249,42 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 	// 	md.table(['Module', 'Duration'], stats.nodeEval);
 	// }
 
-	private _addCachedDataStats(md: MarkdownBuilder): void {
+	// private _addCachedDataStats(md: MarkdownBuilder): void {
 
-		const map = new Map<LoaderEventType, string[]>();
-		map.set(LoaderEventType.CachedDataCreated, []);
-		map.set(LoaderEventType.CachedDataFound, []);
-		map.set(LoaderEventType.CachedDataMissed, []);
-		map.set(LoaderEventType.CachedDataRejected, []);
-		if (typeof require === 'function' && typeof require.getStats === 'function') {
-			for (const stat of require.getStats()) {
-				if (map.has(stat.type)) {
-					map.get(stat.type)!.push(stat.detail);
-				}
-			}
-		}
+	// 	const map = new Map<LoaderEventType, string[]>();
+	// 	map.set(LoaderEventType.CachedDataCreated, []);
+	// 	map.set(LoaderEventType.CachedDataFound, []);
+	// 	map.set(LoaderEventType.CachedDataMissed, []);
+	// 	map.set(LoaderEventType.CachedDataRejected, []);
+	// 	if (typeof require === 'function' && typeof require.getStats === 'function') {
+	// 		for (const stat of require.getStats()) {
+	// 			if (map.has(stat.type)) {
+	// 				map.get(stat.type)!.push(stat.detail);
+	// 			}
+	// 		}
+	// 	}
 
-		const printLists = (arr?: string[]) => {
-			if (arr) {
-				arr.sort();
-				for (const e of arr) {
-					md.li(`${e}`);
-				}
-				md.blank();
-			}
-		};
+	// 	const printLists = (arr?: string[]) => {
+	// 		if (arr) {
+	// 			arr.sort();
+	// 			for (const e of arr) {
+	// 				md.li(`${e}`);
+	// 			}
+	// 			md.blank();
+	// 		}
+	// 	};
 
-		md.heading(2, 'Node Cached Data Stats');
-		md.blank();
-		md.heading(3, 'cached data used');
-		printLists(map.get(LoaderEventType.CachedDataFound));
-		md.heading(3, 'cached data missed');
-		printLists(map.get(LoaderEventType.CachedDataMissed));
-		md.heading(3, 'cached data rejected');
-		printLists(map.get(LoaderEventType.CachedDataRejected));
-		md.heading(3, 'cached data created (lazy, might need refreshes)');
-		printLists(map.get(LoaderEventType.CachedDataCreated));
-	}
+	// 	md.heading(2, 'Node Cached Data Stats');
+	// 	md.blank();
+	// 	md.heading(3, 'cached data used');
+	// 	printLists(map.get(LoaderEventType.CachedDataFound));
+	// 	md.heading(3, 'cached data missed');
+	// 	printLists(map.get(LoaderEventType.CachedDataMissed));
+	// 	md.heading(3, 'cached data rejected');
+	// 	printLists(map.get(LoaderEventType.CachedDataRejected));
+	// 	md.heading(3, 'cached data created (lazy, might need refreshes)');
+	// 	printLists(map.get(LoaderEventType.CachedDataCreated));
+	// }
 }
 
 class MarkdownBuilder {
