@@ -71,8 +71,9 @@ build({
 	platform: 'node',
 	external: npmDependencies,
 	bundle: true,
-	outdir: path.join(__dirname, 'out/vs/workbench/'),
-	loader: commonLoaders
+	outdir: path.join(__dirname, 'out/'),
+	loader: commonLoaders,
+	format: 'esm'
 });
 
 build({
@@ -80,8 +81,9 @@ build({
 	platform: 'node',
 	external: npmDependencies,
 	bundle: true,
-	outdir: path.join(__dirname, 'out/vs/code/electron-main/'),
-	loader: commonLoaders
+	outdir: path.join(__dirname, 'out/'),
+	loader: commonLoaders,
+	format: 'esm'
 });
 
 copyResources([
