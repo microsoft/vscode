@@ -130,6 +130,10 @@ const isESM = false;
 
 
 		if (isESM) {
+			// Signal before require()
+			if (typeof options?.beforeRequire === 'function') {
+				options.beforeRequire();
+			}
 			globalThis._VSCODE_FILE_ROOT = `${configuration.appRoot}/out`;
 			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
 			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
