@@ -139,7 +139,8 @@ function migrateTS(filePath, fileContents) {
 		return writeDestFile(filePath, fileContents);
 	}
 
-	fileContents = patchCSSImports(filePath, fileContents);
+	fileContents = patchCSSImportsAdoptedStyleSheet(filePath, fileContents);
+	// fileContents = patchCSSImportsImportOnly(filePath, fileContents);
 	// fileContents = patchFileAccess(filePath, fileContents);
 
 	const imports = discoverImports(fileContents);
@@ -270,7 +271,34 @@ function rewriteDefaultImports(fileContents) {
  * @param {string} filePath
  * @param {string} fileContents
  */
-function patchCSSImports(filePath, fileContents) {
+function patchCSSImportsImportOnly(filePath, fileContents) {
+	const search = /import ['"]vs\/css!([^'"]+)['"];/g;
+
+	/** @type {Replacement[]} */
+	const replacements = [];
+	do {
+		const m = search.exec(fileContents);
+		if (!m) {
+			break;
+		}
+
+		const pos = m.index;
+		const end = pos + m[0].length;
+
+		replacements.push({ pos, end, text: `import '${m[1]}.css';` });
+	} while (true);
+
+	fileContents = applyReplacements(fileContents, replacements);
+
+	return fileContents;
+}
+
+/**
+ *
+ * @param {string} filePath
+ * @param {string} fileContents
+ */
+function patchCSSImportsAdoptedStyleSheet(filePath, fileContents) {
 	const search = /import ['"]vs\/css!([^'"]+)['"];/g;
 	let lastUsedVariable = 0;
 	let lastImportPos = -1;
