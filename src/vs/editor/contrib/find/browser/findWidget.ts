@@ -117,6 +117,8 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 
 export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
+	private static readonly FIND_LABEL_ID = 'editor.contrib.findWidget.findLabel';
+	private static readonly REPLACE_LABEL_ID = 'editor.contrib.findWidget.replaceLabel';
 	private readonly _codeEditor: ICodeEditor;
 	private readonly _state: FindReplaceState;
 	private readonly _controller: IFindController;
@@ -1042,10 +1044,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 
 		const findPart = document.createElement('div');
+		findPart.role = 'group';
 		findPart.className = 'find-part';
+		findPart.setAttribute('aria-labelledby', FindWidget.FIND_LABEL_ID);
 
 		this._findLabel = document.createElement('div');
 		this._findLabel.className = 'find-label';
+		this._findLabel.id = FindWidget.FIND_LABEL_ID;
 		this._findLabel.innerText = NLS_FIND_INPUT_LABEL;
 		findPart.appendChild(this._findLabel);
 
@@ -1183,10 +1188,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 
 		const replacePart = document.createElement('div');
+		replacePart.role = 'group';
 		replacePart.className = 'replace-part';
+		replacePart.setAttribute('aria-labelledby', FindWidget.REPLACE_LABEL_ID);
 
 		this._replaceLabel = document.createElement('div');
 		this._replaceLabel.className = 'replace-label';
+		this._replaceLabel.id = FindWidget.REPLACE_LABEL_ID;
 		this._replaceLabel.innerText = NLS_REPLACE_INPUT_LABEL;
 		replacePart.appendChild(this._replaceLabel);
 
