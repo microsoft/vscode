@@ -31,7 +31,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, TwoButtonPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -202,12 +202,12 @@ class StandaloneProgressService implements IProgressService {
 
 class StandaloneDialogService implements IDialogService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return this.doConfirm(confirmation).then(confirmed => {
 			return {
 				confirmed,
@@ -225,15 +225,37 @@ class StandaloneDialogService implements IDialogService {
 		return Promise.resolve(window.confirm(messageText));
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
-		return Promise.resolve({ choice: 0 });
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+		const confirmed = await this.confirm(prompt);
+
+		return { choice: confirmed.confirmed ? TwoButtonPromptResult.Primary : TwoButtonPromptResult.Cancel };
 	}
 
-	public input(): Promise<IInputResult> {
+	async info(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Info, message });
+	}
+
+	async warn(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Warning, message });
+	}
+
+	async error(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Error, message });
+	}
+
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
+		return Promise.resolve({ choice: 0 });  // unsupported
+	}
+
+	input(): Promise<IInputResult> {
 		return Promise.resolve({ confirmed: false }); // unsupported
 	}
 
-	public about(): Promise<void> {
+	about(): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 }

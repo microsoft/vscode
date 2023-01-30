@@ -10,7 +10,7 @@ import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, massageMessageBoxOptions, IOneButtonPrompt, IOneButtonPromptResult, isOneButtonPrompt } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -42,51 +42,70 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+		this.logService.trace('DialogService#prompt', prompt.message);
+
+		const buttons = this.toPromptButtons(prompt);
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+			type: this.getDialogType(prompt.severity),
+			message: prompt.message,
+			detail: prompt.detail,
+			buttons,
+			cancelId: buttons.length - 1,
+			checkboxLabel: prompt.checkbox?.label,
+			checkboxChecked: prompt.checkbox?.checked
+		});
+
+		const result = await this.nativeHostService.showMessageBox(options);
+
+		if (isOneButtonPrompt(prompt)) {
+			return {
+				checkboxChecked: result.checkboxChecked
+			};
+		}
+
+		return {
+			choice: this.toPromptResult(prompt, buttonIndexMap[result.response]),
+			checkboxChecked: result.checkboxChecked
+		};
+	}
+
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
+		const buttons = this.toConfirmationButtons(confirmation);
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+			title: confirmation.title,
+			type: confirmation.type,
+			message: confirmation.message,
+			detail: confirmation.detail,
+			buttons,
+			cancelId: buttons.length - 1,
+			checkboxLabel: confirmation.checkbox?.label,
+			checkboxChecked: confirmation.checkbox?.checked
+		});
 
 		const result = await this.nativeHostService.showMessageBox(options);
+
 		return {
 			confirmed: buttonIndexMap[result.response] === 0 ? true : false,
 			checkboxChecked: result.checkboxChecked
 		};
 	}
 
-	private getConfirmOptions(confirmation: IConfirmation): MessageBoxOptions {
-		const opts: MessageBoxOptions = {
-			title: confirmation.title,
-			message: confirmation.message,
-			buttons: this.toButtons(confirmation),
-			cancelId: 1
-		};
-
-		if (confirmation.detail) {
-			opts.detail = confirmation.detail;
-		}
-
-		if (confirmation.type) {
-			opts.type = confirmation.type;
-		}
-
-		if (confirmation.checkbox) {
-			opts.checkboxLabel = confirmation.checkbox.label;
-			opts.checkboxChecked = confirmation.checkbox.checked;
-		}
-
-		return opts;
-	}
-
 	async show(severity: Severity, message: string, buttons?: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+			type: this.getDialogType(severity),
 			message,
-			buttons,
-			type: (severity === Severity.Info) ? 'info' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
-			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
 			detail: dialogOptions ? dialogOptions.detail : undefined,
+			buttons,
+			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
 			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
 			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
 		});
@@ -171,27 +190,18 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
-		const ok = localize('okButton', "OK");
-		const copy = mnemonicButtonLabel(localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
-		let buttons: string[];
-		if (isLinux) {
-			buttons = [copy, ok];
-		} else {
-			buttons = [ok, copy];
-		}
-
-		const result = await this.nativeHostService.showMessageBox({
-			title: this.productService.nameLong,
+		const { options, buttonIndeces } = massageMessageBoxOptions({
 			type: 'info',
 			message: this.productService.nameLong,
 			detail: `\n${detail}`,
-			buttons,
-			noLink: true,
-			defaultId: buttons.indexOf(ok),
-			cancelId: buttons.indexOf(ok)
-		});
+			buttons: [
+				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+				localize('okButton', "OK")
+			]
+		}, this.productService);
 
-		if (buttons[result.response] === copy) {
+		const result = await this.nativeHostService.showMessageBox(options);
+		if (buttonIndeces[result.response] === 0) {
 			this.clipboardService.writeText(detailToCopy);
 		}
 	}

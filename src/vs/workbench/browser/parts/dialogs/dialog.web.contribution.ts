@@ -62,6 +62,9 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 			} else if (this.currentDialog.args.showArgs) {
 				const args = this.currentDialog.args.showArgs;
 				result = await this.impl.show(args.severity, args.message, args.buttons, args.options);
+			} else if (this.currentDialog.args.promptArgs) {
+				const args = this.currentDialog.args.promptArgs;
+				result = await this.impl.prompt(args.prompt);
 			} else {
 				await this.impl.about();
 			}

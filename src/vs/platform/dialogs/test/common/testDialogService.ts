@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, TwoButtonPromptResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class TestDialogService implements IDialogService {
 
@@ -30,7 +30,25 @@ export class TestDialogService implements IDialogService {
 		return { confirmed: false };
 	}
 
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+		return { choice: TwoButtonPromptResult.Primary };
+	}
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
+	async info(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Info, message });
+	}
+
+	async warn(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Warning, message });
+	}
+
+	async error(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Error, message });
+	}
 	async input(): Promise<IInputResult> { { return { confirmed: true, values: [] }; } }
 	async about(): Promise<void> { }
 }

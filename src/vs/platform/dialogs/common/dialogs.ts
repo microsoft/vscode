@@ -22,9 +22,10 @@ export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
 	readonly inputArgs?: IInputDialogArgs;
 	readonly showArgs?: IShowDialogArgs;
+	readonly promptArgs?: IPromptDialogArgs;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
+export type IDialogResult = IConfirmationResult | IInputResult | IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult | IShowResult;
 
 export interface IConfirmDialogArgs {
 	readonly confirmation: IConfirmation;
@@ -88,6 +89,108 @@ export interface IInputResult extends IConfirmationResult {
 	 * Values for the input fields as provided by the user or `undefined` if none.
 	 */
 	readonly values?: string[];
+}
+
+export interface IPromptDialogArgs {
+	readonly prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt;
+}
+
+export interface IBasePrompt {
+	readonly severity: Severity;
+
+	readonly message: string;
+	readonly detail?: string;
+
+	readonly checkbox?: ICheckbox;
+
+	readonly custom?: boolean | ICustomDialogOptions;
+}
+
+export interface IOneButtonPrompt extends IBasePrompt {
+	readonly button?: string;
+}
+
+export interface ITwoButtonPrompt extends IBasePrompt {
+	readonly primaryButton: string;
+	readonly cancelButton?: string;
+}
+
+export interface IThreeButtonPrompt extends ITwoButtonPrompt {
+	readonly secondaryButton: string;
+}
+
+export interface IFourButtonPrompt extends IThreeButtonPrompt {
+	readonly tertiaryButton: string;
+}
+
+export function isOneButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is IOneButtonPrompt {
+	return !isTwoButtonPrompt(arg) && !isThreeButtonPrompt(arg) && !isFourButtonPrompt(arg);
+}
+
+export function isTwoButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is ITwoButtonPrompt {
+	if (isThreeButtonPrompt(arg) || isFourButtonPrompt(arg)) {
+		return false;
+	}
+
+	const candidate = arg as ITwoButtonPrompt;
+
+	return typeof candidate.primaryButton === 'string';
+}
+
+export function isThreeButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is IThreeButtonPrompt {
+	if (isFourButtonPrompt(arg)) {
+		return false;
+	}
+
+	const candidate = arg as IThreeButtonPrompt;
+
+	return typeof candidate.secondaryButton === 'string';
+}
+
+export function isFourButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is IFourButtonPrompt {
+	const candidate = arg as IFourButtonPrompt;
+
+	return typeof candidate.tertiaryButton === 'string';
+}
+
+export enum TwoButtonPromptResult {
+	Cancel = 0,
+	Primary = 1
+}
+
+export enum ThreeButtonPromptResult {
+	Cancel = 0,
+	Primary = 1,
+	Secondary = 2
+}
+
+export enum FourButtonPromptResult {
+	Cancel = 0,
+	Primary = 1,
+	Secondary = 2,
+	Tertiary = 3
+}
+
+export interface IBasePromptResult extends ICheckboxResult {
+
+	/**
+	 * The button that was pressed by the user from the prompt.
+	 */
+	readonly choice: TwoButtonPromptResult | ThreeButtonPromptResult | FourButtonPromptResult;
+}
+
+export interface IOneButtonPromptResult extends ICheckboxResult { }
+
+export interface ITwoButtonPromptResult extends IBasePromptResult {
+	readonly choice: TwoButtonPromptResult;
+}
+
+export interface IThreeButtonPromptResult extends IBasePromptResult {
+	readonly choice: ThreeButtonPromptResult;
+}
+
+export interface IFourButtonPromptResult extends IBasePromptResult {
+	readonly choice: FourButtonPromptResult;
 }
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
@@ -227,51 +330,179 @@ export interface IDialogHandler {
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 
 	/**
-	 * Present a modal dialog to the user asking for input.
-	 *
-	 *  @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned. In addition, the values for the
-	 * inputs are returned as well.
+	 * Prompt the user with a modal dialog.
 	 */
-	input(input: IInput): Promise<IInputResult>;
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
 
 	/**
-	 * Present a modal dialog to the user.
-	 *
-	 * @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
+	 * Present a modal dialog to the user asking for input.
 	 */
-	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+	input(input: IInput): Promise<IInputResult>;
 
 	/**
 	 * Present the about dialog to the user.
 	 */
 	about(): Promise<void>;
+
+	/**
+	 * @deprecated use `prompt` instead
+	 */
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+}
+
+enum DialogKind {
+	Confirmation = 1,
+	Prompt,
+	Input
 }
 
 export abstract class AbstractDialogHandler implements IDialogHandler {
 
-	protected toButtons(dialog: IConfirmation | IInput): string[] {
-		const buttons: string[] = [];
-		if (dialog.primaryButton) {
-			buttons.push(dialog.primaryButton);
-		} else {
-			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
-		}
+	protected toConfirmationButtons(dialog: IConfirmation): string[] {
+		return this.toButtons(dialog, DialogKind.Confirmation);
+	}
 
-		if (dialog.cancelButton) {
-			buttons.push(dialog.cancelButton);
-		} else {
-			buttons.push(localize('cancelButton', "Cancel"));
+	protected toPromptButtons(dialog: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): string[] {
+		return this.toButtons(dialog, DialogKind.Prompt);
+	}
+
+	protected toInputButtons(dialog: IInput): string[] {
+		return this.toButtons(dialog, DialogKind.Input);
+	}
+
+	private toButtons(dialog: IConfirmation, kind: DialogKind.Confirmation): string[];
+	private toButtons(dialog: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt, kind: DialogKind.Prompt): string[];
+	private toButtons(dialog: IInput, kind: DialogKind.Input): string[];
+	private toButtons(dialog: IConfirmation | IInput | IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt, kind: DialogKind): string[] {
+
+		// We put buttons in the order of "default" button first and "cancel"
+		// button last. There maybe later processing when presenting the buttons
+		// based on OS standards.
+
+		const buttons: string[] = [];
+
+		switch (kind) {
+			case DialogKind.Confirmation: {
+				const confirmationDialog = dialog as IConfirmation;
+
+				if (confirmationDialog.primaryButton) {
+					buttons.push(confirmationDialog.primaryButton);
+				} else {
+					buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+				}
+
+				if (confirmationDialog.cancelButton) {
+					buttons.push(confirmationDialog.cancelButton);
+				} else {
+					buttons.push(localize('cancelButton', "Cancel"));
+				}
+
+				break;
+			}
+			case DialogKind.Prompt: {
+				const promptDialog = dialog as IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt;
+
+				if (isTwoButtonPrompt(promptDialog) || isThreeButtonPrompt(promptDialog) || isFourButtonPrompt(promptDialog)) {
+					buttons.push(promptDialog.primaryButton);
+
+					if (isThreeButtonPrompt(promptDialog) || isFourButtonPrompt(promptDialog)) {
+						buttons.push(promptDialog.secondaryButton);
+					}
+
+					if (isFourButtonPrompt(promptDialog)) {
+						buttons.push(promptDialog.tertiaryButton);
+					}
+
+					if (promptDialog.cancelButton) {
+						buttons.push(promptDialog.cancelButton);
+					} else {
+						buttons.push(localize('cancelButton', "Cancel"));
+					}
+				} else {
+					if (promptDialog.button) {
+						buttons.push(promptDialog.button);
+					} else {
+						buttons.push(localize({ key: 'okButton', comment: ['&& denotes a mnemonic'] }, "&&OK"));
+					}
+				}
+
+				break;
+			}
+			case DialogKind.Input: {
+				const inputDialog = dialog as IInput;
+
+				if (inputDialog.primaryButton) {
+					buttons.push(inputDialog.primaryButton);
+				} else {
+					buttons.push(localize({ key: 'okButton', comment: ['&& denotes a mnemonic'] }, "&&OK"));
+				}
+
+				if (inputDialog.cancelButton) {
+					buttons.push(inputDialog.cancelButton);
+				} else {
+					buttons.push(localize('cancelButton', "Cancel"));
+				}
+
+				break;
+			}
 		}
 
 		return buttons;
 	}
 
+	protected toPromptResult(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt, buttonIndex: number): TwoButtonPromptResult | ThreeButtonPromptResult | FourButtonPromptResult {
+		let choice: TwoButtonPromptResult | ThreeButtonPromptResult | FourButtonPromptResult;
+		if (isThreeButtonPrompt(prompt)) {
+			switch (buttonIndex) {
+				case 0:
+					choice = ThreeButtonPromptResult.Primary;
+					break;
+				case 1:
+					choice = ThreeButtonPromptResult.Secondary;
+					break;
+				default:
+					choice = ThreeButtonPromptResult.Cancel;
+			}
+		} else if (isFourButtonPrompt(prompt)) {
+			switch (buttonIndex) {
+				case 0:
+					choice = FourButtonPromptResult.Primary;
+					break;
+				case 1:
+					choice = FourButtonPromptResult.Secondary;
+					break;
+				case 2:
+					choice = FourButtonPromptResult.Tertiary;
+					break;
+				default:
+					choice = FourButtonPromptResult.Cancel;
+			}
+		} else {
+			switch (buttonIndex) {
+				case 0:
+					choice = TwoButtonPromptResult.Primary;
+					break;
+				default:
+					choice = TwoButtonPromptResult.Cancel;
+			}
+		}
+
+		return choice;
+	}
+
+	protected getDialogType(severity: Severity): DialogType {
+		return (severity === Severity.Info) ? 'info' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
+	}
+
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
+	abstract prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	abstract prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	abstract prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	abstract prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
 	abstract show(severity: Severity, message: string, buttons?: string[] | undefined, options?: IDialogOptions | undefined): Promise<IShowResult>;
 	abstract about(): Promise<void>;
 }
@@ -302,28 +533,41 @@ export interface IDialogService {
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 
 	/**
-	 * Present a modal dialog to the user.
-	 *
-	 * @param severity the severity of the message
-	 * @param message the message to show
-	 * @param buttons the buttons to show. By convention, the first button should be the
-	 * primary action and the last button the "Cancel" action.
-	 *
-	 * @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
+	 * Prompt the user with a modal dialog. Provides a bit
+	 * more control over the dialog compared to the simpler
+	 * `confirm` method. Specifically, allows to show more
+	 * than 2 buttons and makes it easier to just show a
+	 * message to the user.
+	 */
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+
+	/**
+	 * @deprecated
 	 */
 	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
-	 *
-	 *  @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned. In addition, the values for the
-	 * inputs are returned as well.
 	 */
 	input(input: IInput): Promise<IInputResult>;
+
+	/**
+	 * Show a modal info dialog.
+	 */
+	info(message: string): Promise<void>;
+
+	/**
+	 * Show a modal warning dialog.
+	 */
+	warn(message: string): Promise<void>;
+
+	/**
+	 * Show a modal error dialog.
+	 */
+	error(message: string): Promise<void>;
 
 	/**
 	 * Present the about dialog to the user.

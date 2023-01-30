@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogOptions, IConfirmation, IConfirmationResult, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, ITwoButtonPrompt, ITwoButtonPromptResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, isOneButtonPrompt } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -46,16 +46,40 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+		this.logService.trace('DialogService#prompt', prompt.message);
+
+		const buttons = this.toPromptButtons(prompt);
+
+		const result = await this.doShow(this.getDialogType(prompt.severity), prompt.message, buttons, prompt.detail, buttons.length - 1, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+
+		if (isOneButtonPrompt(prompt)) {
+			return {
+				checkboxChecked: result.checkboxChecked
+			};
+		}
+
+		return {
+			choice: this.toPromptResult(prompt, result.button),
+			checkboxChecked: result.checkboxChecked
+		};
+	}
+
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
-		const result = await this.doShow(confirmation.type, confirmation.message, this.toButtons(confirmation), confirmation.detail, 1, confirmation.checkbox);
+		const buttons = this.toConfirmationButtons(confirmation);
 
-		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
-	}
+		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox);
 
-	private getDialogType(severity: Severity): DialogType {
-		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
+		return {
+			confirmed: result.button === 0,
+			checkboxChecked: result.checkboxChecked
+		};
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
@@ -123,7 +147,9 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	async input(input: IInput): Promise<IInputResult> {
 		this.logService.trace('DialogService#input', input.message);
 
-		const result = await this.doShow(input.type, input.message, this.toButtons(input), input.detail, 1, input?.checkbox, input.inputs);
+		const buttons = this.toInputButtons(input);
+
+		const result = await this.doShow(input.type, input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
 
 		return {
 			confirmed: result.button === 0,
@@ -146,8 +172,18 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
-
-		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [localize('copy', "Copy"), localize('ok', "OK")], { detail, cancelId: 1 });
+		const { choice } = await this.show(
+			Severity.Info,
+			this.productService.nameLong,
+			[
+				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+				localize('ok', "OK")
+			],
+			{
+				detail,
+				cancelId: 1
+			}
+		);
 
 		if (choice === 0) {
 			this.clipboardService.writeText(detailToCopy);

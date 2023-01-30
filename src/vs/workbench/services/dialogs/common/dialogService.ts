@@ -5,7 +5,7 @@
 
 import Severity from 'vs/base/common/severity';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { DialogsModel } from 'vs/workbench/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -48,6 +48,20 @@ export class DialogService extends Disposable implements IDialogService {
 		return await handle.result as IConfirmationResult;
 	}
 
+	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
+	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
+	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
+	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+		if (this.skipDialogs()) {
+			throw new Error('DialogService: refused to show dialog in tests.');
+		}
+
+		const handle = this.model.show({ promptArgs: { prompt } });
+
+		return await handle.result as IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult;
+	}
+
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
 		if (this.skipDialogs()) {
 			throw new Error('DialogService: refused to show dialog in tests.');
@@ -66,6 +80,18 @@ export class DialogService extends Disposable implements IDialogService {
 		const handle = this.model.show({ inputArgs: { input } });
 
 		return await handle.result as IInputResult;
+	}
+
+	async info(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Info, message });
+	}
+
+	async warn(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Warning, message });
+	}
+
+	async error(message: string): Promise<void> {
+		await this.prompt({ severity: Severity.Error, message });
 	}
 
 	async about(): Promise<void> {
