@@ -1702,7 +1702,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, _position?: DOM.IDomPosition): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
 			return;
@@ -1714,7 +1714,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement, dimension, /*position*/ undefined);
+			this.updateShadowElement(shadowElement, dimension, position);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1743,7 +1743,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension, /*position*/ undefined);
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -2599,7 +2599,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
-			if (!this._webview) {
+			if (this._isDisposed || !this._webview) {
 				return;
 			}
 
@@ -2651,7 +2651,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async updateOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
-			if (!this._webview) {
+			if (this._isDisposed || !this._webview) {
 				return;
 			}
 
@@ -2681,6 +2681,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	removeInset(output: ICellOutputViewModel) {
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+			if (this._isDisposed || !this._webview) {
+				return;
+			}
+
 			if (this._webview?.isResolved()) {
 				this._webview.removeInsets([output]);
 			}
@@ -2689,6 +2693,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	hideInset(output: ICellOutputViewModel) {
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+			if (this._isDisposed || !this._webview) {
+				return;
+			}
+
 			if (this._webview?.isResolved()) {
 				this._webview.hideInset(output);
 			}

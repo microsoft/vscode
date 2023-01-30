@@ -2384,7 +2384,7 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.focus,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.Period,
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
 		}
