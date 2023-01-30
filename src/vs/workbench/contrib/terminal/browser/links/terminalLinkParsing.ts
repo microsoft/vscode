@@ -263,22 +263,22 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 }
 
 const enum RegexPathConstants {
-	PathPrefix = '(\\.\\.?|\\~)',
+	PathPrefix = '(?:\\.\\.?|\\~)',
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
 	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\'":;\\\\]',
 	WinOtherPathPrefix = '\\.\\.?|\\~',
-	WinPathSeparatorClause = '(\\\\|\\/)',
+	WinPathSeparatorClause = '(?:\\\\|\\/)',
 	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
 }
 
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '((' + RegexPathConstants.PathPrefix + '|(' + RegexPathConstants.ExcludedPathCharactersClause + '*))?(' + RegexPathConstants.PathSeparatorClause + '(' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
+export const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '((' + `(${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(' + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(' + RegexPathConstants.WinPathSeparatorClause + '(' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
+export const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
 function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	const results: IParsedLink[] = [];
