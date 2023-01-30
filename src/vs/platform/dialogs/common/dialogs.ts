@@ -42,6 +42,8 @@ export interface IConfirmation {
 	readonly cancelButton?: string;
 
 	readonly checkbox?: ICheckbox;
+
+	readonly custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IConfirmationResult extends ICheckboxResult {

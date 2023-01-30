@@ -72,7 +72,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.toConfirmationButtons(confirmation);
 
-		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox);
+		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
 
 		return {
 			confirmed: result.button === 0,

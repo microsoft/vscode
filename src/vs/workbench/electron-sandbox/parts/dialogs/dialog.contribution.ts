@@ -64,7 +64,9 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 			// Confirm
 			if (this.currentDialog.args.confirmArgs) {
 				const args = this.currentDialog.args.confirmArgs;
-				result = this.useCustomDialog ? await this.browserImpl.confirm(args.confirmation) : await this.nativeImpl.confirm(args.confirmation);
+				result = (this.useCustomDialog || args?.confirmation.custom) ?
+					await this.browserImpl.confirm(args.confirmation) :
+					await this.nativeImpl.confirm(args.confirmation);
 			}
 
 			// Input (custom only)
