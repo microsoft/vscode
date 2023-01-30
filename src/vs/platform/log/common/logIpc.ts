@@ -134,7 +134,7 @@ export class LoggerChannel implements IServerChannel {
 			case 'getRegisteredLoggers': return Promise.resolve([...this.loggerService.getRegisteredLoggers()].map(logger => this.transformLogger(logger, uriTransformer)));
 		}
 
-		throw new Error(`Call not found ${command}`);
+		throw new Error(`Call not found: ${command}`);
 	}
 
 	private transformLogger(logger: ILoggerResource, transformer: IURITransformer): ILoggerResource {
