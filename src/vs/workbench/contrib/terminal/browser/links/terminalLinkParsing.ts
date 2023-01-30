@@ -197,37 +197,11 @@ export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null 
 const linkWithSuffixPathCharacters = /(?<path>[^\s]+)$/;
 
 export function detectLinks(line: string) {
-	const results: IParsedLink[] = [];
+	// 1: Detect all links on line via suffixes first
+	const results = detectLinksViaSuffix(line);
 
-	// 1: Detect link suffixes on the line
-	const suffixes = detectLinkSuffixes(line);
-	for (const suffix of suffixes) {
-		const beforeSuffix = line.substring(0, suffix.suffix.index);
-		const possiblePathMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
-		if (possiblePathMatch && possiblePathMatch.index !== undefined && possiblePathMatch.groups?.path) {
-			const linkStartIndex = possiblePathMatch.index;
-			let path = possiblePathMatch.groups.path;
-			// Extract a path prefix if it exists (not part of the path, but part of the underlined
-			// section)
-			let prefix: ILinkPartialRange | undefined = undefined;
-			const prefixMatch = path.match(/^(?<prefix>['"]+)/);
-			if (prefixMatch?.groups?.prefix) {
-				prefix = {
-					index: linkStartIndex,
-					text: prefixMatch?.groups?.prefix
-				};
-				path = path.substring(prefix.text.length);
-			}
-			results.push({
-				path: {
-					index: linkStartIndex + (prefix?.text.length || 0),
-					text: path
-				},
-				prefix,
-				suffix
-			});
-		}
-	}
+	// 2: Using the unused ranges, detect plain paths
+	// TODO: ...
 
 
 	// TODO: Annotate link prefix, here or in path resolve?
@@ -239,6 +213,61 @@ export function detectLinks(line: string) {
 
 	// 2: Detect paths with no suffix
 	// TODO: ...
+
+	return results;
+}
+
+function detectLinksViaSuffix(line: string): IParsedLink[] {
+	const results: IParsedLink[] = [];
+
+	// 1: Detect link suffixes on the line
+	const suffixes = detectLinkSuffixes(line);
+	for (const suffix of suffixes) {
+		const beforeSuffix = line.substring(0, suffix.suffix.index);
+		const possiblePathMatch = beforeSuffix.match(linkWithSuffixPathCharacters);
+		if (possiblePathMatch && possiblePathMatch.index !== undefined && possiblePathMatch.groups?.path) {
+			let linkStartIndex = possiblePathMatch.index;
+			let path = possiblePathMatch.groups.path;
+			// Extract a path prefix if it exists (not part of the path, but part of the underlined
+			// section)
+			let prefix: ILinkPartialRange | undefined = undefined;
+			const prefixMatch = path.match(/^(?<prefix>['"]+)/);
+			if (prefixMatch?.groups?.prefix) {
+				prefix = {
+					index: linkStartIndex,
+					text: prefixMatch.groups.prefix
+				};
+				path = path.substring(prefix.text.length);
+
+				// If there are multiple characters in the prefix, trim the prefix if the _first_
+				// suffix character is the same as the last prefix character. For example, for the
+				// text `echo "'foo' on line 1"`:
+				//
+				// - Prefix='
+				// - Path=foo
+				// - Suffix=' on line 1
+				//
+				// If this fails on a multi-character prefix, just keep the original.
+				if (prefixMatch.groups.prefix.length > 1) {
+					if (suffix.suffix.text[0].match(/['"]/) && prefixMatch.groups.prefix.at(-1) === suffix.suffix.text[0]) {
+						const trimPrefixAmount = prefixMatch.groups.prefix.length - 1;
+						console.log('trimPrefixAmount', trimPrefixAmount);
+						prefix.index += trimPrefixAmount;
+						prefix.text = prefixMatch.groups.prefix.at(-1)!;
+						linkStartIndex += trimPrefixAmount;
+					}
+				}
+			}
+			results.push({
+				path: {
+					index: linkStartIndex + (prefix?.text.length || 0),
+					text: path
+				},
+				prefix,
+				suffix
+			});
+		}
+	}
 
 	return results;
 }

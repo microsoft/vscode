@@ -255,6 +255,33 @@ suite('TerminalLinkParsing', () => {
 			);
 		});
 
+		test('should be smart about determining the link prefix when multiple prefix characters exist', () => {
+			deepStrictEqual(
+				detectLinks('echo \'"foo", line 5, col 6\''),
+				[
+					{
+						prefix: {
+							index: 6,
+							text: '"',
+						},
+						path: {
+							index: 7,
+							text: 'foo'
+						},
+						suffix: {
+							row: 5,
+							col: 6,
+							suffix: {
+								index: 10,
+								text: '", line 5, col 6'
+							}
+						}
+					} as IParsedLink,
+				],
+				'The outer single quotes should be excluded from the link prefix and suffix'
+			);
+		});
+
 		suite('should detect 3 suffix links on single line', () => {
 			for (let i = 0; i < testLinksWithSuffix.length - 2; i++) {
 				const link1 = testLinksWithSuffix[i];
