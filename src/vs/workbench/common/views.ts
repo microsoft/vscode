@@ -886,7 +886,6 @@ export interface IViewPaneContainer {
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;
-	saveState(): void;
 }
 
 export interface IViewBadge {
