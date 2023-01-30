@@ -121,6 +121,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			this.repoOperationDate = new Date();
 			this.repoDisposable = Disposable.from(
 				repo.onDidChangeRepository(uri => this.onRepositoryChanged(repo, uri)),
+				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo)),
 				repo.onDidRunOperation(result => this.onRepositoryOperationRun(repo, result))
 			);
 		}
@@ -276,6 +277,17 @@ export class GitTimelineProvider implements TimelineProvider {
 		// console.log(`GitTimelineProvider.onRepositoryChanged: uri=${uri.toString(true)}`);
 
 		this.fireChanged();
+	}
+
+	private onRepositoryStatusChanged(_repo: Repository) {
+		// console.log(`GitTimelineProvider.onRepositoryStatusChanged`);
+
+		const config = workspace.getConfiguration('git.timeline');
+		const showUncommitted = config.get<boolean>('showUncommitted') === true;
+
+		if (showUncommitted) {
+			this.fireChanged();
+		}
 	}
 
 	private onRepositoryOperationRun(_repo: Repository, _result: OperationResult) {
