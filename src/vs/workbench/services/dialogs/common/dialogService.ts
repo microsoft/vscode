@@ -82,16 +82,16 @@ export class DialogService extends Disposable implements IDialogService {
 		return await handle.result as IInputResult;
 	}
 
-	async info(message: string): Promise<void> {
-		await this.prompt({ severity: Severity.Info, message });
+	async info(message: string, detail?: string): Promise<void> {
+		await this.prompt({ severity: Severity.Info, message, detail });
 	}
 
-	async warn(message: string): Promise<void> {
-		await this.prompt({ severity: Severity.Warning, message });
+	async warn(message: string, detail?: string): Promise<void> {
+		await this.prompt({ severity: Severity.Warning, message, detail });
 	}
 
-	async error(message: string): Promise<void> {
-		await this.prompt({ severity: Severity.Error, message });
+	async error(message: string, detail?: string): Promise<void> {
+		await this.prompt({ severity: Severity.Error, message, detail });
 	}
 
 	async about(): Promise<void> {

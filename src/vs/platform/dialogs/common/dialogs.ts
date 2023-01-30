@@ -557,17 +557,17 @@ export interface IDialogService {
 	/**
 	 * Show a modal info dialog.
 	 */
-	info(message: string): Promise<void>;
+	info(message: string, detail?: string): Promise<void>;
 
 	/**
 	 * Show a modal warning dialog.
 	 */
-	warn(message: string): Promise<void>;
+	warn(message: string, detail?: string): Promise<void>;
 
 	/**
 	 * Show a modal error dialog.
 	 */
-	error(message: string): Promise<void>;
+	error(message: string, detail?: string): Promise<void>;
 
 	/**
 	 * Present the about dialog to the user.

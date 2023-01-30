@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
@@ -285,7 +284,7 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 			// In that case tell the user and return, it is still possible for
 			// the user to manually copy the changes over from the diff editor.
 
-			await dialogService.show(Severity.Error, localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), undefined, { detail: toErrorMessage(error) });
+			await dialogService.error(localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), toErrorMessage(error));
 
 			return;
 		}

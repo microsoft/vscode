@@ -300,7 +300,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 					}
 				} else {
-					await this.dialogService.show(Severity.Info, message);
+					await this.dialogService.info(message);
 				}
 			});
 		} finally {

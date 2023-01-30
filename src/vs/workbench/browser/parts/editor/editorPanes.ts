@@ -221,7 +221,7 @@ export class EditorPanes extends Disposable {
 			if (errorAction) {
 				const result = errorAction.run();
 				if (result instanceof Promise) {
-					result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+					result.catch(error => this.dialogService.error(toErrorMessage(error)));
 				}
 
 				errorHandled = true; // treat custom error action as handled and do not show placeholder
