@@ -13,8 +13,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
@@ -26,7 +26,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { timeout } from 'vs/base/common/async';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -44,7 +43,6 @@ export async function showRunRecentQuickPick(
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
-	const themeService = accessor.get(IThemeService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -209,9 +207,9 @@ export async function showRunRecentQuickPick(
 		title: 'Fuzzy search',
 		icon: commandHistoryFuzzySearchIcon,
 		isChecked: filterMode === 'fuzzy',
-		inputActiveOptionBorder: themeService.getColorTheme().getColor(inputActiveOptionBorder),
-		inputActiveOptionForeground: themeService.getColorTheme().getColor(inputActiveOptionForeground),
-		inputActiveOptionBackground: themeService.getColorTheme().getColor(inputActiveOptionBackground)
+		inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+		inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+		inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
 	});
 	fuzzySearchToggle.onChange(() => {
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
@@ -266,7 +264,7 @@ export async function showRunRecentQuickPick(
 			text = result.rawLabel;
 		}
 		quickPick.hide();
-		runCommand(instance, text, !quickPick.keyMods.alt);
+		instance.runCommand(text, !quickPick.keyMods.alt);
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
@@ -282,20 +280,6 @@ export async function showRunRecentQuickPick(
 			r();
 		});
 	});
-}
-
-async function runCommand(instance: ITerminalInstance, commandLine: string, addNewLine: boolean): Promise<void> {
-	// Determine whether to send ETX (ctrl+c) before running the command. This should always
-	// happen unless command detection can reliably say that a command is being entered and
-	// there is no content in the prompt
-	if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasInput !== false) {
-		await instance.sendText('\x03', false);
-		// Wait a little before running the command to avoid the sequences being echoed while the ^C
-		// is being evaluated
-		await timeout(100);
-	}
-	// Use bracketed paste mode only when not running the command
-	await instance.sendText(commandLine, addNewLine, !addNewLine);
 }
 
 class TerminalOutputProvider implements ITextModelContentProvider {

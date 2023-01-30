@@ -10,6 +10,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/bas
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { MicrotaskDelay } from './symbols';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -273,9 +274,6 @@ const microtaskDeferred = (fn: () => void): IScheduledLater => {
 		dispose: () => { scheduled = false; },
 	};
 };
-
-/** Can be passed into the Delayed to defer using a microtask */
-export const MicrotaskDelay = Symbol('MicrotaskDelay');
 
 /**
  * A helper to delay (debounce) execution of a task that is being requested often.
@@ -819,7 +817,7 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler {
+export class RunOnceScheduler implements IDisposable {
 
 	protected runner: ((...args: unknown[]) => void) | null;
 
@@ -873,6 +871,13 @@ export class RunOnceScheduler {
 	 */
 	isScheduled(): boolean {
 		return this.timeoutToken !== -1;
+	}
+
+	flush(): void {
+		if (this.isScheduled()) {
+			this.cancel();
+			this.doRun();
+		}
 	}
 
 	private onTimeout() {
@@ -961,6 +966,7 @@ export class ProcessTimeRunOnceScheduler {
 }
 
 export class RunOnceWorker<T> extends RunOnceScheduler {
+
 	private units: T[] = [];
 
 	constructor(runner: (units: T[]) => void, timeout: number) {
@@ -1068,7 +1074,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has
@@ -1111,7 +1119,22 @@ export interface IdleDeadline {
 }
 
 /**
- * Execute the callback the next time the browser is idle
+ * Execute the callback the next time the browser is idle, returning an
+ * {@link IDisposable} that will cancel the callback when disposed. This wraps
+ * [requestIdleCallback] so it will fallback to [setTimeout] if the environment
+ * doesn't support it.
+ *
+ * @param callback The callback to run when idle, this includes an
+ * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * browser. Not respecting this deadline will result in a degraded user
+ * experience.
+ * @param timeout A timeout at which point to queue no longer wait for an idle
+ * callback but queue it on the regular event loop (like setTimeout). Typically
+ * this should not be used.
+ *
+ * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
+ * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+ * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
  */
 export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
@@ -1528,7 +1551,7 @@ export interface AsyncIterableEmitter<T> {
 /**
  * An executor for the `AsyncIterableObject` that has access to an emitter.
  */
-export interface AyncIterableExecutor<T> {
+export interface AsyncIterableExecutor<T> {
 	/**
 	 * @param emitter An object that allows to emit async values valid only for the duration of the executor.
 	 */
@@ -1575,7 +1598,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	private _error: Error | null;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor(executor: AyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>) {
 		this._state = AsyncIterableSourceState.Initial;
 		this._results = [];
 		this._error = null;
@@ -1729,7 +1752,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 export class CancelableAsyncIterableObject<T> extends AsyncIterableObject<T> {
 	constructor(
 		private readonly _source: CancellationTokenSource,
-		executor: AyncIterableExecutor<T>
+		executor: AsyncIterableExecutor<T>
 	) {
 		super(executor);
 	}

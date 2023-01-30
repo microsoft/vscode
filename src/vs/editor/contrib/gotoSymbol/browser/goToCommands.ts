@@ -29,7 +29,7 @@ import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/browser/s
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
-import { IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IAction2F1RequiredOptions, IAction2Options, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
@@ -41,7 +41,6 @@ import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementations
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Iterable } from 'vs/base/common/iterator';
-
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
 	submenu: MenuId.EditorContextPeek,
@@ -83,12 +82,11 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 		return SymbolNavigationAction._allSymbolNavigationCommands.values();
 	}
 
-	private static _patchConfig(opts: IAction2Options): IAction2Options {
+	private static _patchConfig(opts: IAction2Options & IAction2F1RequiredOptions): IAction2Options {
 		const result = { ...opts, f1: true };
 		// patch context menu when clause
 		if (result.menu) {
-			const iterable = Array.isArray(result.menu) ? result.menu : Iterable.single(result.menu);
-			for (const item of iterable) {
+			for (const item of Iterable.wrap(result.menu)) {
 				if (item.id === MenuId.EditorContext || item.id === MenuId.EditorContextPeek) {
 					item.when = ContextKeyExpr.and(opts.precondition, item.when);
 				}
@@ -99,7 +97,7 @@ export abstract class SymbolNavigationAction extends EditorAction2 {
 
 	readonly configuration: SymbolNavigationActionConfig;
 
-	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options) {
+	constructor(configuration: SymbolNavigationActionConfig, opts: IAction2Options & IAction2F1RequiredOptions) {
 		super(SymbolNavigationAction._patchConfig(opts));
 		this.configuration = configuration;
 		SymbolNavigationAction._allSymbolNavigationCommands.set(opts.id, this);
@@ -308,6 +306,7 @@ registerAction2(class GoToDefinitionAction extends DefinitionAction {
 				order: 1.1
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 2,
 			}]
@@ -431,6 +430,7 @@ registerAction2(class GoToDeclarationAction extends DeclarationAction {
 				order: 1.3
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 3,
 			}],
@@ -525,6 +525,7 @@ registerAction2(class GoToTypeDefinitionAction extends TypeDefinitionAction {
 				order: 1.4
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 3,
 			}]
@@ -616,6 +617,7 @@ registerAction2(class GoToImplementationAction extends ImplementationAction {
 				order: 1.45
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 4,
 			}]
@@ -708,6 +710,7 @@ registerAction2(class GoToReferencesAction extends ReferencesAction {
 				order: 1.45
 			}, {
 				id: MenuId.MenubarGoMenu,
+				precondition: null,
 				group: '4_symbol_nav',
 				order: 5,
 			}]
@@ -818,7 +821,7 @@ CommandsRegistry.registerCommand({
 
 			return editor.invokeWithinContext(accessor => {
 				const command = new class extends GenericGoToLocationAction {
-					override _getNoResultFoundMessage(info: IWordAtPosition | null) {
+					protected override _getNoResultFoundMessage(info: IWordAtPosition | null) {
 						return noResultsMessage || super._getNoResultFoundMessage(info);
 					}
 				}({

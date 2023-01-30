@@ -15,7 +15,7 @@ import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleF
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
-	_installInterceptor() { }
+	protected _installInterceptor() { }
 
 	getModule(request: string, parent: URI): undefined | any {
 		for (const alternativeModuleName of this._alternatives) {

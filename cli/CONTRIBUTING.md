@@ -1,7 +1,7 @@
 # Setup
 
 0. Clone, and then run `git submodule update --init --recursive`
-1. Get the extensions: [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=matklad.rust-analyzer) and [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
+1. Get the extensions: [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) and [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 2. Ensure your workspace is set to the `launcher` folder being the root.
 
 ## Building the CLI on Windows

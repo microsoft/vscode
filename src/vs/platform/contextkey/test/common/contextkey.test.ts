@@ -224,6 +224,22 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(expr.serialize(), 'A || B');
 	});
 
+	test('Resolves true constant OR expressions', () => {
+		const expr = ContextKeyExpr.or(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.not('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'true');
+	});
+
+	test('Resolves false constant AND expressions', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.not('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'false');
+	});
+
 	test('issue #129625: Removes duplicated terms in AND expressions', () => {
 		const expr = ContextKeyExpr.and(
 			ContextKeyExpr.has('A'),
@@ -242,9 +258,9 @@ suite('ContextKeyExpr', () => {
 			)
 		)!;
 		assert.strictEqual(expr.serialize(), 'A && B1 || A && B2');
-		assert.strictEqual(expr.negate()!.serialize(), '!A || !B1 && !B2');
+		assert.strictEqual(expr.negate()!.serialize(), '!A || !A && !B1 || !A && !B2 || !B1 && !B2');
 		assert.strictEqual(expr.negate()!.negate()!.serialize(), 'A && B1 || A && B2');
-		assert.strictEqual(expr.negate()!.negate()!.negate()!.serialize(), '!A || !B1 && !B2');
+		assert.strictEqual(expr.negate()!.negate()!.negate()!.serialize(), '!A || !A && !B1 || !A && !B2 || !B1 && !B2');
 	});
 
 	test('issue #129625: remove redundant terms in OR expressions', () => {
@@ -253,7 +269,28 @@ suite('ContextKeyExpr', () => {
 			const q = ContextKeyExpr.deserialize(q0)!;
 			return implies(p, q);
 		}
-		assert.strictEqual(strImplies('a', 'a && b'), true);
+		assert.strictEqual(strImplies('a && b', 'a'), true);
+		assert.strictEqual(strImplies('a', 'a && b'), false);
+	});
+
+	test('implies', () => {
+		function strImplies(p0: string, q0: string): boolean {
+			const p = ContextKeyExpr.deserialize(p0)!;
+			const q = ContextKeyExpr.deserialize(q0)!;
+			return implies(p, q);
+		}
+		assert.strictEqual(strImplies('a', 'a'), true);
+		assert.strictEqual(strImplies('a', 'a || b'), true);
+		assert.strictEqual(strImplies('a', 'a && b'), false);
+		assert.strictEqual(strImplies('a', 'a && b || a && c'), false);
+		assert.strictEqual(strImplies('a && b', 'a'), true);
+		assert.strictEqual(strImplies('a && b', 'b'), true);
+		assert.strictEqual(strImplies('a && b', 'a && b || c'), true);
+		assert.strictEqual(strImplies('a || b', 'a || c'), false);
+		assert.strictEqual(strImplies('a || b', 'a || b'), true);
+		assert.strictEqual(strImplies('a && b', 'a && b'), true);
+		assert.strictEqual(strImplies('a || b', 'a || b || c'), true);
+		assert.strictEqual(strImplies('c && a && b', 'c && a'), true);
 	});
 
 	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {

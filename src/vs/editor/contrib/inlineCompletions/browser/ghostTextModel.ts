@@ -114,6 +114,10 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 		this.activeInlineCompletionsModel?.commitCurrentSuggestion();
 	}
 
+	public commitInlineCompletionPartially(): void {
+		this.activeInlineCompletionsModel?.commitCurrentSuggestionPartially();
+	}
+
 	public hideInlineCompletion(): void {
 		this.activeInlineCompletionsModel?.hide();
 	}
@@ -126,9 +130,9 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 		this.activeInlineCompletionsModel?.showPrevious();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.activeInlineCompletionsModel?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	public async getInlineCompletionsCount(): Promise<number> {
+		const result = await this.activeInlineCompletionsModel?.getInlineCompletionsCount();
+		return result ?? 0;
 	}
 }
 

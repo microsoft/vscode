@@ -34,8 +34,13 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
-	getValueLengthInRange(range: Range): number {
-		return this.getValueInRange(range, EndOfLinePreference.TextDefined).length;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+		return this.getValueInRange(range, eol).length;
+	}
+
+	modifyPosition(position: Position, offset: number): Position {
+		const column = Math.min(this.getLineMaxColumn(position.lineNumber), Math.max(1, position.column + offset));
+		return new Position(position.lineNumber, column);
 	}
 
 	getModelLineContent(lineNumber: number): string {
@@ -106,10 +111,10 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 				mode: null
 			};
 		},
-		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, 10, true);
+			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;

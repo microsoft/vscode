@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -88,7 +88,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	WebviewEditorInputSerializer.ID,
 	WebviewEditorInputSerializer);
 
-registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
+registerSingleton(IWebviewWorkbenchService, WebviewEditorService, InstantiationType.Delayed);
 
 registerAction2(ShowWebViewEditorFindWidgetAction);
 registerAction2(HideWebViewEditorFindCommand);

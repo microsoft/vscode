@@ -7,7 +7,6 @@ import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWri
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
@@ -15,6 +14,8 @@ import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessa
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { language } from 'vs/base/common/platform';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -88,10 +89,8 @@ export interface ITestResult {
 }
 
 export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
-	let i: TestResultItem | undefined = item;
-	while (i) {
-		yield i;
-		i = i.parent ? results.getStateById(i.parent) : undefined;
+	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
+		yield results.getStateById(id.toString())!;
 	}
 };
 
@@ -107,17 +106,6 @@ export const makeEmptyCounts = () => {
 	}
 
 	return o as TestStateCount;
-};
-
-export const sumCounts = (counts: Iterable<TestStateCount>) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
-		}
-	}
-
-	return total;
 };
 
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
@@ -180,7 +168,7 @@ export class LiveOutputController {
 		this.dataEmitter.fire(data);
 		this._offset += data.byteLength;
 
-		return this.writer.getValue()[0].write(data);
+		return this.writer.value[0].write(data);
 	}
 
 	/**
@@ -241,10 +229,10 @@ export class LiveOutputController {
 			return this.closed;
 		}
 
-		if (!this.writer.hasValue()) {
+		if (!this.writer.hasValue) {
 			this.closed = Promise.resolve();
 		} else {
-			const [stream, ended] = this.writer.getValue();
+			const [stream, ended] = this.writer.value;
 			stream.end();
 			this.closed = ended;
 		}
@@ -266,7 +254,6 @@ interface TestResultItemWithChildren extends TestResultItem {
 }
 
 const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
-	parent,
 	controllerId,
 	expand: TestItemExpandState.NotExpandable,
 	item: { ...item },
@@ -300,7 +287,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly tasks: ITestRunTaskResults[] = [];
-	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
+	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString(language));
 
 	/**
 	 * @inheritdoc
@@ -329,14 +316,11 @@ export class LiveTestResult implements ITestResult {
 		getParents: i => {
 			const { testById: testByExtId } = this;
 			return (function* () {
-				for (let parentId = i.parent; parentId;) {
-					const parent = testByExtId.get(parentId);
-					if (!parent) {
-						break;
+				const parentId = TestId.fromString(i.item.extId).parentId;
+				if (parentId) {
+					for (const id of parentId.idsToRoot()) {
+						yield testByExtId.get(id.toString())!;
 					}
-
-					yield parent;
-					parentId = parent.parent;
 				}
 			})();
 		},
@@ -514,7 +498,7 @@ export class LiveTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
-		return this.completedAt && this.persist ? this.doSerialize.getValue() : undefined;
+		return this.completedAt && this.persist ? this.doSerialize.value : undefined;
 	}
 
 	/**
@@ -665,11 +649,9 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item } as any;
-			cast.item.uri = URI.revive(cast.item.uri);
-			cast.retired = true;
-			this.counts[item.ownComputedState]++;
-			this.testById.set(item.item.extId, cast);
+			const de = TestResultItem.deserialize(item);
+			this.counts[de.ownComputedState]++;
+			this.testById.set(item.item.extId, de);
 		}
 	}
 

@@ -466,7 +466,7 @@ export class ExternalFileImport {
 					localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
 			}
 
-			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
+			const { choice } = await this.dialogService.show(Severity.Info, message, buttons, { cancelId: buttons.length - 1 });
 
 			// Add folders
 			if (choice === buttons.length - 3) {
@@ -672,7 +672,7 @@ export class FileDownload {
 			try {
 				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
-				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
+				bufferOrUri = FileAccess.uriToBrowserUri(stat.resource);
 			}
 
 			if (!cts.token.isCancellationRequested) {

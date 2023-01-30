@@ -14,12 +14,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorIdentifier, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -261,12 +262,11 @@ export class ShowHideBase extends Action2 {
 			menu: [
 				{
 					id: MenuId.EditorTitle,
-					when: ctxIsMergeEditor,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('columns')),
 					group: '2_merge',
 					order: 9,
 				},
-			],
-			precondition: ctxIsMergeEditor,
+			]
 		});
 	}
 
@@ -278,31 +278,58 @@ export class ShowHideBase extends Action2 {
 	}
 }
 
-export class ShowHideAtTopBase extends Action2 {
+export class ShowHideTopBase extends Action2 {
 	constructor() {
 		super({
-			id: 'merge.showBaseAtTop',
+			id: 'merge.showBaseTop',
 			title: {
-				value: localize('layout.showBaseAtTop', 'Show Base At Top'),
-				original: 'Show Base At Top',
+				value: localize('layout.showBaseTop', 'Show Base Top'),
+				original: 'Show Base Top',
 			},
-			toggled: ctxMergeEditorShowBaseAtTop.isEqualTo(true),
+			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop),
 			menu: [
 				{
 					id: MenuId.EditorTitle,
-					when: ctxIsMergeEditor,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('mixed')),
 					group: '2_merge',
 					order: 10,
 				},
 			],
-			precondition: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorShowBase, ctxMergeEditorLayout.isEqualTo('mixed')),
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
 		const { activeEditorPane } = accessor.get(IEditorService);
 		if (activeEditorPane instanceof MergeEditor) {
-			activeEditorPane.toggleShowBaseAtTop();
+			activeEditorPane.toggleShowBaseTop();
+		}
+	}
+}
+
+export class ShowHideCenterBase extends Action2 {
+	constructor() {
+		super({
+			id: 'merge.showBaseCenter',
+			title: {
+				value: localize('layout.showBaseCenter', 'Show Base Center'),
+				original: 'Show Base Center',
+			},
+			toggled: ContextKeyExpr.and(ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop.negate()),
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(ctxIsMergeEditor, ctxMergeEditorLayout.isEqualTo('mixed')),
+					group: '2_merge',
+					order: 11,
+				},
+			],
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleShowBaseCenter();
 		}
 	}
 }
@@ -362,6 +389,7 @@ export class GoToNextUnhandledConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.model.telemetry.reportNavigationToNextConflict();
 		viewModel.goToNextModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
@@ -393,6 +421,7 @@ export class GoToPreviousUnhandledConflict extends MergeEditorAction {
 	}
 
 	override runWithViewModel(viewModel: MergeEditorViewModel): void {
+		viewModel.model.telemetry.reportNavigationToPreviousConflict();
 		viewModel.goToPreviousModifiedBaseRange(r => !viewModel.model.isHandled(r).get());
 	}
 }
@@ -605,6 +634,26 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 
 	override runWithViewModel(viewModel: MergeEditorViewModel, accessor: ServicesAccessor): void {
 		viewModel.model.reset();
+	}
+}
+
+export class ResetCloseWithConflictsChoice extends Action2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.resetCloseWithConflictsChoice',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.resetChoice',
+					'Reset Choice for \'Close with Conflicts\''
+				),
+				original: 'Reset Choice for \'Close with Conflicts\'',
+			},
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove(StorageCloseWithConflicts, StorageScope.PROFILE);
 	}
 }
 

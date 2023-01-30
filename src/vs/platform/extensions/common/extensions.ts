@@ -96,7 +96,7 @@ export interface IColor {
 	defaults: { light: string; dark: string; highContrast: string };
 }
 
-export interface IWebviewEditor {
+interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
 	readonly selector: readonly {
@@ -137,6 +137,7 @@ export interface IWalkthroughStep {
 export interface IWalkthrough {
 	readonly id: string;
 	readonly title: string;
+	readonly icon?: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
 	readonly featuredFor: string[] | undefined;
@@ -268,6 +269,7 @@ export interface IRelaxedExtensionManifest {
 	description?: string;
 	main?: string;
 	browser?: string;
+	preview?: boolean;
 	// For now this only supports pointing to l10n bundle files
 	// but it will be used for package.l10n.json files in the future
 	l10n?: string;

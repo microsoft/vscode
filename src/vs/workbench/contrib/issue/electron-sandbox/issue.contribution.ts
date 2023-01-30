@@ -7,9 +7,9 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer, StopTracing } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-sandbox/issueService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -78,7 +78,7 @@ if (!!product.reportIssueUrl) {
 			value: localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
 			original: 'Report Issue...'
 		},
-		category: CATEGORIES.Help
+		category: Categories.Help
 	};
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue });
@@ -105,7 +105,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 registerAction2(OpenProcessExplorer);
 registerAction2(StopTracing);
 
-registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, true);
+registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, InstantiationType.Delayed);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return accessor.get(IIssueService).getSystemStatus();

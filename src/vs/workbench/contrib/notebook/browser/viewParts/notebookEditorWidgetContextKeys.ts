@@ -136,7 +136,7 @@ export class NotebookEditorContextKeys {
 
 	private _updateForCellExecution(): void {
 		if (this._editor.textModel) {
-			const notebookExe = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._editor.textModel.uri);
+			const notebookExe = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._editor.textModel.uri);
 			this._someCellRunning.set(notebookExe.length > 0);
 		} else {
 			this._someCellRunning.set(false);
@@ -169,7 +169,7 @@ export class NotebookEditorContextKeys {
 		}
 
 		const { selected, all } = this._notebookKernelService.getMatchingKernel(this._editor.textModel);
-		const sourceActions = this._notebookKernelService.getSourceActions();
+		const sourceActions = this._notebookKernelService.getSourceActions(this._editor.textModel, this._editor.scopedContextKeyService);
 		this._notebookKernelCount.set(all.length);
 		this._notebookKernelSourceCount.set(sourceActions.length);
 		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);

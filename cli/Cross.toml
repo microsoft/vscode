@@ -1,8 +1,0 @@
-[build.env]
-passthrough = [
-    "LAUNCHER_VERSION",
-    "LAUNCHER_ASSET_NAME",
-]
-
-[target.aarch64-unknown-linux-gnu]
-image = "microsoft/vscode-server-launcher-xbuild:aarch64"

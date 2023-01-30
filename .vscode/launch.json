@@ -230,7 +230,7 @@
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
 			"port": 9222,
-			"timeout": 20000,
+			"timeout": 0,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1"
@@ -279,6 +279,7 @@
 			"request": "launch",
 			"name": "Main Process",
 			"attachSimplePort": 5875,
+			"enableContentValidation": false,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",

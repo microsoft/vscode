@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -23,100 +22,50 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Promises } from 'vs/base/common/async';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 
-export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
+export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
+export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
+export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return instantiationService.invokeFunction(accessor => releaseNotesManager!.show(accessor, version));
+	return releaseNotesManager.show(version);
 }
 
-export class OpenLatestReleaseNotesInBrowserAction extends Action {
+async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
+	const openerService = accessor.get(IOpenerService);
+	const productService = accessor.get(IProductService);
 
-	constructor(
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
-	) {
-		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		if (this.productService.releaseNotesUrl) {
-			const uri = URI.parse(this.productService.releaseNotesUrl);
-			await this.openerService.open(uri);
-		} else {
-			throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", this.productService.nameLong));
-		}
+	if (productService.releaseNotesUrl) {
+		const uri = URI.parse(productService.releaseNotesUrl);
+		await openerService.open(uri);
+	} else {
+		throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
 	}
 }
 
-export abstract class AbstractShowReleaseNotesAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		private version: string,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super(id, label, undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		if (!this.enabled) {
-			return;
-		}
-		this.enabled = false;
-
+async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
+	const instantiationService = accessor.get(IInstantiationService);
+	try {
+		await showReleaseNotesInEditor(instantiationService, version);
+	} catch (err) {
 		try {
-			await showReleaseNotes(this.instantiationService, this.version);
-		} catch (err) {
-			const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-			try {
-				await action.run();
-			} catch (err2) {
-				throw new Error(`${err.message} and ${err2.message}`);
-			}
+			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
+		} catch (err2) {
+			throw new Error(`${err.message} and ${err2.message}`);
 		}
-	}
-}
-
-export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
-
-	constructor(
-		version: string,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, instantiationService);
-	}
-}
-
-export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
-
-	static readonly ID = ShowCurrentReleaseNotesActionId;
-	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
-	static readonly AVAILABE = !!product.releaseNotesUrl;
-
-	constructor(
-		id = ShowCurrentReleaseNotesAction.ID,
-		label = ShowCurrentReleaseNotesAction.LABEL,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService
-	) {
-		super(id, label, productService.version, instantiationService);
 	}
 }
 
@@ -156,8 +105,18 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		if (productService.releaseNotesUrl) {
+			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
+			releaseNotesUrlKey.set(productService.releaseNotesUrl);
+		}
+		if (productService.downloadUrl) {
+			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
+			downloadUrlKey.set(productService.downloadUrl);
+		}
+
 		hostService.hadLastFocus().then(async hadLastFocus => {
 			if (!hadLastFocus) {
 				return;
@@ -170,7 +129,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes
 			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotes(instantiationService, productService.version)
+				showReleaseNotesInEditor(instantiationService, productService.version)
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,
@@ -328,9 +287,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
-					action.dispose();
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
 				}
 			}]
 		);
@@ -354,9 +311,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			}, {
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
-					action.dispose();
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
 				}
 			}]
 		);
@@ -381,9 +336,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			actions.push({
 				label: nls.localize('releaseNotes', "Release Notes"),
 				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
-					action.dispose();
+					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, update.productVersion));
 				}
 			});
 		}
@@ -602,23 +555,5 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 				}
 			});
 		}
-	}
-}
-
-export class CheckForVSCodeUpdateAction extends Action {
-
-	static readonly ID = CheckForVSCodeUpdateActionId;
-	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IUpdateService private readonly updateService: IUpdateService,
-	) {
-		super(id, label, undefined, true);
-	}
-
-	override run(): Promise<void> {
-		return this.updateService.checkForUpdates(true);
 	}
 }

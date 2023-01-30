@@ -10,7 +10,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService, IExtensionHost, toExtensionDescription, ExtensionRunningLocation, ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
@@ -278,4 +278,4 @@ function includes(extensions: IExtensionDescription[], identifier: ExtensionIden
 	return false;
 }
 
-registerSingleton(IExtensionService, ExtensionService, false);
+registerSingleton(IExtensionService, ExtensionService, InstantiationType.Eager);

@@ -24,7 +24,7 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor() {
 	}
 
-	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
+	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ILineBreaksComputer {
 		const requests: string[] = [];
 		const injectedTexts: (LineInjectedText[] | null)[] = [];
 		return {
@@ -33,13 +33,13 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 				injectedTexts.push(injectedText);
 			},
 			finalize: () => {
-				return createLineBreaks(requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, injectedTexts);
+				return createLineBreaks(requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, injectedTexts);
 			}
 		};
 	}
 }
 
-function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
+function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', injectedTextsPerLine: (LineInjectedText[] | null)[]): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): ModelLineProjectionData | null {
 		const injectedTexts = injectedTextsPerLine[requestIdx];
 		if (injectedTexts) {
@@ -129,7 +129,15 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 
 	containerDomNode.style.position = 'absolute';
 	containerDomNode.style.top = '10000';
-	containerDomNode.style.wordWrap = 'break-word';
+	if (wordBreak === 'keepAll') {
+		// word-break: keep-all; overflow-wrap: anywhere
+		containerDomNode.style.wordBreak = 'keep-all';
+		containerDomNode.style.overflowWrap = 'anywhere';
+	} else {
+		// overflow-wrap: break-word
+		containerDomNode.style.wordBreak = 'inherit';
+		containerDomNode.style.overflowWrap = 'break-word';
+	}
 	document.body.appendChild(containerDomNode);
 
 	const range = document.createRange();
@@ -186,16 +194,16 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
-		sb.appendASCIIString('<div style="text-indent: -');
-		sb.appendASCIIString(hangingOffset);
-		sb.appendASCIIString('px; padding-left: ');
-		sb.appendASCIIString(hangingOffset);
-		sb.appendASCIIString('px; box-sizing: border-box; width:');
+		sb.appendString('<div style="text-indent: -');
+		sb.appendString(hangingOffset);
+		sb.appendString('px; padding-left: ');
+		sb.appendString(hangingOffset);
+		sb.appendString('px; box-sizing: border-box; width:');
 	} else {
-		sb.appendASCIIString('<div style="width:');
+		sb.appendString('<div style="width:');
 	}
-	sb.appendASCIIString(String(width));
-	sb.appendASCIIString('px;">');
+	sb.appendString(String(width));
+	sb.appendString('px;">');
 	// if (containsRTL) {
 	// 	sb.appendASCIIString('" dir="ltr');
 	// }
@@ -207,10 +215,10 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 
-	sb.appendASCIIString('<span>');
+	sb.appendString('<span>');
 	for (let charIndex = 0; charIndex < len; charIndex++) {
 		if (charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
-			sb.appendASCIIString('</span><span>');
+			sb.appendString('</span><span>');
 		}
 		charOffsets[charIndex] = charOffset;
 		visibleColumns[charIndex] = visibleColumn;
@@ -224,42 +232,42 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 				charWidth = producedCharacters;
 				for (let space = 1; space <= producedCharacters; space++) {
 					if (space < producedCharacters) {
-						sb.write1(0xA0); // &nbsp;
+						sb.appendCharCode(0xA0); // &nbsp;
 					} else {
-						sb.appendASCII(CharCode.Space);
+						sb.appendASCIICharCode(CharCode.Space);
 					}
 				}
 				break;
 
 			case CharCode.Space:
 				if (nextCharCode === CharCode.Space) {
-					sb.write1(0xA0); // &nbsp;
+					sb.appendCharCode(0xA0); // &nbsp;
 				} else {
-					sb.appendASCII(CharCode.Space);
+					sb.appendASCIICharCode(CharCode.Space);
 				}
 				break;
 
 			case CharCode.LessThan:
-				sb.appendASCIIString('&lt;');
+				sb.appendString('&lt;');
 				break;
 
 			case CharCode.GreaterThan:
-				sb.appendASCIIString('&gt;');
+				sb.appendString('&gt;');
 				break;
 
 			case CharCode.Ampersand:
-				sb.appendASCIIString('&amp;');
+				sb.appendString('&amp;');
 				break;
 
 			case CharCode.Null:
-				sb.appendASCIIString('&#00;');
+				sb.appendString('&#00;');
 				break;
 
 			case CharCode.UTF8_BOM:
 			case CharCode.LINE_SEPARATOR:
 			case CharCode.PARAGRAPH_SEPARATOR:
 			case CharCode.NEXT_LINE:
-				sb.write1(0xFFFD);
+				sb.appendCharCode(0xFFFD);
 				break;
 
 			default:
@@ -267,21 +275,21 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 					charWidth++;
 				}
 				if (charCode < 32) {
-					sb.write1(9216 + charCode);
+					sb.appendCharCode(9216 + charCode);
 				} else {
-					sb.write1(charCode);
+					sb.appendCharCode(charCode);
 				}
 		}
 
 		charOffset += producedCharacters;
 		visibleColumn += charWidth;
 	}
-	sb.appendASCIIString('</span>');
+	sb.appendString('</span>');
 
 	charOffsets[lineContent.length] = charOffset;
 	visibleColumns[lineContent.length] = visibleColumn;
 
-	sb.appendASCIIString('</div>');
+	sb.appendString('</div>');
 
 	return [charOffsets, visibleColumns];
 }

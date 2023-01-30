@@ -29,6 +29,7 @@ import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIn
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { join } from 'path';
 
 type WorkspaceId = string;
 
@@ -105,64 +106,29 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
 	}
 
-	async freePortKillProcess(id: number, port: string): Promise<{ port: string; processId: string }> {
-		let result: { port: string; processId: string } | undefined;
-		if (!isWindows) {
-			const stdout = await new Promise<string>((resolve, reject) => {
-				exec(`lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
-					if (err) {
-						return reject('Problem occurred when listing active processes');
-					}
-					resolve(stdout);
-				});
-			});
-			const processesForPort = stdout.split('\n');
-			if (processesForPort.length >= 1) {
-				const capturePid = /\s+(\d+)\s+/;
-				const processId = processesForPort[0].match(capturePid)?.[1];
-				if (processId) {
-					await new Promise<string>((resolve, reject) => {
-						exec(`kill ${processId}`, {}, (err, stdout) => {
-							if (err) {
-								return reject(`Problem occurred when killing the process with PID: ${processId}`);
-							}
-							resolve(stdout);
-						});
-						result = { port, processId };
-					});
+	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		const stdout = await new Promise<string>((resolve, reject) => {
+			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
+				if (err) {
+					return reject('Problem occurred when listing active processes');
 				}
-			}
-		} else {
-			const stdout = await new Promise<string>((resolve, reject) => {
-				exec(`netstat -ano | findstr "${port}"`, {}, (err, stdout) => {
-					if (err) {
-						return reject('Problem occurred when listing active processes');
-					}
-					resolve(stdout);
-				});
+				resolve(stdout);
 			});
-			const processesForPort = stdout.split('\n');
-			if (processesForPort.length >= 1) {
-				const capturePid = /LISTENING\s+(\d+)/;
-				const processId = processesForPort[0].match(capturePid)?.[1];
-				if (processId) {
-					await new Promise<string>((resolve, reject) => {
-						exec(`Taskkill /F /PID ${processId}`, {}, (err, stdout) => {
-							if (err) {
-								return reject(`Problem occurred when killing the process with PID: ${processId}`);
-							}
-							resolve(stdout);
-						});
-						result = { port, processId };
-					});
-				}
+		});
+		const processesForPort = stdout.split('\n');
+		if (processesForPort.length >= 1) {
+			const capturePid = /\s+(\d+)\s+/;
+			const processId = processesForPort[0].match(capturePid)?.[1];
+			if (processId) {
+				try {
+					process.kill(Number.parseInt(processId));
+				} catch { }
+			} else {
+				throw new Error(`Processes for port ${port} were not found`);
 			}
+			return { port, processId };
 		}
-
-		if (result) {
-			return result;
-		}
-		throw new Error(`Processes for port ${port} were not found`);
+		throw new Error(`Could not kill process with port ${port}`);
 	}
 
 	async serializeTerminalState(ids: number[]): Promise<string> {
@@ -385,19 +351,56 @@ export class PtyService extends Disposable implements IPtyService {
 		return { ...process.env };
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		if (!isWindows) {
-			return original;
-		}
-		if (getWindowsBuildNumber() < 17063) {
-			return original.replace(/\\/g, '/');
-		}
-		return new Promise<string>(c => {
-			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
-				c(escapeNonWindowsPath(stdout.trim()));
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix' | unknown): Promise<string> {
+		if (direction === 'win-to-unix') {
+			if (!isWindows) {
+				return original;
+			}
+			if (getWindowsBuildNumber() < 17063) {
+				return original.replace(/\\/g, '/');
+			}
+			const wslExecutable = this._getWSLExecutablePath();
+			if (!wslExecutable) {
+				return original;
+			}
+			return new Promise<string>(c => {
+				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
+					c(escapeNonWindowsPath(stdout.trim()));
+				});
+				proc.stdin!.end();
 			});
-			proc.stdin!.end();
-		});
+		}
+		if (direction === 'unix-to-win') {
+			// The backend is Windows, for example a local Windows workspace with a wsl session in
+			// the terminal.
+			if (isWindows) {
+				if (getWindowsBuildNumber() < 17063) {
+					return original;
+				}
+				const wslExecutable = this._getWSLExecutablePath();
+				if (!wslExecutable) {
+					return original;
+				}
+				return new Promise<string>(c => {
+					const proc = execFile(wslExecutable, ['-e', 'wslpath', '-w', original], {}, (error, stdout, stderr) => {
+						c(stdout.trim());
+					});
+					proc.stdin!.end();
+				});
+			}
+		}
+		// Fallback just in case
+		return original;
+	}
+
+	private _getWSLExecutablePath(): string | undefined {
+		const useWSLexe = getWindowsBuildNumber() >= 16299;
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const systemRoot = process.env['SystemRoot'];
+		if (systemRoot) {
+			return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', useWSLexe ? 'wsl.exe' : 'bash.exe');
+		}
+		return undefined;
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
@@ -478,7 +481,8 @@ export class PtyService extends Disposable implements IPtyService {
 			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
-			type: persistentProcess.shellLaunchConfig.type
+			type: persistentProcess.shellLaunchConfig.type,
+			hasChildProcesses: persistentProcess.hasChildProcesses
 		};
 	}
 
@@ -500,7 +504,7 @@ const enum InteractionState {
 	Session = 'Session'
 }
 
-export class PersistentTerminalProcess extends Disposable {
+class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _autoReplies: Map<string, TerminalAutoResponder> = new Map();
@@ -548,6 +552,7 @@ export class PersistentTerminalProcess extends Disposable {
 	get icon(): TerminalIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
 	get fixedDimensions(): IFixedTerminalDimensions | undefined { return this._fixedDimensions; }
+	get hasChildProcesses(): boolean { return this._terminalProcess.hasChildProcesses; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
 		if (titleSource === TitleEventSource.Api) {
@@ -986,7 +991,7 @@ function printTime(ms: number): string {
 	return `${_h}${_m}${_s}${_ms}`;
 }
 
-export interface ITerminalSerializer {
+interface ITerminalSerializer {
 	handleData(data: string): void;
 	freeRawReviveBuffer(): void;
 	handleResize(cols: number, rows: number): void;

@@ -12,8 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Iterable } from 'vs/base/common/iterator';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -150,6 +149,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('view.itemContext', "The contributed view item context menu")
 	},
 	{
+		key: 'comments/comment/editorActions',
+		id: MenuId.CommentEditorActions,
+		description: localize('commentThread.editorActions', "The contributed comment editor actions"),
+		proposed: 'contribCommentEditorActionsMenu'
+	},
+	{
 		key: 'comments/commentThread/title',
 		id: MenuId.CommentThreadTitle,
 		description: localize('commentThread.title', "The contributed comment thread title menu")
@@ -159,6 +164,13 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentThreadActions,
 		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'comments/commentThread/additionalActions',
+		id: MenuId.CommentThreadAdditionalActions,
+		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
+		supportsSubmenus: false,
+		proposed: 'contribCommentThreadAdditionalMenu'
 	},
 	{
 		key: 'comments/commentThread/title/context',
@@ -203,12 +215,6 @@ const apiMenus: IAPIMenu[] = [
 		key: 'notebook/cell/execute',
 		id: MenuId.NotebookCellExecute,
 		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
-	},
-	{
-		key: 'notebook/cell/executePrimary',
-		id: MenuId.NotebookCellExecutePrimary,
-		description: localize('notebook.cell.executePrimary', "The contributed primary notebook cell execution button"),
-		proposed: 'notebookEditor'
 	},
 	{
 		key: 'interactive/toolbar',
@@ -630,7 +636,14 @@ const _commandRegistrations = new DisposableStore();
 
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution
+	jsonSchema: schema.commandsContribution,
+	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.command) {
+				result.push(`onCommand:${contrib.command}`);
+			}
+		}
+	}
 });
 
 commandsExtensionPoint.setHandler(extensions => {
@@ -662,7 +675,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
-			source: extension.description.displayName ?? extension.description.name,
+			source: { id: extension.description.identifier.value, title: extension.description.displayName ?? extension.description.name },
 			shortTitle,
 			tooltip: title,
 			category,
@@ -748,7 +761,7 @@ submenusExtensionPoint.setHandler(extensions => {
 	}
 });
 
-const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
+const _apiMenusByKey = new Map(apiMenus.map(menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
 const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 

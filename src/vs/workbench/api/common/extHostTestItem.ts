@@ -175,6 +175,8 @@ export class TestItemImpl implements vscode.TestItem {
 }
 
 export class TestItemRootImpl extends TestItemImpl {
+	public readonly _isRoot = true;
+
 	constructor(controllerId: string, label: string) {
 		super(controllerId, controllerId, label, undefined);
 	}

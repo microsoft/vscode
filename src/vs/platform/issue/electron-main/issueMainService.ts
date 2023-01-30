@@ -6,7 +6,6 @@
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -27,8 +26,13 @@ import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
+
+
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
+const processExplorerWindowState = 'issue.processExplorerWindowState';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -36,6 +40,8 @@ interface IBrowserWindowOptions {
 	zoomLevel: number;
 	alwaysOnTop: boolean;
 }
+
+type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
 
 export interface IIssueMainService extends ICommonIssueService {
 	stopTracing(): Promise<void>;
@@ -62,7 +68,8 @@ export class IssueMainService implements IIssueMainService {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IStateMainService private readonly stateMainService: IStateMainService
 	) {
 		this.registerListeners();
 	}
@@ -105,22 +112,18 @@ export class IssueMainService implements IIssueMainService {
 		});
 
 		validatedIpcMain.on('vscode:issueReporterClipboard', async event => {
-			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
-				type: 'warning',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
-			};
-
 			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
+				const { options, buttonIndeces } = massageMessageBoxOptions({
+					message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
+					type: 'warning',
+					buttons: [
+						localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+						localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					]
+				}, this.productService);
+
+				const result = await this.dialogMainService.showMessageBox(options, this.issueReporterWindow);
+				this.safeSend(event, 'vscode:issueReporterClipboardResponse', buttonIndeces[result.response] === 0);
 			}
 		});
 
@@ -130,22 +133,18 @@ export class IssueMainService implements IIssueMainService {
 		});
 
 		validatedIpcMain.on('vscode:issueReporterConfirmClose', async () => {
-			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
-				type: 'warning',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
-			};
-
 			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				if (result.response === 0) {
+				const { options, buttonIndeces } = massageMessageBoxOptions({
+					message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+					type: 'warning',
+					buttons: [
+						localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+						localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					]
+				}, this.productService);
+
+				const result = await this.dialogMainService.showMessageBox(options, this.issueReporterWindow);
+				if (buttonIndeces[result.response] === 0) {
 					if (this.issueReporterWindow) {
 						this.issueReporterWindow.destroy();
 						this.issueReporterWindow = null;
@@ -228,7 +227,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`, require).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {
@@ -260,7 +259,14 @@ export class IssueMainService implements IIssueMainService {
 				const processExplorerDisposables = new DisposableStore();
 
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
-				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
+
+				const savedPosition = this.stateMainService.getItem<IWindowState>(processExplorerWindowState, undefined);
+				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
+
+				// Correct dimensions to take scale/dpr into account
+				const displayToUse = screen.getDisplayNearestPoint({ x: position.x!, y: position.y! });
+				position.width /= displayToUse.scaleFactor;
+				position.height /= displayToUse.scaleFactor;
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
@@ -279,7 +285,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`, require).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.processExplorerWindow.on('close', () => {
@@ -295,6 +301,27 @@ export class IssueMainService implements IIssueMainService {
 						processExplorerDisposables.dispose();
 					}
 				});
+
+				const storeState = () => {
+					if (!this.processExplorerWindow) {
+						return;
+					}
+					const size = this.processExplorerWindow.getSize();
+					const position = this.processExplorerWindow.getPosition();
+					if (!size || !position) {
+						return;
+					}
+					const state: IWindowState = {
+						width: size[0],
+						height: size[1],
+						x: position[0],
+						y: position[1]
+					};
+					this.stateMainService.setItem(processExplorerWindowState, state);
+				};
+
+				this.processExplorerWindow.on('moved', storeState);
+				this.processExplorerWindow.on('resized', storeState);
 			}
 		}
 
@@ -325,7 +352,7 @@ export class IssueMainService implements IIssueMainService {
 			title: options.title,
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
@@ -349,7 +376,7 @@ export class IssueMainService implements IIssueMainService {
 		return this.diagnosticsService.getDiagnostics(info, remoteData);
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IStrictWindowState {
 
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Display | undefined;
@@ -380,14 +407,14 @@ export class IssueMainService implements IIssueMainService {
 			}
 		}
 
-		const state: IWindowState = {
-			width: defaultWidth,
-			height: defaultHeight
-		};
-
 		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
+
+		const state: IStrictWindowState = {
+			width: defaultWidth,
+			height: defaultHeight,
+			x: displayBounds.x + (displayBounds.width / 2) - (defaultWidth / 2),
+			y: displayBounds.y + (displayBounds.height / 2) - (defaultHeight / 2)
+		};
 
 		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
 			if (state.x < displayBounds.x) {
@@ -437,17 +464,28 @@ export class IssueMainService implements IIssueMainService {
 		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 
 		// Inform user to report an issue
-		await this.dialogMainService.showMessageBox({
-			title: this.productService.nameLong,
+		const { options } = massageMessageBoxOptions({
 			type: 'info',
 			message: localize('trace.message', "Successfully created the trace file"),
 			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-			buttons: [mnemonicButtonLabel(localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-			defaultId: 0,
-			noLink: true
-		}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			buttons: [localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
+		}, this.productService);
+
+		await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
 		// Show item in explorer
 		this.nativeHostMainService.showItemInFolder(undefined, path);
 	}
+}
+
+function isStrictWindowState(obj: unknown): obj is IStrictWindowState {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	return (
+		'x' in obj &&
+		'y' in obj &&
+		'width' in obj &&
+		'height' in obj
+	);
 }

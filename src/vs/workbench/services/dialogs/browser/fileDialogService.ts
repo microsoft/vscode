@@ -5,7 +5,7 @@
 
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { memoize } from 'vs/base/common/decorators';
@@ -232,7 +232,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			buttons,
 			{
 				detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
-				cancelId: -1 // no "Cancel" button offered
+				cancelId: buttons.length // TODO@bpasero leverage new support for `cancelId: null` in the future
 			}
 		);
 
@@ -270,4 +270,4 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, true);
+registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);

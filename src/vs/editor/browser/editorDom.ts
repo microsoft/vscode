@@ -9,8 +9,8 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeColor } from 'vs/base/common/themables';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -242,8 +242,8 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
 		this._keydownListener = dom.addStandardDisposableListener(<any>document, 'keydown', (e) => {
-			const kb = e.toKeybinding();
-			if (kb.isModifierKey()) {
+			const chord = e.toKeyCodeChord();
+			if (chord.isModifierKey()) {
 				// Allow modifier keys
 				return;
 			}
@@ -378,7 +378,7 @@ class RefCountedCssRule {
 			const value = (properties as any)[prop] as string | ThemeColor;
 			let cssValue;
 			if (typeof value === 'object') {
-				cssValue = `var(${asCssVariableName(value.id)})`;
+				cssValue = asCssVariable(value.id);
 			} else {
 				cssValue = value;
 			}

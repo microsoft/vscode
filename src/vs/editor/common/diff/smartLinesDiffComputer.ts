@@ -15,7 +15,7 @@ const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 export class SmartLinesDiffComputer implements ILinesDiffComputer {
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff {
 		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-			maxComputationTime: options.maxComputationTime,
+			maxComputationTime: options.maxComputationTimeMs,
 			shouldIgnoreTrimWhitespace: options.ignoreTrimWhitespace,
 			shouldComputeCharChanges: true,
 			shouldMakePrettyDiff: true,
@@ -626,6 +626,16 @@ export class DiffComputer {
 		if (prevChange.originalEndLineNumber === 0 || prevChange.modifiedEndLineNumber === 0) {
 			// Don't merge with inserts/deletes
 			return false;
+		}
+
+		if (prevChange.originalEndLineNumber === originalLineNumber && prevChange.modifiedEndLineNumber === modifiedLineNumber) {
+			if (this.shouldComputeCharChanges && prevChange.charChanges) {
+				prevChange.charChanges.push(new CharChange(
+					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
+					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
+				));
+			}
+			return true;
 		}
 
 		if (prevChange.originalEndLineNumber + 1 === originalLineNumber && prevChange.modifiedEndLineNumber + 1 === modifiedLineNumber) {

@@ -8,6 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -20,11 +21,13 @@ import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/merge
 import { ctxIsMergeEditor, MergeEditorContents } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+const MERGE_EDITOR_CATEGORY: ILocalizedString = { value: localize('mergeEditor', "Merge Editor (Dev)"), original: 'Merge Editor (Dev)' };
+
 export class MergeEditorCopyContentsToJSON extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.copyContentsJson',
-			category: 'Merge Editor (Dev)',
+			category: MERGE_EDITOR_CATEGORY,
 			title: {
 				value: localize(
 					'merge.dev.copyState',
@@ -76,7 +79,7 @@ export class MergeEditorSaveContentsToFolder extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.saveContentsToFolder',
-			category: 'Merge Editor (Dev)',
+			category: MERGE_EDITOR_CATEGORY,
 			title: {
 				value: localize(
 					'merge.dev.saveContentsToFolder',
@@ -145,7 +148,7 @@ export class MergeEditorLoadContentsFromFolder extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.loadContentsFromFolder',
-			category: 'Merge Editor (Dev)',
+			category: MERGE_EDITOR_CATEGORY,
 			title: {
 				value: localize(
 					'merge.dev.loadContentsFromFolder',

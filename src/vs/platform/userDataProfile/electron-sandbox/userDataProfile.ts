@@ -10,7 +10,8 @@ import { URI, UriDto } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile, WorkspaceIdentifier } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class UserDataProfilesNativeService extends Disposable implements IUserDataProfilesService {
 
@@ -28,6 +29,8 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 	readonly onDidChangeProfiles = this._onDidChangeProfiles.event;
 
 	readonly onDidResetWorkspaces: Event<void>;
+
+	private enabled: boolean = true;
 
 	constructor(
 		profiles: readonly UriDto<IUserDataProfile>[],
@@ -48,22 +51,30 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 		this.onDidResetWorkspaces = this.channel.listen<void>('onDidResetWorkspaces');
 	}
 
-	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	setEnablement(enabled: boolean) {
+		this.enabled = enabled;
+	}
+
+	isEnabled(): boolean {
+		return this.enabled;
+	}
+
+	async createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('createNamedProfile', [name, options, workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [id, name, options, workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	async createTransientProfile(workspaceIdentifier?: WorkspaceIdentifier): Promise<IUserDataProfile> {
+	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('createTransientProfile', [workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	async setProfileForWorkspace(workspaceIdentifier: WorkspaceIdentifier, profile: IUserDataProfile): Promise<void> {
+	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profile: IUserDataProfile): Promise<void> {
 		await this.channel.call<UriDto<IUserDataProfile>>('setProfileForWorkspace', [workspaceIdentifier, profile]);
 	}
 

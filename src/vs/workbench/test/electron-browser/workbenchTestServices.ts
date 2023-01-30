@@ -68,13 +68,14 @@ const NULL_PROFILE = {
 	keybindingsResource: joinPath(URI.file(homeDir), 'keybindings.json'),
 	tasksResource: joinPath(URI.file(homeDir), 'tasks.json'),
 	snippetsHome: joinPath(URI.file(homeDir), 'snippets'),
-	extensionsResource: undefined
+	extensionsResource: joinPath(URI.file(homeDir), 'extensions.json')
 };
 
 export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
 	logLevel: LogLevel.Error,
+	loggers: { global: [], window: [] },
 	mainPid: 0,
 	appRoot: '',
 	userEnv: {},
@@ -275,9 +276,8 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
-	async startHeartbeat(): Promise<boolean> { return false; }
-	async sendHeartbeat(): Promise<boolean> { return false; }
-	async stopHeartbeat(): Promise<boolean> { return false; }
+	async profileRenderer(): Promise<any> { throw new Error(); }
+	async enableSandbox(enabled: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 export function workbenchInstantiationService(disposables = new DisposableStore()): ITestInstantiationService {

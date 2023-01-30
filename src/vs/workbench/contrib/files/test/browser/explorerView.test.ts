@@ -12,7 +12,7 @@ import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerVie
 import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompressedNavigationController } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 const $ = dom.$;
@@ -84,7 +84,8 @@ suite('Files - ExplorerView', () => {
 
 		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
 			container,
-			elementDisposable: Disposable.None,
+			templateDisposables: new DisposableStore(),
+			elementDisposables: new DisposableStore(),
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event

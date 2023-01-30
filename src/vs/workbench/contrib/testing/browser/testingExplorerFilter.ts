@@ -10,21 +10,19 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
+import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { Emitter } from 'vs/base/common/event';
+import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 
 const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
@@ -49,7 +47,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
-		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestService private readonly testService: ITestService,
 	) {
@@ -102,7 +99,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 			},
 			history: history.values
 		}));
-		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
 		this._register(this.state.text.onDidChange(newValue => {
 			if (input.getValue() !== newValue) {
@@ -245,18 +241,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			_isFakeAction: true,
-			id: TestCommandId.FilterAction,
-			title: { value: localize('filter', "Filter"), original: 'Filter' },
-		});
-	}
-	async run(): Promise<void> { }
-});

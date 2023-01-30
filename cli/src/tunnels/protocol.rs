@@ -4,148 +4,153 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
-use crate::options::Quality;
+use crate::{constants::{VSCODE_CLI_VERSION, PROTOCOL_VERSION}, options::Quality};
 use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Debug)]
-#[serde(tag = "method", content = "params")]
-#[allow(non_camel_case_types)]
-pub enum ServerRequestMethod {
-    serve(ServeParams),
-    prune,
-    ping(EmptyResult),
-    forward(ForwardParams),
-    unforward(UnforwardParams),
-    gethostname(EmptyResult),
-    update(UpdateParams),
-    servermsg(ServerMessageParams),
-    callserverhttp(CallServerHttpParams),
-}
 
 #[derive(Serialize, Debug)]
 #[serde(tag = "method", content = "params", rename_all = "camelCase")]
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
-    servermsg(RefServerMessageParams<'a>),
-    serverlog(ServerLog<'a>),
-    version(VersionParams),
+	servermsg(RefServerMessageParams<'a>),
+	serverlog(ServerLog<'a>),
+	makehttpreq(HttpRequestParams<'a>),
+	version(VersionParams),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HttpBodyParams {
+	#[serde(with = "serde_bytes")]
+	pub segment: Vec<u8>,
+	pub complete: bool,
+	pub req_id: u32,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HttpRequestParams<'a> {
+	pub url: &'a str,
+	pub method: &'static str,
+	pub req_id: u32,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HttpHeadersParams {
+	pub status_code: u16,
+	pub headers: Vec<(String, String)>,
+	pub req_id: u32,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ForwardParams {
-    pub port: u16,
+	pub port: u16,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct UnforwardParams {
-    pub port: u16,
+	pub port: u16,
 }
 
 #[derive(Serialize)]
 pub struct ForwardResult {
-    pub uri: String,
+	pub uri: String,
+}
+
+/// The `install_local` method in the wsl control server
+#[derive(Deserialize, Debug)]
+pub struct InstallFromLocalFolderParams {
+	pub archive_path: String,
+	#[serde(flatten)]
+	pub inner: ServeParams,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ServeParams {
-    pub socket_id: u16,
-    pub commit_id: Option<String>,
-    pub quality: Quality,
-    pub extensions: Vec<String>,
+	pub socket_id: u16,
+	pub commit_id: Option<String>,
+	pub quality: Quality,
+	pub extensions: Vec<String>,
+	/// Optional preferred connection token.
+	#[serde(default)]
+	pub connection_token: Option<String>,
+	#[serde(default)]
+	pub use_local_download: bool,
+	/// If true, the client and server should gzip servermsg's sent in either direction.
+	#[serde(default)]
+	pub compress: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct EmptyResult {}
+pub struct EmptyObject {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateParams {
-    pub do_update: bool,
+	pub do_update: bool,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ServerMessageParams {
-    pub i: u16,
-    #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
+	pub i: u16,
+	#[serde(with = "serde_bytes")]
+	pub body: Vec<u8>,
 }
 
 #[derive(Serialize, Debug)]
 pub struct RefServerMessageParams<'a> {
-    pub i: u16,
-    #[serde(with = "serde_bytes")]
-    pub body: &'a [u8],
+	pub i: u16,
+	#[serde(with = "serde_bytes")]
+	pub body: &'a [u8],
 }
 
 #[derive(Serialize)]
 pub struct UpdateResult {
-    pub up_to_date: bool,
-    pub did_update: bool,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct ToServerRequest {
-    pub id: Option<u8>,
-    #[serde(flatten)]
-    pub params: ServerRequestMethod,
+	pub up_to_date: bool,
+	pub did_update: bool,
 }
 
 #[derive(Serialize, Debug)]
 pub struct ToClientRequest<'a> {
-    pub id: Option<u8>,
-    #[serde(flatten)]
-    pub params: ClientRequestMethod<'a>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SuccessResponse<T>
-where
-    T: Serialize,
-{
-    pub id: u8,
-    pub result: T,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ErrorResponse {
-    pub id: u8,
-    pub error: ResponseError,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ResponseError {
-    pub code: i32,
-    pub message: String,
+	pub id: Option<u32>,
+	#[serde(flatten)]
+	pub params: ClientRequestMethod<'a>,
 }
 
 #[derive(Debug, Default, Serialize)]
 pub struct ServerLog<'a> {
-    pub line: &'a str,
-    pub level: u8,
+	pub line: &'a str,
+	pub level: u8,
 }
 
 #[derive(Serialize)]
 pub struct GetHostnameResponse {
-    pub value: String,
+	pub value: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct CallServerHttpParams {
-    pub path: String,
-    pub method: String,
-    pub headers: HashMap<String, String>,
-    pub body: Option<Vec<u8>>,
+	pub path: String,
+	pub method: String,
+	pub headers: HashMap<String, String>,
+	pub body: Option<Vec<u8>>,
 }
 
 #[derive(Serialize)]
 pub struct CallServerHttpResult {
-    pub status: u16,
-    #[serde(with = "serde_bytes")]
-    pub body: Vec<u8>,
-    pub headers: HashMap<String, String>,
+	pub status: u16,
+	#[serde(with = "serde_bytes")]
+	pub body: Vec<u8>,
+	pub headers: HashMap<String, String>,
 }
 
 #[derive(Serialize, Debug)]
 pub struct VersionParams {
-    pub version: &'static str,
-    pub protocol_version: u32,
+	pub version: &'static str,
+	pub protocol_version: u32,
+}
+
+impl Default for VersionParams {
+	fn default() -> Self {
+		Self {
+			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
+			protocol_version: PROTOCOL_VERSION,
+		}
+	}
 }

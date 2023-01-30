@@ -85,6 +85,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 		coreTranslations: []
 	}),
 	aGalleryExtension('MockExtension2', {
@@ -107,6 +108,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 		license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 		repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 		coreTranslations: []
 	})
 ];
@@ -166,6 +168,7 @@ const noAssets: IGalleryExtensionAssets = {
 	manifest: null,
 	readme: null,
 	repository: null,
+	signature: null,
 	coreTranslations: []
 };
 
@@ -216,6 +219,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
+			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
@@ -386,16 +390,6 @@ suite('ExtensionRecommendationsService Test', () => {
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
-	});
-
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				assert.ok(!prompted);
-			});
-		});
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {

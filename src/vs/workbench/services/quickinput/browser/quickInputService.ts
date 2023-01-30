@@ -12,7 +12,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
 
@@ -47,4 +47,4 @@ export class QuickInputService extends BaseQuickInputService {
 	}
 }
 
-registerSingleton(IQuickInputService, QuickInputService, true);
+registerSingleton(IQuickInputService, QuickInputService, InstantiationType.Delayed);

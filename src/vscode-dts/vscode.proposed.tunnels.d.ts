@@ -12,6 +12,10 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		/**
+		 * @deprecated Use privacy instead
+		 */
+		public?: boolean;
 		privacy?: string;
 		protocol?: string;
 	}
@@ -20,6 +24,10 @@ declare module 'vscode' {
 		remoteAddress: { port: number; host: string };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number; host: string } | string;
+		/**
+		 * @deprecated Use privacy instead
+		 */
+		public?: boolean;
 		privacy?: string;
 		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
 		protocol?: string;
@@ -51,6 +59,6 @@ declare module 'vscode' {
 		/**
 		 * Fired when the list of tunnels has changed.
 		 */
-		// export const onDidChangeTunnels: Event<void>;
+		export const onDidChangeTunnels: Event<void>;
 	}
 }

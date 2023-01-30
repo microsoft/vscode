@@ -5,10 +5,12 @@
 
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
+import * as MicrotaskDelay from "vs/base/common/symbols";
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('Async', () => {
 
@@ -187,7 +189,7 @@ suite('Async', () => {
 				return Promise.resolve(++count);
 			};
 
-			const delayer = new async.Delayer(async.MicrotaskDelay);
+			const delayer = new async.Delayer(MicrotaskDelay.MicrotaskDelay);
 			const promises: Promise<any>[] = [];
 
 			assert(!delayer.isTriggered());
@@ -250,7 +252,7 @@ suite('Async', () => {
 				return Promise.resolve(++count);
 			};
 
-			const delayer = new async.Delayer(async.MicrotaskDelay);
+			const delayer = new async.Delayer(MicrotaskDelay.MicrotaskDelay);
 
 			assert(!delayer.isTriggered());
 
@@ -636,29 +638,33 @@ suite('Async', () => {
 
 	suite('retry', () => {
 		test('success case', async () => {
-			let counter = 0;
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let counter = 0;
 
-			const res = await async.retry(() => {
-				counter++;
-				if (counter < 2) {
-					return Promise.reject(new Error('fail'));
-				}
+				const res = await async.retry(() => {
+					counter++;
+					if (counter < 2) {
+						return Promise.reject(new Error('fail'));
+					}
 
-				return Promise.resolve(true);
-			}, 10, 3);
+					return Promise.resolve(true);
+				}, 10, 3);
 
-			assert.strictEqual(res, true);
+				assert.strictEqual(res, true);
+			});
 		});
 
 		test('error case', async () => {
-			const expectedError = new Error('fail');
-			try {
-				await async.retry(() => {
-					return Promise.reject(expectedError);
-				}, 10, 3);
-			} catch (error) {
-				assert.strictEqual(error, error);
-			}
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const expectedError = new Error('fail');
+				try {
+					await async.retry(() => {
+						return Promise.reject(expectedError);
+					}, 10, 3);
+				} catch (error) {
+					assert.strictEqual(error, error);
+				}
+			});
 		});
 	});
 

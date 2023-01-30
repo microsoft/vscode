@@ -54,14 +54,10 @@ class ConditionalRegistration {
 	private update() {
 		const enabled = this.conditions.every(condition => condition.value);
 		if (enabled) {
-			if (!this.registration) {
-				this.registration = this.doRegister();
-			}
+			this.registration ??= this.doRegister();
 		} else {
-			if (this.registration) {
-				this.registration.dispose();
-				this.registration = undefined;
-			}
+			this.registration?.dispose();
+			this.registration = undefined;
 		}
 	}
 }

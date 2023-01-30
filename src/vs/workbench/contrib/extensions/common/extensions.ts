@@ -64,6 +64,7 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
+	readonly pinned: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
@@ -85,9 +86,7 @@ export interface IExtension {
 	readonly deprecationInfo?: IDeprecationInfo;
 }
 
-export const SERVICE_ID = 'extensionsWorkbenchService';
-
-export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
+export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
@@ -105,15 +104,15 @@ export interface IExtensionsWorkbenchService {
 	canInstall(extension: IExtension): Promise<boolean>;
 	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions, progressLocation?: ProgressLocation): Promise<IExtension>;
+	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void;
-	isExtensionIgnoresUpdates(extension: IExtension): boolean;
-	open(extension: IExtension, options?: IExtensionEditorOptions): Promise<void>;
+	pinExtension(extension: IExtension, pin: boolean): Promise<void>;
+	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 
@@ -192,6 +191,7 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 
 // Context Keys
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
+export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

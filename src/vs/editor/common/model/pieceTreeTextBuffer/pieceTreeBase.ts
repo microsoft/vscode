@@ -11,9 +11,9 @@ import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest,
 import { Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
-export const AverageBufferSize = 65535;
+const AverageBufferSize = 65535;
 
-export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
+function createUintArray(arr: number[]): Uint32Array | Uint16Array {
 	let r;
 	if (arr[arr.length - 1] < 65536) {
 		r = new Uint16Array(arr.length);
@@ -24,7 +24,7 @@ export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
 	return r;
 }
 
-export class LineStarts {
+class LineStarts {
 	constructor(
 		public readonly lineStarts: Uint32Array | Uint16Array | number[],
 		public readonly cr: number,
@@ -98,7 +98,7 @@ export function createLineStarts(r: number[], str: string): LineStarts {
 	return result;
 }
 
-export interface NodePosition {
+interface NodePosition {
 	/**
 	 * Piece Index
 	 */
@@ -113,7 +113,7 @@ export interface NodePosition {
 	nodeStartOffset: number;
 }
 
-export interface BufferCursor {
+interface BufferCursor {
 	/**
 	 * Line number in current buffer
 	 */

@@ -20,6 +20,7 @@ import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/b
 // eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { URI } from 'vs/base/common/uri';
+import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 
 
 /**
@@ -352,7 +353,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const { key, value } = parseKeyValueAssignment(args[0]);
+				const deserialized = args.length ? deserializeMessage(args[0]) : '';
+				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
 				}
@@ -383,6 +385,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private _updateCwd(value: string) {
+		value = sanitizeCwd(value);
 		this._createOrGetCwdDetection().updateCwd(value);
 		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		commandDetection?.setCwd(value);
@@ -400,6 +403,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.
+				// Note that unlike `VSCodeOscPt.Property`, iTerm2 does not interpret backslash or hex-escape sequences.
+				// See: https://github.com/gnachman/iTerm2/blob/bb0882332cec5196e4de4a4225978d746e935279/sources/VT100Terminal.m#L2089-L2105
 				const { key, value } = parseKeyValueAssignment(command);
 
 				if (value === undefined) {
@@ -508,27 +513,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 }
 
 export function deserializeMessage(message: string): string {
-	let result = message.replace(/\\\\/g, '\\');
-	const deserializeRegex = /\\x([0-9a-f]{2})/i;
-	while (true) {
-		const match = result.match(deserializeRegex);
-		if (!match?.index || match.length < 2) {
-			break;
-		}
-		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
-	}
-	return result;
+	return message.replaceAll(
+		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
+		/\\(\\|x([0-9a-f]{2}))/gi,
+		// If it's a hex value, parse it to a character.
+		// Otherwise the operator is '\', which we return literally, now unescaped.
+		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
-	const deserialized = deserializeMessage(message);
-	const separatorIndex = deserialized.indexOf('=');
+	const separatorIndex = message.indexOf('=');
 	if (separatorIndex === -1) {
-		return { key: deserialized, value: undefined }; // No '=' was found.
+		return { key: message, value: undefined }; // No '=' was found.
 	}
 	return {
-		key: deserialized.substring(0, separatorIndex),
-		value: deserialized.substring(1 + separatorIndex)
+		key: message.substring(0, separatorIndex),
+		value: message.substring(1 + separatorIndex)
 	};
 }
 

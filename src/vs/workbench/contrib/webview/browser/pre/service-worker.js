@@ -47,15 +47,6 @@ class RequestStore {
 	}
 
 	/**
-	 * @param {number} requestId
-	 * @return {Promise<T> | undefined}
-	 */
-	get(requestId) {
-		const entry = this.map.get(requestId);
-		return entry && entry.promise;
-	}
-
-	/**
 	 * @returns {{ requestId: number, promise: Promise<T> }}
 	 */
 	create() {
@@ -131,39 +122,37 @@ const methodNotAllowed = () =>
 
 sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
-		case 'version':
-			{
-				const source = /** @type {Client} */ (event.source);
-				sw.clients.get(source.id).then(client => {
-					if (client) {
-						client.postMessage({
-							channel: 'version',
-							version: VERSION
-						});
-					}
-				});
-				return;
-			}
-		case 'did-load-resource':
-			{
-				/** @type {ResourceResponse} */
-				const response = event.data.data;
-				if (!resourceRequestStore.resolve(response.id, response)) {
-					console.log('Could not resolve unknown resource', response.path);
+		case 'version': {
+			const source = /** @type {Client} */ (event.source);
+			sw.clients.get(source.id).then(client => {
+				if (client) {
+					client.postMessage({
+						channel: 'version',
+						version: VERSION
+					});
 				}
-				return;
+			});
+			return;
+		}
+		case 'did-load-resource': {
+			/** @type {ResourceResponse} */
+			const response = event.data.data;
+			if (!resourceRequestStore.resolve(response.id, response)) {
+				console.log('Could not resolve unknown resource', response.path);
 			}
-		case 'did-load-localhost':
-			{
-				const data = event.data.data;
-				if (!localhostRequestStore.resolve(data.id, data.location)) {
-					console.log('Could not resolve unknown localhost', data.origin);
-				}
-				return;
+			return;
+		}
+		case 'did-load-localhost': {
+			const data = event.data.data;
+			if (!localhostRequestStore.resolve(data.id, data.location)) {
+				console.log('Could not resolve unknown localhost', data.origin);
 			}
-		default:
+			return;
+		}
+		default: {
 			console.log('Unknown message');
 			return;
+		}
 	}
 });
 
@@ -183,8 +172,9 @@ sw.addEventListener('fetch', (event) => {
 					query: requestUrl.search.replace(/^\?/, ''),
 				}));
 			}
-			default:
+			default: {
 				return event.respondWith(methodNotAllowed());
+			}
 		}
 	}
 
@@ -195,16 +185,17 @@ sw.addEventListener('fetch', (event) => {
 	if (requestUrl.origin !== sw.origin && requestUrl.host === remoteAuthority) {
 		switch (event.request.method) {
 			case 'GET':
-			case 'HEAD':
+			case 'HEAD': {
 				return event.respondWith(processResourceRequest(event, {
 					path: requestUrl.pathname,
 					scheme: requestUrl.protocol.slice(0, requestUrl.protocol.length - 1),
 					authority: requestUrl.host,
 					query: requestUrl.search.replace(/^\?/, ''),
 				}));
-
-			default:
+			}
+			default: {
 				return event.respondWith(methodNotAllowed());
+			}
 		}
 	}
 

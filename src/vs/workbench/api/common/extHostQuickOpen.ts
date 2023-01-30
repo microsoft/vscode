@@ -16,7 +16,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
-import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 
 export type Item = string | QuickPickItem;
 
@@ -687,6 +687,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		private _password = false;
 		private _prompt: string | undefined;
+		private _valueSelection: readonly [number, number] | undefined;
 		private _validationMessage: string | InputBoxValidationMessage | undefined;
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
@@ -710,6 +711,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set prompt(prompt: string | undefined) {
 			this._prompt = prompt;
 			this.update({ prompt });
+		}
+
+		get valueSelection() {
+			return this._valueSelection;
+		}
+
+		set valueSelection(valueSelection: readonly [number, number] | undefined) {
+			this._valueSelection = valueSelection;
+			this.update({ valueSelection });
 		}
 
 		get validationMessage() {

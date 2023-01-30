@@ -16,7 +16,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -100,10 +101,11 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	private _createTaskEntry(task: Task | ConfiguringTask, extraButtons: IQuickInputButton[] = []): ITaskTwoLevelQuickPickEntry {
-		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined };
-		entry.buttons = [];
-		entry.buttons.push({ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") });
-		entry.buttons.push(...extraButtons);
+		const buttons: IQuickInputButton[] = [
+			{ iconClass: ThemeIcon.asClassName(configureTaskIcon), tooltip: nls.localize('configureTask', "Configure Task") },
+			...extraButtons
+		];
+		const entry: ITaskTwoLevelQuickPickEntry = { label: TaskQuickPick.getTaskLabelWithIcon(task, this._guessTaskLabel(task)), description: this._taskService.getTaskDescription(task), task, detail: this._showDetail() ? task.configurationProperties.detail : undefined, buttons };
 		TaskQuickPick.applyColorStyles(task, entry, this._themeService);
 		return entry;
 	}
@@ -214,10 +216,10 @@ export class TaskQuickPick extends Disposable {
 		const changeSettingResult = await this._dialogService.show(Severity.Warning,
 			nls.localize('TaskQuickPick.changeSettingDetails',
 				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[noButton, yesButton],
+			[yesButton, noButton],
 			{ cancelId: 1 }
 		);
-		if (changeSettingResult.choice === 1) {
+		if (changeSettingResult.choice === 0) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);
@@ -273,7 +275,6 @@ export class TaskQuickPick extends Disposable {
 			firstLevelTask = await this._doPickerFirstLevel(picker, taskQuickPickEntries);
 		}
 		do {
-
 			if (Types.isString(firstLevelTask)) {
 				if (name) {
 					await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
@@ -284,8 +285,8 @@ export class TaskQuickPick extends Disposable {
 				// Proceed to second level of quick pick
 				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
-					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
 					picker.value = '';
+					firstLevelTask = await this._doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
 				} else if (selectedEntry && Types.isString(selectedEntry.settingType)) {
 					picker.dispose();
 					return this.handleSettingOption(selectedEntry.settingType);

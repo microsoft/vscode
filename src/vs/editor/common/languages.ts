@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
@@ -20,7 +21,6 @@ import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 /**
  * @internal
@@ -279,7 +279,7 @@ export const enum CompletionItemKind {
  */
 export namespace CompletionItemKinds {
 
-	const byKind = new Map<CompletionItemKind, CSSIcon>();
+	const byKind = new Map<CompletionItemKind, ThemeIcon>();
 	byKind.set(CompletionItemKind.Method, Codicon.symbolMethod);
 	byKind.set(CompletionItemKind.Function, Codicon.symbolFunction);
 	byKind.set(CompletionItemKind.Constructor, Codicon.symbolConstructor);
@@ -313,7 +313,7 @@ export namespace CompletionItemKinds {
 	/**
 	 * @internal
 	 */
-	export function toIcon(kind: CompletionItemKind): CSSIcon {
+	export function toIcon(kind: CompletionItemKind): ThemeIcon {
 		let codicon = byKind.get(kind);
 		if (!codicon) {
 			console.info('No codicon found for CompletionItemKind ' + kind);
@@ -385,6 +385,8 @@ export const enum CompletionItemTag {
 }
 
 export const enum CompletionItemInsertTextRule {
+	None = 0,
+
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to
 	 * match the current line indentation.
@@ -1064,7 +1066,7 @@ export const enum SymbolTag {
  */
 export namespace SymbolKinds {
 
-	const byKind = new Map<SymbolKind, CSSIcon>();
+	const byKind = new Map<SymbolKind, ThemeIcon>();
 	byKind.set(SymbolKind.File, Codicon.symbolFile);
 	byKind.set(SymbolKind.Module, Codicon.symbolModule);
 	byKind.set(SymbolKind.Namespace, Codicon.symbolNamespace);
@@ -1094,7 +1096,7 @@ export namespace SymbolKinds {
 	/**
 	 * @internal
 	 */
-	export function toIcon(kind: SymbolKind): CSSIcon {
+	export function toIcon(kind: SymbolKind): ThemeIcon {
 		let icon = byKind.get(kind);
 		if (!icon) {
 			console.info('No codicon found for SymbolKind ' + kind);
@@ -1337,6 +1339,11 @@ export interface FoldingContext {
 export interface FoldingRangeProvider {
 
 	/**
+	 * @internal
+	 */
+	readonly id?: string;
+
+	/**
 	 * An optional event to signal that the folding ranges from this provider have changed.
 	 */
 	onDidChange?: Event<this>;
@@ -1543,7 +1550,7 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
-	onDidChangeComments: Event<Comment[] | undefined>;
+	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
 	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;

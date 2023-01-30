@@ -7,13 +7,16 @@ import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IFailedCellInfo, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class NotebookExecutionStateService extends Disposable implements INotebookExecutionStateService {
@@ -34,6 +37,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 	}
@@ -68,9 +72,14 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		return undefined;
 	}
 
-	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[] {
+	getCellExecutionsForNotebook(notebook: URI): INotebookCellExecution[] {
 		const exeMap = this._executions.get(notebook);
 		return exeMap ? Array.from(exeMap.values()) : [];
+	}
+
+	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined {
+		const exeMap = this._executions.get(notebook);
+		return withNullAsUndefined(exeMap);
 	}
 
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {
@@ -97,8 +106,12 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 		if (lastRunSuccess !== undefined) {
 			if (lastRunSuccess) {
+				if (this._executions.size === 0) {
+					this._audioCueService.playAudioCue(AudioCue.notebookCellCompleted);
+				}
 				this._clearLastFailedCell(notebookUri);
 			} else {
+				this._audioCueService.playAudioCue(AudioCue.notebookCellFailed);
 				this._setLastFailedCell(notebookUri, cellHandle);
 			}
 		}
@@ -244,6 +257,7 @@ class NotebookExecutionListeners extends Disposable {
 	constructor(
 		notebook: URI,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookExecutionService private readonly _notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@ILogService private readonly _logService: ILogService,
@@ -263,7 +277,7 @@ class NotebookExecutionListeners extends Disposable {
 
 	private cancelAll(): void {
 		this._logService.debug(`NotebookExecutionListeners#cancelAll`);
-		const exes = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._notebookModel.uri);
+		const exes = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookModel.uri);
 		this._notebookExecutionService.cancelNotebookCellHandles(this._notebookModel, exes.map(exe => exe.cellHandle));
 	}
 
@@ -273,25 +287,36 @@ class NotebookExecutionListeners extends Disposable {
 	}
 
 	private onWillAddRemoveCells(e: NotebookTextModelWillAddRemoveEvent): void {
-		const notebookExes = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._notebookModel.uri);
-		const handles = new Set(notebookExes.map(exe => exe.cellHandle));
-		const myDeletedHandles = new Set<number>();
-		e.rawEvent.changes.forEach(([start, deleteCount]) => {
-			if (deleteCount) {
-				const deletedHandles = this._notebookModel.cells.slice(start, start + deleteCount).map(c => c.handle);
-				deletedHandles.forEach(h => {
-					if (handles.has(h)) {
-						myDeletedHandles.add(h);
-					}
-				});
+		const notebookExes = this._notebookExecutionStateService.getCellExecutionsByHandleForNotebook(this._notebookModel.uri);
+
+		const executingDeletedHandles = new Set<number>();
+		const pendingDeletedHandles = new Set<number>();
+		if (notebookExes) {
+			e.rawEvent.changes.forEach(([start, deleteCount]) => {
+				if (deleteCount) {
+					const deletedHandles = this._notebookModel.cells.slice(start, start + deleteCount).map(c => c.handle);
+					deletedHandles.forEach(h => {
+						const exe = notebookExes.get(h);
+						if (exe?.state === NotebookCellExecutionState.Executing) {
+							executingDeletedHandles.add(h);
+						} else if (exe) {
+							pendingDeletedHandles.add(h);
+						}
+					});
+				}
+			});
+		}
+
+		if (executingDeletedHandles.size || pendingDeletedHandles.size) {
+			const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(this._notebookModel);
+			if (kernel) {
+				const implementsInterrupt = kernel.implementsInterrupt;
+				const handlesToCancel = implementsInterrupt ? [...executingDeletedHandles] : [...executingDeletedHandles, ...pendingDeletedHandles];
+				this._logService.debug(`NotebookExecution#onWillAddRemoveCells, ${JSON.stringify([...handlesToCancel])}`);
+				if (handlesToCancel.length) {
+					kernel.cancelNotebookCellExecution(this._notebookModel.uri, handlesToCancel);
+				}
 			}
-
-			return false;
-		});
-
-		if (myDeletedHandles.size) {
-			this._logService.debug(`NotebookExecution#onWillAddRemoveCells, ${JSON.stringify([...myDeletedHandles])}`);
-			this._notebookExecutionService.cancelNotebookCellHandles(this._notebookModel, myDeletedHandles);
 		}
 	}
 }

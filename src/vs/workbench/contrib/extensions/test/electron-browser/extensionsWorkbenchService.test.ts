@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -96,12 +96,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
 			onDidChangeProfile: Event.None,
+			onDidUpdateExtensionMetadata: Event.None,
 			async getInstalled() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
-			async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
+			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
-				local.publisherDisplayName = metadata.publisherDisplayName;
-				local.publisherId = metadata.publisherId;
+				local.publisherDisplayName = metadata.publisherDisplayName!;
+				local.publisherId = metadata.publisherId!;
 				return local;
 			},
 			async canInstall() { return true; },
@@ -132,6 +133,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
+		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
@@ -163,6 +165,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 			coreTranslations: []
 		});
 
@@ -313,6 +316,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			signature: { uri: 'uri:signature', fallbackUri: 'fallback:signature' },
 			coreTranslations: []
 		});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
@@ -1439,6 +1443,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		manifest: null,
 		readme: null,
 		repository: null,
+		signature: null,
 		coreTranslations: []
 	};
 
@@ -1487,12 +1492,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onUninstallExtension: Event.None,
 			onDidUninstallExtension: Event.None,
 			onDidChangeProfile: Event.None,
+			onDidUpdateExtensionMetadata: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-			updateMetadata: async (local: ILocalExtension, metadata: IGalleryMetadata) => {
+			updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
 				local.identifier.uuid = metadata.id;
-				local.publisherDisplayName = metadata.publisherDisplayName;
-				local.publisherId = metadata.publisherId;
+				local.publisherDisplayName = metadata.publisherDisplayName!;
+				local.publisherId = metadata.publisherId!;
 				return local;
 			},
 			getTargetPlatform: async () => getTargetPlatform(platform, arch),

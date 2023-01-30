@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
+import { app, BrowserWindow, WebContents } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
 import { hostname, release } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
@@ -12,7 +12,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
+import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
@@ -44,7 +44,7 @@ import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent,
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IRecent } from 'vs/platform/workspaces/common/workspaces';
-import { hasWorkspaceFileExtension, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -54,6 +54,8 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 //#region Helper Interfaces
 
@@ -76,7 +78,8 @@ interface IOpenBrowserWindowOptions {
 	readonly windowToUse?: ICodeWindow;
 
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
-	readonly profile?: IUserDataProfile;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 interface IPathResolveOptions {
@@ -200,6 +203,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly machineId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerService: ILoggerMainService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -521,7 +525,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Finally, if no window or folder is found, just open the files in an empty window
 			else {
-				addUsedWindow(this.openInBrowserWindow({
+				addUsedWindow(await this.openInBrowserWindow({
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
@@ -529,7 +533,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					forceNewWindow: true,
 					remoteAuthority: filesToOpen.remoteAuthority,
 					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
-					profile: openConfig.profile
+					forceProfile: openConfig.forceProfile,
+					forceTempProfile: openConfig.forceTempProfile
 				}), true);
 			}
 		}
@@ -560,7 +565,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open folder
-				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
+				addUsedWindow(await this.doOpenFolderOrWorkspace(openConfig, workspaceToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -592,7 +597,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
 				// Do open folder
-				addUsedWindow(this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
+				addUsedWindow(await this.doOpenFolderOrWorkspace(openConfig, folderToOpen, openFolderInNewWindow, filesToOpenInWindow), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -605,7 +610,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const remoteAuthority = emptyWindowBackupInfo.remoteAuthority;
 				const filesToOpenInWindow = isEqualAuthority(filesToOpen?.remoteAuthority, remoteAuthority) ? filesToOpen : undefined;
 
-				addUsedWindow(this.doOpenEmpty(openConfig, true, remoteAuthority, filesToOpenInWindow, emptyWindowBackupInfo), !!filesToOpenInWindow);
+				addUsedWindow(await this.doOpenEmpty(openConfig, true, remoteAuthority, filesToOpenInWindow, emptyWindowBackupInfo), !!filesToOpenInWindow);
 
 				openFolderInNewWindow = true; // any other folders to open must open in new window then
 			}
@@ -620,7 +625,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
 			for (let i = 0; i < emptyToOpen; i++) {
-				addUsedWindow(this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
+				addUsedWindow(await this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
 
 				// any other window to open must open in new window then
 				openFolderInNewWindow = true;
@@ -658,7 +663,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
-	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): ICodeWindow {
+	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenEmpty', { restore: !!emptyWindowBackupInfo, remoteAuthority, filesToOpen, forceNewWindow });
 
 		let windowToUse: ICodeWindow | undefined;
@@ -676,11 +681,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen,
 			windowToUse,
 			emptyWindowBackupInfo,
-			profile: openConfig.profile
+			forceProfile: openConfig.forceProfile,
+			forceTempProfile: openConfig.forceTempProfile
 		});
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): ICodeWindow {
+	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
 
 		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
@@ -697,7 +703,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
 			windowToUse,
-			profile: openConfig.profile
+			forceProfile: openConfig.forceProfile,
+			forceTempProfile: openConfig.forceTempProfile
 		});
 	}
 
@@ -787,19 +794,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Path does not exist: show a warning box
 			const uri = this.resourceFromOpenable(pathToOpen);
 
-			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+			this.dialogMainService.showMessageBox(massageMessageBoxOptions({
 				type: 'info',
-				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-				defaultId: 0,
+				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
-					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true)),
-				noLink: true
-			};
-
-			this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true))
+			}, this.productService).options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
 			return undefined;
 		}));
@@ -1303,14 +1305,26 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI,
 			remoteAuthority,
-			profile: openConfig.profile
+			forceProfile: openConfig.forceProfile,
+			forceTempProfile: openConfig.forceTempProfile
 		};
 
 		return this.open(openArgs);
 	}
 
-	private openInBrowserWindow(options: IOpenBrowserWindowOptions): ICodeWindow {
+	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<ICodeWindow> {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+
+		const lastActiveWindow = this.getLastActiveWindow();
+		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+
+		let window: ICodeWindow | undefined;
+		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
+			window = options.windowToUse || lastActiveWindow;
+			if (window) {
+				window.focus();
+			}
+		}
 
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
@@ -1337,7 +1351,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			profiles: {
 				all: this.userDataProfilesMainService.profiles,
-				profile: this.resolveProfileForBrowserWindow(options)
+				// Set to default profile first and resolve and update the profile
+				// only after the workspace-backup is registered.
+				// Because, workspace identifier of an empty window is known only then.
+				profile: defaultProfile
 			},
 
 			homeDir: this.environmentMainService.userHome.fsPath,
@@ -1353,7 +1370,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToMerge: options.filesToOpen?.filesToMerge,
 			filesToWait: options.filesToOpen?.filesToWait,
 
-			logLevel: this.logService.getLevel(),
+			logLevel: this.loggerService.getLogLevel(),
+			loggers: {
+				window: [],
+				global: this.loggerService.getRegisteredLoggers()
+			},
 			logsPath: this.environmentMainService.logsPath,
 
 			product,
@@ -1369,14 +1390,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 		};
-
-		let window: ICodeWindow | undefined;
-		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || this.getLastActiveWindow();
-			if (window) {
-				window.focus();
-			}
-		}
 
 		// New window
 		if (!window) {
@@ -1438,6 +1451,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
+			configuration.loggers = currentWindowConfig?.loggers ?? configuration.loggers;
 		}
 
 		// Update window identifier and session now
@@ -1448,19 +1462,19 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// first and only load the new configuration if that was
 		// not vetoed
 		if (window.isReady) {
-			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(veto => {
+			this.lifecycleMainService.unload(window, UnloadReason.LOAD).then(async veto => {
 				if (!veto) {
-					this.doOpenInBrowserWindow(window!, configuration, options);
+					await this.doOpenInBrowserWindow(window!, configuration, options, defaultProfile);
 				}
 			});
 		} else {
-			this.doOpenInBrowserWindow(window, configuration, options);
+			await this.doOpenInBrowserWindow(window, configuration, options, defaultProfile);
 		}
 
 		return window;
 	}
 
-	private doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions): void {
+	private async doOpenInBrowserWindow(window: ICodeWindow, configuration: INativeWindowConfiguration, options: IOpenBrowserWindowOptions, defaultProfile: IUserDataProfile): Promise<void> {
 
 		// Register window for backups unless the window
 		// is for extension development, where we do not
@@ -1493,24 +1507,34 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		if (this.userDataProfilesMainService.isEnabled()) {
+			const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
+			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
+			configuration.profiles.profile = profile;
+
+			if (!configuration.extensionDevelopmentPath) {
+				// Associate the configured profile to the workspace
+				// unless the window is for extension development,
+				// where we do not persist the associations
+				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+			}
+		}
+
 		// Load it
 		window.load(configuration);
 	}
 
-	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions): IUserDataProfile {
-
-		// Use the provided profile if any
-		let profile = options.profile;
-		if (profile) {
-			this.userDataProfilesMainService.setProfileForWorkspaceSync(options.workspace ?? 'empty-window', profile);
+	private resolveProfileForBrowserWindow(options: IOpenBrowserWindowOptions, workspace: IAnyWorkspaceIdentifier, defaultProfile: IUserDataProfile): Promise<IUserDataProfile> | IUserDataProfile {
+		if (options.forceProfile) {
+			return this.userDataProfilesMainService.profiles.find(p => p.name === options.forceProfile) ?? this.userDataProfilesMainService.createNamedProfile(options.forceProfile);
 		}
 
-		// Otherwise use associated profile
-		if (!profile) {
-			profile = this.userDataProfilesMainService.getOrSetProfileForWorkspace(options.workspace ?? 'empty-window', (options.windowToUse ?? this.getLastActiveWindow())?.profile ?? this.userDataProfilesMainService.defaultProfile);
+		if (options.forceTempProfile) {
+			return this.userDataProfilesMainService.createTransientProfile();
 		}
 
-		return profile;
+		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? defaultProfile;
 	}
 
 	private onWindowClosed(window: ICodeWindow): void {

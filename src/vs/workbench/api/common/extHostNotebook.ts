@@ -28,10 +28,6 @@ import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument'
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 
 
-type NotebookContentProviderData = {
-	readonly provider: vscode.NotebookContentProvider;
-	readonly extension: IExtensionDescription;
-};
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -40,7 +36,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _notebookDocumentsProxy: MainThreadNotebookDocumentsShape;
 	private readonly _notebookEditorsProxy: MainThreadNotebookEditorsShape;
 
-	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
 	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
@@ -92,6 +87,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						return cell.apiCell;
 					}
 				}
+				if (arg && arg.$mid === MarshalledId.NotebookActionContext) {
+					const notebookUri = arg.uri;
+					const data = this._documents.get(notebookUri);
+					if (data) {
+						return data.apiNotebook;
+					}
+				}
 				return arg;
 			}
 		});
@@ -130,42 +132,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return result;
 	}
 
-	private _getProviderData(viewType: string): NotebookContentProviderData {
-		const result = this._notebookContentProviders.get(viewType);
-		if (!result) {
-			throw new Error(`NO provider for '${viewType}'`);
-		}
-		return result;
-	}
 
-	registerNotebookContentProvider(
-		extension: IExtensionDescription,
-		viewType: string,
-		provider: vscode.NotebookContentProvider,
-		options?: vscode.NotebookDocumentContentOptions,
-		registration?: vscode.NotebookRegistrationData
-	): vscode.Disposable {
-		if (isFalsyOrWhitespace(viewType)) {
-			throw new Error(`viewType cannot be empty or just whitespace`);
-		}
-		if (this._notebookContentProviders.has(viewType)) {
-			throw new Error(`Notebook provider for '${viewType}' already registered`);
-		}
-
-		this._notebookContentProviders.set(viewType, { extension, provider });
-
-		this._notebookProxy.$registerNotebookProvider(
-			{ id: extension.identifier, location: extension.extensionLocation },
-			viewType,
-			typeConverters.NotebookDocumentContentOptions.from(options),
-			ExtHostNotebookController._convertNotebookRegistrationData(extension, registration)
-		);
-
-		return new extHostTypes.Disposable(() => {
-			this._notebookContentProviders.delete(viewType);
-			this._notebookProxy.$unregisterNotebookProvider(viewType);
-		});
-	}
 
 	private static _convertNotebookRegistrationData(extension: IExtensionDescription, registration: vscode.NotebookRegistrationData | undefined): INotebookContributionData | undefined {
 		if (!registration) {
@@ -335,14 +302,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>> {
-		const { provider } = this._getProviderData(viewType);
-		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
-		return new SerializableObjectWithBuffers({
-			metadata: data.metadata ?? Object.create(null),
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
-		});
-	}
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
 
