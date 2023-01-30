@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -15,7 +15,6 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/pla
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, createDecorator, IConstructorSignature, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -176,6 +175,7 @@ export class MenuId {
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
+	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -454,7 +454,7 @@ export class MenuItemAction implements IAction {
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
-			this.class = CSSIcon.asClassName(item.icon);
+			this.class = ThemeIcon.asClassName(item.icon);
 		}
 	}
 

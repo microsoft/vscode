@@ -17,6 +17,7 @@ import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -53,7 +54,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
@@ -1534,7 +1535,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
 					localize('testing.showResultOutput', "Show Result Output"),
-					Codicon.terminal.classNames,
+					ThemeIcon.asClassName(Codicon.terminal),
 					undefined,
 					() => this.testTerminalService.open(element.value)
 				));
@@ -1563,7 +1564,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.goToFile',
 					localize('testing.goToFile', "Go to File"),
-					Codicon.goToFile.classNames,
+					ThemeIcon.asClassName(Codicon.goToFile),
 					undefined,
 					() => this.commandService.executeCommand('vscode.revealTest', extId),
 				));
@@ -1571,7 +1572,7 @@ class TreeActionsProvider {
 				secondary.push(new Action(
 					'testing.outputPeek.revealInExplorer',
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
-					Codicon.listTree.classNames,
+					ThemeIcon.asClassName(Codicon.listTree),
 					undefined,
 					() => this.commandService.executeCommand('_revealTestInExplorer', extId),
 				));
@@ -1602,7 +1603,7 @@ class TreeActionsProvider {
 					primary.push(new Action(
 						'testing.outputPeek.showMessageInTerminal',
 						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
-						Codicon.terminal.classNames,
+						ThemeIcon.asClassName(Codicon.terminal),
 						undefined,
 						() => this.testTerminalService.open(element.result, element.marker),
 					));

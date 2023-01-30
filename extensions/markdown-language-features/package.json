@@ -16,7 +16,6 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "telemetryLogger",
     "documentPaste"
   ],
   "activationEvents": [

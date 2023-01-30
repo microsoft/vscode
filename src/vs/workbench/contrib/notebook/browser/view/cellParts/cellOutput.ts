@@ -18,7 +18,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -488,10 +488,18 @@ export class CellOutputContainer extends CellContentPart {
 	}
 
 	render() {
+		try {
+			this._doRender();
+		} finally {
+			// TODO@rebornix, this is probably not necessary at all as cell layout change would send the update request.
+			this._relayoutCell();
+		}
+	}
+
+	private _doRender() {
 		if (this.viewCell.outputsViewModels.length > 0) {
 			if (this.viewCell.layoutInfo.outputTotalHeight !== 0) {
 				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
-				this._relayoutCell();
 			}
 
 			DOM.show(this.templateData.outputContainer.domNode);
@@ -507,11 +515,9 @@ export class CellOutputContainer extends CellContentPart {
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
 
-			this._relayoutCell();
 			this._validateFinalOutputHeight(false);
 		} else {
 			// noop
-			this._relayoutCell();
 			DOM.hide(this.templateData.outputContainer.domNode);
 		}
 

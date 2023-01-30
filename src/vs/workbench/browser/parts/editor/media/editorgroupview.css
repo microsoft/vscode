@@ -18,6 +18,15 @@
 	opacity: 1; /* indicate active/dragged-over group through undimmed state */
 }
 
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
+	outline-offset: -2px;
+	outline: 1px solid var(--vscode-editorGroup-focusedEmptyBorder);
+}
+
+.monaco-workbench .part.editor > .content.empty .editor-group-container.empty.active:focus {
+	outline: none; /* never show outline for empty group if it is the last */
+}
+
 /* Watermark & shortcuts */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {

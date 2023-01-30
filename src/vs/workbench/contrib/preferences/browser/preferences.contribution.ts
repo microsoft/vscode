@@ -186,11 +186,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '1_settings',
 			command: {
 				id: SETTINGS_COMMAND_OPEN_SETTINGS,
 				title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
 			},
+			group: '2_configuration',
 			order: 1
 		});
 		registerAction2(class extends Action2 {
@@ -525,8 +525,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings"),
 					menu: {
 						id: MenuId.MenubarPreferencesMenu,
-						group: '1_settings',
-						order: 2,
+						group: '3_settings',
+						order: 1,
 					}
 				});
 			}
@@ -547,8 +547,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
 					menu: {
 						id: MenuId.MenubarPreferencesMenu,
-						group: '1_settings',
-						order: 3,
+						group: '3_settings',
+						order: 2,
 					}
 				});
 			}
@@ -886,16 +886,16 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				id: 'workbench.action.openGlobalKeybindings',
 				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
 			},
-			group: '2_keybindings',
-			order: 1
+			group: '2_configuration',
+			order: 3
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			command: {
 				id: 'workbench.action.openGlobalKeybindings',
 				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
 			},
-			group: '2_keybindings',
-			order: 1
+			group: '2_configuration',
+			order: 3
 		});
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -935,7 +935,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keybindings' },
+					title: { value: nls.localize('showDefaultKeybindings', "Show System Keybindings"), original: 'Show System Keyboard Shortcuts' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -956,7 +956,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
-					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keybindings' },
+					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keyboard Shortcuts' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -977,7 +977,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
-					title: { value: nls.localize('showUserKeybindings', "Show User Keybindings"), original: 'Show User Keybindings' },
+					title: { value: nls.localize('showUserKeybindings', "Show User Keybindings"), original: 'Show User Keyboard Shortcuts' },
 					menu: [
 						{
 							id: MenuId.EditorTitle,

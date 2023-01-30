@@ -5,9 +5,11 @@
 
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { language } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -19,7 +21,7 @@ import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workb
 export function formatCellDuration(duration: number): string {
 	const minutes = Math.floor(duration / 1000 / 60);
 	const seconds = Math.floor(duration / 1000) % 60;
-	const tenths = String(duration - minutes * 60 * 1000 - seconds * 1000).charAt(0);
+	const tenths = Math.floor((duration % 1000) / 100);
 
 	if (minutes > 0) {
 		return `${minutes}m ${seconds}.${tenths}s`;
@@ -272,7 +274,7 @@ class TimerCellStatusBarItem extends Disposable {
 			text: formatCellDuration(duration),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1,
-			tooltip: isDone ? new Date(endTime).toLocaleString() : undefined
+			tooltip: isDone ? new Date(endTime).toLocaleString(language) : undefined
 		};
 	}
 

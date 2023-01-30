@@ -8,8 +8,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { BufferLogger } from 'vs/platform/log/common/bufferLog';
+import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
@@ -20,7 +20,6 @@ export class FileLogger extends AbstractMessageLogger implements ILogger {
 	private backupIndex: number = 1;
 
 	constructor(
-		name: string,
 		private readonly resource: URI,
 		level: LogLevel,
 		private readonly donotUseFormatters: boolean,
@@ -99,15 +98,15 @@ export class FileLogger extends AbstractMessageLogger implements ILogger {
 export class FileLoggerService extends AbstractLoggerService implements ILoggerService {
 
 	constructor(
-		@ILogService logService: ILogService,
+		logLevel: LogLevel,
 		@IFileService private readonly fileService: IFileService,
 	) {
-		super(logService.getLevel(), logService.onDidChangeLogLevel);
+		super(logLevel);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		const logger = new BufferLogService(logLevel);
-		whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = new FileLogger(options?.name || basename(resource), resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
+		const logger = new BufferLogger(logLevel);
+		whenProviderRegistered(resource, this.fileService).then(() => logger.logger = new FileLogger(resource, logger.getLevel(), !!options?.donotUseFormatters, this.fileService));
 		return logger;
 	}
 }

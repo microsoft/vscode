@@ -14,15 +14,17 @@ import { URI } from 'vs/base/common/uri';
 import { coalesce, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual, joinPath } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IOutputChannelRegistry, IOutputService, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 
+const VIEWS_LOG_ID = 'viewsLog';
+const VIEWS_LOG_NAME = localize('views log', "Views");
 function getViewsLogFile(environmentService: IWorkbenchEnvironmentService): URI { return joinPath(environmentService.windowLogsPath, 'views.log'); }
 
 registerAction2(class extends Action2 {
@@ -35,10 +37,11 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(servicesAccessor: ServicesAccessor): Promise<void> {
+		const loggerService = servicesAccessor.get(ILoggerService);
 		const outputService = servicesAccessor.get(IOutputService);
 		const environmentService = servicesAccessor.get(IWorkbenchEnvironmentService);
-		Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels).registerChannel({ id: 'viewsLog', label: localize('views log', "Views"), file: getViewsLogFile(environmentService), log: true });
-		outputService.showChannel('viewsLog');
+		loggerService.setVisibility(getViewsLogFile(environmentService), true);
+		outputService.showChannel(VIEWS_LOG_ID);
 
 	}
 });
@@ -119,7 +122,7 @@ class ViewDescriptorsState extends Disposable {
 	) {
 		super();
 
-		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService));
+		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService), { id: VIEWS_LOG_ID, name: VIEWS_LOG_NAME, hidden: true });
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
@@ -391,7 +394,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	) {
 		super();
 
-		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService));
+		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService), { id: VIEWS_LOG_ID, name: VIEWS_LOG_NAME, hidden: true });
 
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.original));

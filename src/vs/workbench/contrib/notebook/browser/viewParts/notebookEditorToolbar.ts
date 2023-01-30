@@ -274,8 +274,15 @@ export class NotebookEditorToolbar extends Disposable {
 	private _strategy!: IActionLayoutStrategy;
 	private _renderLabel: RenderLabel = RenderLabel.Always;
 
-	private readonly _onDidChangeState = this._register(new Emitter<void>());
-	onDidChangeState: Event<void> = this._onDidChangeState.event;
+	private _visible: boolean = false;
+	set visible(visible: boolean) {
+		if (this._visible !== visible) {
+			this._visible = visible;
+			this._onDidChangeVisibility.fire(visible);
+		}
+	}
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	get useGlobalToolbar(): boolean {
 		return this._useGlobalToolbar;
@@ -375,8 +382,8 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: (action) => {
-				return this._strategy.actionProvider(action);
+			actionViewItemProvider: (action, options) => {
+				return this._strategy.actionProvider(action, options);
 			},
 			renderDropdownAsChildElement: true
 		});
@@ -433,8 +440,8 @@ export class NotebookEditorToolbar extends Disposable {
 				this._notebookLeftToolbar.dispose();
 				this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-					actionViewItemProvider: (action) => {
-						return this._strategy.actionProvider(action);
+					actionViewItemProvider: (action, options) => {
+						return this._strategy.actionProvider(action, options);
 					},
 					renderDropdownAsChildElement: true
 				});
@@ -492,6 +499,7 @@ export class NotebookEditorToolbar extends Disposable {
 		if (!this.notebookEditor.hasModel()) {
 			this._deferredActionUpdate?.dispose();
 			this._deferredActionUpdate = undefined;
+			this.visible = false;
 			return;
 		}
 
@@ -502,12 +510,12 @@ export class NotebookEditorToolbar extends Disposable {
 		if (!this._useGlobalToolbar) {
 			this.domNode.style.display = 'none';
 			this._deferredActionUpdate = undefined;
-			this._onDidChangeState.fire();
+			this.visible = false;
 		} else {
 			this._deferredActionUpdate = disposableTimeout(async () => {
 				await this._setNotebookActions();
+				this.visible = true;
 				this._deferredActionUpdate = undefined;
-				this._onDidChangeState.fire();
 			}, 50);
 		}
 	}

@@ -59,7 +59,7 @@ export const lineAndColumnClause = [
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*) ((\\d+))(:(\\d+)))', // (file path) 336:9 [see #140780]
 	'((\\S*)[\'"], line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*)[\'"],((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
-	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
+	'((\\S*) on line ((\\d+)(, col(?:umn)? (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):\\s?line ((\\d+)(, col(?:umn)? (\\d+))?))', // (file path):line 8, column 13, (file path): line 8, col 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
@@ -67,11 +67,11 @@ export const lineAndColumnClause = [
 
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
-	/^\s*File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
 	// A C++ compile error
 	/^(?<link>(?<path>.+)\((?<line>\d+),(?<col>\d+)\)) :/,
 	// The whole line is the path
-	/^(?<link>(?<path>.+))/
+	/^ *(?<link>(?<path>.+))/
 ];
 
 export class TerminalLocalLinkDetector implements ITerminalLinkDetector {

@@ -68,6 +68,9 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 	}
 }
 
+export const telemetryLogChannelId = 'telemetryLog';
+export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
+
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
