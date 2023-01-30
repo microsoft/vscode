@@ -31,7 +31,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		'editor.action.clipboardPasteAction'
 	];
 
-	private readonly markdownRenderer: MarkdownRenderer;
+	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -42,8 +42,6 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
-
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
@@ -79,6 +77,20 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		return {
 			confirmed: result.button === 0,
 			checkboxChecked: result.checkboxChecked
+		};
+	}
+
+	async input(input: IInput): Promise<IInputResult> {
+		this.logService.trace('DialogService#input', input.message);
+
+		const buttons = this.toInputButtons(input);
+
+		const result = await this.doShow(input.type, input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
+
+		return {
+			confirmed: result.button === 0,
+			checkboxChecked: result.checkboxChecked,
+			values: result.values
 		};
 	}
 
@@ -142,20 +154,6 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		dialogDisposables.dispose();
 
 		return result;
-	}
-
-	async input(input: IInput): Promise<IInputResult> {
-		this.logService.trace('DialogService#input', input.message);
-
-		const buttons = this.toInputButtons(input);
-
-		const result = await this.doShow(input.type, input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
-
-		return {
-			confirmed: result.button === 0,
-			checkboxChecked: result.checkboxChecked,
-			values: result.values
-		};
 	}
 
 	async about(): Promise<void> {

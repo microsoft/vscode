@@ -50,6 +50,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.toPromptButtons(prompt);
+
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			type: this.getDialogType(prompt.severity),
 			message: prompt.message,
@@ -78,6 +79,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
 		const buttons = this.toConfirmationButtons(confirmation);
+
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			title: confirmation.title,
 			type: confirmation.type,
