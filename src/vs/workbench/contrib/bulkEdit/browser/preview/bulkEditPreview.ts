@@ -24,6 +24,7 @@ import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/brow
 import { Codicon } from 'vs/base/common/codicons';
 import { generateUuid } from 'vs/base/common/uuid';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 
 export class CheckedStates<T extends object> {
 
@@ -386,7 +387,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 		for (const operation of this._operations.fileOperations) {
 			await this._applyTextEditsToPreviewModel(operation.uri);
 		}
-		this._disposables.add(this._operations.checked.onDidChange(e => {
+		this._disposables.add(Event.debounce(this._operations.checked.onDidChange, (_last, e) => e, MicrotaskDelay)(e => {
 			const uri = this._operations.getUriOfEdit(e);
 			this._applyTextEditsToPreviewModel(uri);
 		}));

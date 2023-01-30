@@ -11,17 +11,15 @@ import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCod
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation, ExtensionHostExtensions, webWorkerExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
@@ -31,6 +29,7 @@ import { COI, FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/iframe';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -66,6 +65,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
 		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly _productService: IProductService,
@@ -250,9 +250,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			throw canceled();
 		}
 
-		// Register log channel for web worker exthost log
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: webWorkerExtHostLog, label: localize('name', "Worker Extension Host"), file: this._extensionHostLogFile, log: true });
-
 		return protocol;
 	}
 
@@ -294,6 +291,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
@@ -315,8 +313,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
+			logName: localize('name', "Worker Extension Host"),
 			autoStart: initData.autoStart,
 			remote: {
 				authority: this._environmentService.remoteAuthority,

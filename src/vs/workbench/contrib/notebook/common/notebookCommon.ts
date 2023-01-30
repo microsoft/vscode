@@ -23,7 +23,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -205,7 +205,7 @@ export interface ICellOutput {
 	metadata?: Record<string, any>;
 	outputId: string;
 	onDidChangeData: Event<void>;
-	replaceData(items: IOutputItemDto[]): void;
+	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 }
 
@@ -929,6 +929,7 @@ export const NotebookSetting = {
 	outputFontFamily: 'notebook.outputFontFamily',
 	kernelPickerType: 'notebook.kernelPicker.type',
 	outputScrolling: 'notebook.experimental.outputScrolling',
+	logging: 'notebook.logging',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1059,4 +1060,5 @@ export interface INotebookKernelSourceAction {
 	readonly description?: string;
 	readonly detail?: string;
 	readonly command?: string | Command;
+	readonly documentation?: UriComponents | string;
 }

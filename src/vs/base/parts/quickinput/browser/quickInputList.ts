@@ -13,12 +13,11 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
-import { IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
+import { getCodiconAriaLabel, IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';

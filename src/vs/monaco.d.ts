@@ -4325,6 +4325,7 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
+		showToolbar?: 'always' | 'onHover';
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -5631,6 +5632,10 @@ declare namespace monaco.editor {
 		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
+		/**
+		 * Write the screen reader content to be the current selection
+		 */
+		writeScreenReaderContent(reason: string): void;
 		/**
 		 * Returns the editor's container dom node
 		 */

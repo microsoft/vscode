@@ -11,7 +11,12 @@
   "icon": "images/icon.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onProfile",
+    "onProfile:github"
+  ],
+  "enabledApiProposals": [
+    "profileContentHandlers"
   ],
   "main": "./out/configurationEditingMain",
   "browser": "./dist/browser/configurationEditingMain",
@@ -20,7 +25,9 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.2.1"
+    "jsonc-parser": "^2.2.1",
+    "@octokit/rest": "19.0.4",
+    "tunnel": "^0.0.6"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -140,11 +147,11 @@
       },
       {
         "fileMatch": "devcontainer.json",
-        "url": "./schemas/devContainer.schema.generated.json"
+        "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
       },
       {
         "fileMatch": ".devcontainer.json",
-        "url": "./schemas/devContainer.schema.generated.json"
+        "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/nameConfigs/*.json",

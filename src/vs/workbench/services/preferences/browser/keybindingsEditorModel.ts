@@ -219,7 +219,11 @@ export class KeybindingsEditorModel extends EditorModel {
 	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, actions: Map<string, string>, extensions: Map<string, IExtensionDescription>): IKeybindingItem {
 		const menuCommand = MenuRegistry.getCommand(command);
 		const editorActionLabel = actions.get(command);
-		const extensionId = keybindingItem.extensionId ?? (keybindingItem.resolvedKeybinding ? undefined : menuCommand?.source?.id);
+		let source: string | IExtensionDescription = SOURCE_USER;
+		if (keybindingItem.isDefault) {
+			const extensionId = keybindingItem.extensionId ?? (keybindingItem.resolvedKeybinding ? undefined : menuCommand?.source?.id);
+			source = extensionId ? extensions.get(ExtensionIdentifier.toKey(extensionId)) ?? SOURCE_EXTENSION : SOURCE_SYSTEM;
+		}
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
@@ -227,8 +231,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorActionLabel),
 			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
-			source: extensionId ? extensions.get(ExtensionIdentifier.toKey(extensionId)) ?? SOURCE_EXTENSION
-				: keybindingItem.isDefault ? SOURCE_SYSTEM : SOURCE_USER
+			source
 
 		};
 	}

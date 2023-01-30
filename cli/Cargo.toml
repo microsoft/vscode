@@ -16,13 +16,13 @@ futures = "0.3"
 clap = { version = "3.0", features = ["derive", "env"] }
 open = { version = "2.1.0" }
 reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls-vendored"] }
-tokio = { version = "1.20", features = ["full"] }
+tokio = { version = "1.23", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 flate2 = { version = "1.0.22" }
 zip = { version = "0.5.13", default-features = false, features = ["time", "deflate"] }
 regex = { version = "1.5.5" }
 lazy_static = { version = "1.4.0" }
-sysinfo = { version = "0.23.5" }
+sysinfo = { version = "0.27.7" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 rmp-serde = "1.0"
@@ -49,14 +49,18 @@ log = "0.4"
 const_format = "0.2"
 sha2 = "0.10"
 base64 = "0.13"
+shell-escape = "0.1.5"
 
 [build-dependencies]
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 
 [target.'cfg(windows)'.dependencies]
-windows-service = "0.5"
 winreg = "0.10"
+winapi = "0.3.9"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tar = { version = "0.4" }

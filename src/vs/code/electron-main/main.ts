@@ -14,7 +14,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
+import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
@@ -44,9 +44,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { BufferLogger } from 'vs/platform/log/common/bufferLog';
+import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
@@ -68,7 +67,9 @@ import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { LogService } from 'vs/platform/log/common/logService';
+import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 /**
  * The main VS Code entry point.
@@ -106,7 +107,7 @@ class CodeMain {
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
+				this.handleStartupDataDirError(environmentMainService, productService, error);
 
 				throw error;
 			}
@@ -129,7 +130,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { name: 'main' });
+				bufferLogService.logger = loggerService.createLogger(URI.file(join(environmentMainService.logsPath, 'main.log')), { id: 'mainLog', name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(evt => {
@@ -145,7 +146,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService, UserDataProfilesMainService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogger, IProductService, UserDataProfilesMainService] {
 		const services = new ServiceCollection();
 		const disposables = new DisposableStore();
 		process.once('exit', () => disposables.dispose());
@@ -159,11 +160,15 @@ class CodeMain {
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentMainService, environmentMainService);
 
+		// Logger
+		const loggerService = new LoggerMainService(getLogLevel(environmentMainService));
+		services.set(ILoggerMainService, loggerService);
+
 		// Log: We need to buffer the spdlog logs until we are sure
 		// we are the only instance running, otherwise we'll have concurrent
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
-		const bufferLogService = new BufferLogService();
-		const logService = disposables.add(new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]));
+		const bufferLogger = new BufferLogger(loggerService.getLogLevel());
+		const logService = disposables.add(new LogService(bufferLogger, [new ConsoleMainLogger(loggerService.getLogLevel())]));
 		services.set(ILogService, logService);
 
 		// Files
@@ -175,9 +180,6 @@ class CodeMain {
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		services.set(IUriIdentityService, uriIdentityService);
-
-		// Logger
-		services.set(ILoggerService, new LoggerService(logService));
 
 		// State
 		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
@@ -215,7 +217,7 @@ class CodeMain {
 		// Protocol (instantiated early and not using sync descriptor for security reasons)
 		services.set(IProtocolMainService, new ProtocolMainService(environmentMainService, userDataProfilesMainService, logService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -256,7 +258,8 @@ class CodeMain {
 			configurationService.initialize()
 		]);
 
-		userDataProfilesMainService.setEnablement(productService.quality !== 'stable' || configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
+		// Initialize user data profiles after initializing the state
+		userDataProfilesMainService.init();
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
@@ -277,7 +280,7 @@ class CodeMain {
 			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
+				this.handleStartupDataDirError(environmentMainService, productService, error);
 
 				// Any other runtime error is just printed to the console
 				throw error;
@@ -295,7 +298,7 @@ class CodeMain {
 						this.showStartupWarningDialog(
 							localize('secondInstanceAdmin', "Another instance of {0} is already running as administrator.", productService.nameShort),
 							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
-							productService.nameLong
+							productService
 						);
 					}
 
@@ -334,7 +337,7 @@ class CodeMain {
 					this.showStartupWarningDialog(
 						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", productService.nameShort),
 						localize('secondInstanceNoResponseDetail', "Please close all other instances and try again."),
-						productService.nameLong
+						productService
 					);
 				}, 10000);
 			}
@@ -389,31 +392,30 @@ class CodeMain {
 		return mainProcessNodeIpcServer;
 	}
 
-	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, title: string, error: NodeJS.ErrnoException): void {
+	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, productService: IProductService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
 			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(URI.file(folder), { os: OS, tildify: environmentMainService }));
 
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),
 				localize('startupUserDataAndExtensionsDirErrorDetail', "{0}\n\nPlease make sure the following directories are writeable:\n\n{1}", toErrorMessage(error), directories.join('\n')),
-				title
+				productService
 			);
 		}
 	}
 
-	private showStartupWarningDialog(message: string, detail: string, title: string): void {
+	private showStartupWarningDialog(message: string, detail: string, productService: IProductService): void {
+
 		// use sync variant here because we likely exit after this method
 		// due to startup issues and otherwise the dialog seems to disappear
 		// https://github.com/microsoft/vscode/issues/104493
-		dialog.showMessageBoxSync({
-			title,
+
+		dialog.showMessageBoxSync(massageMessageBoxOptions({
 			type: 'warning',
-			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+			buttons: [localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close")],
 			message,
-			detail,
-			defaultId: 0,
-			noLink: true
-		});
+			detail
+		}, productService).options);
 	}
 
 	private async windowsAllowSetForegroundWindow(launchMainService: ILaunchMainService, logService: ILogService): Promise<void> {

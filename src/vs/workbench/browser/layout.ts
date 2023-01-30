@@ -274,7 +274,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 
 		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if ([
+				LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE,
+				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
+				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
+				'window.menuBarVisibility',
+				'window.titleBarStyle',
+			].some(setting => e.affectsConfiguration(setting))) {
+				this.doUpdateLayoutConfiguration();
+			}
+		}));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));

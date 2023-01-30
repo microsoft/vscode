@@ -67,7 +67,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
@@ -284,8 +285,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._updateSetup(folderSetup);
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration(() => {
-			if (!this._taskSystem && !this._workspaceTasksPromise) {
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (!e.affectsConfiguration('tasks') || (!this._taskSystem && !this._workspaceTasksPromise)) {
 				return;
 			}
 

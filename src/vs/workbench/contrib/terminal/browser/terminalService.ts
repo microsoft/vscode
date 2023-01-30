@@ -25,7 +25,8 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
@@ -527,6 +528,10 @@ export class TerminalService implements ITerminalService {
 		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
+	showTerminalAccessibilityHelp(): void {
+		this.activeInstance?.showAccessibilityHelp();
+	}
+
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
@@ -934,7 +939,7 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 
-		const config = options?.config || this._terminalProfileService.availableProfiles?.find(p => p.profileName === this._terminalProfileService.getDefaultProfileName());
+		const config = options?.config || this._terminalProfileService.getDefaultProfile();
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided

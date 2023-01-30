@@ -1713,7 +1713,8 @@ export namespace NotebookKernelSourceAction {
 			command: commandsConverter.toInternal(command, disposables),
 			label: item.label,
 			description: item.description,
-			detail: item.detail
+			detail: item.detail,
+			documentation: item.documentation
 		};
 	}
 }
@@ -2007,7 +2008,7 @@ export namespace DataTransferItem {
 		if (mime === Mimes.uriList) {
 			return {
 				id: (item as IDataTransferItem | types.DataTransferItem).id,
-				asString: '',
+				asString: stringValue,
 				fileData: undefined,
 				uriListData: serializeUriList(stringValue),
 			};

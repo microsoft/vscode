@@ -26,8 +26,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
+import { activeContrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
@@ -48,14 +47,6 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 	order: 1,
 	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
 });
-
-export interface IPaneColors extends IColorMapping {
-	dropBackground?: ColorIdentifier;
-	headerForeground?: ColorIdentifier;
-	headerBackground?: ColorIdentifier;
-	headerBorder?: ColorIdentifier;
-	leftBorder?: ColorIdentifier;
-}
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
@@ -855,14 +846,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 
 		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
-		const paneStyler = attachStyler<IPaneColors>(this.themeService, {
-			headerForeground: isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND,
-			headerBackground: isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND,
-			headerBorder: isPanel ? PANEL_SECTION_HEADER_BORDER : SIDE_BAR_SECTION_HEADER_BORDER,
-			dropBackground: isPanel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND,
-			leftBorder: isPanel ? PANEL_SECTION_BORDER : undefined
-		}, pane);
-		const disposable = combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
+		pane.style({
+			headerForeground: asCssVariable(isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND),
+			headerBackground: asCssVariable(isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND),
+			headerBorder: asCssVariable(isPanel ? PANEL_SECTION_HEADER_BORDER : SIDE_BAR_SECTION_HEADER_BORDER),
+			dropBackground: asCssVariable(isPanel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND),
+			leftBorder: isPanel ? asCssVariable(PANEL_SECTION_BORDER) : undefined
+		});
+
+		const disposable = combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, onDidChange, onDidChangeVisibility);
 		const paneItem: IViewPaneItem = { pane, disposable };
 
 		this.paneItems.splice(index, 0, paneItem);

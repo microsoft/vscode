@@ -21,7 +21,7 @@ import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -54,22 +54,23 @@ export interface IQuickInputOptions {
 }
 
 export interface IQuickInputStyles {
-	widget: IQuickInputWidgetStyles;
-	inputBox: IInputBoxStyles;
-	toggle: IToggleStyles;
-	countBadge: ICountBadgeStyles;
-	button: IButtonStyles;
-	progressBar: IProgressBarStyles;
-	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color };
+	readonly widget: IQuickInputWidgetStyles;
+	readonly inputBox: IInputBoxStyles;
+	readonly toggle: IToggleStyles;
+	readonly countBadge: ICountBadgeStyles;
+	readonly button: IButtonStyles;
+	readonly progressBar: IProgressBarStyles;
+	readonly keybindingLabel: IKeybindingLabelStyles;
+	readonly list: IListStyles;
+	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
 }
 
 export interface IQuickInputWidgetStyles {
-	quickInputBackground?: Color;
-	quickInputForeground?: Color;
-	quickInputTitleBackground?: Color;
-	widgetBorder?: Color;
-	widgetShadow?: Color;
+	readonly quickInputBackground: string | undefined;
+	readonly quickInputForeground: string | undefined;
+	readonly quickInputTitleBackground: string | undefined;
+	readonly widgetBorder: string | undefined;
+	readonly widgetShadow: string | undefined;
 }
 
 const $ = dom.$;
@@ -77,7 +78,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 const backButton = {
-	iconClass: Codicon.quickInputBack.classNames,
+	iconClass: ThemeIcon.asClassName(Codicon.quickInputBack),
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -1834,22 +1835,22 @@ export class QuickInputController extends Disposable {
 				widgetBorder,
 				widgetShadow,
 			} = this.styles.widget;
-			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ? quickInputTitleBackground.toString() : '';
-			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
-			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
+			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ?? '';
+			this.ui.container.style.backgroundColor = quickInputBackground ?? '';
+			this.ui.container.style.color = quickInputForeground ?? '';
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
 			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];
-			if (this.styles.list.pickerGroupBorder) {
-				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.list.pickerGroupBorder}; }`);
+			if (this.styles.pickerGroup.pickerGroupBorder) {
+				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.pickerGroup.pickerGroupBorder}; }`);
 			}
-			if (this.styles.list.pickerGroupForeground) {
-				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			if (this.styles.pickerGroup.pickerGroupForeground) {
+				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.pickerGroup.pickerGroupForeground}; }`);
 			}
-			if (this.styles.list.pickerGroupForeground) {
-				content.push(`.quick-input-list .quick-input-list-separator-as-item { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			if (this.styles.pickerGroup.pickerGroupForeground) {
+				content.push(`.quick-input-list .quick-input-list-separator-as-item { color:  ${this.styles.pickerGroup.pickerGroupForeground}; }`);
 			}
 
 			if (

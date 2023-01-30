@@ -226,6 +226,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
 	readonly onDidChangeState: Event<CellViewModelStateChangeEvent>;
+	readonly onDidChangeEditorAttachState: Event<void>;
 	readonly editStateSource: string;
 	readonly editorAttached: boolean;
 	isInputCollapsed: boolean;
@@ -280,6 +281,16 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: unknown): void;
 }
 
+/**
+ * Vertical Lane in the overview ruler of the notebook editor.
+ */
+export enum NotebookOverviewRulerLane {
+	Left = 1,
+	Center = 2,
+	Right = 4,
+	Full = 7
+}
+
 export interface INotebookCellDecorationOptions {
 	className?: string;
 	gutterClassName?: string;
@@ -287,8 +298,9 @@ export interface INotebookCellDecorationOptions {
 	topClassName?: string;
 	overviewRuler?: {
 		color: string;
-		modelRanges: Range[];
+		modelRanges: IRange[];
 		includeOutput: boolean;
+		position: NotebookOverviewRulerLane;
 	};
 }
 
@@ -302,6 +314,18 @@ export interface INotebookDeltaCellStatusBarItems {
 	readonly items: readonly INotebookCellStatusBarItem[];
 }
 
+export const enum CellRevealSyncType {
+	Default = 1,
+	Top = 2,
+	Center = 3,
+	CenterIfOutsideViewport = 4
+}
+
+export enum CellRevealRangeType {
+	Default = 1,
+	Center = 2,
+	CenterIfOutsideViewport = 3,
+}
 
 export enum CellRevealType {
 	NearTopIfOutsideViewport,

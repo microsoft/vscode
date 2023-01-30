@@ -9,13 +9,13 @@ import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { basename, dirname, join, posix } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, hasFileAtomicReadCapability, hasOpenReadWriteCloseCapability, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -157,7 +157,7 @@ flakySuite('Disk File Service', function () {
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
@@ -219,7 +219,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('resolve - file', async () => {
-		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
+		const resource = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver/index.html');
 		const resolved = await service.resolve(resource);
 
 		assert.strictEqual(resolved.name, 'index.html');
@@ -237,7 +237,7 @@ flakySuite('Disk File Service', function () {
 	test('resolve - directory', async () => {
 		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
-		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
+		const resource = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver');
 		const result = await service.resolve(resource);
 
 		assert.ok(result);
@@ -282,7 +282,7 @@ flakySuite('Disk File Service', function () {
 	test('resolve - directory - with metadata', async () => {
 		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
-		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
+		const result = await service.resolve(FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver'), { resolveMetadata: true });
 
 		assert.ok(result);
 		assert.strictEqual(result.name, 'resolver');
@@ -332,7 +332,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('resolve - directory - resolveTo single directory', async () => {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
+		const resolverFixturesPath = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver').fsPath;
 		const result = await service.resolve(URI.file(resolverFixturesPath), { resolveTo: [URI.file(join(resolverFixturesPath, 'other/deep'))] });
 
 		assert.ok(result);
@@ -362,7 +362,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testResolveDirectoryWithTarget(withQueryParam: boolean): Promise<void> {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
+		const resolverFixturesPath = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver').fsPath;
 		const result = await service.resolve(URI.file(resolverFixturesPath).with({ query: withQueryParam ? 'test' : undefined }), {
 			resolveTo: [
 				URI.file(join(resolverFixturesPath, 'other/deep')).with({ query: withQueryParam ? 'test' : undefined }),
@@ -394,7 +394,7 @@ flakySuite('Disk File Service', function () {
 	}
 
 	test('resolve directory - resolveSingleChildFolders', async () => {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver/other');
+		const resolverFixturesPath = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver/other').fsPath;
 		const result = await service.resolve(URI.file(resolverFixturesPath), { resolveSingleChildDescendants: true });
 
 		assert.ok(result);
@@ -462,7 +462,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('stat - file', async () => {
-		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
+		const resource = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver/index.html');
 		const resolved = await service.stat(resource);
 
 		assert.strictEqual(resolved.name, 'index.html');
@@ -477,7 +477,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('stat - directory', async () => {
-		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
+		const resource = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/resolver');
 		const result = await service.stat(resource);
 
 		assert.ok(result);

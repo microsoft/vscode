@@ -16,11 +16,16 @@ declare module 'vscode' {
 		readonly description?: string;
 		readonly detail?: string;
 		readonly command: string | Command;
+		readonly documentation?: Uri;
 
 		constructor(label: string);
 	}
 
 	export interface NotebookKernelSourceActionProvider {
+		/**
+		 * An optional event to signal that the kernel source actions have changed.
+		 */
+		onDidChangeNotebookKernelSourceActions?: Event<void>;
 		/**
 		 * Provide kernel source actions
 		 */

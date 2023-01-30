@@ -1807,7 +1807,7 @@
 	},
 	{
 		"c": "_w",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.other.unit.user-defined.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.other.suffix.literal.user-defined.integer.cpp keyword.other.unit.user-defined.cpp",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #098658",

@@ -11,6 +11,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 interface ISerializedKernelsListPerType {
 	entries: string[];
@@ -29,7 +30,8 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 	private _mostRecentKernelsMap: { [key: string]: LinkedMap<string, string> } = {};
 
 	constructor(@IStorageService private readonly _storageService: IStorageService,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService) {
+		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@INotebookLoggingService private readonly _notebookLoggingService: INotebookLoggingService) {
 		super();
 
 		this._loadState();
@@ -40,12 +42,12 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 		const allAvailableKernels = this._notebookKernelService.getMatchingKernel(notebook);
 		const allKernels = allAvailableKernels.all;
 		const selectedKernel = allAvailableKernels.selected;
-		const suggested = (allAvailableKernels.suggestions.length === 1 ? allAvailableKernels.suggestions[0] : undefined)
-			?? (allAvailableKernels.all.length === 1) ? allAvailableKernels.all[0] : undefined;
-
+		// We will suggest the only kernel
+		const suggested = allAvailableKernels.all.length === 1 ? allAvailableKernels.all[0] : undefined;
+		this._notebookLoggingService.log('History', `getMatchingKernels: ${allAvailableKernels.all.length} kernels available for ${notebook.uri.path}. Selected: ${allAvailableKernels.selected?.label}. Suggested: ${suggested?.label}`);
 		const mostRecentKernelIds = this._mostRecentKernelsMap[notebook.viewType] ? [...this._mostRecentKernelsMap[notebook.viewType].values()] : [];
-
 		const all = mostRecentKernelIds.map(kernelId => allKernels.find(kernel => kernel.id === kernelId)).filter(kernel => !!kernel) as INotebookKernel[];
+		this._notebookLoggingService.log('History', `mru: ${mostRecentKernelIds.length} kernels in history, ${all.length} registered already.`);
 
 		return {
 			selected: selectedKernel ?? suggested,

@@ -232,7 +232,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			buttons,
 			{
 				detail: localize('unsupportedBrowserDetail', "Your browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
-				cancelId: -1 // no "Cancel" button offered
+				cancelId: buttons.length // TODO@bpasero leverage new support for `cancelId: null` in the future
 			}
 		);
 

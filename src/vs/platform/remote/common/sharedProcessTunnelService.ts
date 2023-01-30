@@ -29,7 +29,7 @@ export interface ISharedProcessTunnelService {
 	 * Start a previously created tunnel.
 	 * Can only be called once per created tunnel.
 	 */
-	startTunnel(authority: string, id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel>;
+	startTunnel(authority: string, id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalHost: string, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel>;
 	/**
 	 * Set the remote address info for a previously created tunnel.
 	 * Should be called as often as the resolver resolves.

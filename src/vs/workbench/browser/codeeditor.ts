@@ -7,10 +7,8 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { $, append, clearNode } from 'vs/base/browser/dom';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder, asCssVariableWithDefault, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -147,8 +145,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		private editor: ICodeEditor,
 		private label: string,
 		keyBindingAction: string | null,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -181,23 +178,9 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	render() {
 		clearNode(this._domNode);
-
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
-			const backgroundColor = colors.buttonBackground ? colors.buttonBackground : colors.editorBackground;
-			if (backgroundColor) {
-				this._domNode.style.backgroundColor = backgroundColor.toString();
-			}
-
-			const foregroundColor = colors.buttonForeground ? colors.buttonForeground : colors.editorForeground;
-			if (foregroundColor) {
-				this._domNode.style.color = foregroundColor.toString();
-			}
-
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			this._domNode.style.borderWidth = borderColor ? '1px' : '';
-			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
-			this._domNode.style.borderColor = borderColor;
-		}));
+		this._domNode.style.backgroundColor = asCssVariableWithDefault(buttonBackground, asCssVariable(editorBackground));
+		this._domNode.style.color = asCssVariableWithDefault(buttonForeground, asCssVariable(editorForeground));
+		this._domNode.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		append(this._domNode, $('')).textContent = this.label;
 

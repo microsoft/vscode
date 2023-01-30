@@ -6,7 +6,8 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -57,8 +58,10 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
+		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
+		this._renderedInputCollapseState = false; // editor is always expanded initially
 
 		this.registerViewCellLayoutChange();
 		this.registerCellEditorEventListeners();
@@ -112,7 +115,9 @@ export class CodeCell extends Disposable {
 		this.updateForOutputFocus();
 
 		// Render Outputs
-		this._outputContainerRenderer.render(editorHeight);
+		this.viewCell.editorHeight = editorHeight;
+		this._outputContainerRenderer.render();
+		this._renderedOutputCollapseState = false; // the output is always rendered initially
 		// Need to do this after the intial renderOutput
 		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
 			this.initialViewUpdateExpanded();
@@ -236,10 +241,6 @@ export class CodeCell extends Disposable {
 					this.onCellWidthChange();
 				}
 			}
-
-			if (e.totalHeight) {
-				this.relayoutCell();
-			}
 		}));
 	}
 
@@ -261,8 +262,14 @@ export class CodeCell extends Disposable {
 			const selections = this.templateData.editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = this.templateData.editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
 		}));
 	}
@@ -398,7 +405,7 @@ export class CodeCell extends Disposable {
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		element.appendChild(expandIcon);
 	}
 

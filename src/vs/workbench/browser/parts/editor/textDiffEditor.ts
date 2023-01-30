@@ -18,7 +18,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -134,7 +134,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			}
 
 			// Diff navigator
-			this.diffNavigator = new DiffNavigator(control, {
+			this.diffNavigator = this.instantiationService.createInstance(DiffNavigator, control, {
 				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState, // only reveal first change if we had no options or viewstate
 				findResultLoop: this.getMainControl()?.getOption(EditorOption.find).loop
 			});
@@ -231,6 +231,14 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.diffEditorControl), ScrollType.Smooth);
 		}
+	}
+
+	protected override shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI): boolean {
+		if (super.shouldHandleConfigurationChangeEvent(e, resource)) {
+			return true;
+		}
+
+		return e.affectsConfiguration(resource, 'diffEditor');
 	}
 
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {

@@ -258,7 +258,6 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		position: EditorGroupColumn,
 		cancellation: CancellationToken,
 	): Promise<void> {
-		console.log('xxxx');
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
 			throw new Error(`No provider found for '${viewType}'`);

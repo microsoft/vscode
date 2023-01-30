@@ -27,7 +27,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
-	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } }; enableExperiments?: boolean };
+	workbench?: { enableExperiments?: boolean };
 	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
@@ -45,7 +45,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
-		'workbench.experimental.settingsProfiles.enabled',
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE'
 	];
@@ -60,7 +59,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
-	private readonly profilesEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 
@@ -126,9 +124,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Workspace trust
 			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
 		}
-
-		// Profiles
-		processChanged(this.productService.quality === 'stable' && this.profilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
 
 		// Experiments
 		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));
