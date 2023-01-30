@@ -18,6 +18,14 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { deepClone } from 'vs/base/common/objects';
 
+export interface IDialogArgs {
+	readonly confirmArgs?: IConfirmDialogArgs;
+	readonly inputArgs?: IInputDialogArgs;
+	readonly showArgs?: IShowDialogArgs;
+}
+
+export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
+
 export interface IConfirmDialogArgs {
 	readonly confirmation: IConfirmation;
 }
@@ -64,25 +72,14 @@ export interface IInputDialogArgs {
 	readonly input: IInput;
 }
 
-export interface IInput {
-	readonly severity: Severity;
-
-	readonly message: string;
-	readonly detail?: string;
-
-	readonly primaryButton?: string;
-	readonly cancelButton?: string;
-
+export interface IInput extends IConfirmation {
 	readonly inputs: IInputElement[];
-
-	readonly checkbox?: ICheckbox;
-	readonly custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IInputElement {
-	readonly placeholder?: string;
 	readonly type?: 'text' | 'password';
 	readonly value?: string;
+	readonly placeholder?: string;
 }
 
 export interface IInputResult extends IConfirmationResult {
@@ -92,14 +89,6 @@ export interface IInputResult extends IConfirmationResult {
 	 */
 	readonly values?: string[];
 }
-
-export interface IDialog {
-	readonly confirmArgs?: IConfirmDialogArgs;
-	readonly showArgs?: IShowDialogArgs;
-	readonly inputArgs?: IInputDialogArgs;
-}
-
-export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 

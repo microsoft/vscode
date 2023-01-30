@@ -6,10 +6,10 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IDialog, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogArgs, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IDialogViewItem {
-	readonly args: IDialog;
+	readonly args: IDialogArgs;
 
 	close(result?: IDialogResult): void;
 }
@@ -26,7 +26,7 @@ export interface IDialogsModel {
 
 	readonly dialogs: IDialogViewItem[];
 
-	show(dialog: IDialog): IDialogHandle;
+	show(dialog: IDialogArgs): IDialogHandle;
 }
 
 export class DialogsModel extends Disposable implements IDialogsModel {
@@ -39,7 +39,7 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 	private readonly _onDidShowDialog = this._register(new Emitter<void>());
 	readonly onDidShowDialog = this._onDidShowDialog.event;
 
-	show(dialog: IDialog): IDialogHandle {
+	show(dialog: IDialogArgs): IDialogHandle {
 		const promise = new DeferredPromise<IDialogResult | undefined>();
 
 		const item: IDialogViewItem = {

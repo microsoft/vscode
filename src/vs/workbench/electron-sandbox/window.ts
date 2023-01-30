@@ -235,7 +235,7 @@ export class NativeWindow extends Disposable {
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input({
-				severity: Severity.Warning,
+				type: 'warning',
 				message: localize('proxyAuthRequired', "Proxy Authentication Required"),
 				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
 				inputs:

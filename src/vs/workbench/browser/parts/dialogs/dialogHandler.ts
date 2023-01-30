@@ -123,7 +123,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	async input(input: IInput): Promise<IInputResult> {
 		this.logService.trace('DialogService#input', input.message);
 
-		const result = await this.doShow(this.getDialogType(input.severity), input.message, this.toButtons(input), input.detail, 1, input?.checkbox, input.inputs);
+		const result = await this.doShow(input.type, input.message, this.toButtons(input), input.detail, 1, input?.checkbox, input.inputs);
 
 		return {
 			confirmed: result.button === 0,
