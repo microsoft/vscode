@@ -31,6 +31,6 @@ export class TestDialogService implements IDialogService {
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
-	async input(): Promise<IInputResult> { { return { choice: 0, values: [] }; } }
+	async input(): Promise<IInputResult> { { return { confirmed: true, values: [] }; } }
 	async about(): Promise<void> { }
 }

@@ -58,12 +58,12 @@ export class DialogService extends Disposable implements IDialogService {
 		return await handle.result as IShowResult;
 	}
 
-	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
+	async input(input: IInput): Promise<IInputResult> {
 		if (this.skipDialogs()) {
 			throw new Error('DialogService: refused to show input dialog in tests.');
 		}
 
-		const handle = this.model.show({ inputArgs: { severity, message, buttons, inputs, options } });
+		const handle = this.model.show({ inputArgs: { input } });
 
 		return await handle.result as IInputResult;
 	}

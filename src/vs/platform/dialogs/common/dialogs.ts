@@ -18,20 +18,29 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { deepClone } from 'vs/base/common/objects';
 
-export interface FileFilter {
-	readonly extensions: string[];
-	readonly name: string;
-}
-
-export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
-
-export interface ICheckbox {
-	readonly label: string;
-	readonly checked?: boolean;
-}
-
 export interface IConfirmDialogArgs {
 	readonly confirmation: IConfirmation;
+}
+
+export interface IConfirmation {
+	readonly type?: DialogType;
+
+	readonly title?: string;
+	readonly message: string;
+	readonly detail?: string;
+
+	readonly primaryButton?: string;
+	readonly cancelButton?: string;
+
+	readonly checkbox?: ICheckbox;
+}
+
+export interface IConfirmationResult extends ICheckboxResult {
+
+	/**
+	 * Will be true if the dialog was confirmed with the primary button pressed.
+	 */
+	readonly confirmed: boolean;
 }
 
 export interface IShowDialogArgs {
@@ -41,9 +50,47 @@ export interface IShowDialogArgs {
 	readonly options?: IDialogOptions;
 }
 
-export interface IInputDialogArgs extends IShowDialogArgs {
-	readonly buttons: string[];
-	readonly inputs: IInput[];
+export interface IShowResult extends ICheckboxResult {
+
+	/**
+	 * Selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	readonly choice: number;
+}
+
+export interface IInputDialogArgs {
+	readonly input: IInput;
+}
+
+export interface IInput {
+	readonly severity: Severity;
+
+	readonly message: string;
+	readonly detail?: string;
+
+	readonly primaryButton?: string;
+	readonly cancelButton?: string;
+
+	readonly inputs: IInputElement[];
+
+	readonly checkbox?: ICheckbox;
+	readonly custom?: boolean | ICustomDialogOptions;
+}
+
+export interface IInputElement {
+	readonly placeholder?: string;
+	readonly type?: 'text' | 'password';
+	readonly value?: string;
+}
+
+export interface IInputResult extends IConfirmationResult {
+
+	/**
+	 * Values for the input fields as provided by the user or `undefined` if none.
+	 */
+	readonly values?: string[];
 }
 
 export interface IDialog {
@@ -54,62 +101,33 @@ export interface IDialog {
 
 export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
 
-export interface IConfirmation {
-	readonly title?: string;
-	readonly type?: DialogType;
-	readonly message: string;
-	readonly detail?: string;
-	readonly primaryButton?: string;
-	readonly secondaryButton?: string;
-	readonly checkbox?: ICheckbox;
+export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
+
+export interface ICheckbox {
+	readonly label: string;
+	readonly checked?: boolean;
 }
 
-export interface IConfirmationResult {
-
-	/**
-	 * Will be true if the dialog was confirmed with the primary button
-	 * pressed.
-	 */
-	readonly confirmed: boolean;
+export interface ICheckboxResult {
 
 	/**
 	 * This will only be defined if the confirmation was created
 	 * with the checkbox option defined.
 	 */
 	readonly checkboxChecked?: boolean;
-}
-
-export interface IShowResult {
-
-	/**
-	 * Selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
-	 */
-	readonly choice: number;
-
-	/**
-	 * This will only be defined if the confirmation was created
-	 * with the checkbox option defined.
-	 */
-	readonly checkboxChecked?: boolean;
-}
-
-export interface IInputResult extends IShowResult {
-
-	/**
-	 * Values for the input fields as provided by the user
-	 * or `undefined` if none.
-	 */
-	readonly values?: string[];
 }
 
 export interface IPickAndOpenOptions {
-	forceNewWindow?: boolean;
+	readonly forceNewWindow?: boolean;
 	defaultUri?: URI;
-	telemetryExtraData?: ITelemetryData;
+	readonly telemetryExtraData?: ITelemetryData;
 	availableFileSystems?: string[];
 	remoteAuthority?: string | null;
+}
+
+export interface FileFilter {
+	readonly extensions: string[];
+	readonly name: string;
 }
 
 export interface ISaveDialogOptions {
@@ -133,7 +151,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	saveLabel?: string;
+	readonly saveLabel?: string;
 
 	/**
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
@@ -147,7 +165,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the dialog title
 	 */
-	title?: string;
+	readonly title?: string;
 
 	/**
 	 * The resource the dialog shows when opened.
@@ -157,7 +175,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the open button.
 	 */
-	openLabel?: string;
+	readonly openLabel?: string;
 
 	/**
 	 * Allow to select files, defaults to `true`.
@@ -172,7 +190,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * Allow to select many files or folders.
 	 */
-	canSelectMany?: boolean;
+	readonly canSelectMany?: boolean;
 
 	/**
 	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
@@ -209,12 +227,6 @@ export interface IDialogOptions {
 	readonly custom?: boolean | ICustomDialogOptions;
 }
 
-export interface IInput {
-	readonly placeholder?: string;
-	readonly type?: 'text' | 'password';
-	readonly value?: string;
-}
-
 /**
  * A handler to bring up modal dialogs.
  */
@@ -226,6 +238,16 @@ export interface IDialogHandler {
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 
 	/**
+	 * Present a modal dialog to the user asking for input.
+	 *
+	 *  @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned. In addition, the values for the
+	 * inputs are returned as well.
+	 */
+	input(input: IInput): Promise<IInputResult>;
+
+	/**
 	 * Present a modal dialog to the user.
 	 *
 	 * @returns A promise with the selected choice index. If the user refused to choose,
@@ -235,19 +257,34 @@ export interface IDialogHandler {
 	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
-	 * Present a modal dialog to the user asking for input.
-	 *
-	 *  @returns A promise with the selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned. In addition, the values for the
-	 * inputs are returned as well.
-	 */
-	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
-
-	/**
 	 * Present the about dialog to the user.
 	 */
 	about(): Promise<void>;
+}
+
+export abstract class AbstractDialogHandler implements IDialogHandler {
+
+	protected toButtons(dialog: IConfirmation | IInput): string[] {
+		const buttons: string[] = [];
+		if (dialog.primaryButton) {
+			buttons.push(dialog.primaryButton);
+		} else {
+			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+		}
+
+		if (dialog.cancelButton) {
+			buttons.push(dialog.cancelButton);
+		} else {
+			buttons.push(localize('cancelButton', "Cancel"));
+		}
+
+		return buttons;
+	}
+
+	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+	abstract input(input: IInput): Promise<IInputResult>;
+	abstract show(severity: Severity, message: string, buttons?: string[] | undefined, options?: IDialogOptions | undefined): Promise<IShowResult>;
+	abstract about(): Promise<void>;
 }
 
 /**
@@ -297,7 +334,7 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned. In addition, the values for the
 	 * inputs are returned as well.
 	 */
-	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+	input(input: IInput): Promise<IInputResult>;
 
 	/**
 	 * Present the about dialog to the user.
@@ -413,14 +450,14 @@ export interface IMassagedMessageBoxOptions {
 	/**
 	 * OS massaged message box options.
 	 */
-	options: MessageBoxOptions;
+	readonly options: MessageBoxOptions;
 
 	/**
 	 * Since the massaged result of the message box options potentially
 	 * changes the order of buttons, we have to keep a map of these
 	 * changes so that we can still return the correct index to the caller.
 	 */
-	buttonIndeces: number[];
+	readonly buttonIndeces: number[];
 }
 
 /**

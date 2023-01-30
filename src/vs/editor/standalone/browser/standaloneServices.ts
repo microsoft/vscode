@@ -230,7 +230,7 @@ class StandaloneDialogService implements IDialogService {
 	}
 
 	public input(): Promise<IInputResult> {
-		return Promise.resolve({ choice: 0 }); // unsupported
+		return Promise.resolve({ confirmed: false }); // unsupported
 	}
 
 	public about(): Promise<void> {

@@ -292,7 +292,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
 				buttons: [
 					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					localize('cancel', "Cancel")
 				]
 			}, this.productService);
 
@@ -321,7 +321,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
 						buttons: [
 							localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-							localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
+							localize('cancel', "Cancel")
 						]
 					}, this.productService);
 

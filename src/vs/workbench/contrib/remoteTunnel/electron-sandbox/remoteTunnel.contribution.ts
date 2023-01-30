@@ -492,8 +492,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				if (!didNotifyPreview) {
 					const result = await dialogService.confirm({
 						message: localize('tunnel.preview', 'Remote Tunnels is currently in preview. Please report any problems using the "Help: Report Issue" command.'),
-						primaryButton: localize('enable', 'Enable'),
-						secondaryButton: localize('cancel', 'Cancel'),
+						primaryButton: localize('enable', 'Enable')
 					});
 					if (!result.confirmed) {
 						return;

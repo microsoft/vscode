@@ -316,7 +316,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
 				title: localize('settings sync', "Settings Sync"),
 				primaryButton: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
-				secondaryButton: localize({ key: 'no', comment: ['&& denotes a mnemonic'] }, "&&No"),
+				cancelButton: localize('no', "No")
 			});
 			if (result.confirmed) {
 				turnOnSyncCancellationToken.cancel();

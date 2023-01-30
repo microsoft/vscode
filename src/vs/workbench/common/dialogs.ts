@@ -9,13 +9,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialog, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IDialogViewItem {
-	args: IDialog;
+	readonly args: IDialog;
+
 	close(result?: IDialogResult): void;
 }
 
 export interface IDialogHandle {
-	item: IDialogViewItem;
-	result: Promise<IDialogResult | undefined>;
+	readonly item: IDialogViewItem;
+	readonly result: Promise<IDialogResult | undefined>;
 }
 
 export interface IDialogsModel {

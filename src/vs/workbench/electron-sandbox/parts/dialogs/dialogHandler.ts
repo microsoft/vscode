@@ -10,7 +10,7 @@ import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfirmation, IConfirmationResult, IDialogHandler, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -31,7 +31,7 @@ interface IMassagedMessageBoxOptions {
 	buttonIndexMap: number[];
 }
 
-export class NativeDialogHandler implements IDialogHandler {
+export class NativeDialogHandler extends AbstractDialogHandler {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -39,6 +39,7 @@ export class NativeDialogHandler implements IDialogHandler {
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
+		super();
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -54,23 +55,10 @@ export class NativeDialogHandler implements IDialogHandler {
 	}
 
 	private getConfirmOptions(confirmation: IConfirmation): MessageBoxOptions {
-		const buttons: string[] = [];
-		if (confirmation.primaryButton) {
-			buttons.push(confirmation.primaryButton);
-		} else {
-			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
-		}
-
-		if (confirmation.secondaryButton) {
-			buttons.push(confirmation.secondaryButton);
-		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(localize('cancelButton', "Cancel"));
-		}
-
 		const opts: MessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
-			buttons,
+			buttons: this.toButtons(confirmation),
 			cancelId: 1
 		};
 

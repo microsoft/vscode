@@ -102,7 +102,7 @@ export class UnusualLineTerminatorsDetector extends Disposable implements IEdito
 				message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
 				detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
 				primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
-				secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
+				cancelButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
 			});
 		} finally {
 			this._isPresentingDialog = false;

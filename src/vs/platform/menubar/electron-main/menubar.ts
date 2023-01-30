@@ -435,7 +435,7 @@ export class Menubar {
 				type: 'question',
 				buttons: [
 					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
-					nls.localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					nls.localize('cancel', "Cancel")
 				],
 				message: nls.localize('quitMessage', "Are you sure you want to quit?")
 			}, this.productService);

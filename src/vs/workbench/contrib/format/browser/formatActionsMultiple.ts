@@ -155,8 +155,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			const result = await this._dialogService.confirm({
 				message: nls.localize('miss.1', "Configure Default Formatter"),
 				detail: formatterOrMessage,
-				primaryButton: nls.localize('do.config', "Configure..."),
-				secondaryButton: nls.localize('cancel', "Cancel")
+				primaryButton: nls.localize('do.config', "Configure...")
 			});
 			if (result.confirmed) {
 				return this._pickAndPersistDefaultFormatter(formatter, document);

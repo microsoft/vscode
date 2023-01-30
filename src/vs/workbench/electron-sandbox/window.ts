@@ -234,27 +234,25 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
-			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
-				[
-					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					localize('cancelButton', "Cancel")
-				],
-				[
-					{ placeholder: localize('username', "Username"), value: payload.username },
-					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
-				],
-				{
-					cancelId: 1,
-					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
-					checkbox: {
-						label: localize('rememberCredentials', "Remember my credentials"),
-						checked: rememberCredentials
-					}
-				});
+			const result = await this.dialogService.input({
+				severity: Severity.Warning,
+				message: localize('proxyAuthRequired', "Proxy Authentication Required"),
+				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+				inputs:
+					[
+						{ placeholder: localize('username', "Username"), value: payload.username },
+						{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
+					],
+				detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+				checkbox: {
+					label: localize('rememberCredentials', "Remember my credentials"),
+					checked: rememberCredentials
+				}
+			});
 
 			// Reply back to the channel without result to indicate
 			// that the login dialog was cancelled
-			if (result.choice !== 0 || !result.values) {
+			if (!result.confirmed || !result.values) {
 				ipcRenderer.send(payload.replyChannel);
 			}
 

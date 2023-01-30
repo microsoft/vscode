@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput, IDialogHandler, ICustomDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
-export class BrowserDialogHandler implements IDialogHandler {
+export class BrowserDialogHandler extends AbstractDialogHandler {
 
 	private static readonly ALLOWABLE_COMMANDS = [
 		'copy',
@@ -41,26 +41,15 @@ export class BrowserDialogHandler implements IDialogHandler {
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
+		super();
+
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
-		const buttons: string[] = [];
-		if (confirmation.primaryButton) {
-			buttons.push(confirmation.primaryButton);
-		} else {
-			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
-		}
-
-		if (confirmation.secondaryButton) {
-			buttons.push(confirmation.secondaryButton);
-		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(localize('cancelButton', "Cancel"));
-		}
-
-		const result = await this.doShow(confirmation.type, confirmation.message, buttons, confirmation.detail, 1, confirmation.checkbox);
+		const result = await this.doShow(confirmation.type, confirmation.message, this.toButtons(confirmation), confirmation.detail, 1, confirmation.checkbox);
 
 		return { confirmed: result.button === 0, checkboxChecked: result.checkboxChecked };
 	}
@@ -80,7 +69,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 		};
 	}
 
-	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
@@ -131,13 +120,13 @@ export class BrowserDialogHandler implements IDialogHandler {
 		return result;
 	}
 
-	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		this.logService.trace('DialogService#input', message);
+	async input(input: IInput): Promise<IInputResult> {
+		this.logService.trace('DialogService#input', input.message);
 
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, inputs);
+		const result = await this.doShow(this.getDialogType(input.severity), input.message, this.toButtons(input), input.detail, 1, input?.checkbox, input.inputs);
 
 		return {
-			choice: result.button,
+			confirmed: result.button === 0,
 			checkboxChecked: result.checkboxChecked,
 			values: result.values
 		};

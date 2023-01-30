@@ -70,7 +70,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 			// Input (custom only)
 			else if (this.currentDialog.args.inputArgs) {
 				const args = this.currentDialog.args.inputArgs;
-				result = await this.browserImpl.input(args.severity, args.message, args.buttons, args.inputs, args.options);
+				result = await this.browserImpl.input(args.input);
 			}
 
 			// Message

@@ -684,8 +684,7 @@ export class AcceptMerge extends MergeEditorAction2 {
 				type: 'info',
 				message: localize('mergeEditor.acceptMerge.unhandledConflicts.message', "Do you want to complete the merge of {0}?", basename(inputModel.resultUri)),
 				detail: localize('mergeEditor.acceptMerge.unhandledConflicts.detail', "The file contains unhandled conflicts."),
-				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Complete with Conflicts"),
-				secondaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.cancel', "Cancel"),
+				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Complete with Conflicts")
 			});
 
 			if (!confirmResult.confirmed) {

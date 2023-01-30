@@ -118,7 +118,7 @@ export class IssueMainService implements IIssueMainService {
 					type: 'warning',
 					buttons: [
 						localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-						localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+						localize('cancel', "Cancel")
 					]
 				}, this.productService);
 
@@ -139,7 +139,7 @@ export class IssueMainService implements IIssueMainService {
 					type: 'warning',
 					buttons: [
 						localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
-						localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+						localize('cancel', "Cancel")
 					]
 				}, this.productService);
 
