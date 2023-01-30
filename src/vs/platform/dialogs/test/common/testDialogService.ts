@@ -39,15 +39,15 @@ export class TestDialogService implements IDialogService {
 	}
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
 	async info(message: string): Promise<void> {
-		await this.prompt({ severity: Severity.Info, message });
+		await this.prompt({ type: Severity.Info, message });
 	}
 
 	async warn(message: string): Promise<void> {
-		await this.prompt({ severity: Severity.Warning, message });
+		await this.prompt({ type: Severity.Warning, message });
 	}
 
 	async error(message: string): Promise<void> {
-		await this.prompt({ severity: Severity.Error, message });
+		await this.prompt({ type: Severity.Error, message });
 	}
 	async input(): Promise<IInputResult> { { return { confirmed: true, values: [] }; } }
 	async about(): Promise<void> { }

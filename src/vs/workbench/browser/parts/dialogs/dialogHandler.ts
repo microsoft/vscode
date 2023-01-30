@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, ITwoButtonPrompt, ITwoButtonPromptResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, isOneButtonPrompt } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogOptions, IConfirmation, IConfirmationResult, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, ITwoButtonPrompt, ITwoButtonPromptResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, isOneButtonPrompt, DialogType } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -53,7 +53,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.toPromptButtons(prompt);
 
-		const result = await this.doShow(this.getDialogType(prompt.severity), prompt.message, buttons, prompt.detail, buttons.length - 1, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+		const result = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, buttons.length - 1, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
 
 		if (isOneButtonPrompt(prompt)) {
 			return {
@@ -97,7 +97,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
+		const result = await this.doShow(severity, message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
 
 		return {
 			choice: result.button,
@@ -105,7 +105,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		};
 	}
 
-	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
@@ -125,7 +125,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			{
 				detail,
 				cancelId,
-				type,
+				type: this.getDialogType(type),
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 					if (resolved?.commandId) {

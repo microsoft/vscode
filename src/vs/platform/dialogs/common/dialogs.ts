@@ -32,7 +32,7 @@ export interface IConfirmDialogArgs {
 }
 
 export interface IConfirmation {
-	readonly type?: DialogType;
+	readonly type?: Severity | DialogType;
 
 	readonly title?: string;
 	readonly message: string;
@@ -52,23 +52,6 @@ export interface IConfirmationResult extends ICheckboxResult {
 	 * Will be true if the dialog was confirmed with the primary button pressed.
 	 */
 	readonly confirmed: boolean;
-}
-
-export interface IShowDialogArgs {
-	readonly severity: Severity;
-	readonly message: string;
-	readonly buttons?: string[];
-	readonly options?: IDialogOptions;
-}
-
-export interface IShowResult extends ICheckboxResult {
-
-	/**
-	 * Selected choice index. If the user refused to choose,
-	 * then a promise with index of `cancelId` option is returned. If there is no such
-	 * option then promise with index `0` is returned.
-	 */
-	readonly choice: number;
 }
 
 export interface IInputDialogArgs {
@@ -98,7 +81,7 @@ export interface IPromptDialogArgs {
 }
 
 export interface IBasePrompt {
-	readonly severity: Severity;
+	readonly type?: Severity | DialogType;
 
 	readonly message: string;
 	readonly detail?: string;
@@ -193,6 +176,23 @@ export interface IThreeButtonPromptResult extends IBasePromptResult {
 
 export interface IFourButtonPromptResult extends IBasePromptResult {
 	readonly choice: FourButtonPromptResult;
+}
+
+/**
+ * @deprecated
+ */
+export interface IShowDialogArgs {
+	readonly severity: Severity;
+	readonly message: string;
+	readonly buttons?: string[];
+	readonly options?: IDialogOptions;
+}
+
+/**
+ * @deprecated
+ */
+export interface IShowResult extends ICheckboxResult {
+	readonly choice: number;
 }
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
@@ -495,8 +495,16 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		return choice;
 	}
 
-	protected getDialogType(severity: Severity): DialogType {
-		return (severity === Severity.Info) ? 'info' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
+	protected getDialogType(type: Severity | DialogType | undefined): DialogType | undefined {
+		if (typeof type === 'string') {
+			return type;
+		}
+
+		if (typeof type === 'number') {
+			return (type === Severity.Info) ? 'info' : (type === Severity.Error) ? 'error' : (type === Severity.Warning) ? 'warning' : 'none';
+		}
+
+		return undefined;
 	}
 
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;

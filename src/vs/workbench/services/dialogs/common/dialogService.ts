@@ -83,15 +83,15 @@ export class DialogService extends Disposable implements IDialogService {
 	}
 
 	async info(message: string, detail?: string): Promise<void> {
-		await this.prompt({ severity: Severity.Info, message, detail });
+		await this.prompt({ type: Severity.Info, message, detail });
 	}
 
 	async warn(message: string, detail?: string): Promise<void> {
-		await this.prompt({ severity: Severity.Warning, message, detail });
+		await this.prompt({ type: Severity.Warning, message, detail });
 	}
 
 	async error(message: string, detail?: string): Promise<void> {
-		await this.prompt({ severity: Severity.Error, message, detail });
+		await this.prompt({ type: Severity.Error, message, detail });
 	}
 
 	async about(): Promise<void> {

@@ -52,7 +52,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		const buttons = this.toPromptButtons(prompt);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
-			type: this.getDialogType(prompt.severity),
+			type: this.getDialogType(prompt.type),
 			message: prompt.message,
 			detail: prompt.detail,
 			buttons,
@@ -82,7 +82,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			title: confirmation.title,
-			type: confirmation.type,
+			type: this.getDialogType(confirmation.type),
 			message: confirmation.message,
 			detail: confirmation.detail,
 			buttons,
