@@ -254,7 +254,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
-			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git', 'vscode-local-history'], this);
+			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'vscode-local-history'], this);
 		}
 	}
 
