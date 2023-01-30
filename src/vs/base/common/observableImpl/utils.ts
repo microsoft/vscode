@@ -106,7 +106,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	private readonly handleEvent = (args: TArgs | undefined) => {
 		const newValue = this.getValue(args);
 
-		const didChange = this.value !== newValue;
+		const didChange = !this.hasValue || this.value !== newValue;
 
 		getLogger()?.handleFromEventObservableTriggered(this, { oldValue: this.value, newValue, change: undefined, didChange });
 
