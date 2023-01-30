@@ -64,6 +64,7 @@ export class CenteredViewLayout implements IDisposable {
 	private width: number = 0;
 	private height: number = 0;
 	private style!: ICenteredViewStyles;
+	private didLayout = false;
 	private emptyViews: ISplitViewView<{ top: number; left: number }>[] | undefined;
 	private readonly splitViewDisposables = new DisposableStore();
 	private centeredLayoutFixedWidth = true;
@@ -102,10 +103,14 @@ export class CenteredViewLayout implements IDisposable {
 		this.height = height;
 		if (this.splitView) {
 			this.splitView.layout(width);
-			this.resizeSplitViews();
+			if (!this.didLayout || this.centeredLayoutFixedWidth) {
+				this.resizeSplitViews();
+			}
 		} else {
 			this.view.layout(width, height, top, left);
 		}
+
+		this.didLayout = true;
 	}
 
 	private resizeSplitViews(): void {
