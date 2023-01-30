@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Marketing Agency</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Digital Marketing Agency</h1>
+    <nav>
+      <ul>
+        <li><a href="#services">Services</a></li>
+        <li><a href="#portfolio">Portfolio</a></li>
+        <li><a href="#about">About Us</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section id="services">
+      <h2>Services</h2>
+      <p>Our agency offers a range of digital marketing services, including:</p>
+      <ul>
+        <li>Search Engine Optimization (SEO)</li>
+        <li>Pay-Per-Click Advertising (PPC)</li>
+        <li>Social Media Marketing</li>
+        <li>Content Marketing</li>
+      </ul>
+    </section>
+    <section id="portfolio">
+      <h2>Portfolio</h2>
+      <p>Check out some of our recent projects:</p>
+      <ul>
+        <li><a href="#">Project 1</a></li>
+        <li><a href="#">Project 2</a></li>
+        <li><a href="#">Project 3</a></li>
+      </ul>
+    </section>
+    <section id="about">
+      <h2>About Us</h2>
+      <p>Our agency is a team of experienced digital marketers who are passionate about helping businesses succeed online. Learn more about our team and mission:</p>
+      <a href="#">Learn More</a>
+    </section>
+    <section id="contact">
+      <h2>Contact</h2>
+      <form action="#" method="post">
+        <input type="text" name="name" placeholder="Name">
+        <input type="email" name="email" placeholder="Email">
+        <textarea name="message" placeholder="Message"></textarea>
+        <button type="submit">Submit</button>
+      </form>
+    </section>
+  </main>
+  <footer>
+    <p>&copy; 2023 Digital Marketing Agency</p>
+  </footer>
+</body>
+</html>
