@@ -439,7 +439,7 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 
 	// Apply HIG per OS when more than one button is used
 	if (buttons.length > 1) {
-		if (isLinux) {
+		if (isLinux || isMacintosh) {
 
 			// Linux: the GNOME HIG (https://developer.gnome.org/hig/patterns/feedback/dialogs.html?highlight=dialog)
 			// recommend the following:
@@ -450,12 +450,26 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 			// Electron APIs do not reorder buttons for us, so we ensure a reverse order of buttons and a position
 			// of the cancel button (if provided) that matches the HIG
 
+			// macOS: the HIG (https://developer.apple.com/design/human-interface-guidelines/components/presentation/alerts)
+			// recommend the following:
+			// "Place buttons where people expect. In general, place the button people are most likely to choose on the trailing side in a
+			//  row of buttons or at the top in a stack of buttons. Always place the default button on the trailing side of a row or at the
+			//  top of a stack. Cancel buttons are typically on the leading side of a row or at the bottom of a stack."
+			//
+			// However: it seems that older macOS versions where 3 buttons were presented in a row differ from this
+			// recommendation. In fact, cancel buttons were placed to the left of the default button and secondary
+			// buttons on the far left. To support these older macOS versions we have to manually shuffle the cancel
+			// button in the same way as we do on Linux. This will not have any impact on newer macOS versions where
+			// shuffling is done for us.
+
 			const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
 
-			buttons = buttons.reverse();
-			buttonIndeces = buttonIndeces.reverse();
+			if (isLinux) {
+				buttons = buttons.reverse();
+				buttonIndeces = buttonIndeces.reverse();
 
-			defaultId = buttons.length - 1;
+				defaultId = buttons.length - 1;
+			}
 
 			if (typeof cancelButton === 'string') {
 				cancelId = buttons.indexOf(cancelButton);
@@ -495,15 +509,6 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 					cancelId = buttons.length - 1;
 				}
 			}
-		} else if (isMacintosh) {
-
-			// macOS: the HIG (https://developer.apple.com/design/human-interface-guidelines/components/presentation/alerts)
-			// recommend the following:
-			// "Place buttons where people expect. In general, place the button people are most likely to choose on the trailing side in a
-			//  row of buttons or at the top in a stack of buttons. Always place the default button on the trailing side of a row or at the
-			//  top of a stack. Cancel buttons are typically on the leading side of a row or at the bottom of a stack."
-			//
-			// Electron APIs ensure above for us, so there is nothing we have to do.
 		}
 	}
 
