@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Lazy } from 'vs/base/common/lazy';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export interface IParsedLink {
 	path: ILinkPartialRange;
@@ -196,23 +197,13 @@ export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null 
 // TODO: Handle ", ', [, ], etc.
 const linkWithSuffixPathCharacters = /(?<path>[^\s]+)$/;
 
-export function detectLinks(line: string) {
+export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
 	const results = detectLinksViaSuffix(line);
 
 	// 2: Using the unused ranges, detect plain paths
 	// TODO: ...
-
-
-	// TODO: Annotate link prefix, here or in path resolve?
-
-	// Return only link suffixes if they were found
-	if (results.length > 0) {
-		return results;
-	}
-
-	// 2: Detect paths with no suffix
-	// TODO: ...
+	results.push(...detectPathsNoSuffix(line, os));
 
 	return results;
 }
@@ -251,7 +242,6 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				if (prefixMatch.groups.prefix.length > 1) {
 					if (suffix.suffix.text[0].match(/['"]/) && prefixMatch.groups.prefix.at(-1) === suffix.suffix.text[0]) {
 						const trimPrefixAmount = prefixMatch.groups.prefix.length - 1;
-						console.log('trimPrefixAmount', trimPrefixAmount);
 						prefix.index += trimPrefixAmount;
 						prefix.text = prefixMatch.groups.prefix.at(-1)!;
 						linkStartIndex += trimPrefixAmount;
@@ -267,6 +257,78 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				suffix
 			});
 		}
+	}
+
+	return results;
+}
+
+const enum RegexPathConstants {
+	PathPrefix = '(\\.\\.?|\\~)',
+	PathSeparatorClause = '\\/',
+	// '":; are allowed in paths but they are often separators so ignore them
+	// Also disallow \\ to prevent a catastropic backtracking case #24795
+	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\'":;\\\\]',
+	ExcludedStartPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]',
+	WinOtherPathPrefix = '\\.\\.?|\\~',
+	WinPathSeparatorClause = '(\\\\|\\/)',
+	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
+	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
+}
+
+/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
+export const unixLocalLinkClause = '((' + RegexPathConstants.PathPrefix + '|(' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(' + RegexPathConstants.PathSeparatorClause + '(' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
+
+export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
+export const winLocalLinkClause = '((' + `(${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(' + RegexPathConstants.WinPathSeparatorClause + '(' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
+
+function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
+	const results: IParsedLink[] = [];
+
+	// TODO: Only check unused ranges
+	const regex = new RegExp(os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause, 'g');
+	let match;
+	while ((match = regex.exec(line)) !== null) {
+		let text = match[0];
+		let index = match.index;
+		if (!text) {
+			// Something matched but does not comply with the given match index, since this would
+			// most likely a bug the regex itself we simply do nothing here
+			break;
+		}
+
+		// TODO:
+		// HACK: In order to support both links containing [ and ] characters as well as the
+		// `<file>[<line>, <col>]` pattern, we need to detect the part after the comma and fix
+		// up the link here as before that will be matched as a regular file path.
+		// if (link.match(/\[\d+,$/)) {
+		// 	const partialText = text.slice(rex.lastIndex);
+		// 	const suffixMatch = partialText.match(/^ \d+\]/);
+		// 	if (suffixMatch) {
+		// 		link += suffixMatch[0];
+		// 	}
+		// }
+
+		// Adjust the link range to exclude a/ and b/ if it looks like a git diff
+		if (
+			// --- a/foo/bar
+			// +++ b/foo/bar
+			((line.startsWith('--- a/') || line.startsWith('+++ b/')) && index === 4) ||
+			// diff --git a/foo/bar b/foo/bar
+			(line.startsWith('diff --git') && (text.startsWith('a/') || text.startsWith('b/')))
+		) {
+			text = text.substring(2);
+			index += 2;
+		}
+
+		results.push({
+			path: {
+				index,
+				text
+			},
+			prefix: undefined,
+			suffix: undefined
+		});
 	}
 
 	return results;

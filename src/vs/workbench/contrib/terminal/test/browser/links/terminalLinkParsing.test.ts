@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
 
 interface ITestLink {
@@ -175,14 +176,14 @@ suite('TerminalLinkParsing', () => {
 	suite.only('detectLinks', () => {
 		test('foo(1, 2) bar[3, 4] "baz" on line 5', () => {
 			deepStrictEqual(
-				detectLinks('foo(1, 2) bar[3, 4] "baz" on line 5'),
+				detectLinks('foo(1, 2) bar[3, 4] "baz" on line 5', OperatingSystem.Linux),
 				[
 					{
-						prefix: undefined,
 						path: {
 							index: 0,
 							text: 'foo'
 						},
+						prefix: undefined,
 						suffix: {
 							col: 2,
 							row: 1,
@@ -193,11 +194,11 @@ suite('TerminalLinkParsing', () => {
 						}
 					},
 					{
-						prefix: undefined,
 						path: {
 							index: 10,
 							text: 'bar'
 						},
+						prefix: undefined,
 						suffix: {
 							col: 4,
 							row: 3,
@@ -208,13 +209,13 @@ suite('TerminalLinkParsing', () => {
 						}
 					},
 					{
-						prefix: {
-							index: 20,
-							text: '"'
-						},
 						path: {
 							index: 21,
 							text: 'baz'
+						},
+						prefix: {
+							index: 20,
+							text: '"'
 						},
 						suffix: {
 							col: undefined,
@@ -225,22 +226,22 @@ suite('TerminalLinkParsing', () => {
 							}
 						}
 					}
-				]
+				] as IParsedLink[]
 			);
 		});
 
 		test('should extract the link prefix', () => {
 			deepStrictEqual(
-				detectLinks('"foo", line 5, col 6'),
+				detectLinks('"foo", line 5, col 6', OperatingSystem.Linux),
 				[
 					{
-						prefix: {
-							index: 0,
-							text: '"',
-						},
 						path: {
 							index: 1,
 							text: 'foo'
+						},
+						prefix: {
+							index: 0,
+							text: '"',
 						},
 						suffix: {
 							row: 5,
@@ -250,23 +251,23 @@ suite('TerminalLinkParsing', () => {
 								text: '", line 5, col 6'
 							}
 						}
-					} as IParsedLink,
-				]
+					},
+				] as IParsedLink[]
 			);
 		});
 
 		test('should be smart about determining the link prefix when multiple prefix characters exist', () => {
 			deepStrictEqual(
-				detectLinks('echo \'"foo", line 5, col 6\''),
+				detectLinks('echo \'"foo", line 5, col 6\'', OperatingSystem.Linux),
 				[
 					{
-						prefix: {
-							index: 6,
-							text: '"',
-						},
 						path: {
 							index: 7,
 							text: 'foo'
+						},
+						prefix: {
+							index: 6,
+							text: '"',
 						},
 						suffix: {
 							row: 5,
@@ -276,20 +277,110 @@ suite('TerminalLinkParsing', () => {
 								text: '", line 5, col 6'
 							}
 						}
-					} as IParsedLink,
-				],
+					},
+				] as IParsedLink[],
 				'The outer single quotes should be excluded from the link prefix and suffix'
 			);
 		});
 
-		suite('should detect 3 suffix links on single line', () => {
+		test('should detect both suffix and non-suffix links on a single line', () => {
+			deepStrictEqual(
+				detectLinks('PS C:\\Github\\microsoft\\vscode> echo \'"foo", line 5, col 6\'', OperatingSystem.Windows),
+				[
+					{
+						path: {
+							index: 38,
+							text: 'foo'
+						},
+						prefix: {
+							index: 37,
+							text: '"',
+						},
+						suffix: {
+							row: 5,
+							col: 6,
+							suffix: {
+								index: 41,
+								text: '", line 5, col 6'
+							}
+						}
+					},
+					{
+						path: {
+							index: 3,
+							text: 'C:\\Github\\microsoft\\vscode'
+						},
+						prefix: undefined,
+						suffix: undefined
+					}
+				] as IParsedLink[]
+			);
+		});
+
+		suite('should detect file names in git diffs', () => {
+			test('--- a/foo/bar', () => {
+				deepStrictEqual(
+					detectLinks('--- a/foo/bar', OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 6,
+								text: 'foo/bar'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			test('+++ b/foo/bar', () => {
+				deepStrictEqual(
+					detectLinks('+++ b/foo/bar', OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 6,
+								text: 'foo/bar'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			test('diff --git a/foo/bar b/foo/baz', () => {
+				deepStrictEqual(
+					detectLinks('diff --git a/foo/bar b/foo/baz', OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 13,
+								text: 'foo/bar'
+							},
+							prefix: undefined,
+							suffix: undefined
+						},
+						{
+							path: {
+								index: 23,
+								text: 'foo/baz'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+		});
+
+		suite('should detect 3 suffix links on a single line', () => {
 			for (let i = 0; i < testLinksWithSuffix.length - 2; i++) {
 				const link1 = testLinksWithSuffix[i];
 				const link2 = testLinksWithSuffix[i + 1];
 				const link3 = testLinksWithSuffix[i + 2];
 				const line = ` ${link1.link} ${link2.link} ${link3.link} `;
 				test('`' + line + '`', () => {
-					strictEqual(detectLinks(line).length, 3);
+					strictEqual(detectLinks(line, OperatingSystem.Linux).length, 3);
 					ok(link1.suffix);
 					ok(link2.suffix);
 					ok(link3.suffix);
@@ -348,7 +439,7 @@ suite('TerminalLinkParsing', () => {
 						}
 					};
 					deepStrictEqual(
-						detectLinks(line),
+						detectLinks(line, OperatingSystem.Linux),
 						[detectedLink1, detectedLink2, detectedLink3]
 					);
 				});
