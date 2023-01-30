@@ -1092,8 +1092,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 		}));
 
-		actionsContainer.appendChild(this._closeBtn.domNode);
-
 		// Replace input
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
@@ -1191,13 +1189,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		// Widget
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
-		this._domNode.setAttribute('aria-hidden', 'true');
+		// this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.ariaLabel = 'Find / Replace';
+		this._domNode.role = 'dialog';
+
 		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
 		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
+
 		this._domNode.appendChild(replacePart);
+
+		this._domNode.appendChild(this._closeBtn.domNode);
 
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
 		this._resized = false;
