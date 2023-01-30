@@ -18,7 +18,6 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
-import { OperationKind } from './operation';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -588,19 +587,13 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		checkForSubmodules();
 
 		const updateOperationInProgressContext = () => {
-			let commitInProgress = false;
 			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(OperationKind.Commit)) {
-					commitInProgress = true;
-				}
-
 				if (repository.operations.shouldDisableCommands()) {
 					operationInProgress = true;
 				}
 			}
 
-			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
 			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 

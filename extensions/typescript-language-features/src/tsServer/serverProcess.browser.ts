@@ -30,7 +30,7 @@ type BrowserWatchEvent = {
 
 export class WorkerServerProcess implements TsServerProcess {
 	@memoize
-	private static get output(): vscode.OutputChannel {
+	private static get tsServerlogOutputChannel(): vscode.OutputChannel {
 		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
 	}
 
@@ -118,7 +118,7 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.worker.onmessage = (msg: any) => {
 			// for logging only
 			if (msg.data.type === 'log') {
-				this.appendOutput(msg.data.body);
+				this.appendLog(msg.data.body);
 				return;
 			}
 			console.error(`unexpected message on main channel: ${JSON.stringify(msg)}`);
@@ -132,7 +132,6 @@ export class WorkerServerProcess implements TsServerProcess {
 			}
 		};
 
-		this.appendOutput(`creating new MessageChannel and posting its port2 + args: ${args.join(' ')}\n`);
 		this.worker.postMessage(
 			{ args, extensionUri },
 			[syncChannel.port1, tsserverChannel.port1, watcherChannel.port1]
@@ -141,7 +140,6 @@ export class WorkerServerProcess implements TsServerProcess {
 		const connection = new ServiceConnection<Requests>(syncChannel.port2);
 		new ApiService('vscode-wasm-typescript', connection);
 		connection.signalReady();
-		this.appendOutput('done constructing WorkerServerProcess\n');
 	}
 
 	write(serverRequest: Proto.Request): void {
@@ -168,8 +166,8 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.syncFs.close();
 	}
 
-	private appendOutput(msg: string) {
-		WorkerServerProcess.output.append(`(${this.id} - ${this.kind}) ${msg}`);
+	private appendLog(msg: string) {
+		WorkerServerProcess.tsServerlogOutputChannel.appendLine(`(${this.id} - ${this.kind}) ${msg}`);
 	}
 }
 
