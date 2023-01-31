@@ -83,7 +83,8 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	isScreenReaderOptimized(): boolean {
 		const config = this._configurationService.getValue('editor.accessibilitySupport');
-		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
+		const accessibilitySupportEnabled = this._accessibilitySupport === AccessibilitySupport.Enabled;
+		return config === 'on' || (config === 'auto' && accessibilitySupportEnabled);
 	}
 
 	get onDidChangeReducedMotion(): Event<void> {

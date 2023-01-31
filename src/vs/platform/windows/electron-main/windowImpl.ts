@@ -1050,6 +1050,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.maximized = this._win.isMaximized();
 		configuration.partsSplash = this.themeMainService.getWindowSplash();
 
+		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
 		// Update with latest perf marks
 		mark('code/willOpenNewWindow');
 		configuration.perfMarks = getMarks();
