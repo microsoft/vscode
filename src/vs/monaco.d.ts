@@ -7309,6 +7309,7 @@ declare namespace monaco.languages {
 		 * The value of the kind is 'region'.
 		 */
 		static readonly Region: FoldingRangeKind;
+		static fromValue(value: string): FoldingRangeKind;
 		/**
 		 * Creates a new {@link FoldingRangeKind}.
 		 *
