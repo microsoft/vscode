@@ -31,7 +31,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult, IPrompt, IPromptResult, IPromptWithCancel, IPromptResultRequired } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -225,7 +225,9 @@ class StandaloneDialogService implements IDialogService {
 		return window.confirm(messageText);
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCancel<T>): Promise<IPromptResult<T> | IPromptResultRequired<T>> {
 		let result: T | undefined = undefined;
 		const confirmed = this.doConfirm(prompt.message, prompt.detail);
 		if (confirmed) {

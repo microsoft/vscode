@@ -92,12 +92,20 @@ export interface IPrompt<T> extends IBaseDialogOptions {
 	readonly cancelButton?: IPromptButton<T>;
 }
 
+export interface IPromptWithCancel<T> extends IPrompt<T> {
+	readonly cancelButton: IPromptButton<T>;
+}
+
 export interface IPromptResult<T> extends ICheckboxResult {
 
 	/**
 	 * The result of the `IPromptButton`` that was pressed or `undefined` if none.
 	 */
 	readonly result?: T;
+}
+
+export interface IPromptResultRequired<T> extends IPromptResult<T> {
+	readonly result: T;
 }
 
 /**
@@ -418,6 +426,7 @@ export interface IDialogService {
 	 * @returns a promise that resolves to the `T` result
 	 * from the provided `IPromptButton<T>` or `undefined`.
 	 */
+	prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
 	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
 
 	/**

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IPrompt, IPromptResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IPrompt, IPromptResult, IPromptResultRequired, IPromptWithCancel, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class TestDialogService implements IDialogService {
 
@@ -32,7 +32,9 @@ export class TestDialogService implements IDialogService {
 		return this.defaultConfirmResult ?? { confirmed: false };
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCancel<T>): Promise<IPromptResult<T> | IPromptResultRequired<T>> {
 		return { result: await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run({ checkboxChecked: false }) };
 	}
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }

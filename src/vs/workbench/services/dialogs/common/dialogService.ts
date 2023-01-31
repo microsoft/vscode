@@ -5,7 +5,7 @@
 
 import Severity from 'vs/base/common/severity';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IPromptResultRequired, IPromptWithCancel, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { DialogsModel } from 'vs/workbench/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -48,14 +48,16 @@ export class DialogService extends Disposable implements IDialogService {
 		return await handle.result as IConfirmationResult;
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCancel<T>): Promise<IPromptResult<T> | IPromptResultRequired<T>> {
 		if (this.skipDialogs()) {
 			throw new Error('DialogService: refused to show dialog in tests.');
 		}
 
 		const handle = this.model.show({ promptArgs: { prompt } });
 
-		return await handle.result as IPromptResult<T>;
+		return await handle.result as Promise<IPromptResult<T> | IPromptResultRequired<T>>;
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
