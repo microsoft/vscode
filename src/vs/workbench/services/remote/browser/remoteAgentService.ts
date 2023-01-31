@@ -50,20 +50,18 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 	}
 
 	private async _presentConnectionError(err: any): Promise<void> {
-		const res = await this._dialogService.show(
+		await this._dialogService.show(
 			Severity.Error,
 			nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
 			[
-				nls.localize('reload', "Reload")
+				nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
 			],
 			{
 				detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : '')
 			}
 		);
 
-		if (res.choice === 0) {
-			this._hostService.reload();
-		}
+		this._hostService.reload();
 	}
 
 }

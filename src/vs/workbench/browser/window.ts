@@ -26,7 +26,6 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class BrowserWindow extends Disposable {
 
@@ -37,8 +36,7 @@ export class BrowserWindow extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IHostService private readonly hostService: IHostService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -100,20 +98,18 @@ export class BrowserWindow extends Disposable {
 			// the workbench was shutdown while the page is still there,
 			// inform the user that only a reload can bring back a working
 			// state.
-			const res = await this.dialogService.show(
+			await this.dialogService.show(
 				Severity.Error,
 				localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
 				[
-					localize('reload', "Reload")
+					localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
 				],
 				{
 					detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running.")
 				}
 			);
 
-			if (res.choice === 0) {
-				window.location.reload(); // do not use any services at this point since they are likely not functional at this point
-			}
+			window.location.reload(); // do not use any services at this point since they are likely not functional at this point
 		});
 	}
 
@@ -168,8 +164,8 @@ export class BrowserWindow extends Disposable {
 								Severity.Warning,
 								localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
 								[
-									localize('open', "Open"),
-									localize('learnMore', "Learn More"),
+									localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+									localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
 									localize('cancel', "Cancel")
 								],
 								{
@@ -214,9 +210,8 @@ export class BrowserWindow extends Disposable {
 							this.productService.nameLong
 						);
 						const options = [
-							localize('openExternalDialogButtonClose.v2', "Close Tab"),
-							localize('openExternalDialogButtonRetry.v2', "Try Again"),
-							localize('openExternalDialogButtonInstall.v3', "Install"),
+							localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
+							localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
 							localize('openExternalDialogButtonCancel', "Cancel")
 						];
 						if (downloadUrl === undefined) {
@@ -240,10 +235,8 @@ export class BrowserWindow extends Disposable {
 						);
 
 						if (showResult.choice === 0) {
-							this.hostService.close();
-						} else if (showResult.choice === 1) {
 							invokeProtocolHandler();
-						} else if (showResult.choice === 2 && downloadUrl !== undefined) {
+						} else if (showResult.choice === 1 && downloadUrl !== undefined) {
 							await this.openerService.open(URI.parse(downloadUrl));
 
 							// Re-show the dialog so that the user can come back after installing and try again

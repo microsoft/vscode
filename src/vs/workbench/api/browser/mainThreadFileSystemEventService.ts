@@ -121,16 +121,21 @@ export class MainThreadFileSystemEventService {
 
 					if (needsConfirmation) {
 						// edit which needs confirmation -> always show dialog
-						const answer = await dialogService.show(Severity.Info, message, [localize('preview', "Show Preview"), localize('cancel', "Skip Changes")], { cancelId: 1 });
+						const { confirmed } = await dialogService.confirm({
+							type: Severity.Info,
+							message,
+							primaryButton: localize('preview', "Show &&Preview"),
+							cancelButton: localize('cancel', "Skip Changes")
+						});
 						showPreview = true;
-						if (answer.choice === 1) {
+						if (!confirmed) {
 							// no changes wanted
 							return;
 						}
 					} else {
 						// choice
 						const answer = await dialogService.show(Severity.Info, message,
-							[localize('ok', "OK"), localize('preview', "Show Preview"), localize('cancel', "Skip Changes")],
+							[localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"), localize({ key: 'preview', comment: ['&& denotes a mnemonic'] }, "Show &&Preview"), localize('cancel', "Skip Changes")],
 							{
 								cancelId: 2,
 								checkbox: { label: localize('again', "Don't ask again") }

@@ -415,7 +415,6 @@ export class NativeWindow extends Disposable {
 			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
 
 		const res = await dialogService.confirm({
-			type: 'question',
 			message,
 			primaryButton,
 			checkbox: {

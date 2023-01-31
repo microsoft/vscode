@@ -111,9 +111,9 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					this._productService.nameShort
 				),
 				[
-					localize('open', 'Open'),
-					localize('copy', 'Copy'),
-					localize('configureTrustedDomains', 'Configure Trusted Domains'),
+					localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, '&&Open'),
+					localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, '&&Copy'),
+					localize({ key: 'configureTrustedDomains', comment: ['&& denotes a mnemonic'] }, 'Configure &&Trusted Domains'),
 					localize('cancel', 'Cancel')
 				],
 				{

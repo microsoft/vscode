@@ -1231,7 +1231,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				},
-				type: 'question',
 				primaryButton: localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 

@@ -504,7 +504,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							detail: newQuality === 'insider' ?
 								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of VS Code.") :
 								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
-							primaryButton: nls.localize('reload', "&&Reload")
+							primaryButton: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
 						});
 
 						if (res.confirmed) {
@@ -539,8 +539,8 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						Severity.Info,
 						nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
 						[
-							nls.localize('use insiders', "Insiders"),
-							nls.localize('use stable', "Stable (current)"),
+							nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),
+							nls.localize({ key: 'use stable', comment: ['&& denotes a mnemonic'] }, "&&Stable (current)"),
 							nls.localize('cancel', "Cancel"),
 						],
 						{

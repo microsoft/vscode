@@ -490,11 +490,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 				const didNotifyPreview = storageService.getBoolean(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, StorageScope.APPLICATION, false);
 				if (!didNotifyPreview) {
-					const result = await dialogService.confirm({
+					const { confirmed } = await dialogService.confirm({
 						message: localize('tunnel.preview', 'Remote Tunnels is currently in preview. Please report any problems using the "Help: Report Issue" command.'),
-						primaryButton: localize('enable', 'Enable')
+						primaryButton: localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, '&&Enable')
 					});
-					if (!result.confirmed) {
+					if (!confirmed) {
 						return;
 					}
 
@@ -593,12 +593,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			}
 
 			async run() {
-				const result = await that.dialogService.confirm({
-					type: 'info',
-					message: localize('remoteTunnel.turnOff.confirm', 'Do you want to turn off Remote Tunnel Access?'),
-					primaryButton: localize('remoteTunnel.turnOff.yesButton', 'Yes'),
+				const { confirmed } = await that.dialogService.confirm({
+					message: localize('remoteTunnel.turnOff.confirm', 'Do you want to turn off Remote Tunnel Access?')
 				});
-				if (result.confirmed) {
+				if (confirmed) {
 					that.clearAuthenticationPreference();
 					that.remoteTunnelService.updateAccount(undefined);
 				}

@@ -946,8 +946,8 @@ export class UndoRedoService implements IUndoRedoService {
 				Severity.Info,
 				nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
 				[
-					nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1'] }, "Undo in {0} Files", editStackSnapshot.editStacks.length),
-					nls.localize('nok', "Undo this File"),
+					nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1, && denotes a mnemonic'] }, "&&Undo in {0} Files", editStackSnapshot.editStacks.length),
+					nls.localize({ key: 'nok', comment: ['&& denotes a mnemonic'] }, "Undo this &&File"),
 					nls.localize('cancel', "Cancel"),
 				],
 				{
@@ -1105,24 +1105,16 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	private async _confirmAndContinueUndo(strResource: string, sourceId: number, element: StackElement): Promise<void> {
-		const result = await this._dialogService.show(
-			Severity.Info,
-			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
-			[
-				nls.localize('confirmDifferentSource.yes', "Yes"),
-				nls.localize('confirmDifferentSource.no', "No"),
-			],
-			{
-				cancelId: 1
-			}
-		);
+		const result = await this._dialogService.confirm({
+			message: nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
+			primaryButton: nls.localize({ key: 'confirmDifferentSource.yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+			cancelButton: nls.localize('confirmDifferentSource.no', "No")
+		});
 
-		if (result.choice === 1) {
-			// choice: cancel
+		if (!result.confirmed) {
 			return;
 		}
 
-		// choice: undo
 		return this._undo(strResource, sourceId, true);
 	}
 

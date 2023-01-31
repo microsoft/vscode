@@ -254,10 +254,10 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
 			detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
-			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
-			type: 'warning'
+			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore")
 		});
 
 		if (!confirmed) {
@@ -468,10 +468,10 @@ registerAction2(class extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
 				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, toLocalHistoryEntryDateLabel(entry.timestamp)),
 				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
-				type: 'warning'
 			});
 
 			if (!confirmed) {
@@ -506,10 +506,10 @@ registerAction2(class extends Action2 {
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of all files in local history?"),
 			detail: localize('confirmDeleteAllDetail', "This action is irreversible!"),
 			primaryButton: localize({ key: 'deleteAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete All"),
-			type: 'warning'
 		});
 
 		if (!confirmed) {

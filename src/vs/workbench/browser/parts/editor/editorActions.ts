@@ -1553,10 +1553,10 @@ export class ClearRecentFilesAction extends Action {
 
 		// Ask for confirmation
 		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
 			detail: localize('confirmClearDetail', "This action is irreversible!"),
-			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-			type: 'warning'
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
 		});
 
 		if (!confirmed) {
@@ -1829,10 +1829,10 @@ export class ClearEditorHistoryAction extends Action {
 
 		// Ask for confirmation
 		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
 			detail: localize('confirmClearDetail', "This action is irreversible!"),
-			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-			type: 'warning'
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
 		});
 
 		if (!confirmed) {

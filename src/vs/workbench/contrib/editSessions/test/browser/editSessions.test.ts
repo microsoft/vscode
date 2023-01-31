@@ -87,6 +87,9 @@ suite('Edit session sync', () => {
 			override async show() {
 				return { choice: 1 };
 			}
+			override async confirm() {
+				return { confirmed: false };
+			}
 		});
 		instantiationService.stub(IRemoteAgentService, new class extends mock<IRemoteAgentService>() {
 			override async getEnvironment() {

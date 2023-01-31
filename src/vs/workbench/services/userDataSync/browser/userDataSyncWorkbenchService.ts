@@ -311,17 +311,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const turnOnSyncCancellationToken = this.turnOnSyncCancellationToken = new CancellationTokenSource();
 		const disposable = isWeb ? Disposable.None : this.lifecycleService.onBeforeShutdown(e => e.veto((async () => {
-			const result = await this.dialogService.confirm({
+			const { confirmed } = await this.dialogService.confirm({
 				type: 'warning',
 				message: localize('sync in progress', "Settings Sync is being turned on. Would you like to cancel it?"),
 				title: localize('settings sync', "Settings Sync"),
 				primaryButton: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 				cancelButton: localize('no', "No")
 			});
-			if (result.confirmed) {
+			if (confirmed) {
 				turnOnSyncCancellationToken.cancel();
 			}
-			return !result.confirmed;
+			return !confirmed;
 		})(), 'veto.settingsSync'));
 		try {
 			await this.doTurnOnSync(turnOnSyncCancellationToken.token);
@@ -403,9 +403,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			Severity.Warning,
 			localize('conflicts detected', "Conflicts Detected"),
 			[
-				localize('show conflicts', "Show Conflicts"),
-				localize('replace local', "Replace Local"),
-				localize('replace remote', "Replace Remote"),
+				localize({ key: 'show conflicts', comment: ['&& denotes a mnemonic'] }, "&&Show Conflicts"),
+				localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Replace &&Local"),
+				localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Replace &&Remote"),
 				localize('cancel', "Cancel"),
 			],
 			{
@@ -444,13 +444,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async resetSyncedData(): Promise<void> {
-		const result = await this.dialogService.confirm({
+		const { confirmed } = await this.dialogService.confirm({
 			message: localize('reset', "This will clear your data in the cloud and stop sync on all your devices."),
 			title: localize('reset title', "Clear"),
 			type: 'info',
 			primaryButton: localize({ key: 'resetButton', comment: ['&& denotes a mnemonic'] }, "&&Reset"),
 		});
-		if (result.confirmed) {
+		if (confirmed) {
 			await this.userDataSyncService.resetRemote();
 		}
 	}

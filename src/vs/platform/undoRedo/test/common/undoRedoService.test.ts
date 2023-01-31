@@ -141,6 +141,11 @@ suite('UndoRedoService', () => {
 					choice: 0 // confirm!
 				};
 			}
+			override async confirm() {
+				return {
+					confirmed: true // confirm!
+				};
+			}
 		});
 
 		let undoCall1 = 0, undoCall11 = 0, undoCall12 = 0;

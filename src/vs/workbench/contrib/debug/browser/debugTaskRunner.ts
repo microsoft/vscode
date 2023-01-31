@@ -92,7 +92,7 @@ export class DebugTaskRunner {
 						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
 						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
 
-			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('abort', "Abort")], {
+			const result = await this.dialogService.show(severity.Warning, message, [nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"), nls.localize({ key: 'showErrors', comment: ['&& denotes a mnemonic'] }, "&&Show Errors"), nls.localize('abort', "Abort")], {
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
 				},
@@ -126,7 +126,7 @@ export class DebugTaskRunner {
 				const showResult = await this.dialogService.show(
 					severity.Error,
 					err.message,
-					[nls.localize('debugAnyway', "Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
+					[nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
 					{
 						cancelId: 2,
 						checkbox: {

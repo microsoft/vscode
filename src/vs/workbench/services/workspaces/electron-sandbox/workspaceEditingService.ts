@@ -147,13 +147,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {
-			await this.dialogService.show(
-				Severity.Info,
+			await this.dialogService.info(
 				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspaceUri)),
-				undefined,
-				{
-					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-				}
+				localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
 			);
 
 			return false;

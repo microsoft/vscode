@@ -204,8 +204,8 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 			};
 
 			const actions: string[] = [
-				hasUnhandledConflicts ? localize('saveWithConflict', "Save With Conflicts") : localize('save', "Save"),
-				localize('discard', "Don't Save"),
+				hasUnhandledConflicts ? localize({ key: 'saveWithConflict', comment: ['&& denotes a mnemonic'] }, "&&Save With Conflicts") : localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+				localize({ key: 'discard', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
 				localize('cancel', "Cancel"),
 			];
 
@@ -236,20 +236,19 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 		// The file stays dirty from the first edit on.
 
 		(async () => {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize(
-					'saveTempFile',
-					"Do you want to accept the merge result? This will write the merge result to the original file and close the merge editor."
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize(
+					'saveTempFile.message',
+					"Do you want to accept the merge result?"
 				),
-				[
-					localize('acceptMerge', 'Accept Merge'),
-					localize('cancel', "Cancel"),
-				],
-				{ cancelId: 1 }
-			);
+				detail: localize(
+					'saveTempFile.detail',
+					"This will write the merge result to the original file and close the merge editor."
+				),
+				primaryButton: localize({ key: 'acceptMerge', comment: ['&& denotes a mnemonic'] }, '&&Accept Merge')
+			});
 
-			if (result.choice === 0) {
+			if (confirmed) {
 				await this.accept();
 				const editors = this.editorService.findEditors(this.resultUri).filter(e => e.editor.typeId === 'mergeEditor.Input');
 				await this.editorService.closeEditors(editors);
@@ -441,11 +440,11 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 			const actions: [string, ConfirmResult][] = [
 				[
 					someUnhandledConflicts
-						? localize('workspace.saveWithConflict', 'Save with Conflicts')
-						: localize('workspace.save', 'Save'),
+						? localize({ key: 'workspace.saveWithConflict', comment: ['&& denotes a mnemonic'] }, '&&Save with Conflicts')
+						: localize({ key: 'workspace.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
 					ConfirmResult.SAVE,
 				],
-				[localize('workspace.doNotSave', "Don't Save"), ConfirmResult.DONT_SAVE],
+				[localize({ key: 'workspace.doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"), ConfirmResult.DONT_SAVE],
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 
@@ -453,30 +452,18 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 			return actions[choice][1];
 
 		} else if (someUnhandledConflicts && !this._storageService.getBoolean(StorageCloseWithConflicts, StorageScope.PROFILE, false)) {
-			const message = isMany
-				? localize('workspace.messageN.nonDirty', 'Do you want to close {0} merge editors?', inputModels.length)
-				: localize('workspace.message1.nonDirty', 'Do you want to close the merge editor for {0}?', basename(inputModels[0].resultUri));
-			const options: IDialogOptions = {
-				detail:
-					someUnhandledConflicts ?
-						isMany
-							? localize('workspace.detailN.unhandled.nonDirty', "The files contain unhandled conflicts.")
-							: localize('workspace.detail1.unhandled.nonDirty', "The file contains unhandled conflicts.")
-						: undefined
-			};
-			const actions: [string, ConfirmResult][] = [
-				[
-					someUnhandledConflicts
-						? localize('workspace.closeWithConflicts', 'Close with Conflicts')
-						: localize('workspace.close', 'Close'),
-					ConfirmResult.SAVE,
-				],
-				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
-			];
-
-			const { choice, checkboxChecked } = await this._dialogService.show(Severity.Info, message, actions.map(a => a[0]), {
-				...options,
-				cancelId: actions.length - 1,
+			const { confirmed, checkboxChecked } = await this._dialogService.confirm({
+				message: isMany
+					? localize('workspace.messageN.nonDirty', 'Do you want to close {0} merge editors?', inputModels.length)
+					: localize('workspace.message1.nonDirty', 'Do you want to close the merge editor for {0}?', basename(inputModels[0].resultUri)),
+				detail: someUnhandledConflicts ?
+					isMany
+						? localize('workspace.detailN.unhandled.nonDirty', "The files contain unhandled conflicts.")
+						: localize('workspace.detail1.unhandled.nonDirty', "The file contains unhandled conflicts.")
+					: undefined,
+				primaryButton: someUnhandledConflicts
+					? localize({ key: 'workspace.closeWithConflicts', comment: ['&& denotes a mnemonic'] }, '&&Close with Conflicts')
+					: localize({ key: 'workspace.close', comment: ['&& denotes a mnemonic'] }, '&&Close'),
 				checkbox: { label: localize('noMoreWarn', "Don't ask again") }
 			});
 
@@ -484,7 +471,7 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 				this._storageService.store(StorageCloseWithConflicts, true, StorageScope.PROFILE, StorageTarget.USER);
 			}
 
-			return actions[choice][1];
+			return confirmed ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
 		} else {
 			// This shouldn't do anything
 			return ConfirmResult.SAVE;

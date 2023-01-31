@@ -104,7 +104,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			if (buttons.length > 0) {
 				buttons.push(nls.localize('cancel', "Cancel"));
 			} else {
-				buttons.push(nls.localize('ok', "OK"));
+				buttons.push(nls.localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"));
 			}
 
 			cancelId = buttons.length - 1;

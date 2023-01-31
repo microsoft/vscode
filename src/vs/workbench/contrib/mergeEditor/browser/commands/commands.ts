@@ -680,14 +680,13 @@ export class AcceptMerge extends MergeEditorAction2 {
 		const editorService = accessor.get(IEditorService);
 
 		if (viewModel.model.unhandledConflictsCount.get() > 0) {
-			const confirmResult = await dialogService.confirm({
-				type: 'info',
+			const { confirmed } = await dialogService.confirm({
 				message: localize('mergeEditor.acceptMerge.unhandledConflicts.message', "Do you want to complete the merge of {0}?", basename(inputModel.resultUri)),
 				detail: localize('mergeEditor.acceptMerge.unhandledConflicts.detail', "The file contains unhandled conflicts."),
-				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Complete with Conflicts")
+				primaryButton: localize({ key: 'mergeEditor.acceptMerge.unhandledConflicts.accept', comment: ['&& denotes a mnemonic'] }, "&&Complete with Conflicts")
 			});
 
-			if (!confirmResult.confirmed) {
+			if (!confirmed) {
 				return {
 					successful: false
 				};

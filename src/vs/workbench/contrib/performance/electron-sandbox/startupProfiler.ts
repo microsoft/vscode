@@ -82,7 +82,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-				primaryButton: localize('prof.restartAndFileIssue', "&&Create Issue and Restart"),
+				primaryButton: localize({ key: 'prof.restartAndFileIssue', comment: ['&& denotes a mnemonic'] }, "&&Create Issue and Restart"),
 				cancelButton: localize('prof.restart', "Restart")
 			}).then(res => {
 				if (res.confirmed) {
@@ -95,7 +95,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
-							primaryButton: localize('prof.restart.button', "&&Restart")
+							primaryButton: localize({ key: 'prof.restart.button', comment: ['&& denotes a mnemonic'] }, "&&Restart")
 						}).then(res => {
 							// now we are ready to restart
 							if (res.confirmed) {

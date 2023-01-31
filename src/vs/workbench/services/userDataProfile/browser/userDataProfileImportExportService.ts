@@ -273,11 +273,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (profileContentHandler.extensionId) {
 					const actions: string[] = [];
 					const link = this.productService.webUrl ? `${this.productService.webUrl}/${PROFILE_URL_AUTHORITY}/${id}/${saveResult.id}` : toUserDataProfileUri(`/${id}/${saveResult.id}`, this.productService).toString();
-					actions.push(localize('copy', "Copy Link"));
+					actions.push(localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy Link"));
 					if (this.productService.webUrl) {
-						actions.push(localize('open', "Open Link"));
+						actions.push(localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open Link"));
 					} else {
-						actions.push(localize('open in', "Open in {0}", profileContentHandler.name));
+						actions.push(localize({ key: 'open in', comment: ['&& denotes a mnemonic'] }, "&&Open in {0}", profileContentHandler.name));
 					}
 					actions.push(localize('close', "Close"));
 					const result = await this.dialogService.show(
@@ -547,7 +547,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const result = await this.dialogService.show(
 				Severity.Info,
 				localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileTemplate.name),
-				[localize('overwrite', "Overwrite"), localize('create new', "Create New Profile"), localize('cancel', "Cancel")],
+				[localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Overwrite"), localize({ key: 'create new', comment: ['&& denotes a mnemonic'] }, "&&Create New Profile"), localize('cancel', "Cancel")],
 				{ cancelId: 2 }
 			);
 			switch (result.choice) {
@@ -558,7 +558,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			// Create new profile
 			const name = await this.quickInputService.input({
 				placeHolder: localize('name', "Profile name"),
-				title: localize('create new', "Create New Profile"),
+				title: localize('create new title', "Create New Profile"),
 				value: `${profileTemplate.name} ${this.getProfileNameIndex(profileTemplate.name)}`,
 				validateInput: async (value: string) => {
 					if (this.userDataProfilesService.profiles.some(p => p.name === value)) {

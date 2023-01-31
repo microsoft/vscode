@@ -387,8 +387,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				Severity.Info,
 				extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
 				[
-					localize('install', "Install"),
-					localize('install and do no sync', "Install (Do not sync)"),
+					localize({ key: 'install', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+					localize({ key: 'install and do no sync', comment: ['&& denotes a mnemonic'] }, "Install (Do &&not sync)"),
 					localize('cancel', "Cancel"),
 				],
 				{
@@ -476,18 +476,18 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (nonWebExtensions.length && hasLimitedSupport) {
 			message = limitedSupportMessage;
 			detail = `${virtualWorkspaceSupportReason ? `${virtualWorkspaceSupportReason}\n` : ''}${localize('non web extensions detail', "Contains extensions which are not supported.")}`;
-			buttons = [localize('install anyways', "Install Anyway"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
+			buttons = [localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"), localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"), localize('cancel', "Cancel")];
 		}
 
 		else if (hasLimitedSupport) {
 			message = limitedSupportMessage;
 			detail = virtualWorkspaceSupportReason || undefined;
-			buttons = [localize('install anyways', "Install Anyway"), localize('cancel', "Cancel")];
+			buttons = [localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"), localize('cancel', "Cancel")];
 		}
 
 		else {
 			message = localize('non web extensions', "'{0}' contains extensions which are not supported in {1}.", extension.displayName || extension.identifier.id, productName);
-			buttons = [localize('install anyways', "Install Anyway"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
+			buttons = [localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"), localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"), localize('cancel', "Cancel")];
 		}
 
 		const { choice } = await this.dialogService.show(Severity.Info, message, buttons, { cancelId: buttons.length - 1, detail });

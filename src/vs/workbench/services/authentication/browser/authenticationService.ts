@@ -431,7 +431,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
-			[nls.localize('allow', "Allow"), nls.localize('deny', "Deny"), nls.localize('cancel', "Cancel")],
+			[
+				nls.localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
+				nls.localize({ key: 'deny', comment: ['&& denotes a mnemonic'] }, "&&Deny"),
+				nls.localize('cancel', "Cancel")
+			],
 			{
 				cancelId: 2
 			}

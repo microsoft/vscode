@@ -296,8 +296,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 							severity.Info,
 							enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
 							[
-								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-								nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
+								nls.localize({ key: 'removeLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Remove {0}", breakpointType),
+								nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize({ key: 'disable', comment: ['&& denotes a mnemonic'] }, "&&Disable") : nls.localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, "&&Enable"), breakpointType),
 								nls.localize('cancel', "Cancel")
 							],
 							{ cancelId: 2 },
