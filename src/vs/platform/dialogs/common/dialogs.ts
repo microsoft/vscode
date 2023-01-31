@@ -26,25 +26,25 @@ export interface IDialogArgs {
 	readonly showArgs?: IShowDialogArgs;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown> | IShowResult;
-
-export interface IConfirmDialogArgs {
-	readonly confirmation: IConfirmation;
-}
-
-export interface IConfirmation {
+export interface IBaseDialogOptions {
 	readonly type?: Severity | DialogType;
 
 	readonly title?: string;
 	readonly message: string;
 	readonly detail?: string;
 
-	readonly primaryButton?: string;
-	readonly cancelButton?: string;
-
 	readonly checkbox?: ICheckbox;
 
 	readonly custom?: boolean | ICustomDialogOptions;
+}
+
+export interface IConfirmDialogArgs {
+	readonly confirmation: IConfirmation;
+}
+
+export interface IConfirmation extends IBaseDialogOptions {
+	readonly primaryButton?: string;
+	readonly cancelButton?: string;
 }
 
 export interface IConfirmationResult extends ICheckboxResult {
@@ -84,21 +84,12 @@ export interface IPromptDialogArgs {
 export interface IPromptButton<T> {
 	readonly label: string;
 
-	run(): T | Promise<T>;
+	run(checkbox: ICheckboxResult): T | Promise<T>;
 }
 
-export interface IPrompt<T> {
-	readonly type?: Severity | DialogType;
-
-	readonly message: string;
-	readonly detail?: string;
-
+export interface IPrompt<T> extends IBaseDialogOptions {
 	readonly buttons?: IPromptButton<T>[];
 	readonly cancelButton?: IPromptButton<T>;
-
-	readonly checkbox?: ICheckbox;
-
-	readonly custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IPromptResult<T> extends ICheckboxResult {
@@ -125,6 +116,8 @@ export interface IShowDialogArgs {
 export interface IShowResult extends ICheckboxResult {
 	readonly choice: number;
 }
+
+export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown> | IShowResult;
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 

@@ -50,7 +50,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		const buttons = this.toPromptButtons(prompt);
 
 		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
-		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][button]?.run();
+		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][button]?.run({ checkboxChecked });
 
 		return { result, checkboxChecked };
 	}

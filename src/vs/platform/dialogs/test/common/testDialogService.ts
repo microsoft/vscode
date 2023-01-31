@@ -33,7 +33,7 @@ export class TestDialogService implements IDialogService {
 	}
 
 	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
-		return { result: await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run() };
+		return { result: await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run({ checkboxChecked: false }) };
 	}
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
 	async info(message: string): Promise<void> {

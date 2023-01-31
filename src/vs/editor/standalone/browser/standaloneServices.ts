@@ -229,7 +229,7 @@ class StandaloneDialogService implements IDialogService {
 		let result: T | undefined = undefined;
 		const confirmed = this.doConfirm(prompt.message, prompt.detail);
 		if (confirmed) {
-			result = await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run();
+			result = await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run({ checkboxChecked: false });
 		}
 
 		return { result };

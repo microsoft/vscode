@@ -49,6 +49,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			type: this.getDialogType(prompt.type),
+			title: prompt.title,
 			message: prompt.message,
 			detail: prompt.detail,
 			buttons,
@@ -58,7 +59,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		});
 
 		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
-		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][buttonIndexMap[response]]?.run();
+		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][buttonIndexMap[response]]?.run({ checkboxChecked });
 
 		return { result, checkboxChecked };
 	}
@@ -69,8 +70,8 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		const buttons = this.toConfirmationButtons(confirmation);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
-			title: confirmation.title,
 			type: this.getDialogType(confirmation.type) ?? 'question',
+			title: confirmation.title,
 			message: confirmation.message,
 			detail: confirmation.detail,
 			buttons,

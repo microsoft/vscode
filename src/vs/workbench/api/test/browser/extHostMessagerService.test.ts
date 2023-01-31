@@ -100,7 +100,7 @@ suite('ExtHostMessageService', function () {
 					assert.strictEqual(message, 'h');
 					assert.strictEqual(buttons!.length, 1);
 					assert.strictEqual(cancelButton!.label, 'Cancel');
-					return Promise.resolve({ result: buttons![0].run() });
+					return Promise.resolve({ result: buttons![0].run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 
@@ -111,7 +111,7 @@ suite('ExtHostMessageService', function () {
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				override prompt(prompt: IPrompt<any>) {
-					return Promise.resolve({ result: prompt.cancelButton!.run() });
+					return Promise.resolve({ result: prompt.cancelButton!.run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 
@@ -124,7 +124,7 @@ suite('ExtHostMessageService', function () {
 				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
 					assert.strictEqual(buttons!.length, 1);
 					assert.ok(!cancelButton);
-					return Promise.resolve({ result: buttons![0].run() });
+					return Promise.resolve({ result: buttons![0].run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 

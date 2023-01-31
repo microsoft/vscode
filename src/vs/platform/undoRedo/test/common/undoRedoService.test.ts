@@ -137,7 +137,7 @@ suite('UndoRedoService', () => {
 		const resource2 = URI.file('test2.txt');
 		const service = createUndoRedoService(new class extends mock<IDialogService>() {
 			override async prompt<T = any>(prompt: IPrompt<any>) {
-				const result = prompt.buttons?.[0].run();
+				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
 
 				return { result };
 			}

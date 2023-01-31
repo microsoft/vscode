@@ -85,7 +85,7 @@ suite('Edit session sync', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async prompt(prompt: IPrompt<any>) {
-				const result = prompt.buttons?.[0].run();
+				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
 				return { result };
 			}
 			override async show() {
