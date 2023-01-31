@@ -50,22 +50,20 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 	async $participateInSave(data: UriComponents, reason: SaveReason): Promise<boolean[]> {
 		const resource = URI.revive(data);
 
-		let didTimeout = false;
-		const didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
+		const deadline = Date.now() + this._thresholds.timeout;
 
 		const results: boolean[] = [];
-		try {
-			for (const listener of [...this._callbacks]) { // copy to prevent concurrent modifications
-				if (didTimeout) {
-					// timeout - no more listeners
-					break;
-				}
-				const document = this._documents.getDocument(resource);
-				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
-				results.push(success);
+		const listeners = [...this._callbacks]; // copy to prevent concurrent modifications
+		for (let i = 0; i < listeners.length; i++) {
+			if (Date.now() > deadline) {
+				// timeout - no more listeners
+				this._logService.warn(`onWillSaveTextDocument: STOPPING event delivery because overall timeout (${this._thresholds.timeout}ms) has been execeeded. Listeners from these extensions will be SKIPPED: ${listeners.slice(i).map(l => l[2].identifier.value).join(', ')}`);
+				break;
 			}
-		} finally {
-			clearTimeout(didTimeoutHandle);
+			const listener = listeners[i];
+			const document = this._documents.getDocument(resource);
+			const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
+			results.push(success);
 		}
 		return results;
 	}
@@ -91,7 +89,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);
 
 				if (typeof errors === 'number' && errors > this._thresholds.errors) {
-					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
+					this._logService.warn(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
 				}
 			}
 			return false;
