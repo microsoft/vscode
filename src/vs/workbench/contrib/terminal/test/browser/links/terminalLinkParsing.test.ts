@@ -289,6 +289,14 @@ suite('TerminalLinkParsing', () => {
 				[
 					{
 						path: {
+							index: 3,
+							text: 'C:\\Github\\microsoft\\vscode'
+						},
+						prefix: undefined,
+						suffix: undefined
+					},
+					{
+						path: {
 							index: 38,
 							text: 'foo'
 						},
@@ -304,14 +312,6 @@ suite('TerminalLinkParsing', () => {
 								text: '", line 5, col 6'
 							}
 						}
-					},
-					{
-						path: {
-							index: 3,
-							text: 'C:\\Github\\microsoft\\vscode'
-						},
-						prefix: undefined,
-						suffix: undefined
 					}
 				] as IParsedLink[]
 			);

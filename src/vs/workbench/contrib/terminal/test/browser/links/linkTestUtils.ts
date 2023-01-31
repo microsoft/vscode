@@ -9,7 +9,7 @@ import { IBufferLine } from 'xterm';
 
 export async function assertLinkHelper(
 	text: string,
-	expected: (Pick<ITerminalSimpleLink, 'text'> & { range: [number, number][] })[],
+	expected: ({ uri: string; range: [number, number][] })[],
 	detector: ITerminalLinkDetector,
 	expectedType: TerminalLinkType
 ) {
@@ -26,7 +26,7 @@ export async function assertLinkHelper(
 
 	const actualLinks = (await detector.detect(lines, 0, detector.xterm.buffer.active.cursorY)).map(e => {
 		return {
-			text: e.text,
+			uri: e.uri?.toString(),
 			type: expectedType,
 			bufferRange: e.bufferRange
 		};
@@ -34,7 +34,7 @@ export async function assertLinkHelper(
 	const expectedLinks = expected.map(e => {
 		return {
 			type: expectedType,
-			text: e.text,
+			uri: e.uri,
 			bufferRange: {
 				start: { x: e.range[0][0], y: e.range[0][1] },
 				end: { x: e.range[1][0], y: e.range[1][1] },

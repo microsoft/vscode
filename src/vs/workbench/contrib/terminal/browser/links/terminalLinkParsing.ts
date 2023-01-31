@@ -194,18 +194,57 @@ export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null 
 	};
 }
 
-// TODO: Handle ", ', [, ], etc.
-const linkWithSuffixPathCharacters = /(?<path>[^\s]+)$/;
+// Paths cannot start with opening brackets
+const linkWithSuffixPathCharacters = /(?<path>[^\s\[\({][^\s]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
 	const results = detectLinksViaSuffix(line);
 
-	// 2: Using the unused ranges, detect plain paths
-	// TODO: ...
-	results.push(...detectPathsNoSuffix(line, os));
+	// 2: Detect all links without suffixes and merge non-conflicting ranges into the results
+	const noSuffixPaths = detectPathsNoSuffix(line, os);
+	binaryInsertList(results, noSuffixPaths);
 
 	return results;
+}
+
+function binaryInsertList(list: IParsedLink[], newItems: IParsedLink[]) {
+	if (list.length === 0) {
+		list.push(...newItems);
+	}
+	for (const item of newItems) {
+		binaryInsert(list, item, 0, list.length);
+	}
+}
+
+function binaryInsert(list: IParsedLink[], newItem: IParsedLink, low: number, high: number) {
+	if (list.length === 0) {
+		list.push(newItem);
+		return;
+	}
+	if (low > high) {
+		return;
+	}
+	// Find the index where the newItem would be inserted
+	const mid = Math.floor((low + high) / 2);
+	if (
+		mid >= list.length ||
+		(newItem.path.index < list[mid].path.index && (mid === 0 || newItem.path.index > list[mid - 1].path.index))
+	) {
+		// Check if it conflicts with an existing link before adding
+		if (
+			mid >= list.length ||
+			(newItem.path.index + newItem.path.text.length < list[mid].path.index && (mid === 0 || newItem.path.index > list[mid - 1].path.index + list[mid - 1].path.text.length))
+		) {
+			list.splice(mid, 0, newItem);
+		}
+		return;
+	}
+	if (newItem.path.index > list[mid].path.index) {
+		binaryInsert(list, newItem, mid + 1, high);
+	} else {
+		binaryInsert(list, newItem, low, mid - 1);
+	}
 }
 
 function detectLinksViaSuffix(line: string): IParsedLink[] {
@@ -268,17 +307,20 @@ const enum RegexPathConstants {
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
 	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\'":;\\\\]',
+	ExcludedStartPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]',
+
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',
 	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
+	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
 }
 
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
+export const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 /** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
+export const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
 function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	const results: IParsedLink[] = [];
