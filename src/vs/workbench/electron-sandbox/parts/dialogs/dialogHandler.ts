@@ -52,7 +52,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			message: prompt.message,
 			detail: prompt.detail,
 			buttons,
-			cancelId: buttons.length - 1,
+			cancelId: prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */,
 			checkboxLabel: prompt.checkbox?.label,
 			checkboxChecked: prompt.checkbox?.checked
 		});

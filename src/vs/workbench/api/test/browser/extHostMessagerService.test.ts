@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPrompt } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
@@ -95,12 +95,12 @@ suite('ExtHostMessageService', function () {
 	suite('modal', () => {
 		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show(severity: Severity, message: string, buttons: string[]) {
-					assert.strictEqual(severity, 1);
+				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
+					assert.strictEqual(type, 'info');
 					assert.strictEqual(message, 'h');
-					assert.strictEqual(buttons.length, 2);
-					assert.strictEqual(buttons[1], 'Cancel');
-					return Promise.resolve({ choice: 0 });
+					assert.strictEqual(buttons!.length, 1);
+					assert.strictEqual(cancelButton!.label, 'Cancel');
+					return Promise.resolve({ result: buttons![0].run() });
 				}
 			} as IDialogService);
 
@@ -110,8 +110,8 @@ suite('ExtHostMessageService', function () {
 
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show() {
-					return Promise.resolve({ choice: 1 });
+				override prompt(prompt: IPrompt<any>) {
+					return Promise.resolve({ result: prompt.cancelButton!.run() });
 				}
 			} as IDialogService);
 
@@ -121,9 +121,10 @@ suite('ExtHostMessageService', function () {
 
 		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show(severity: Severity, message: string, buttons: string[]) {
-					assert.strictEqual(buttons.length, 1);
-					return Promise.resolve({ choice: 0 });
+				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
+					assert.strictEqual(buttons!.length, 1);
+					assert.ok(!cancelButton);
+					return Promise.resolve({ result: buttons![0].run() });
 				}
 			} as IDialogService);
 

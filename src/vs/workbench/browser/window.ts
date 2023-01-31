@@ -16,7 +16,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -98,18 +98,17 @@ export class BrowserWindow extends Disposable {
 			// the workbench was shutdown while the page is still there,
 			// inform the user that only a reload can bring back a working
 			// state.
-			await this.dialogService.show(
-				Severity.Error,
-				localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
-				[
-					localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
-				],
-				{
-					detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running.")
-				}
-			);
-
-			window.location.reload(); // do not use any services at this point since they are likely not functional at this point
+			await this.dialogService.prompt({
+				type: Severity.Error,
+				message: localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
+				detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running."),
+				buttons: [
+					{
+						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
+						run: () => window.location.reload() // do not use any services at this point since they are likely not functional at this point
+					}
+				]
+			});
 		});
 	}
 
@@ -160,29 +159,25 @@ export class BrowserWindow extends Disposable {
 					if (isSafari) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
-							const showResult = await this.dialogService.show(
-								Severity.Warning,
-								localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-								[
-									localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
-									localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
-									localize('cancel', "Cancel")
+							await this.dialogService.prompt({
+								type: Severity.Warning,
+								message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+								detail: href,
+								buttons: [
+									{
+										label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
+									},
+									{
+										label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+										run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
+									}
 								],
-								{
-									cancelId: 2,
-									detail: href
+								cancelButton: {
+									label: localize('cancel', "Cancel"),
+									run: () => { }
 								}
-							);
-
-							if (showResult.choice === 0) {
-								isAllowedOpener
-									? windowOpenPopup(href)
-									: windowOpenNoOpener(href);
-							}
-
-							if (showResult.choice === 1) {
-								await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
-							}
+							});
 						}
 					} else {
 						isAllowedOpener
@@ -209,13 +204,23 @@ export class BrowserWindow extends Disposable {
 							this.productService.nameLong,
 							this.productService.nameLong
 						);
-						const options = [
-							localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
-							localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
-							localize('openExternalDialogButtonCancel', "Cancel")
+						const buttons: IPromptButton<void>[] = [
+							{
+								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
+								run: () => invokeProtocolHandler()
+							}
 						];
-						if (downloadUrl === undefined) {
-							options.splice(2, 1);
+						if (downloadUrl !== undefined) {
+							buttons.push({
+								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+								run: async () => {
+									await this.openerService.open(URI.parse(downloadUrl));
+
+									// Re-show the dialog so that the user can come back after installing and try again
+									showProtocolUrlOpenedDialog();
+								}
+							});
+						} else {
 							detail = localize(
 								'openExternalDialogDetailNoInstall',
 								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
@@ -224,24 +229,16 @@ export class BrowserWindow extends Disposable {
 							);
 						}
 
-						const showResult = await this.dialogService.show(
-							Severity.Info,
-							localize('openExternalDialogTitle', "All done. You can close this tab now."),
-							options,
-							{
-								cancelId: downloadUrl === undefined ? 2 : 3,
-								detail
-							},
-						);
-
-						if (showResult.choice === 0) {
-							invokeProtocolHandler();
-						} else if (showResult.choice === 1 && downloadUrl !== undefined) {
-							await this.openerService.open(URI.parse(downloadUrl));
-
-							// Re-show the dialog so that the user can come back after installing and try again
-							showProtocolUrlOpenedDialog();
-						}
+						await this.dialogService.prompt({
+							type: Severity.Info,
+							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
+							detail,
+							buttons,
+							cancelButton: {
+								label: localize('cancel', "Cancel"),
+								run: () => { }
+							}
+						});
 					};
 
 					// We cannot know whether the protocol handler succeeded.

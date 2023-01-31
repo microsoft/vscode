@@ -111,30 +111,46 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			];
 
 			// Dialog
-			const result = await this.dialogService.show(
-				Severity.Info,
-				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
+			enum Choice {
+				Open = 0,
+				NewWindow = 1,
+				Cancel = 2
+			}
+			const { result, checkboxChecked } = await this.dialogService.prompt<Choice>({
+				type: Severity.Info,
+				message: this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 					localize('openLooseFileWorkspaceMesssage', "Do you want to allow untrusted files in this workspace?") :
 					localize('openLooseFileWindowMesssage', "Do you want to allow untrusted files in this window?"),
-				[localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"), localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "Open in &&Restricted Mode"), localize('cancel', "Cancel")],
-				{
-					cancelId: 2,
-					checkbox: {
-						label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
-						checked: false
+				buttons: [
+					{
+						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+						run: () => Choice.Open
 					},
-					custom: {
-						icon: Codicon.shield,
-						markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+					{
+						label: localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "Open in &&Restricted Mode"),
+						run: () => Choice.NewWindow
 					}
-				});
+				],
+				cancelButton: {
+					label: localize('cancel', "Cancel"),
+					run: () => Choice.Cancel
+				},
+				checkbox: {
+					label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
+					checked: false
+				},
+				custom: {
+					icon: Codicon.shield,
+					markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+				}
+			});
 
-			switch (result.choice) {
-				case 0:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Open, !!result.checkboxChecked);
+			switch (result) {
+				case Choice.Open:
+					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Open, !!checkboxChecked);
 					break;
-				case 1:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.OpenInNewWindow, !!result.checkboxChecked);
+				case Choice.NewWindow:
+					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.OpenInNewWindow, !!checkboxChecked);
 					break;
 				default:
 					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Cancel);

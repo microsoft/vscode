@@ -428,21 +428,27 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const providerName = this.getLabel(providerId);
-		const { choice } = await this.dialogService.show(
-			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
-			[
-				nls.localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
-				nls.localize({ key: 'deny', comment: ['&& denotes a mnemonic'] }, "&&Deny"),
-				nls.localize('cancel', "Cancel")
+		const { result } = await this.dialogService.prompt<boolean | undefined>({
+			type: Severity.Info,
+			message: nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
+			buttons: [
+				{
+					label: nls.localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
+					run: () => true
+				},
+				{
+					label: nls.localize({ key: 'deny', comment: ['&& denotes a mnemonic'] }, "&&Deny"),
+					run: () => false
+				}
 			],
-			{
-				cancelId: 2
+			cancelButton: {
+				label: nls.localize('cancel', "Cancel"),
+				run: () => false
 			}
-		);
+		});
 
-		const cancelled = choice === 2;
-		const allowed = choice === 0;
+		const cancelled = result === undefined;
+		const allowed = result === true;
 		if (!cancelled) {
 			this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
 			this.removeAccessRequest(providerId, extensionId);

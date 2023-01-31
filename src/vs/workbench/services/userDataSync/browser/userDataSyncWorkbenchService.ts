@@ -399,32 +399,46 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async handleConflictsWhileTurningOn(token: CancellationToken): Promise<void> {
-		const result = await this.dialogService.show(
-			Severity.Warning,
-			localize('conflicts detected', "Conflicts Detected"),
-			[
-				localize({ key: 'show conflicts', comment: ['&& denotes a mnemonic'] }, "&&Show Conflicts"),
-				localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Replace &&Local"),
-				localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Replace &&Remote"),
-				localize('cancel', "Cancel"),
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			message: localize('conflicts detected', "Conflicts Detected"),
+			detail: localize('resolve', "Please resolve conflicts to turn on..."),
+			buttons: [
+				{
+					label: localize({ key: 'show conflicts', comment: ['&& denotes a mnemonic'] }, "&&Show Conflicts"),
+					run: async () => {
+						const waitUntilConflictsAreResolvedPromise = raceCancellationError(Event.toPromise(Event.filter(this.userDataSyncService.onDidChangeConflicts, conficts => conficts.length === 0)), token);
+						await this.showConflicts(this.userDataSyncService.conflicts[0]?.conflicts[0]);
+						await waitUntilConflictsAreResolvedPromise;
+					}
+				},
+				{
+					label: localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Replace &&Local"),
+					run: async () => {
+						await this.replace(true);
+					}
+				},
+				{
+					label: localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Replace &&Remote"),
+					run: async () => {
+						this.replace(false);
+					}
+				},
 			],
-			{
-				detail: localize('resolve', "Please resolve conflicts to turn on..."),
-				cancelId: 3
-			}
-		);
-		if (result.choice === 0) {
-			const waitUntilConflictsAreResolvedPromise = raceCancellationError(Event.toPromise(Event.filter(this.userDataSyncService.onDidChangeConflicts, conficts => conficts.length === 0)), token);
-			await this.showConflicts(this.userDataSyncService.conflicts[0]?.conflicts[0]);
-			await waitUntilConflictsAreResolvedPromise;
-		} else if (result.choice === 1 || result.choice === 2) {
-			for (const conflict of this.userDataSyncService.conflicts) {
-				for (const preview of conflict.conflicts) {
-					await this.accept({ syncResource: conflict.syncResource, profile: conflict.profile }, result.choice === 1 ? preview.remoteResource : preview.localResource, undefined, { force: true });
+			cancelButton: {
+				label: localize('cancel', "Cancel"),
+				run: () => {
+					throw new CancellationError();
 				}
 			}
-		} else {
-			throw new CancellationError();
+		});
+	}
+
+	private async replace(local: boolean) {
+		for (const conflict of this.userDataSyncService.conflicts) {
+			for (const preview of conflict.conflicts) {
+				await this.accept({ syncResource: conflict.syncResource, profile: conflict.profile }, local ? preview.remoteResource : preview.localResource, undefined, { force: true });
+			}
 		}
 	}
 

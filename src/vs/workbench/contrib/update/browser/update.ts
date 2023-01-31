@@ -535,20 +535,26 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 				}
 
 				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
-					const res = await dialogService.show(
-						Severity.Info,
-						nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
-						[
-							nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),
-							nls.localize({ key: 'use stable', comment: ['&& denotes a mnemonic'] }, "&&Stable (current)"),
-							nls.localize('cancel', "Cancel"),
+					const { result } = await dialogService.prompt<UserDataSyncStoreType | undefined>({
+						type: Severity.Info,
+						message: nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
+						detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+						buttons: [
+							{
+								label: nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),
+								run: () => 'insiders'
+							},
+							{
+								label: nls.localize({ key: 'use stable', comment: ['&& denotes a mnemonic'] }, "&&Stable (current)"),
+								run: () => 'stable'
+							}
 						],
-						{
-							detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
-							cancelId: 2
+						cancelButton: {
+							label: nls.localize('cancel', "Cancel"),
+							run: () => undefined
 						}
-					);
-					return res.choice === 0 ? 'insiders' : res.choice === 1 ? 'stable' : undefined;
+					});
+					return result;
 				}
 			});
 		}

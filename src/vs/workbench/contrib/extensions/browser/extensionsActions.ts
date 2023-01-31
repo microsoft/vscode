@@ -46,7 +46,7 @@ import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkben
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
@@ -335,44 +335,55 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		if (this.extension.deprecationInfo) {
 			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			let action: () => Promise<any> = async () => undefined;
-			const buttons = [
-				localize({ key: 'install anyway', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
-				localize('cancel', "Cancel"),
+			const buttons: IPromptButton<number | undefined>[] = [
+				{
+					label: localize({ key: 'install anyway', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
+					run: () => 0
+				}
 			];
 
 			if (this.extension.deprecationInfo.extension) {
 				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", this.extension.deprecationInfo.extension.displayName);
-				buttons.splice(1, 0, localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName));
+				buttons.push({
+					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName),
+					run: () => 1
+				});
 				const alternateExtension = this.extension.deprecationInfo.extension;
 				action = () => this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None)
 					.then(([extension]) => this.extensionsWorkbenchService.open(extension));
 			} else if (this.extension.deprecationInfo.settings) {
 				detail = localize('deprecated with alternate settings message', "This extension is deprecated as this functionality is now built-in to VS Code.");
-				buttons.splice(1, 0, localize({ key: 'configure in settings', comment: ['&& denotes a mnemonic'] }, "&&Configure Settings"));
+				buttons.push({
+					label: localize({ key: 'configure in settings', comment: ['&& denotes a mnemonic'] }, "&&Configure Settings"),
+					run: () => 2
+				});
 				const settings = this.extension.deprecationInfo.settings;
 				action = () => this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
 			} else if (this.extension.deprecationInfo.additionalInfo) {
 				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
 			}
 
-			const result = await this.dialogService.show(
-				Severity.Warning,
-				localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
-				buttons,
-				{
-					detail: isString(detail) ? detail : undefined,
-					cancelId: buttons.length - 1,
-					custom: isString(detail) ? undefined : {
-						markdownDetails: [{
-							markdown: detail
-						}]
-					}
+			const { result } = await this.dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
+				detail: isString(detail) ? detail : undefined,
+				custom: isString(detail) ? undefined : {
+					markdownDetails: [{
+						markdown: detail
+					}]
 				},
-			);
-			if (result.choice === 1) {
+				buttons: [
+
+				],
+				cancelButton: {
+					label: localize('cancel', "Cancel"),
+					run: () => undefined
+				}
+			});
+			if (result === 1) {
 				return action();
 			}
-			if (result.choice === 2) {
+			if (result === 2) {
 				return;
 			}
 		}

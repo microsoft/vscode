@@ -323,22 +323,30 @@ registerAction2(class extends Action2 {
 	}
 
 	private async _checkForBad(dialogService: IDialogService, bisectService: IExtensionBisectService): Promise<boolean | undefined | null> {
-		const options = {
-			cancelId: 3,
+		const { result } = await dialogService.prompt<boolean | undefined | null>({
+			type: Severity.Info,
+			message: localize('msg.next', "Extension Bisect"),
 			detail: localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", bisectService.disabledCount),
-		};
-		const res = await dialogService.show(
-			Severity.Info,
-			localize('msg.next', "Extension Bisect"),
-			[localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "&&Good now"), localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "This is &&bad"), localize({ key: 'next.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Bisect"), localize('next.cancel', "Cancel")],
-			options
-		);
-		switch (res.choice) {
-			case 0: return false; //good now
-			case 1: return true; //bad
-			case 2: return undefined; //stop
-		}
-		return null; //cancel
+			buttons: [
+				{
+					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "&&Good now"),
+					run: () => false // good now
+				},
+				{
+					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "This is &&bad"),
+					run: () => true // bad
+				},
+				{
+					label: localize({ key: 'next.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Bisect"),
+					run: () => undefined // stop
+				}
+			],
+			cancelButton: {
+				label: localize({ key: 'next.cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel Bisect"),
+				run: () => null // cancel
+			}
+		});
+		return result;
 	}
 });
 

@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { ConfirmResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ConfirmResult, IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -191,8 +191,20 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 
 			const hasUnhandledConflicts = inputModels.some((m) => m.model.hasUnhandledConflicts.get());
 
-			const options: IDialogOptions = {
-				cancelId: 2,
+			const buttons: IPromptButton<number>[] = [
+				{
+					label: hasUnhandledConflicts ? localize({ key: 'saveWithConflict', comment: ['&& denotes a mnemonic'] }, "&&Save With Conflicts") : localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+					run: () => 0
+				},
+				{
+					label: localize({ key: 'discard', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+					run: () => 1
+				}
+			];
+
+			choice = (await this.dialogService.prompt<number>({
+				type: Severity.Info,
+				message,
 				detail:
 					hasUnhandledConflicts
 						? isMany
@@ -200,16 +212,13 @@ class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorI
 							: localize('detail1Conflicts', "The file contains unhandled conflicts. The merge result will be lost if you don't save it.")
 						: isMany
 							? localize('detailN', "The merge results will be lost if you don't save them.")
-							: localize('detail1', "The merge result will be lost if you don't save it.")
-			};
-
-			const actions: string[] = [
-				hasUnhandledConflicts ? localize({ key: 'saveWithConflict', comment: ['&& denotes a mnemonic'] }, "&&Save With Conflicts") : localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-				localize({ key: 'discard', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
-				localize('cancel', "Cancel"),
-			];
-
-			choice = (await this.dialogService.show(Severity.Info, message, actions, options)).choice;
+							: localize('detail1', "The merge result will be lost if you don't save it."),
+				buttons,
+				cancelButton: {
+					label: localize('cancel', "Cancel"),
+					run: () => 2
+				}
+			})).result!;
 		} else {
 			choice = 1;
 		}
@@ -427,7 +436,26 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 			const message = isMany
 				? localize('workspace.messageN', 'Do you want to save the changes you made to {0} files?', inputModels.length)
 				: localize('workspace.message1', 'Do you want to save the changes you made to {0}?', basename(inputModels[0].resultUri));
-			const options: IDialogOptions = {
+			const buttons: IPromptButton<ConfirmResult>[] = [
+				{
+					label: someUnhandledConflicts
+						? localize({ key: 'workspace.saveWithConflict', comment: ['&& denotes a mnemonic'] }, '&&Save with Conflicts')
+						: localize({ key: 'workspace.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
+					run: () => {
+						return ConfirmResult.SAVE;
+					}
+				},
+				{
+					label: localize({ key: 'workspace.doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+					run: () => {
+						return ConfirmResult.DONT_SAVE;
+					}
+				}
+			];
+
+			const { result } = await this._dialogService.prompt({
+				type: Severity.Info,
+				message,
 				detail:
 					someUnhandledConflicts ?
 						isMany
@@ -435,21 +463,14 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 							: localize('workspace.detail1.unhandled', "The file contains unhandled conflicts. Your changes will be lost if you don't save them.")
 						: isMany
 							? localize('workspace.detailN.handled', "Your changes will be lost if you don't save them.")
-							: localize('workspace.detail1.handled', "Your changes will be lost if you don't save them.")
-			};
-			const actions: [string, ConfirmResult][] = [
-				[
-					someUnhandledConflicts
-						? localize({ key: 'workspace.saveWithConflict', comment: ['&& denotes a mnemonic'] }, '&&Save with Conflicts')
-						: localize({ key: 'workspace.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
-					ConfirmResult.SAVE,
-				],
-				[localize({ key: 'workspace.doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"), ConfirmResult.DONT_SAVE],
-				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
-			];
-
-			const { choice } = await this._dialogService.show(Severity.Info, message, actions.map(a => a[0]), { ...options, cancelId: actions.length - 1 });
-			return actions[choice][1];
+							: localize('workspace.detail1.handled', "Your changes will be lost if you don't save them."),
+				buttons,
+				cancelButton: {
+					label: localize('workspace.cancel', 'Cancel'),
+					run: () => ConfirmResult.CANCEL
+				}
+			});
+			return result!;
 
 		} else if (someUnhandledConflicts && !this._storageService.getBoolean(StorageCloseWithConflicts, StorageScope.PROFILE, false)) {
 			const { confirmed, checkboxChecked } = await this._dialogService.confirm({

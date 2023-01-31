@@ -134,19 +134,36 @@ export class MainThreadFileSystemEventService {
 						}
 					} else {
 						// choice
-						const answer = await dialogService.show(Severity.Info, message,
-							[localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"), localize({ key: 'preview', comment: ['&& denotes a mnemonic'] }, "Show &&Preview"), localize('cancel', "Skip Changes")],
-							{
-								cancelId: 2,
-								checkbox: { label: localize('again', "Don't ask again") }
-							}
-						);
-						if (answer.choice === 2) {
+						enum Choice {
+							OK = 0,
+							Preview = 1,
+							Skip = 2
+						}
+						const { result, checkboxChecked } = await dialogService.prompt<Choice>({
+							type: Severity.Info,
+							message,
+							buttons: [
+								{
+									label: localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+									run: () => Choice.OK
+								},
+								{
+									label: localize({ key: 'preview', comment: ['&& denotes a mnemonic'] }, "Show &&Preview"),
+									run: () => Choice.Preview
+								}
+							],
+							cancelButton: {
+								label: localize('cancel', "Skip Changes"),
+								run: () => Choice.Skip
+							},
+							checkbox: { label: localize('again', "Don't ask again") }
+						});
+						if (result === Choice.Skip) {
 							// no changes wanted, don't persist cancel option
 							return;
 						}
-						showPreview = answer.choice === 1;
-						if (answer.checkboxChecked /* && answer.choice !== 2 */) {
+						showPreview = result === Choice.Preview;
+						if (checkboxChecked /* && answer.choice !== Choice.Skip */) {
 							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}

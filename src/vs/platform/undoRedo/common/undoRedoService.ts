@@ -942,25 +942,37 @@ export class UndoRedoService implements IUndoRedoService {
 		if (element.canSplit() && !this._isPartOfUndoGroup(element)) {
 			// this element can be split
 
-			const result = await this._dialogService.show(
-				Severity.Info,
-				nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
-				[
-					nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1, && denotes a mnemonic'] }, "&&Undo in {0} Files", editStackSnapshot.editStacks.length),
-					nls.localize({ key: 'nok', comment: ['&& denotes a mnemonic'] }, "Undo this &&File"),
-					nls.localize('cancel', "Cancel"),
-				],
-				{
-					cancelId: 2
-				}
-			);
+			enum UndoChoice {
+				All = 0,
+				This = 1,
+				Cancel = 2
+			}
 
-			if (result.choice === 2) {
+			const { result } = await this._dialogService.prompt<UndoChoice>({
+				type: Severity.Info,
+				message: nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
+				buttons: [
+					{
+						label: nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1, && denotes a mnemonic'] }, "&&Undo in {0} Files", editStackSnapshot.editStacks.length),
+						run: () => UndoChoice.All
+					},
+					{
+						label: nls.localize({ key: 'nok', comment: ['&& denotes a mnemonic'] }, "Undo this &&File"),
+						run: () => UndoChoice.This
+					}
+				],
+				cancelButton: {
+					label: nls.localize('cancel', "Cancel"),
+					run: () => UndoChoice.Cancel
+				}
+			});
+
+			if (result === UndoChoice.Cancel) {
 				// choice: cancel
 				return;
 			}
 
-			if (result.choice === 1) {
+			if (result === UndoChoice.This) {
 				// choice: undo this file
 				this._splitPastWorkspaceElement(element, null);
 				return this._undo(strResource, 0, true);

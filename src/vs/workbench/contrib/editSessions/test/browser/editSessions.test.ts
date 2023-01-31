@@ -35,7 +35,7 @@ import { Event } from 'vs/base/common/event';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPrompt } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService, ISaveAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -84,6 +84,10 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async prompt(prompt: IPrompt<any>) {
+				const result = prompt.buttons?.[0].run();
+				return { result };
+			}
 			override async show() {
 				return { choice: 1 };
 			}

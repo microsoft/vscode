@@ -92,18 +92,38 @@ export class DebugTaskRunner {
 						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
 						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
 
-			const result = await this.dialogService.show(severity.Warning, message, [nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"), nls.localize({ key: 'showErrors', comment: ['&& denotes a mnemonic'] }, "&&Show Errors"), nls.localize('abort', "Abort")], {
+			enum Choice {
+				DebugAnyway = 1,
+				ShowErrors = 2,
+				Abort = 0
+			}
+			const { result, checkboxChecked } = await this.dialogService.prompt<Choice>({
+				type: severity.Warning,
+				message,
+				buttons: [
+					{
+						label: nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"),
+						run: () => Choice.DebugAnyway
+					},
+					{
+						label: nls.localize({ key: 'showErrors', comment: ['&& denotes a mnemonic'] }, "&&Show Errors"),
+						run: () => Choice.ShowErrors
+					}
+				],
+				cancelButton: {
+					label: nls.localize('abort', "Abort"),
+					run: () => Choice.Abort
+				},
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
-				},
-				cancelId: 2
+				}
 			});
 
 
-			const debugAnyway = result.choice === 0;
-			const abort = result.choice === 2;
-			if (result.checkboxChecked) {
-				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
+			const debugAnyway = result === Choice.DebugAnyway;
+			const abort = result === Choice.Abort;
+			if (checkboxChecked) {
+				this.configurationService.updateValue('debug.onTaskErrors', result === Choice.DebugAnyway ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
 			}
 
 			if (abort) {
@@ -123,19 +143,29 @@ export class DebugTaskRunner {
 			if (choiceMap[err.message] !== undefined) {
 				choice = choiceMap[err.message];
 			} else {
-				const showResult = await this.dialogService.show(
-					severity.Error,
-					err.message,
-					[nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
-					{
-						cancelId: 2,
-						checkbox: {
-							label: nls.localize('rememberTask', "Remember my choice for this task")
+				const { result, checkboxChecked } = await this.dialogService.prompt<number>({
+					type: severity.Error,
+					message: err.message,
+					buttons: [
+						{
+							label: nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"),
+							run: () => 0
+						},
+						{
+							label: taskConfigureAction.label,
+							run: () => 1
 						}
+					],
+					cancelButton: {
+						label: nls.localize('cancel', "Cancel"),
+						run: () => 2
+					},
+					checkbox: {
+						label: nls.localize('rememberTask', "Remember my choice for this task")
 					}
-				);
-				choice = showResult.choice;
-				if (showResult.checkboxChecked) {
+				});
+				choice = result!;
+				if (checkboxChecked) {
 					choiceMap[err.message] = choice;
 					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.USER);
 				}

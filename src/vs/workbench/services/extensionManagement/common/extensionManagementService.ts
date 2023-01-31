@@ -19,7 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { flatten } from 'vs/base/common/arrays';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
@@ -383,27 +383,32 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	private async hasToFlagExtensionsMachineScoped(extensions: IGalleryExtension[]): Promise<boolean> {
 		if (this.isExtensionsSyncEnabled()) {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
-				[
-					localize({ key: 'install', comment: ['&& denotes a mnemonic'] }, "&&Install"),
-					localize({ key: 'install and do no sync', comment: ['&& denotes a mnemonic'] }, "Install (Do &&not sync)"),
-					localize('cancel', "Cancel"),
+			const { result } = await this.dialogService.prompt<boolean | undefined>({
+				type: Severity.Info,
+				message: extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
+				detail: extensions.length === 1
+					? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
+					: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?"),
+				buttons: [
+					{
+						label: localize({ key: 'install', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+						run: () => false
+					},
+					{
+						label: localize({ key: 'install and do no sync', comment: ['&& denotes a mnemonic'] }, "Install (Do &&not sync)"),
+						run: () => true
+					}
 				],
-				{
-					cancelId: 2,
-					detail: extensions.length === 1
-						? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
-						: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
+				cancelButton: {
+					label: localize('cancel', "Cancel"),
+					run: () => { return undefined; }
 				}
-			);
-			switch (result.choice) {
-				case 0:
-					return false;
-				case 1:
-					return true;
+			});
+
+			if (typeof result === 'boolean') {
+				return result;
 			}
+
 			throw new CancellationError();
 		}
 		return false;
@@ -471,35 +476,58 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		const limitedSupportMessage = localize('limited support', "'{0}' has limited functionality in {1}.", extension.displayName || extension.identifier.id, productName);
-		let message: string, buttons: string[], detail: string | undefined;
+		let message: string;
+		let buttons: IPromptButton<void>[] = [];
+		let detail: string | undefined;
 
 		if (nonWebExtensions.length && hasLimitedSupport) {
 			message = limitedSupportMessage;
 			detail = `${virtualWorkspaceSupportReason ? `${virtualWorkspaceSupportReason}\n` : ''}${localize('non web extensions detail', "Contains extensions which are not supported.")}`;
-			buttons = [localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"), localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"), localize('cancel', "Cancel")];
+			buttons = [
+				{
+					label: localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
+					run: () => { }
+				},
+				{
+					label: localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"),
+					run: () => this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'))
+				}
+			];
 		}
 
 		else if (hasLimitedSupport) {
 			message = limitedSupportMessage;
 			detail = virtualWorkspaceSupportReason || undefined;
-			buttons = [localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"), localize('cancel', "Cancel")];
+			buttons = [{
+				label: localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
+				run: () => { }
+			}];
 		}
 
 		else {
 			message = localize('non web extensions', "'{0}' contains extensions which are not supported in {1}.", extension.displayName || extension.identifier.id, productName);
-			buttons = [localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"), localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"), localize('cancel', "Cancel")];
+			buttons = [
+				{
+					label: localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
+					run: () => { }
+				},
+				{
+					label: localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"),
+					run: () => this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'))
+				}
+			];
 		}
 
-		const { choice } = await this.dialogService.show(Severity.Info, message, buttons, { cancelId: buttons.length - 1, detail });
-		if (choice === 0) {
-			return;
-		}
-		if (choice === buttons.length - 2) {
-			// Unfortunately ICommandService cannot be used directly due to cyclic dependencies
-			this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
-		}
-		throw new CancellationError();
-
+		await this.dialogService.prompt({
+			type: Severity.Info,
+			message,
+			detail,
+			buttons,
+			cancelButton: {
+				label: localize('cancel', "Cancel"),
+				run: () => { throw new CancellationError(); }
+			}
+		});
 	}
 
 	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
