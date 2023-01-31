@@ -71,7 +71,7 @@ export class TerminalLinkResolverService implements ITerminalLinkResolverService
 		}
 		// Handle all non-WSL links
 		else {
-			const preprocessedLink = this._preprocessPath(linkUrl, processManager.initialCwd, processManager.os, processManager.userHome);
+			const preprocessedLink = this._preprocessPath(linkUrl, processManager.initialCwd, processManager.os || OS, processManager.userHome);
 			if (!preprocessedLink) {
 				cache.set(link, null);
 				return null;
