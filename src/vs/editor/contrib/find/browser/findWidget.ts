@@ -1199,9 +1199,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
-
 		this._domNode.appendChild(replacePart);
-
 		this._domNode.appendChild(this._closeBtn.domNode);
 
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
