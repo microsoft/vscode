@@ -11,9 +11,6 @@ import { basename, dirname, extname, isEqual } from 'vs/base/common/resources';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
-import { posix, win32 } from 'vs/base/common/path';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
 
 //#region < --- Workbench --- >
@@ -171,14 +168,11 @@ export class ResourceContextKey {
 	private readonly _hasResource: IContextKey<boolean>;
 	private readonly _isFileSystemResource: IContextKey<boolean>;
 
-	private os: OperatingSystem = OS;
-
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
+		@IModelService private readonly _modelService: IModelService
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
@@ -205,15 +199,6 @@ export class ResourceContextKey {
 				this._setLangId();
 			}
 		}));
-
-		this.resolveOS();
-	}
-
-	private async resolveOS(): Promise<void> {
-		const os = (await this._remoteAgentService.getEnvironment())?.os;
-		if (typeof os === 'number') {
-			this.os = os;
-		}
 	}
 
 	dispose(): void {
@@ -240,8 +225,8 @@ export class ResourceContextKey {
 			this._resourceKey.set(value ? value.toString() : null);
 			this._schemeKey.set(value ? value.scheme : null);
 			this._filenameKey.set(value ? basename(value) : null);
-			this._dirnameKey.set(value ? this.uriToOSPath(dirname(value)) : null);
-			this._pathKey.set(value ? this.uriToOSPath(value) : null);
+			this._dirnameKey.set(value ? this.uriToPath(dirname(value)) : null);
+			this._pathKey.set(value ? this.uriToPath(value) : null);
 			this._setLangId();
 			this._extensionKey.set(value ? extname(value) : null);
 			this._hasResource.set(Boolean(value));
@@ -249,15 +234,12 @@ export class ResourceContextKey {
 		});
 	}
 
-	private uriToOSPath(uri: URI): string {
-		switch (uri.scheme) {
-			case Schemas.file:
-				return uri.fsPath;
-			case Schemas.vscodeRemote:
-				return this.os === OperatingSystem.Windows ? win32.normalize(uri.fsPath) : posix.normalize(uri.fsPath);
-			default:
-				return uri.path;
+	private uriToPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
 		}
+
+		return uri.path;
 	}
 
 	reset(): void {
