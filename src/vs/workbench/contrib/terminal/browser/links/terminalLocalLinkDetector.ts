@@ -33,39 +33,6 @@ const enum Constants {
 	MaxResolvedLinkLength = 1024,
 }
 
-const enum RegexPathConstants {
-	PathPrefix = '(\\.\\.?|\\~)',
-	PathSeparatorClause = '\\/',
-	// '":; are allowed in paths but they are often separators so ignore them
-	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0\\s!`&*()\'":;\\\\]',
-	ExcludedStartPathCharactersClause = '[^\\0\\s!`&*()\\[\\]\'":;\\\\]',
-	WinOtherPathPrefix = '\\.\\.?|\\~',
-	WinPathSeparatorClause = '(\\\\|\\/)',
-	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
-	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
-}
-
-/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-export const unixLocalLinkClause = '((' + RegexPathConstants.PathPrefix + '|(' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(' + RegexPathConstants.PathSeparatorClause + '(' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
-
-export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
-/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-export const winLocalLinkClause = '((' + `(${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(' + RegexPathConstants.WinPathSeparatorClause + '(' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
-
-// TODO: This should eventually move to the more structured terminalLinkParsing
-/** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
-replacing space with nonBreakningSpace or space ASCII code - 32. */
-export const lineAndColumnClause = [
-	'(([^:\\s\\(\\)<>\'\"\\[\\]]*) ((\\d+))(:(\\d+)))', // (file path) 336:9 [see #140780]
-	'((\\S*)[\'"], line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
-	'((\\S*)[\'"],((\\d+)(:(\\d+))?))', // "(file path)",45 [see #78205]
-	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
-	'((\\S*):\\s?line ((\\d+)(, col(?:umn)? (\\d+))?))', // (file path):line 8, column 13, (file path): line 8, col 13
-	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
-	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
-].join('|').replace(/ /g, `[${'\u00A0'} ]`);
-
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
@@ -170,10 +137,9 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
 
-			// TODO: Resolve count
+			// Validate the path and convert to the outgoing type
 			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
 			if (simpleLink) {
-				// parsedLink.path.text = simpleLink.text;
 				simpleLink.parsedLink = parsedLink;
 				simpleLink.text = text.substring(
 					parsedLink.prefix?.index ?? parsedLink.path.index,
@@ -326,10 +292,4 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		}
 		return undefined;
 	}
-}
-
-export function getLocalLinkRegex(os: OperatingSystem): RegExp {
-	const baseLocalLinkClause = os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
-	// Append line and column number regex
-	return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 }
