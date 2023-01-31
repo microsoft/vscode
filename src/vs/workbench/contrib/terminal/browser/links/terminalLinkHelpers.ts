@@ -213,7 +213,6 @@ export function getXtermRangesByAttr(buffer: IBuffer, lineStart: number, lineEnd
  * the particular link can be used to narrow down the result for an exact file match.
  */
 export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, osPath: IPath): string[] | undefined {
-	// TODO: This returns duplicates?
 	const cwd = capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
 	if (!cwd) {
 		return undefined;
@@ -235,6 +234,8 @@ export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore
 			result.push(osPath.resolve(cwd + sep + linkPath.slice(commonDirs).join(sep)));
 			if (cwdPath[i] === linkPath[i]) {
 				commonDirs++;
+			} else {
+				break;
 			}
 			i++;
 		}
