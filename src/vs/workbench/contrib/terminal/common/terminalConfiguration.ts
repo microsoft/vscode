@@ -580,6 +580,16 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.ShouldUseSystemd]: {
+			markdownDescription: localize('terminal.integrated.systemd.shouldUse', 'Controls whether to use systemd for terminals where possible'),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.SystemdSliceSuffix]: {
+			markdownDescription: localize('terminal.integrated.systemd.sliceSuffix', 'Name of systemd slice suffix for terminals.  This will always be prefixed with `vscode_`'),
+			type: 'string',
+			default: 'terminal'
+		}
 	}
 };
 

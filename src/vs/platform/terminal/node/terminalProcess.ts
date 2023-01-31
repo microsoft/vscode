@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
+import * as os from 'os';
+import { exec, execFile } from 'child_process';
 import { promises as fs } from 'fs';
 import type * as pty from 'node-pty';
 import { timeout } from 'vs/base/common/async';
@@ -116,6 +117,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+	private _systemdAvailable: boolean | undefined;
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -146,7 +148,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		private readonly _executableEnv: IProcessEnvironment,
 		private readonly _options: ITerminalProcessOptions,
 		@ILogService private readonly _logService: ILogService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		private readonly _shouldUseSystemd: boolean,
+		private readonly _systemdSliceSuffix: string,
 	) {
 		super();
 		let name: string;
@@ -289,10 +293,26 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		options: pty.IPtyForkOptions,
 		shellIntegrationInjection: IShellIntegrationConfigInjection | undefined
 	): Promise<void> {
-		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
+		let args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
+		if (typeof args === 'string') {
+			args = [args];
+		}
+		this._logService.debug(`setupPtyProcess() shouldSystemd: ${this._systemdAvailable} sliceSuffix: ${this._systemdSliceSuffix}`);
+
+		let executable = shellLaunchConfig.executable;
+		if (await this.isSystemdAvailable()) {
+
+			let sliceSuffix = this._systemdSliceSuffix.trim();
+			if (!sliceSuffix) {
+				sliceSuffix = 'terminal';
+			}
+			const systemdCommand = this.getSystemdCommand(sliceSuffix, executable!, args);
+			args = systemdCommand.args;
+			executable = systemdCommand.command;
+		}
 		await this._throttleKillSpawn();
-		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
-		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
+		this._logService.trace('IPty#spawn', executable!, args, options);
+		const ptyProcess = (await import('node-pty')).spawn(executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value }));
@@ -612,6 +632,66 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getLatency(): Promise<number> {
 		return Promise.resolve(0);
+	}
+
+	private async isSystemdAvailable(): Promise<boolean> {
+		this._logService.debug('Checking if systemd is available');
+
+		if (!this._shouldUseSystemd) {
+			this._logService.debug('systemd terminal usage is disabled by configuration setting');
+			return false;
+		}
+
+		const platform = os.platform();
+		if (platform === 'darwin' || platform.startsWith('win')) {
+			this._logService.trace('systemd should not run on platform', platform);
+			return false;
+		}
+
+		if (this._systemdAvailable === undefined) {
+			const expectedOutput = 'systemd-exists';
+			const echoCommand = this.getSystemdCommand('commons_process', 'echo', [expectedOutput]);
+
+			try {
+				const actualOutput: string = await new Promise((resolve, reject) => {
+					execFile(echoCommand.command, echoCommand.args, (error, stdout) => {
+						if (error !== null) {
+							reject(error);
+							return;
+						}
+						resolve(stdout.toString());
+					});
+				});
+				this._systemdAvailable = expectedOutput === actualOutput.trim();
+			} catch (error) {
+				this._logService.trace('systemd errored', error);
+				this._systemdAvailable = false;
+			}
+		}
+
+		this._logService.trace(
+			'systemd is',
+			this._systemdAvailable ? 'available' : 'not available',
+			'on this system',
+		);
+
+		return this._systemdAvailable!;
+	}
+
+	getSystemdCommand(
+		sliceSuffix: string,
+		command: string,
+		args: string[],
+	): {
+		command: string;
+		args: string[];
+	} {
+		const sliceName = `vscode_${sliceSuffix}`;
+		this._logService.debug(`systemd terminal using sliceName: ${sliceName}`);
+		return {
+			command: 'systemd-run',
+			args: ['--user', '--scope', '--quiet', '--slice', sliceName, command, ...args],
+		};
 	}
 }
 

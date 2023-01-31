@@ -114,7 +114,9 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling'
+	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+	ShouldUseSystemd = 'terminal.integrated.systemd.shouldUse',
+	SystemdSliceSuffix = 'terminal.integrated.systemd.sliceSuffix'
 }
 
 export const enum TerminalLogConstants {
@@ -299,7 +301,9 @@ export interface IPtyService extends IPtyHostController {
 		options: ITerminalProcessOptions,
 		shouldPersist: boolean,
 		workspaceId: string,
-		workspaceName: string
+		workspaceName: string,
+		shouldUseSystemd: boolean,
+		systemdSliceSuffix: string
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
 	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;

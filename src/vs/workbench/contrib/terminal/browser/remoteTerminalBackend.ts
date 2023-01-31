@@ -201,7 +201,9 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			'terminal.integrated.env.osx': this._configurationService.getValue(TerminalSettingId.EnvMacOs) as ITerminalEnvironment,
 			'terminal.integrated.env.linux': this._configurationService.getValue(TerminalSettingId.EnvLinux) as ITerminalEnvironment,
 			'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
-			'terminal.integrated.detectLocale': terminalConfig.detectLocale
+			'terminal.integrated.detectLocale': terminalConfig.detectLocale,
+			'terminal.integrated.systemd.shouldUse': this._configurationService.getValue(TerminalSettingId.ShouldUseSystemd) as boolean,
+			'terminal.integrated.systemd.sliceSuffix': this._configurationService.getValue(TerminalSettingId.SystemdSliceSuffix) as string
 		};
 
 		const shellLaunchConfigDto: IShellLaunchConfigDto = {

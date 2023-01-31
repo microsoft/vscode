@@ -150,7 +150,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
+		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName(), this._configurationService.getValue('terminal.integrated.systemd.enabled'), this._configurationService.getValue('terminal.integrated.systemd.sliceSuffix'));
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);
 		return pty;

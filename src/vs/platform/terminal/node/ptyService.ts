@@ -205,6 +205,8 @@ export class PtyService extends Disposable implements IPtyService {
 		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string,
+		shouldUseSystemd: boolean,
+		systemdSliceSuffix: string,
 		isReviving?: boolean,
 		rawReviveBuffer?: string
 	): Promise<number> {
@@ -212,7 +214,7 @@ export class PtyService extends Disposable implements IPtyService {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService, shouldUseSystemd, systemdSliceSuffix);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,

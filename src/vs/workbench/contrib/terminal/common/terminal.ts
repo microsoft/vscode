@@ -227,6 +227,8 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.env.linux': ITerminalEnvironment;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
+	'terminal.integrated.systemd.shouldUse': boolean;
+	'terminal.integrated.systemd.sliceSuffix': string;
 }
 
 export interface ITerminalConfiguration {
