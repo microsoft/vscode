@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { URI } from 'vs/base/common/uri';
 import { IBufferLine } from 'xterm';
 
 export async function assertLinkHelper(
 	text: string,
-	expected: ({ uri: string; range: [number, number][] })[],
+	expected: ({ uri: URI; range: [number, number][] })[],
 	detector: ITerminalLinkDetector,
 	expectedType: TerminalLinkType
 ) {
@@ -26,7 +27,7 @@ export async function assertLinkHelper(
 
 	const actualLinks = (await detector.detect(lines, 0, detector.xterm.buffer.active.cursorY)).map(e => {
 		return {
-			uri: e.uri?.toString(),
+			uri: e.uri!.toString(),
 			type: expectedType,
 			bufferRange: e.bufferRange
 		};
@@ -34,7 +35,7 @@ export async function assertLinkHelper(
 	const expectedLinks = expected.map(e => {
 		return {
 			type: expectedType,
-			uri: e.uri,
+			uri: e.uri.toString(),
 			bufferRange: {
 				start: { x: e.range[0][0], y: e.range[0][1] },
 				end: { x: e.range[1][0], y: e.range[1][1] },

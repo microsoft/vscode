@@ -124,7 +124,7 @@ suite('TerminalLinkParsing', () => {
 			});
 		}
 	});
-	suite.only('detectLinkSuffixes', () => {
+	suite('detectLinkSuffixes', () => {
 		for (const testLink of testLinks) {
 			test('`' + testLink.link + '`', () => {
 				deepStrictEqual(
@@ -173,7 +173,7 @@ suite('TerminalLinkParsing', () => {
 			);
 		});
 	});
-	suite.only('detectLinks', () => {
+	suite('detectLinks', () => {
 		test('foo(1, 2) bar[3, 4] "baz" on line 5', () => {
 			deepStrictEqual(
 				detectLinks('foo(1, 2) bar[3, 4] "baz" on line 5', OperatingSystem.Linux),

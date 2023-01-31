@@ -109,7 +109,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		let stringIndex = -1;
 		let resolvedLinkCount = 0;
 
-		console.log('detect links on line', text);
 		const parsedLinks = detectLinks(text, this._os);
 		if (parsedLinks.length > 0) {
 			for (const parsedLink of parsedLinks) {
@@ -171,7 +170,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				linkCandidates.push(...specialEndLinkCandidates);
 
 				// TODO: Resolve count
-				console.log('validate candidates', linkCandidates);
 				const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
 				if (simpleLink) {
 					// parsedLink.path.text = simpleLink.text;
@@ -180,7 +178,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 						parsedLink.prefix?.index ?? parsedLink.path.index,
 						parsedLink.suffix ? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length : parsedLink.path.index + parsedLink.path.text.length
 					);
-					console.log('set!', simpleLink.text);
 					links.push(simpleLink);
 				}
 			}
