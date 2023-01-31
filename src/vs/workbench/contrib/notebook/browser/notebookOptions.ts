@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PixelRatio } from 'vs/base/browser/browser';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -15,7 +19,7 @@ const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 let EDITOR_TOP_PADDING = 12;
 const editorTopPaddingChangeEmitter = new Emitter<void>();
 
-export const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
+const EditorTopPaddingChangeEvent = editorTopPaddingChangeEmitter.event;
 
 export function updateEditorTopPadding(top: number) {
 	EDITOR_TOP_PADDING = top;
@@ -208,7 +212,12 @@ export class NotebookOptions extends Disposable {
 		const minimumLineHeight = 8;
 		let lineHeight = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
 
-		if (lineHeight < minimumLineHeight) {
+		if (lineHeight === 0) {
+			// use editor line height
+			const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+			const fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
+			lineHeight = fontInfo.lineHeight;
+		} else if (lineHeight < minimumLineHeight) {
 			// Values too small to be line heights in pixels are in ems.
 			let fontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
 			if (fontSize === 0) {
