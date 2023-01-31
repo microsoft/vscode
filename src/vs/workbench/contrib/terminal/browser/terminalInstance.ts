@@ -2762,13 +2762,13 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 
 	private _buildContent(): void {
 		const content = [introMessage];
-		content.push(this._descriptionForCommand('workbench.action.terminal.enterAccessibilityMode', enterAccessibilityModeNls, enterAccessibilityModeNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
-			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.runRecentCommand', runRecentCommand, runRecentCommandNoKb));
-			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.goToRecentDirectory', goToRecent, goToRecentNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
 		}
-		content.push(this._descriptionForCommand('workbench.action.terminal.openDetectedLink', openDetectedLink, openDetectedLinkNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
 		content.push(readMore, dismiss);
 		const joinedContent = content.join('\n\n');
 		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
