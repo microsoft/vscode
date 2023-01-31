@@ -2099,7 +2099,8 @@ class SCMInputWidget {
 				validationContainer.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
 				validationContainer.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
 				validationContainer.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				validationContainer.style.width = `${this.editorContainer.clientWidth}px`;
+				validationContainer.style.width = `${this.editorContainer.clientWidth + 2}px`;
+				console.log(this.editorContainer.clientWidth);
 				const element = append(validationContainer, $('.scm-editor-validation'));
 
 				const message = this.validation!.message;
