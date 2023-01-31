@@ -247,14 +247,12 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		const ipcHandlePath = createRandomIPCHandle();
 		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
 
-		// FB-BEGIN T93949683 Run terminals in systemd slice if possible
 		const shouldUseSystemdIfAvailable = args.configuration['terminal.integrated.systemd.shouldUse'];
 		const systemdSliceSuffix = args.configuration['terminal.integrated.systemd.sliceSuffix'];
 
 		this._logService.debug(`remoteTerminalChannel config values: shouldUseSystemdIfAvailable: ${shouldUseSystemdIfAvailable} systemdSliceSuffix: ${systemdSliceSuffix}`);
 
 		const persistentProcessId = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName, shouldUseSystemdIfAvailable, systemdSliceSuffix);
-		// FB-END T93949683 Run terminals in systemd slice if possible
 
 		const commandsExecuter: ICommandsExecuter = {
 			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
