@@ -519,7 +519,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				// we use fibonacci numbers to have a performance baseline that indicates
 				// how slow/fast THIS machine actually is.
 
-				const jsSrc = (function computeBaseline(this: WindowOrWorkerGlobalScope) {
+				const jsSrc = (function (this: WindowOrWorkerGlobalScope) {
 					// the following operation took ~16ms (one frame at 64FPS) to complete on my machine. We derive performance observations
 					// from that. We also bail if that took too long (>1s)
 					let tooSlow = false;
@@ -543,7 +543,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 				}).toString();
 
-				const blob = new Blob([`${jsSrc};\ncomputeBaseline();`], { type: 'application/javascript' });
+				const blob = new Blob([`(${jsSrc})();`], { type: 'application/javascript' });
 				const blobUrl = URL.createObjectURL(blob);
 
 				const worker = createBlobWorker(blobUrl, { name: 'perfBaseline' });

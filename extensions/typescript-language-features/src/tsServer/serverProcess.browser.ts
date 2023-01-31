@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib='webworker' />
+import { ServiceConnection } from '@vscode/sync-api-common/browser';
+import { ApiService, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
-import { memoize } from '../utils/memoize';
-import { TsServerProcess, TsServerProcessKind } from './server';
-import { TypeScriptVersion } from './versionProvider';
-import { ServiceConnection } from '@vscode/sync-api-common/browser';
-import { Requests, ApiService } from '@vscode/sync-api-service';
-import { TypeScriptVersionManager } from './versionManager';
 import { FileWatcherManager } from './fileWatchingManager';
+import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
+import { TypeScriptVersionManager } from './versionManager';
+import { TypeScriptVersion } from './versionProvider';
 
 type BrowserWatchEvent = {
 	type: 'watchDirectory' | 'watchFile';
@@ -28,29 +27,31 @@ type BrowserWatchEvent = {
 	id: number;
 };
 
-export class WorkerServerProcess implements TsServerProcess {
-	@memoize
-	private static get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
-	}
+export class WorkerServerProcessFactory implements TsServerProcessFactory {
+	constructor(
+		private readonly _extensionUri: vscode.Uri,
+	) { }
 
-	public static fork(
+	public fork(
 		version: TypeScriptVersion,
 		args: readonly string[],
 		kind: TsServerProcessKind,
 		_configuration: TypeScriptServiceConfiguration,
 		_versionManager: TypeScriptVersionManager,
-		extensionUri: vscode.Uri,
+		tsServerLog: TsServerLog | undefined,
 	) {
 		const tsServerPath = version.tsServerPath;
-		return new WorkerServerProcess(kind, tsServerPath, extensionUri, [
+		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, [
 			...args,
 
 			// Explicitly give TS Server its path so it can
 			// load local resources
 			'--executingFilePath', tsServerPath,
-		]);
+		], tsServerLog);
 	}
+}
+
+class WorkerServerProcess implements TsServerProcess {
 
 	private static idPool = 0;
 
@@ -75,6 +76,7 @@ export class WorkerServerProcess implements TsServerProcess {
 		tsServerPath: string,
 		extensionUri: vscode.Uri,
 		args: readonly string[],
+		private readonly tsServerLog: TsServerLog | undefined,
 	) {
 		this.worker = new Worker(tsServerPath, { name: `TS ${kind} server #${this.id}` });
 
@@ -118,7 +120,7 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.worker.onmessage = (msg: any) => {
 			// for logging only
 			if (msg.data.type === 'log') {
-				this.appendOutput(msg.data.body);
+				this.appendLog(msg.data.body);
 				return;
 			}
 			console.error(`unexpected message on main channel: ${JSON.stringify(msg)}`);
@@ -132,7 +134,6 @@ export class WorkerServerProcess implements TsServerProcess {
 			}
 		};
 
-		this.appendOutput(`creating new MessageChannel and posting its port2 + args: ${args.join(' ')}\n`);
 		this.worker.postMessage(
 			{ args, extensionUri },
 			[syncChannel.port1, tsserverChannel.port1, watcherChannel.port1]
@@ -141,7 +142,6 @@ export class WorkerServerProcess implements TsServerProcess {
 		const connection = new ServiceConnection<Requests>(syncChannel.port2);
 		new ApiService('vscode-wasm-typescript', connection);
 		connection.signalReady();
-		this.appendOutput('done constructing WorkerServerProcess\n');
 	}
 
 	write(serverRequest: Proto.Request): void {
@@ -168,8 +168,10 @@ export class WorkerServerProcess implements TsServerProcess {
 		this.syncFs.close();
 	}
 
-	private appendOutput(msg: string) {
-		WorkerServerProcess.output.append(`(${this.id} - ${this.kind}) ${msg}`);
+	private appendLog(msg: string) {
+		if (this.tsServerLog?.type === 'output') {
+			this.tsServerLog.output.appendLine(`(${this.id} - ${this.kind}) ${msg}`);
+		}
 	}
 }
 

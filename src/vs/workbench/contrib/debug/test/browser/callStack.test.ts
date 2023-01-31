@@ -21,6 +21,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 const mockWorkspaceContextService = {
 	getWorkspace: () => {
@@ -39,7 +40,7 @@ export function createTestSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!);
+	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService());
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame; secondStackFrame: StackFrame } {
@@ -53,12 +54,12 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		name: 'internalModule.js',
 		path: 'a/b/c/d/internalModule.js',
 		sourceReference: 10,
-	}, 'aDebugSessionId', mockUriIdentityService);
+	}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 	const secondSource = new Source({
 		name: 'internalModule.js',
 		path: 'z/x/c/d/internalModule.js',
 		sourceReference: 11,
-	}, 'aDebugSessionId', mockUriIdentityService);
+	}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 
 	const firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
 	const secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 1, true);
@@ -327,11 +328,11 @@ suite('Debug - CallStack', () => {
 			name: 'internalModule.js',
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
-		}, 'aDebugSessionId', mockUriIdentityService);
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 		assert.strictEqual(stackFrame.toString(), 'app (internalModule.js:1)');
 
-		const secondSource = new Source(undefined, 'aDebugSessionId', mockUriIdentityService);
+		const secondSource = new Source(undefined, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2, true);
 		assert.strictEqual(stackFrame2.toString(), 'module');
 	});
@@ -430,7 +431,7 @@ suite('Debug - CallStack', () => {
 			override get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!);
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!, new NullLogService());
 
 		const runningSession = createTestSession(model);
 		model.addSession(runningSession);
