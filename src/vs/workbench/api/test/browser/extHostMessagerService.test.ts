@@ -96,7 +96,7 @@ suite('ExtHostMessageService', function () {
 		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
-					assert.strictEqual(type, 'info');
+					assert.strictEqual(type, 1);
 					assert.strictEqual(message, 'h');
 					assert.strictEqual(buttons!.length, 1);
 					assert.strictEqual(cancelButton!.label, 'Cancel');
@@ -122,9 +122,9 @@ suite('ExtHostMessageService', function () {
 		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
-					assert.strictEqual(buttons!.length, 1);
-					assert.ok(!cancelButton);
-					return Promise.resolve({ result: buttons![0].run({ checkboxChecked: false }) });
+					assert.strictEqual(buttons!.length, 0);
+					assert.ok(cancelButton);
+					return Promise.resolve({ result: cancelButton.run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 
