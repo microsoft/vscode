@@ -2739,20 +2739,24 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._contentDomNode.domNode.focus();
 	}
 
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+		const kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return strings.format(msg, kb.getAriaLabel());
+		}
+		return strings.format(noKbMsg, commandId);
+	}
+
 	private _buildContent(): void {
-		const runRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.runRecentCommand')?.getAriaLabel();
-		const goToRecentKbLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.goToRecentDirectory')?.getAriaLabel();
-		const enterAccessibilityModeLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.enterAccessibilityMode')?.getAriaLabel();
-		const openDetectedLinkLabel = this._keybindingService.lookupKeybinding('workbench.action.terminal.openDetectedLink')?.getAriaLabel();
 		const content = [];
 		content.push(nls.localize('introMsg', "Welcome to Terminal Accessibility Help"));
-		content.push(strings.format(nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.'), enterAccessibilityModeLabel));
+		content.push(this._descriptionForCommand('workbench.action.terminal.enterAccessibilityMode', nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.'), nls.localize('enterAccessibilityModeNoKb', 'The Enter Accessibility Mode command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
 		if (this._hasShellIntegration) {
 			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
-			content.push('- ' + strings.format(nls.localize('runRecentCommand', 'Run Recent Command ({0})'), runRecentKbLabel));
-			content.push('- ' + strings.format(nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), goToRecentKbLabel));
+			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.runRecentCommand', nls.localize('runRecentCommand', 'Run Recent Command ({0})'), nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.')));
+			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.goToRecentDirectory', nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.')));
 		}
-		content.push(strings.format(nls.localize('detectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), openDetectedLinkLabel));
+		content.push(this._descriptionForCommand('workbench.action.terminal.openDetectedLink', nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
 		content.push(strings.format(nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.')));
 		content.push(nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere."));
 		const joinedContent = content.join('\n\n');
