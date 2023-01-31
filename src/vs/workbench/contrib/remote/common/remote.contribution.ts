@@ -124,7 +124,7 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 			type: 'warning',
 			message: localize('invalidWorkspaceMessage', "Workspace does not exist"),
 			detail: localize('invalidWorkspaceDetail', "Please select another workspace to open."),
-			primaryButton: localize('invalidWorkspacePrimary', "&&Open Workspace...")
+			primaryButton: localize({ key: 'invalidWorkspacePrimary', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace...")
 		});
 
 		if (res.confirmed) {

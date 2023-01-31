@@ -107,7 +107,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Info,
 				message,
-				primaryButton: localize('more information', "More Information"),
+				primaryButton: localize({ key: 'more information', comment: ['&& denotes a mnemonic'] }, "&&More Information"),
 				cancelButton: localize('close', "Close")
 			});
 			if (confirmed) {
