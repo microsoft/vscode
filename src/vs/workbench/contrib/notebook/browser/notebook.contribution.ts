@@ -892,12 +892,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
-		},
-		[NotebookSetting.logging]: {
-			markdownDescription: nls.localize('notebook.logging', "Enable logging for notebook support."),
-			type: 'boolean',
-			tags: ['notebookLayout'],
-			default: false
 		}
 	}
 });
