@@ -352,7 +352,9 @@ export class Workbench extends Layout {
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
+			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
+			mark(`code/didCreatePart/${id}`);
 		}
 
 		// Notification Handlers

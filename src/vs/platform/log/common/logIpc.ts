@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, isLogLevel, LogLevel } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
@@ -110,24 +111,37 @@ class Logger extends AbstractMessageLogger {
 
 export class LoggerChannel implements IServerChannel {
 
-	constructor(private readonly loggerService: ILoggerService) { }
+	constructor(private readonly loggerService: ILoggerService, private getUriTransformer: (requestContext: any) => IURITransformer) { }
 
-	listen(_: unknown, event: string, windowId?: number): Event<any> {
+	listen(context: any, event: string): Event<any> {
+		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
-			case 'onDidChangeLoggers': return this.loggerService.onDidChangeLoggers;
-			case 'onDidChangeVisibility': return this.loggerService.onDidChangeVisibility;
-			case 'onDidChangeLogLevel': return this.loggerService.onDidChangeLogLevel;
+			case 'onDidChangeLoggers': return Event.map<DidChangeLoggersEvent, DidChangeLoggersEvent>(this.loggerService.onDidChangeLoggers, (e) =>
+			({
+				added: [...e.added].map(logger => this.transformLogger(logger, uriTransformer)),
+				removed: [...e.removed].map(logger => this.transformLogger(logger, uriTransformer)),
+			}));
+			case 'onDidChangeVisibility': return Event.map<[URI, boolean], [URI, boolean]>(this.loggerService.onDidChangeVisibility, e => [uriTransformer.transformOutgoingURI(e[0]), e[1]]);
+			case 'onDidChangeLogLevel': return Event.map<LogLevel | [URI, LogLevel], LogLevel | [URI, LogLevel]>(this.loggerService.onDidChangeLogLevel, e => isLogLevel(e) ? e : [uriTransformer.transformOutgoingURI(e[0]), e[1]]);
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	async call(_: unknown, command: string, arg?: any): Promise<any> {
+	async call(context: any, command: string, arg?: any): Promise<any> {
+		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
 		switch (command) {
-			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
-			case 'getRegisteredLoggers': return Promise.resolve([...this.loggerService.getRegisteredLoggers()]);
+			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(uriTransformer.transformIncoming(arg[0][0])), arg[0][1]);
+			case 'getRegisteredLoggers': return Promise.resolve([...this.loggerService.getRegisteredLoggers()].map(logger => this.transformLogger(logger, uriTransformer)));
 		}
 
 		throw new Error(`Call not found: ${command}`);
+	}
+
+	private transformLogger(logger: ILoggerResource, transformer: IURITransformer): ILoggerResource {
+		return {
+			...logger,
+			resource: transformer.transformOutgoingURI(logger.resource)
+		};
 	}
 
 }

@@ -66,7 +66,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 					});
 
 					if (shouldStartDetection && !this._detectionMap.has(notebookType)) {
-						this._notebookLoggingService.log('KernelDetection', `start extension activation for ${notebookType}`);
+						this._notebookLoggingService.debug('KernelDetection', `start extension activation for ${notebookType}`);
 						const task = this._notebookKernelService.registerNotebookKernelDetectionTask({
 							notebookType: notebookType
 						});
@@ -88,7 +88,7 @@ class NotebookKernelDetection extends Disposable implements IWorkbenchContributi
 					const taskToDelete: string[] = [];
 					for (const [notebookType, task] of this._detectionMap) {
 						if (this._extensionService.activationEventIsDone(`onNotebook:${notebookType}`)) {
-							this._notebookLoggingService.log('KernelDetection', `finish extension activation for ${notebookType}`);
+							this._notebookLoggingService.debug('KernelDetection', `finish extension activation for ${notebookType}`);
 							taskToDelete.push(notebookType);
 							task.dispose();
 						}

@@ -332,8 +332,8 @@ export class AcceptInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: inlineSuggestCommitId,
-			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
-			alias: 'Accept Next Word Of Inline Suggestion',
+			label: nls.localize('action.inlineSuggest.accept', "Accept Inline Suggestion"),
+			alias: 'Accept Inline Suggestion',
 			precondition: GhostTextController.inlineSuggestionVisible,
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
