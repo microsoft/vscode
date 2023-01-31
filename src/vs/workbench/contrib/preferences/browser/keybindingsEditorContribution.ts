@@ -6,46 +6,34 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution, ServicesAccessor, registerEditorCommand, EditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { parseTree, Node } from 'vs/base/common/json';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ThemeColor } from 'vs/base/common/themables';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/core/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution } from 'vs/workbench/services/preferences/common/preferences';
 
-const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
-export class DefineKeybindingController extends Disposable implements IEditorContribution {
+class DefineKeybindingEditorContribution extends Disposable implements IDefineKeybindingEditorContribution {
 
-	public static readonly ID = 'editor.contrib.defineKeybinding';
+	private _keybindingDecorationRenderer = this._register(new MutableDisposable<KeybindingEditorDecorationsRenderer>());
 
-	static get(editor: ICodeEditor): DefineKeybindingController | null {
-		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
-	}
-
-	private _keybindingWidgetRenderer?: KeybindingWidgetRenderer;
-	private _keybindingDecorationRenderer?: KeybindingEditorDecorationsRenderer;
+	private readonly _defineWidget: DefineKeybindingOverlayWidget;
 
 	constructor(
 		private _editor: ICodeEditor,
@@ -54,84 +42,22 @@ export class DefineKeybindingController extends Disposable implements IEditorCon
 	) {
 		super();
 
+		this._defineWidget = this._register(this._instantiationService.createInstance(DefineKeybindingOverlayWidget, this._editor));
 		this._register(this._editor.onDidChangeModel(e => this._update()));
 		this._update();
 	}
 
-	get keybindingWidgetRenderer(): KeybindingWidgetRenderer | undefined {
-		return this._keybindingWidgetRenderer;
-	}
-
-	override dispose(): void {
-		this._disposeKeybindingWidgetRenderer();
-		this._disposeKeybindingDecorationRenderer();
-		super.dispose();
-	}
-
 	private _update(): void {
-		if (!isInterestingEditorModel(this._editor, this._userDataProfileService)) {
-			this._disposeKeybindingWidgetRenderer();
-			this._disposeKeybindingDecorationRenderer();
-			return;
-		}
-
-		// Decorations are shown for the default keybindings.json **and** for the user keybindings.json
-		this._createKeybindingDecorationRenderer();
-
-		// The button to define keybindings is shown only for the user keybindings.json
-		if (!this._editor.getOption(EditorOption.readOnly)) {
-			this._createKeybindingWidgetRenderer();
-		} else {
-			this._disposeKeybindingWidgetRenderer();
-		}
-	}
-
-	private _createKeybindingWidgetRenderer(): void {
-		if (!this._keybindingWidgetRenderer) {
-			this._keybindingWidgetRenderer = this._instantiationService.createInstance(KeybindingWidgetRenderer, this._editor);
-		}
-	}
-
-	private _disposeKeybindingWidgetRenderer(): void {
-		if (this._keybindingWidgetRenderer) {
-			this._keybindingWidgetRenderer.dispose();
-			this._keybindingWidgetRenderer = undefined;
-		}
-	}
-
-	private _createKeybindingDecorationRenderer(): void {
-		if (!this._keybindingDecorationRenderer) {
-			this._keybindingDecorationRenderer = this._instantiationService.createInstance(KeybindingEditorDecorationsRenderer, this._editor);
-		}
-	}
-
-	private _disposeKeybindingDecorationRenderer(): void {
-		if (this._keybindingDecorationRenderer) {
-			this._keybindingDecorationRenderer.dispose();
-			this._keybindingDecorationRenderer = undefined;
-		}
-	}
-}
-
-export class KeybindingWidgetRenderer extends Disposable {
-
-	private _launchWidget: FloatingClickWidget;
-	private _defineWidget: DefineKeybindingOverlayWidget;
-
-	constructor(
-		private _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
-	) {
-		super();
-		this._launchWidget = this._register(this._instantiationService.createInstance(FloatingClickWidget, this._editor, NLS_LAUNCH_MESSAGE, DefineKeybindingCommand.ID));
-		this._register(this._launchWidget.onClick(() => this.showDefineKeybindingWidget()));
-		this._defineWidget = this._register(this._instantiationService.createInstance(DefineKeybindingOverlayWidget, this._editor));
-
-		this._launchWidget.render();
+		this._keybindingDecorationRenderer.value = isInterestingEditorModel(this._editor, this._userDataProfileService)
+			// Decorations are shown for the default keybindings.json **and** for the user keybindings.json
+			? this._instantiationService.createInstance(KeybindingEditorDecorationsRenderer, this._editor)
+			: undefined;
 	}
 
 	showDefineKeybindingWidget(): void {
-		this._defineWidget.start().then(keybinding => this._onAccepted(keybinding));
+		if (isInterestingEditorModel(this._editor, this._userDataProfileService)) {
+			this._defineWidget.start().then(keybinding => this._onAccepted(keybinding));
+		}
 	}
 
 	private _onAccepted(keybinding: string | null): void {
@@ -334,33 +260,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 }
 
-class DefineKeybindingCommand extends EditorCommand {
-
-	static readonly ID = 'editor.action.defineKeybinding';
-
-	constructor() {
-		super({
-			id: DefineKeybindingCommand.ID,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('jsonc')),
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!isInterestingEditorModel(editor, accessor.get(IUserDataProfileService)) || editor.getOption(EditorOption.readOnly)) {
-			return;
-		}
-		const controller = DefineKeybindingController.get(editor);
-		if (controller && controller.keybindingWidgetRenderer) {
-			controller.keybindingWidgetRenderer.showDefineKeybindingWidget();
-		}
-	}
-}
-
 function isInterestingEditorModel(editor: ICodeEditor, userDataProfileService: IUserDataProfileService): boolean {
 	const model = editor.getModel();
 	if (!model) {
@@ -369,5 +268,4 @@ function isInterestingEditorModel(editor: ICodeEditor, userDataProfileService: I
 	return isEqual(model.uri, userDataProfileService.currentProfile.keybindingsResource);
 }
 
-registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController, EditorContributionInstantiation.AfterFirstRender);
-registerEditorCommand(new DefineKeybindingCommand());
+registerEditorContribution(DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, DefineKeybindingEditorContribution, EditorContributionInstantiation.AfterFirstRender);
