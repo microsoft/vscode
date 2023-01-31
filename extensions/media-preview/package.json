@@ -19,6 +19,7 @@
   "categories": [
     "Other"
   ],
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
