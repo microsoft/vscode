@@ -14,6 +14,8 @@ export class TestDialogService implements IDialogService {
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
+	constructor(private defaultConfirmResult: IConfirmationResult | undefined = undefined) { }
+
 	private confirmResult: IConfirmationResult | undefined = undefined;
 	setConfirmResult(result: IConfirmationResult) {
 		this.confirmResult = result;
@@ -27,7 +29,7 @@ export class TestDialogService implements IDialogService {
 			return confirmResult;
 		}
 
-		return { confirmed: false };
+		return this.defaultConfirmResult ?? { confirmed: false };
 	}
 
 	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
