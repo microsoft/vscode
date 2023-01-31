@@ -48,7 +48,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMarkProperties, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -98,6 +97,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 
 const enum Constants {
 	/**
@@ -2694,6 +2694,19 @@ export function parseExitResult(
 	return { code, message };
 }
 
+const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
+const enterAccessibilityModeNls = nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.');
+const enterAccessibilityModeNoKb = nls.localize('enterAccessibilityModeNoKb', 'The Enter Accessibility Mode command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
+const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
+const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
+const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
+const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
+const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
+const readMore = nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.');
+const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
+const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
+const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
+
 class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	readonly id = 'help';
 	private _container: HTMLElement | undefined;
@@ -2748,17 +2761,15 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	}
 
 	private _buildContent(): void {
-		const content = [];
-		content.push(nls.localize('introMsg', "Welcome to Terminal Accessibility Help"));
-		content.push(this._descriptionForCommand('workbench.action.terminal.enterAccessibilityMode', nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.'), nls.localize('enterAccessibilityModeNoKb', 'The Enter Accessibility Mode command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
+		const content = [introMessage];
+		content.push(this._descriptionForCommand('workbench.action.terminal.enterAccessibilityMode', enterAccessibilityModeNls, enterAccessibilityModeNoKb));
 		if (this._hasShellIntegration) {
-			content.push(nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
-			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.runRecentCommand', nls.localize('runRecentCommand', 'Run Recent Command ({0})'), nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.')));
-			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.goToRecentDirectory', nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.')));
+			content.push(shellIntegration);
+			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.runRecentCommand', runRecentCommand, runRecentCommandNoKb));
+			content.push('- ' + this._descriptionForCommand('workbench.action.terminal.goToRecentDirectory', goToRecent, goToRecentNoKb));
 		}
-		content.push(this._descriptionForCommand('workbench.action.terminal.openDetectedLink', nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
-		content.push(strings.format(nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.')));
-		content.push(nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere."));
+		content.push(this._descriptionForCommand('workbench.action.terminal.openDetectedLink', openDetectedLink, openDetectedLinkNoKb));
+		content.push(readMore, dismiss);
 		const joinedContent = content.join('\n\n');
 		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
 		this._contentDomNode.domNode.setAttribute('aria-label', joinedContent);
