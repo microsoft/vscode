@@ -9,41 +9,6 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { URI } from 'vs/base/common/uri';
 
-/**
- * Mime type used by the output editor.
- */
-export const OUTPUT_MIME = 'text/x-code-output';
-
-/**
- * Output resource scheme.
- */
-export const OUTPUT_SCHEME = 'output';
-
-/**
- * Id used by the output editor.
- */
-export const OUTPUT_MODE_ID = 'Log';
-
-/**
- * Mime type used by the log output editor.
- */
-export const LOG_MIME = 'text/x-code-log-output';
-
-/**
- * Log resource scheme.
- */
-export const LOG_SCHEME = 'log';
-
-/**
- * Id used by the log output editor.
- */
-export const LOG_MODE_ID = 'log';
-
-/**
- * Output view id
- */
-export const OUTPUT_VIEW_ID = 'workbench.panel.output';
-
 export const OUTPUT_SERVICE_ID = 'outputService';
 
 export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
