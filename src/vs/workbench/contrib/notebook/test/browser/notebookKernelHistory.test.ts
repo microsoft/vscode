@@ -86,7 +86,8 @@ suite('NotebookKernelHistoryService', () => {
 		});
 
 		instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
-			override log() { }
+			override info() { }
+			override debug() { }
 		});
 
 		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
@@ -136,7 +137,8 @@ suite('NotebookKernelHistoryService', () => {
 		});
 
 		instantiationService.stub(INotebookLoggingService, new class extends mock<INotebookLoggingService>() {
-			override log() { }
+			override info() { }
+			override debug() { }
 		});
 
 		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);

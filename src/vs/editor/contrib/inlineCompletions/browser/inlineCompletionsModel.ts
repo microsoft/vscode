@@ -562,6 +562,20 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			]
 		);
 		this.editor.setPosition(position.delta(0, partialText.length));
+
+		if (completion.sourceProvider.handlePartialAccept) {
+			const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), position.delta(0, acceptUntilIndexExclusive));
+
+			// This assumes that the inline completion and the model use the same EOL style.
+			// This is not a problem at the moment, because partial acceptance only works for the first line of an
+			// inline completion.
+			const text = this.editor.getModel()!.getValueInRange(acceptedRange);
+			completion.sourceProvider.handlePartialAccept(
+				completion.sourceInlineCompletions,
+				completion.sourceInlineCompletion,
+				text.length,
+			);
+		}
 	}
 
 	public commitCurrentCompletion(): void {
