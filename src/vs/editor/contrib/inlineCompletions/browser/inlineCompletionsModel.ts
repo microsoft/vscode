@@ -28,6 +28,7 @@ import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/brows
 import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SnippetParser, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
@@ -102,6 +103,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			this.editor.onDidBlurEditorWidget(() => {
 				// This is a hidden setting very useful for debugging
 				if (configurationService.getValue('editor.inlineSuggest.hideOnBlur')) {
+					return;
+				}
+				if (InlineSuggestionHintsContentWidget.dropDownVisible) {
 					return;
 				}
 				this.hide();
@@ -558,6 +562,20 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			]
 		);
 		this.editor.setPosition(position.delta(0, partialText.length));
+
+		if (completion.sourceProvider.handlePartialAccept) {
+			const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), position.delta(0, acceptUntilIndexExclusive));
+
+			// This assumes that the inline completion and the model use the same EOL style.
+			// This is not a problem at the moment, because partial acceptance only works for the first line of an
+			// inline completion.
+			const text = this.editor.getModel()!.getValueInRange(acceptedRange);
+			completion.sourceProvider.handlePartialAccept(
+				completion.sourceInlineCompletions,
+				completion.sourceInlineCompletion,
+				text.length,
+			);
+		}
 	}
 
 	public commitCurrentCompletion(): void {

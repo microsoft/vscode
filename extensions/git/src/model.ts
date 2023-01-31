@@ -18,7 +18,6 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
-import { OperationKind } from './operation';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -588,19 +587,13 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		checkForSubmodules();
 
 		const updateOperationInProgressContext = () => {
-			let commitInProgress = false;
 			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(OperationKind.Commit)) {
-					commitInProgress = true;
-				}
-
 				if (repository.operations.shouldDisableCommands()) {
 					operationInProgress = true;
 				}
 			}
 
-			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
 			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
@@ -820,12 +813,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private async showParentRepositoryNotification(): Promise<void> {
 		const message = this.parentRepositories.size === 1 ?
-			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found a git repository in one of the parent folders of this workspace. Would you like to open the repository?') :
-				l10n.t('We found a git repository in one of the parent folders of the open file(s). Would you like to open the repository?') :
-			workspace.workspaceFolders !== undefined ?
-				l10n.t('We found git repositories in one of the parent folders of this workspace. Would you like to open the repositories?') :
-				l10n.t('We found git repositories in one of the parent folders of the open file(s). Would you like to open the repositories?');
+			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
+			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
 
 		const yes = l10n.t('Yes');
 		const always = l10n.t('Always');

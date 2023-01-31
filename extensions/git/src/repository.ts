@@ -651,11 +651,6 @@ export class Repository implements Disposable {
 		return this._HEAD;
 	}
 
-	private _refs: Ref[] = [];
-	get refs(): Ref[] {
-		return this._refs;
-	}
-
 	get headShortName(): string | undefined {
 		if (!this.HEAD) {
 			return;
@@ -726,7 +721,6 @@ export class Repository implements Disposable {
 		this._onDidChangeState.fire(state);
 
 		this._HEAD = undefined;
-		this._refs = [];
 		this._remotes = [];
 		this.mergeGroup.resourceStates = [];
 		this.indexGroup.resourceStates = [];
@@ -2005,13 +1999,8 @@ export class Repository implements Disposable {
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
-			// Execute cancellable long-running operations
-			const [resourceGroups, refs] =
-				await Promise.all([
-					this.getStatus(cancellationToken),
-					this.getRefs({}, cancellationToken)]);
-
-			this._refs = refs!;
+			// Execute cancellable long-running operation
+			const resourceGroups = await this.getStatus(cancellationToken);
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();

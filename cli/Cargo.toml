@@ -49,13 +49,13 @@ log = "0.4"
 const_format = "0.2"
 sha2 = "0.10"
 base64 = "0.13"
+shell-escape = "0.1.5"
 
 [build-dependencies]
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 
 [target.'cfg(windows)'.dependencies]
-windows-service = "0.5"
 winreg = "0.10"
 winapi = "0.3.9"
 

@@ -613,7 +613,10 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => typeof this._getViewType(workingCopy) === 'string',
+			handles: workingCopy => {
+				const viewType = this._getViewType(workingCopy);
+				return typeof viewType === 'string' && viewType !== 'interactive';
+			},
 			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource),
 			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!)
 		}));
@@ -886,12 +889,6 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
-			type: 'boolean',
-			tags: ['notebookLayout'],
-			default: false
-		},
-		[NotebookSetting.logging]: {
-			markdownDescription: nls.localize('notebook.logging', "Enable logging for notebook support."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false

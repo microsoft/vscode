@@ -21,6 +21,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -92,6 +93,7 @@ export class DebugSession implements IDebugSession {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -1268,7 +1270,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	getSource(raw?: DebugProtocol.Source): Source {
-		let source = new Source(raw, this.getId(), this.uriIdentityService);
+		let source = new Source(raw, this.getId(), this.uriIdentityService, this.logService);
 		const uriKey = source.uri.toString();
 		const found = this.sources.get(uriKey);
 		if (found) {

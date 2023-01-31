@@ -47,10 +47,19 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
 		if (storedProfiles.length) {
-			this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles);
+			this.stateMainService.setItem(UserDataProfilesMainService.PROFILES_KEY, storedProfiles.map(profile => ({ ...profile, location: this.uriIdentityService.extUri.basename(profile.location) })));
 		} else {
 			this.stateMainService.removeItem(UserDataProfilesMainService.PROFILES_KEY);
 		}
+	}
+
+	protected override getStoredProfiles(): StoredUserDataProfile[] {
+		const storedProfiles = super.getStoredProfiles();
+		if (!this.stateMainService.getItem<boolean>('userDataProfilesMigration', false)) {
+			this.saveStoredProfiles(storedProfiles);
+			this.stateMainService.setItem('userDataProfilesMigration', true);
+		}
+		return storedProfiles;
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
@@ -72,7 +81,12 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 			}, {});
 			this.stateMainService.setItem(UserDataProfilesMainService.PROFILE_ASSOCIATIONS_KEY, <StoredProfileAssociations>{ workspaces });
 		}
-		return super.getStoredProfileAssociations();
+		const associations = super.getStoredProfileAssociations();
+		if (!this.stateMainService.getItem<boolean>(UserDataProfilesService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, false)) {
+			this.saveStoredProfileAssociations(associations);
+			this.stateMainService.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, true);
+		}
+		return associations;
 	}
 
 }
