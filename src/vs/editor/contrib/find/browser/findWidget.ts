@@ -58,6 +58,7 @@ export interface IFindController {
 	getGlobalBufferTerm(): Promise<string>;
 }
 
+const NLS_FIND_DIALOG_LABEL = nls.localize('label.findDialog', "Find / Replace");
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
@@ -1189,8 +1190,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		// Widget
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
-		// this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.ariaLabel = 'Find / Replace';
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.ariaLabel = NLS_FIND_DIALOG_LABEL;
 		this._domNode.role = 'dialog';
 
 		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
