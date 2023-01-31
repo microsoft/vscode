@@ -191,6 +191,20 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				{ range: [[7, 1], [11, 1]], uri: URI.file('/parent/cwd/bar') }
 			]);
 		});
+
+		test('should support trimming extra quotes', async () => {
+			validResources = [URI.file('/parent/cwd/foo')];
+			await assertLinks(TerminalBuiltinLinkType.LocalFile, '"foo"" on line 5', [
+				{ range: [[1, 1], [16, 1]], uri: URI.file('/parent/cwd/foo') }
+			]);
+		});
+
+		test('should support trimming extra square brackets', async () => {
+			validResources = [URI.file('/parent/cwd/foo')];
+			await assertLinks(TerminalBuiltinLinkType.LocalFile, '"foo]" on line 5', [
+				{ range: [[1, 1], [16, 1]], uri: URI.file('/parent/cwd/foo') }
+			]);
+		});
 	});
 
 	suite('macOS/Linux', () => {

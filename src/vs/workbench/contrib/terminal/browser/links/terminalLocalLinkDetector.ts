@@ -152,7 +152,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 				// If any candidates end with special characters that are likely to not be part of the
 				// link, add a candidate excluding them.
-				const specialEndCharRegex = /[\[\]]$/;
+				const specialEndCharRegex = /[\[\]"']$/;
 				const trimRangeMap: Map<string, number> = new Map();
 				const specialEndLinkCandidates: string[] = [];
 				for (const candidate of linkCandidates) {
@@ -160,7 +160,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					let removed = previous.replace(specialEndCharRegex, '');
 					let trimRange = 0;
 					while (removed !== previous) {
-						trimRange++;
+						// Only trim the link if there is no suffix, otherwise the underline would be incorrect
+						if (!parsedLink.suffix) {
+							trimRange++;
+						}
 						specialEndLinkCandidates.push(removed);
 						trimRangeMap.set(removed, trimRange);
 						previous = removed;
@@ -181,7 +184,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					links.push(simpleLink);
 				}
 			}
-		} else {
+		} else { // TODO: Remove this else
 			// clone regex to do a global search on text
 			const rex = new RegExp(getLocalLinkRegex(this._os), 'g');
 			let match;
