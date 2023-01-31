@@ -35,7 +35,7 @@ export interface ITypeScriptServer {
 	readonly onExit: vscode.Event<TypeScriptServerExitEvent>;
 	readonly onError: vscode.Event<any>;
 
-	readonly tsServerLogFile: string | undefined;
+	readonly tsServerLogFile: vscode.Uri | undefined;
 
 	kill(): void;
 
@@ -89,7 +89,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		private readonly _serverId: string,
 		private readonly _serverSource: ServerType,
 		private readonly _process: TsServerProcess,
-		private readonly _tsServerLogFile: string | undefined,
+		private readonly _tsServerLogFile: vscode.Uri | undefined,
 		private readonly _requestCanceller: OngoingRequestCanceller,
 		private readonly _version: TypeScriptVersion,
 		private readonly _telemetryReporter: TelemetryReporter,
