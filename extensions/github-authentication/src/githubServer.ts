@@ -15,7 +15,7 @@ import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
 
 const CLIENT_ID = '01ab8ac9400c4e429b23';
-const GITHUB_TOKEN_URL = 'https://vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
+const GITHUB_TOKEN_URL = 'http://localhost:3000/codeExchangeProxyEndpoints/github/login/oauth/access_token';
 const NETWORK_ERROR = 'network error';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
@@ -490,11 +490,12 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private getServerUri(path: string = '') {
-		if (this._type === AuthProviderType.github) {
-			return vscode.Uri.parse('https://api.github.com').with({ path });
-		}
-		// GHES
 		const apiUri = this.baseUri;
+		// github.com and Hosted GitHub Enterprise instances
+		if (isSupportedTarget(this._type, this._ghesUri)) {
+			return vscode.Uri.parse(`${apiUri.scheme}://api.${apiUri.authority}`).with({ path });
+		}
+		// GitHub Enterprise Server (aka on-prem)
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
@@ -601,18 +602,24 @@ export class GitHubServer implements IGitHubServer {
 
 	private async checkEnterpriseVersion(token: string): Promise<void> {
 		try {
-			const result = await fetching(this.getServerUri('/meta').toString(), {
-				headers: {
-					Authorization: `token ${token}`,
-					'User-Agent': 'Visual-Studio-Code'
+			let version: string;
+			if (!isSupportedTarget(this._type, this._ghesUri)) {
+				const result = await fetching(this.getServerUri('/meta').toString(), {
+					headers: {
+						Authorization: `token ${token}`,
+						'User-Agent': 'Visual-Studio-Code'
+					}
+				});
+
+				if (!result.ok) {
+					return;
 				}
-			});
 
-			if (!result.ok) {
-				return;
+				const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
+				version = json.installed_version;
+			} else {
+				version = 'hosted';
 			}
-
-			const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
 
 			/* __GDPR__
 				"ghe-session" : {
@@ -621,7 +628,7 @@ export class GitHubServer implements IGitHubServer {
 				}
 			*/
 			this._telemetryReporter.sendTelemetryEvent('ghe-session', {
-				version: json.installed_version
+				version
 			});
 		} catch {
 			// No-op
