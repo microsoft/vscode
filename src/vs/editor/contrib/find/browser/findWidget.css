@@ -55,7 +55,7 @@
 
 .monaco-editor .find-widget > .find-part,
 .monaco-editor .find-widget > .replace-part {
-	margin: 3px 24px 0 17px;
+	margin: 3px 25px 0 17px;
 	font-size: 12px;
 	display: flex;
 }
@@ -230,8 +230,8 @@
 }
 
 /* Close button position. */
-.monaco-editor .find-widget > .codicon-button-close {
+.monaco-editor .find-widget > .button.codicon-widget-close {
 	position: absolute;
 	top: 5px;
-	right: 5px;
+	right: 4px;
 }
