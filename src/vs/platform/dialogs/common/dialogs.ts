@@ -35,6 +35,9 @@ export interface IBaseDialogOptions {
 
 	readonly checkbox?: ICheckbox;
 
+	/**
+	 * Allows to enforce use of custom dialog even in native environments.
+	 */
 	readonly custom?: boolean | ICustomDialogOptions;
 }
 
@@ -43,7 +46,15 @@ export interface IConfirmDialogArgs {
 }
 
 export interface IConfirmation extends IBaseDialogOptions {
+
+	/**
+	 * If not provided, defaults to `Yes`.
+	 */
 	readonly primaryButton?: string;
+
+	/**
+	 * If not provided, defaults to `Cancel`.
+	 */
 	readonly cancelButton?: string;
 }
 
@@ -81,19 +92,49 @@ export interface IPromptDialogArgs {
 	readonly prompt: IPrompt<unknown>;
 }
 
-export interface IPromptButton<T> {
-	readonly label: string;
+export interface IPromptBaseButton<T> {
 
+	/**
+	 * @returns the result of the prompt button will be returned
+	 * as result from the `prompt()` call.
+	 */
 	run(checkbox: ICheckboxResult): T | Promise<T>;
 }
 
-export interface IPrompt<T> extends IBaseDialogOptions {
-	readonly buttons?: IPromptButton<T>[];
-	readonly cancelButton?: IPromptButton<T>;
+export interface IPromptButton<T> extends IPromptBaseButton<T> {
+	readonly label: string;
 }
 
-export interface IPromptWithCancel<T> extends IPrompt<T> {
+export interface IPromptCancelButton<T> extends IPromptBaseButton<T> {
+
+	/**
+	 * The cancel button to show in the prompt. Defaults to
+	 * `Cancel` if not provided.
+	 */
+	readonly label?: string;
+}
+
+export interface IPrompt<T> extends IBaseDialogOptions {
+
+	/**
+	 * The buttons to show in the prompt. Defaults to `OK`
+	 * if no buttons or cancel button is provided.
+	 */
+	readonly buttons?: IPromptButton<T>[];
+
+	/**
+	 * The cancel button to show in the prompt. Defaults to
+	 * `Cancel` if set to `true`.
+	 */
+	readonly cancelButton?: IPromptCancelButton<T> | true | string;
+}
+
+export interface IPromptWithCustomCancel<T> extends IPrompt<T> {
 	readonly cancelButton: IPromptButton<T>;
+}
+
+export interface IPromptWithDefaultCancel<T> extends IPrompt<T> {
+	readonly cancelButton: true | string;
 }
 
 export interface IPromptResult<T> extends ICheckboxResult {
@@ -104,7 +145,7 @@ export interface IPromptResult<T> extends ICheckboxResult {
 	readonly result?: T;
 }
 
-export interface IPromptResultRequired<T> extends IPromptResult<T> {
+export interface IPromptResultWithCancel<T> extends IPromptResult<T> {
 	readonly result: T;
 }
 
@@ -292,22 +333,22 @@ enum DialogKind {
 
 export abstract class AbstractDialogHandler implements IDialogHandler {
 
-	protected toConfirmationButtons(dialog: IConfirmation): string[] {
-		return this.toButtons(dialog, DialogKind.Confirmation);
+	protected getConfirmationButtons(dialog: IConfirmation): string[] {
+		return this.getButtons(dialog, DialogKind.Confirmation);
 	}
 
-	protected toPromptButtons(dialog: IPrompt<unknown>): string[] {
-		return this.toButtons(dialog, DialogKind.Prompt);
+	protected getPromptButtons(dialog: IPrompt<unknown>): string[] {
+		return this.getButtons(dialog, DialogKind.Prompt);
 	}
 
-	protected toInputButtons(dialog: IInput): string[] {
-		return this.toButtons(dialog, DialogKind.Input);
+	protected getInputButtons(dialog: IInput): string[] {
+		return this.getButtons(dialog, DialogKind.Input);
 	}
 
-	private toButtons(dialog: IConfirmation, kind: DialogKind.Confirmation): string[];
-	private toButtons(dialog: IPrompt<unknown>, kind: DialogKind.Prompt): string[];
-	private toButtons(dialog: IInput, kind: DialogKind.Input): string[];
-	private toButtons(dialog: IConfirmation | IInput | IPrompt<unknown>, kind: DialogKind): string[] {
+	private getButtons(dialog: IConfirmation, kind: DialogKind.Confirmation): string[];
+	private getButtons(dialog: IPrompt<unknown>, kind: DialogKind.Prompt): string[];
+	private getButtons(dialog: IInput, kind: DialogKind.Input): string[];
+	private getButtons(dialog: IConfirmation | IInput | IPrompt<unknown>, kind: DialogKind): string[] {
 
 		// We put buttons in the order of "default" button first and "cancel"
 		// button last. There maybe later processing when presenting the buttons
@@ -341,7 +382,17 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 				}
 
 				if (promptDialog.cancelButton) {
-					buttons.push(promptDialog.cancelButton.label);
+					if (promptDialog.cancelButton === true) {
+						buttons.push(localize('cancelButton', "Cancel"));
+					} else if (typeof promptDialog.cancelButton === 'string') {
+						buttons.push(promptDialog.cancelButton);
+					} else {
+						if (promptDialog.cancelButton.label) {
+							buttons.push(promptDialog.cancelButton.label);
+						} else {
+							buttons.push(localize('cancelButton', "Cancel"));
+						}
+					}
 				}
 
 				if (buttons.length === 0) {
@@ -382,6 +433,17 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		}
 
 		return undefined;
+	}
+
+	protected async getPromptResult<T>(prompt: IPrompt<T>, buttonIndex: number, checkboxChecked: boolean | undefined): Promise<IPromptResult<T>> {
+		const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
+		if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
+			promptButtons.push(prompt.cancelButton);
+		}
+
+		const result = await promptButtons[buttonIndex]?.run({ checkboxChecked });
+
+		return { result, checkboxChecked };
 	}
 
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
@@ -426,7 +488,8 @@ export interface IDialogService {
 	 * @returns a promise that resolves to the `T` result
 	 * from the provided `IPromptButton<T>` or `undefined`.
 	 */
-	prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
+	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
 	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
 
 	/**

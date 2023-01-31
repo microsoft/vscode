@@ -45,7 +45,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
-		const buttons = this.toPromptButtons(prompt);
+		const buttons = this.getPromptButtons(prompt);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			type: this.getDialogType(prompt.type),
@@ -59,15 +59,14 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		});
 
 		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
-		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][buttonIndexMap[response]]?.run({ checkboxChecked });
 
-		return { result, checkboxChecked };
+		return this.getPromptResult(prompt, buttonIndexMap[response], checkboxChecked);
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
-		const buttons = this.toConfirmationButtons(confirmation);
+		const buttons = this.getConfirmationButtons(confirmation);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			type: this.getDialogType(confirmation.type) ?? 'question',

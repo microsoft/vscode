@@ -47,18 +47,17 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
-		const buttons = this.toPromptButtons(prompt);
+		const buttons = this.getPromptButtons(prompt);
 
 		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
-		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][button]?.run({ checkboxChecked });
 
-		return { result, checkboxChecked };
+		return this.getPromptResult(prompt, button, checkboxChecked);
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
-		const buttons = this.toConfirmationButtons(confirmation);
+		const buttons = this.getConfirmationButtons(confirmation);
 
 		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
 
@@ -68,7 +67,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	async input(input: IInput): Promise<IInputResult> {
 		this.logService.trace('DialogService#input', input.message);
 
-		const buttons = this.toInputButtons(input);
+		const buttons = this.getInputButtons(input);
 
 		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
 

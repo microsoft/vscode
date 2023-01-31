@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
-import { IDialogService, IPrompt } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPrompt, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
@@ -99,7 +99,7 @@ suite('ExtHostMessageService', function () {
 					assert.strictEqual(type, 1);
 					assert.strictEqual(message, 'h');
 					assert.strictEqual(buttons!.length, 1);
-					assert.strictEqual(cancelButton!.label, 'Cancel');
+					assert.strictEqual((cancelButton as IPromptButton<unknown>)!.label, 'Cancel');
 					return Promise.resolve({ result: buttons![0].run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
@@ -111,7 +111,7 @@ suite('ExtHostMessageService', function () {
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				override prompt(prompt: IPrompt<any>) {
-					return Promise.resolve({ result: prompt.cancelButton!.run({ checkboxChecked: false }) });
+					return Promise.resolve({ result: (prompt.cancelButton as IPromptButton<unknown>)!.run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 
@@ -124,7 +124,7 @@ suite('ExtHostMessageService', function () {
 				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
 					assert.strictEqual(buttons!.length, 0);
 					assert.ok(cancelButton);
-					return Promise.resolve({ result: cancelButton.run({ checkboxChecked: false }) });
+					return Promise.resolve({ result: (cancelButton as IPromptButton<unknown>).run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 

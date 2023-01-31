@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IPrompt, IPromptResult, IPromptResultRequired, IPromptWithCancel, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IPrompt, IPromptBaseButton, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class TestDialogService implements IDialogService {
 
@@ -32,10 +32,16 @@ export class TestDialogService implements IDialogService {
 		return this.defaultConfirmResult ?? { confirmed: false };
 	}
 
-	async prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
-	async prompt<T>(prompt: IPrompt<T> | IPromptWithCancel<T>): Promise<IPromptResult<T> | IPromptResultRequired<T>> {
-		return { result: await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run({ checkboxChecked: false }) };
+	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
+		const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
+		if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
+			promptButtons.push(prompt.cancelButton);
+		}
+
+		return { result: await promptButtons[0]?.run({ checkboxChecked: false }) };
 	}
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
 	async info(message: string): Promise<void> {

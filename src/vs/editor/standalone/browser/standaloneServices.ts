@@ -31,7 +31,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult, IPrompt, IPromptResult, IPromptWithCancel, IPromptResultRequired } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult, IPrompt, IPromptResult, IPromptWithCustomCancel, IPromptResultWithCancel, IPromptWithDefaultCancel, IPromptBaseButton } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -225,13 +225,19 @@ class StandaloneDialogService implements IDialogService {
 		return window.confirm(messageText);
 	}
 
-	async prompt<T>(prompt: IPromptWithCancel<T>): Promise<IPromptResultRequired<T>>;
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
-	async prompt<T>(prompt: IPrompt<T> | IPromptWithCancel<T>): Promise<IPromptResult<T> | IPromptResultRequired<T>> {
+	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
 		let result: T | undefined = undefined;
 		const confirmed = this.doConfirm(prompt.message, prompt.detail);
 		if (confirmed) {
-			result = await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run({ checkboxChecked: false });
+			const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
+			if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
+				promptButtons.push(prompt.cancelButton);
+			}
+
+			result = await promptButtons[0]?.run({ checkboxChecked: false });
 		}
 
 		return { result };
