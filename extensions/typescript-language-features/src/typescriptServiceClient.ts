@@ -84,7 +84,7 @@ namespace ServerState {
 		readonly type = Type.Errored;
 		constructor(
 			public readonly error: Error,
-			public readonly tsServerLogFile: string | undefined,
+			public readonly tsServerLogFile: vscode.Uri | undefined,
 		) { }
 	}
 
@@ -517,7 +517,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		try {
-			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.serverState.server.tsServerLogFile));
+			const doc = await vscode.workspace.openTextDocument(this.serverState.server.tsServerLogFile);
 			await vscode.window.showTextDocument(doc);
 			return true;
 		} catch {
@@ -525,7 +525,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		try {
-			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(this.serverState.server.tsServerLogFile));
+			await vscode.commands.executeCommand('revealFileInOS', this.serverState.server.tsServerLogFile);
 			return true;
 		} catch {
 			vscode.window.showWarningMessage(vscode.l10n.t("Could not open TS Server log file"));
@@ -1020,7 +1020,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 function getReportIssueArgsForError(
 	error: TypeScriptServerError,
-	logPath: string | undefined,
+	logPath: vscode.Uri | undefined,
 	globalPlugins: readonly TypeScriptServerPlugin[],
 ): { extensionId: string; issueTitle: string; issueBody: string } | undefined {
 	if (!error.serverStack || !error.serverMessage) {
@@ -1055,7 +1055,7 @@ function getReportIssueArgsForError(
 
 ❗️ Please review and upload this log file to help us diagnose this crash:
 
-\`${logPath}\`
+\`${logPath.fsPath}\`
 
 The log file may contain personal data, including full paths and source code from your workspace. You can scrub the log file to remove paths or other personal information.
 `);

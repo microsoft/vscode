@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
@@ -187,10 +186,10 @@ export class TypeScriptServerSpawner {
 		apiVersion: API,
 		pluginManager: PluginManager,
 		cancellationPipeName: string | undefined,
-	): { args: string[]; tsServerLogFile: string | undefined; tsServerTraceDirectory: string | undefined } {
+	): { args: string[]; tsServerLogFile: vscode.Uri | undefined; tsServerTraceDirectory: vscode.Uri | undefined } {
 		const args: string[] = [];
-		let tsServerLogFile: string | undefined;
-		let tsServerTraceDirectory: string | undefined;
+		let tsServerLogFile: vscode.Uri | undefined;
+		let tsServerTraceDirectory: vscode.Uri | undefined;
 
 		if (kind === TsServerProcessKind.Syntax) {
 			if (apiVersion.gte(API.v401)) {
@@ -220,9 +219,10 @@ export class TypeScriptServerSpawner {
 			} else {
 				const logDir = this._logDirectoryProvider.getNewLogDirectory();
 				if (logDir) {
-					tsServerLogFile = path.join(logDir, `tsserver.log`);
+					tsServerLogFile = vscode.Uri.joinPath(logDir, `tsserver.log`);
+
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', tsServerLogFile);
+					args.push('--logFile', tsServerLogFile.path);
 				}
 			}
 		}
@@ -230,7 +230,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory);
+				args.push('--traceDirectory', tsServerTraceDirectory.path);
 			}
 		}
 
