@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * This module is responsible for parsing possible links out of lines with only access to the line
+ * text and the target operating system, ie. it does not do any validation that paths actually
+ * exist.
+ */
+
 import { Lazy } from 'vs/base/common/lazy';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -315,21 +321,27 @@ enum RegexPathConstants {
 	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
 }
 
-/** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
+/**
+ * A regex that matches non-Windows paths, such as `/foo`, `~/foo`, `./foo`, `../foo` and
+ * `foo/bar`.
+ */
 const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 /**
- * A regex clause that matches the start of an absolute path on Windows.
+ * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:` and
+ * `\\?\C` (UNC path).
  */
 export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 
-/** A regex that matches paths in the form \\?\c:\foo c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
+/**
+ * A regex that matches Windows paths, such as `\\?\c:\foo`, `c:\foo`, `~\foo`, `.\foo`, `..\foo`
+ * and `foo\bar`.
+ */
 const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
 function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	const results: IParsedLink[] = [];
 
-	// TODO: Only check unused ranges
 	const regex = new RegExp(os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause, 'g');
 	let match;
 	while ((match = regex.exec(line)) !== null) {
