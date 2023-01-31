@@ -21,11 +21,12 @@ import { deepClone } from 'vs/base/common/objects';
 export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
 	readonly inputArgs?: IInputDialogArgs;
-	readonly showArgs?: IShowDialogArgs;
 	readonly promptArgs?: IPromptDialogArgs;
+
+	readonly showArgs?: IShowDialogArgs;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult | IShowResult;
+export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown> | IShowResult;
 
 export interface IConfirmDialogArgs {
 	readonly confirmation: IConfirmation;
@@ -77,105 +78,35 @@ export interface IInputResult extends IConfirmationResult {
 }
 
 export interface IPromptDialogArgs {
-	readonly prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt;
+	readonly prompt: IPrompt<unknown>;
 }
 
-export interface IBasePrompt {
+export interface IPromptButton<T> {
+	readonly label: string;
+
+	run(): T | Promise<T>;
+}
+
+export interface IPrompt<T> {
 	readonly type?: Severity | DialogType;
 
 	readonly message: string;
 	readonly detail?: string;
+
+	readonly buttons?: IPromptButton<T>[];
+	readonly cancelButton?: IPromptButton<T>;
 
 	readonly checkbox?: ICheckbox;
 
 	readonly custom?: boolean | ICustomDialogOptions;
 }
 
-export interface IOneButtonPrompt extends IBasePrompt {
-	readonly button?: string;
-}
-
-export interface ITwoButtonPrompt extends IBasePrompt {
-	readonly primaryButton: string;
-	readonly cancelButton?: string;
-}
-
-export interface IThreeButtonPrompt extends ITwoButtonPrompt {
-	readonly secondaryButton: string;
-}
-
-export interface IFourButtonPrompt extends IThreeButtonPrompt {
-	readonly tertiaryButton: string;
-}
-
-export function isOneButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is IOneButtonPrompt {
-	return !isTwoButtonPrompt(arg) && !isThreeButtonPrompt(arg) && !isFourButtonPrompt(arg);
-}
-
-export function isTwoButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is ITwoButtonPrompt {
-	if (isThreeButtonPrompt(arg) || isFourButtonPrompt(arg)) {
-		return false;
-	}
-
-	const candidate = arg as ITwoButtonPrompt;
-
-	return typeof candidate.primaryButton === 'string';
-}
-
-export function isThreeButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is IThreeButtonPrompt {
-	if (isFourButtonPrompt(arg)) {
-		return false;
-	}
-
-	const candidate = arg as IThreeButtonPrompt;
-
-	return typeof candidate.secondaryButton === 'string';
-}
-
-export function isFourButtonPrompt(arg: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): arg is IFourButtonPrompt {
-	const candidate = arg as IFourButtonPrompt;
-
-	return typeof candidate.tertiaryButton === 'string';
-}
-
-export enum TwoButtonPromptResult {
-	Cancel = 0,
-	Primary = 1
-}
-
-export enum ThreeButtonPromptResult {
-	Cancel = 0,
-	Primary = 1,
-	Secondary = 2
-}
-
-export enum FourButtonPromptResult {
-	Cancel = 0,
-	Primary = 1,
-	Secondary = 2,
-	Tertiary = 3
-}
-
-export interface IBasePromptResult extends ICheckboxResult {
+export interface IPromptResult<T> extends ICheckboxResult {
 
 	/**
-	 * The button that was pressed by the user from the prompt.
+	 * The result of the `IPromptButton`` that was pressed or `undefined` if none.
 	 */
-	readonly choice: TwoButtonPromptResult | ThreeButtonPromptResult | FourButtonPromptResult;
-}
-
-export interface IOneButtonPromptResult extends ICheckboxResult { }
-
-export interface ITwoButtonPromptResult extends IBasePromptResult {
-	readonly choice: TwoButtonPromptResult;
-}
-
-export interface IThreeButtonPromptResult extends IBasePromptResult {
-	readonly choice: ThreeButtonPromptResult;
-}
-
-export interface IFourButtonPromptResult extends IBasePromptResult {
-	readonly choice: FourButtonPromptResult;
+	readonly result?: T;
 }
 
 /**
@@ -334,10 +265,7 @@ export interface IDialogHandler {
 	/**
 	 * Prompt the user with a modal dialog.
 	 */
-	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -367,7 +295,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		return this.toButtons(dialog, DialogKind.Confirmation);
 	}
 
-	protected toPromptButtons(dialog: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): string[] {
+	protected toPromptButtons(dialog: IPrompt<unknown>): string[] {
 		return this.toButtons(dialog, DialogKind.Prompt);
 	}
 
@@ -376,9 +304,9 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 	}
 
 	private toButtons(dialog: IConfirmation, kind: DialogKind.Confirmation): string[];
-	private toButtons(dialog: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt, kind: DialogKind.Prompt): string[];
+	private toButtons(dialog: IPrompt<unknown>, kind: DialogKind.Prompt): string[];
 	private toButtons(dialog: IInput, kind: DialogKind.Input): string[];
-	private toButtons(dialog: IConfirmation | IInput | IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt, kind: DialogKind): string[] {
+	private toButtons(dialog: IConfirmation | IInput | IPrompt<unknown>, kind: DialogKind): string[] {
 
 		// We put buttons in the order of "default" button first and "cancel"
 		// button last. There maybe later processing when presenting the buttons
@@ -405,30 +333,18 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 				break;
 			}
 			case DialogKind.Prompt: {
-				const promptDialog = dialog as IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt;
+				const promptDialog = dialog as IPrompt<unknown>;
 
-				if (isTwoButtonPrompt(promptDialog) || isThreeButtonPrompt(promptDialog) || isFourButtonPrompt(promptDialog)) {
-					buttons.push(promptDialog.primaryButton);
+				if (Array.isArray(promptDialog.buttons) && promptDialog.buttons.length > 0) {
+					buttons.push(...promptDialog.buttons.map(button => button.label));
+				}
 
-					if (isThreeButtonPrompt(promptDialog) || isFourButtonPrompt(promptDialog)) {
-						buttons.push(promptDialog.secondaryButton);
-					}
+				if (promptDialog.cancelButton) {
+					buttons.push(promptDialog.cancelButton.label);
+				}
 
-					if (isFourButtonPrompt(promptDialog)) {
-						buttons.push(promptDialog.tertiaryButton);
-					}
-
-					if (promptDialog.cancelButton) {
-						buttons.push(promptDialog.cancelButton);
-					} else {
-						buttons.push(localize('cancelButton', "Cancel"));
-					}
-				} else {
-					if (promptDialog.button) {
-						buttons.push(promptDialog.button);
-					} else {
-						buttons.push(localize({ key: 'okButton', comment: ['&& denotes a mnemonic'] }, "&&OK"));
-					}
+				if (buttons.length === 0) {
+					buttons.push(localize({ key: 'okButton', comment: ['&& denotes a mnemonic'] }, "&&OK"));
 				}
 
 				break;
@@ -455,46 +371,6 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		return buttons;
 	}
 
-	protected toPromptResult(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt, buttonIndex: number): TwoButtonPromptResult | ThreeButtonPromptResult | FourButtonPromptResult {
-		let choice: TwoButtonPromptResult | ThreeButtonPromptResult | FourButtonPromptResult;
-		if (isThreeButtonPrompt(prompt)) {
-			switch (buttonIndex) {
-				case 0:
-					choice = ThreeButtonPromptResult.Primary;
-					break;
-				case 1:
-					choice = ThreeButtonPromptResult.Secondary;
-					break;
-				default:
-					choice = ThreeButtonPromptResult.Cancel;
-			}
-		} else if (isFourButtonPrompt(prompt)) {
-			switch (buttonIndex) {
-				case 0:
-					choice = FourButtonPromptResult.Primary;
-					break;
-				case 1:
-					choice = FourButtonPromptResult.Secondary;
-					break;
-				case 2:
-					choice = FourButtonPromptResult.Tertiary;
-					break;
-				default:
-					choice = FourButtonPromptResult.Cancel;
-			}
-		} else {
-			switch (buttonIndex) {
-				case 0:
-					choice = TwoButtonPromptResult.Primary;
-					break;
-				default:
-					choice = TwoButtonPromptResult.Cancel;
-			}
-		}
-
-		return choice;
-	}
-
 	protected getDialogType(type: Severity | DialogType | undefined): DialogType | undefined {
 		if (typeof type === 'string') {
 			return type;
@@ -509,10 +385,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
-	abstract prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	abstract prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	abstract prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	abstract prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	abstract prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
 	abstract show(severity: Severity, message: string, buttons?: string[] | undefined, options?: IDialogOptions | undefined): Promise<IShowResult>;
 	abstract about(): Promise<void>;
 }
@@ -548,11 +421,11 @@ export interface IDialogService {
 	 * `confirm` method. Specifically, allows to show more
 	 * than 2 buttons and makes it easier to just show a
 	 * message to the user.
+	 *
+	 * @returns a promise that resolves to the `T` result
+	 * from the provided `IPromptButton<T>` or `undefined`.
 	 */
-	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
 
 	/**
 	 * @deprecated

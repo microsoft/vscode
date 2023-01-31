@@ -87,59 +87,56 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
-		enum ConfirmResult {
-			SAVE,
-			DONT_SAVE,
-			CANCEL
-		}
+		const { result } = await this.dialogService.prompt<boolean>({
+			type: Severity.Warning,
+			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
+			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
+			buttons: [
+				{
+					label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+					run: async () => {
+						const newWorkspacePath = await this.pickNewWorkspacePath();
+						if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
+							return true; // keep veto if no target was provided
+						}
 
-		const buttons = [
-			{ label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"), result: ConfirmResult.SAVE },
-			{ label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"), result: ConfirmResult.DONT_SAVE },
-			{ label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
-		];
-		const message = localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
-		const detail = localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId: 2 });
+						try {
+							await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
-		switch (buttons[choice].result) {
+							// Make sure to add the new workspace to the history to find it again
+							const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+							await this.workspacesService.addRecentlyOpened([{
+								label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
+								workspace: newWorkspaceIdentifier,
+								remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
+							}]);
 
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				return true;
+							// Delete the untitled one
+							await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+						} catch (error) {
+							// ignore
+						}
 
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				return false;
-
-			// Save: save workspace, but do not veto unload if path provided
-			case ConfirmResult.SAVE: {
-				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
-					return true; // keep veto if no target was provided
+						return false;
+					}
+				},
+				{
+					label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+					run: async () => {
+						await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+						return false;
+					}
 				}
-
-				try {
-					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
-
-					// Make sure to add the new workspace to the history to find it again
-					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
-					await this.workspacesService.addRecentlyOpened([{
-						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
-						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
-					}]);
-
-					// Delete the untitled one
-					await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				} catch (error) {
-					// ignore
+			],
+			cancelButton: {
+				label: localize('cancel', "Cancel"),
+				run: () => {
+					return true; // veto
 				}
-
-				return false;
 			}
-		}
+		});
+
+		return Boolean(result);
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {

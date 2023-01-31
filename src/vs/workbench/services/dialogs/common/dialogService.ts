@@ -5,7 +5,7 @@
 
 import Severity from 'vs/base/common/severity';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import { DialogsModel } from 'vs/workbench/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -48,18 +48,14 @@ export class DialogService extends Disposable implements IDialogService {
 		return await handle.result as IConfirmationResult;
 	}
 
-	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
-	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
 		if (this.skipDialogs()) {
 			throw new Error('DialogService: refused to show dialog in tests.');
 		}
 
 		const handle = this.model.show({ promptArgs: { prompt } });
 
-		return await handle.result as IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult;
+		return await handle.result as IPromptResult<T>;
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {

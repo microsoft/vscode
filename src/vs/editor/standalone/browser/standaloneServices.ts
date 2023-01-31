@@ -31,7 +31,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, TwoButtonPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -207,32 +207,32 @@ class StandaloneDialogService implements IDialogService {
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.doConfirm(confirmation).then(confirmed => {
-			return {
-				confirmed,
-				checkboxChecked: false // unsupported
-			} as IConfirmationResult;
-		});
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		const confirmed = this.doConfirm(confirmation.message, confirmation.detail);
+
+		return {
+			confirmed,
+			checkboxChecked: false // unsupported
+		} as IConfirmationResult;
 	}
 
-	private doConfirm(confirmation: IConfirmation): Promise<boolean> {
-		let messageText = confirmation.message;
-		if (confirmation.detail) {
-			messageText = messageText + '\n\n' + confirmation.detail;
+	private doConfirm(message: string, detail?: string): boolean {
+		let messageText = message;
+		if (detail) {
+			messageText = messageText + '\n\n' + detail;
 		}
 
-		return Promise.resolve(window.confirm(messageText));
+		return window.confirm(messageText);
 	}
 
-	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
-	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
-		const confirmed = await this.confirm(prompt);
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+		let result: T | undefined = undefined;
+		const confirmed = this.doConfirm(prompt.message, prompt.detail);
+		if (confirmed) {
+			result = await ([...(prompt.buttons ?? []), prompt.cancelButton][0])?.run();
+		}
 
-		return { choice: confirmed.confirmed ? TwoButtonPromptResult.Primary : TwoButtonPromptResult.Cancel };
+		return { result };
 	}
 
 	async info(message: string): Promise<void> {

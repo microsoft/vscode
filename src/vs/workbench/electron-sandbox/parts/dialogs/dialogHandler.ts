@@ -10,7 +10,7 @@ import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, ITwoButtonPrompt, ITwoButtonPromptResult, IShowResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, massageMessageBoxOptions, IOneButtonPrompt, IOneButtonPromptResult, isOneButtonPrompt } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, massageMessageBoxOptions, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -42,11 +42,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
-	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
-	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.toPromptButtons(prompt);
@@ -61,18 +57,10 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: prompt.checkbox?.checked
 		});
 
-		const result = await this.nativeHostService.showMessageBox(options);
+		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
+		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][buttonIndexMap[response]]?.run();
 
-		if (isOneButtonPrompt(prompt)) {
-			return {
-				checkboxChecked: result.checkboxChecked
-			};
-		}
-
-		return {
-			choice: this.toPromptResult(prompt, buttonIndexMap[result.response]),
-			checkboxChecked: result.checkboxChecked
-		};
+		return { result, checkboxChecked };
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -91,12 +79,9 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: confirmation.checkbox?.checked
 		});
 
-		const result = await this.nativeHostService.showMessageBox(options);
+		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
 
-		return {
-			confirmed: buttonIndexMap[result.response] === 0 ? true : false,
-			checkboxChecked: result.checkboxChecked
-		};
+		return { confirmed: buttonIndexMap[response] === 0, checkboxChecked };
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
@@ -112,8 +97,9 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
 		});
 
-		const result = await this.nativeHostService.showMessageBox(options);
-		return { choice: buttonIndexMap[result.response], checkboxChecked: result.checkboxChecked };
+		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
+
+		return { choice: buttonIndexMap[response], checkboxChecked };
 	}
 
 	private massageMessageBoxOptions(options: MessageBoxOptions): IMassagedMessageBoxOptions {

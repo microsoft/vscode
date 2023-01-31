@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, ITwoButtonPrompt, ITwoButtonPromptResult, IFourButtonPrompt, IFourButtonPromptResult, IThreeButtonPrompt, IThreeButtonPromptResult, IOneButtonPrompt, IOneButtonPromptResult, isOneButtonPrompt, DialogType } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogOptions, IConfirmation, IConfirmationResult, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -44,27 +44,15 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
-	prompt(prompt: IOneButtonPrompt): Promise<IOneButtonPromptResult>;
-	prompt(prompt: ITwoButtonPrompt): Promise<ITwoButtonPromptResult>;
-	prompt(prompt: IThreeButtonPrompt): Promise<IThreeButtonPromptResult>;
-	prompt(prompt: IFourButtonPrompt): Promise<IFourButtonPromptResult>;
-	async prompt(prompt: IOneButtonPrompt | ITwoButtonPrompt | IThreeButtonPrompt | IFourButtonPrompt): Promise<IOneButtonPromptResult | ITwoButtonPromptResult | IThreeButtonPromptResult | IFourButtonPromptResult> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.toPromptButtons(prompt);
 
-		const result = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, buttons.length - 1, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, buttons.length - 1, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+		const result = await [...(prompt.buttons ?? []), prompt.cancelButton][button]?.run();
 
-		if (isOneButtonPrompt(prompt)) {
-			return {
-				checkboxChecked: result.checkboxChecked
-			};
-		}
-
-		return {
-			choice: this.toPromptResult(prompt, result.button),
-			checkboxChecked: result.checkboxChecked
-		};
+		return { result, checkboxChecked };
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -72,12 +60,9 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.toConfirmationButtons(confirmation);
 
-		const result = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
 
-		return {
-			confirmed: result.button === 0,
-			checkboxChecked: result.checkboxChecked
-		};
+		return { confirmed: button === 0, checkboxChecked };
 	}
 
 	async input(input: IInput): Promise<IInputResult> {
@@ -85,24 +70,17 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.toInputButtons(input);
 
-		const result = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
+		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
 
-		return {
-			confirmed: result.button === 0,
-			checkboxChecked: result.checkboxChecked,
-			values: result.values
-		};
+		return { confirmed: button === 0, checkboxChecked, values };
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
-		const result = await this.doShow(severity, message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(severity, message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
 
-		return {
-			choice: result.button,
-			checkboxChecked: result.checkboxChecked
-		};
+		return { choice: button, checkboxChecked };
 	}
 
 	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
