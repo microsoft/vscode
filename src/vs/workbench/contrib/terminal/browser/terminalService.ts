@@ -529,7 +529,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	showTerminalAccessibilityHelp(): void {
-		this.activeInstance?.showAccessibilityHelp();
+		this.getActiveOrCreateInstance().then((instance) => {
+			this._terminalGroupService.showPanel();
+			instance.showAccessibilityHelp();
+		});
 	}
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
