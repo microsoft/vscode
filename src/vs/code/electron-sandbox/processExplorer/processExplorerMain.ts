@@ -56,13 +56,13 @@ class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformat
 }
 
 interface IProcessItemTemplateData extends IProcessRowTemplateData {
-	CPU: HTMLElement;
-	memory: HTMLElement;
-	PID: HTMLElement;
+	readonly CPU: HTMLElement;
+	readonly memory: HTMLElement;
+	readonly PID: HTMLElement;
 }
 
 interface IProcessRowTemplateData {
-	name: HTMLElement;
+	readonly name: HTMLElement;
 }
 
 class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
@@ -167,15 +167,14 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 	templateId: string = 'process';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const data = <IProcessItemTemplateData>Object.create(null);
 		const row = append(container, $('.row'));
 
-		data.name = append(row, $('.nameLabel'));
-		data.CPU = append(row, $('.cpu'));
-		data.memory = append(row, $('.memory'));
-		data.PID = append(row, $('.pid'));
+		const name = append(row, $('.nameLabel'));
+		const CPU = append(row, $('.cpu'));
+		const memory = append(row, $('.memory'));
+		const PID = append(row, $('.pid'));
 
-		return data;
+		return { name, CPU, PID, memory };
 	}
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		const { element } = node;
