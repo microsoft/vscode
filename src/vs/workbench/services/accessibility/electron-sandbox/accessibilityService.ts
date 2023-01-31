@@ -17,7 +17,6 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
@@ -27,8 +26,6 @@ type AccessibilityMetricsClassification = {
 	comment: 'Helps gain an understanding of when accessibility features are being used';
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether or not accessibility features are enabled' };
 };
-
-const AccessibiiltySupportStorageKey = 'accessibilitySupportEnabled';
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
@@ -41,11 +38,10 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILayoutService _layoutService: ILayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IStorageService private readonly _storageService: IStorageService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextKeyService, _layoutService, configurationService);
-		this.setAccessibilitySupport(_storageService.get(AccessibiiltySupportStorageKey, StorageScope.APPLICATION) || environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		this.setAccessibilitySupport(environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
@@ -63,7 +59,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 
 	override setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
 		super.setAccessibilitySupport(accessibilitySupport);
-		this._storageService.store(AccessibiiltySupportStorageKey, accessibilitySupport === AccessibilitySupport.Enabled, StorageScope.APPLICATION, StorageTarget.USER);
+
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {
 			this._telemetryService.publicLog2<AccessibilityMetrics, AccessibilityMetricsClassification>('accessibility', { enabled: true });
 			this.didSendTelemetry = true;
