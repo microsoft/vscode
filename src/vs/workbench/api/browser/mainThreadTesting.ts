@@ -45,7 +45,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 		this._register(resultService.onResultsChanged(evt => {
 			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
-			const serialized = results?.toJSONWithMessages();
+			const serialized = results?.toJSON();
 			if (serialized) {
 				this.proxy.$publishTestResults([serialized]);
 			}
