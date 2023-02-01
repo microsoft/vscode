@@ -70,6 +70,11 @@ export interface IInputDialogArgs {
 
 export interface IInput extends IConfirmation {
 	readonly inputs: IInputElement[];
+
+	/**
+	 * If not provided, defaults to `Ok`.
+	 */
+	readonly primaryButton?: string;
 }
 
 export interface IInputElement {
