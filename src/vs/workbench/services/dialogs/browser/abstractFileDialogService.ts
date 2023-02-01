@@ -150,7 +150,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			detail,
 			buttons: [
 				{
-					label: fileNamesOrResources.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+					label: fileNamesOrResources.length > 1 ?
+						nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") :
+						nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
 					run: () => ConfirmResult.SAVE
 				},
 				{
@@ -159,12 +161,11 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 				}
 			],
 			cancelButton: {
-				label: nls.localize('cancel', "Cancel"),
 				run: () => ConfirmResult.CANCEL
 			}
 		});
 
-		return result ?? ConfirmResult.CANCEL;
+		return result;
 	}
 
 	protected addFileSchemaIfNeeded(schema: string, _isFolder?: boolean): string[] {

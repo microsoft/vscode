@@ -428,33 +428,35 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const providerName = this.getLabel(providerId);
-		const { result } = await this.dialogService.prompt<boolean | undefined>({
+		enum SessionPromptChoice {
+			Allow = 0,
+			Deny = 1,
+			Cancel = 2
+		}
+		const { result } = await this.dialogService.prompt<SessionPromptChoice>({
 			type: Severity.Info,
 			message: nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
 			buttons: [
 				{
 					label: nls.localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
-					run: () => true
+					run: () => SessionPromptChoice.Allow
 				},
 				{
 					label: nls.localize({ key: 'deny', comment: ['&& denotes a mnemonic'] }, "&&Deny"),
-					run: () => false
+					run: () => SessionPromptChoice.Deny
 				}
 			],
 			cancelButton: {
-				label: nls.localize('cancel', "Cancel"),
-				run: () => false
+				run: () => SessionPromptChoice.Cancel
 			}
 		});
 
-		const cancelled = result === undefined;
-		const allowed = result === true;
-		if (!cancelled) {
-			this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
+		if (result !== SessionPromptChoice.Cancel) {
+			this.updateAllowedExtension(providerId, accountName, extensionId, extensionName, result === SessionPromptChoice.Allow);
 			this.removeAccessRequest(providerId, extensionId);
 		}
 
-		return allowed;
+		return result === SessionPromptChoice.Allow;
 	}
 
 	async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {

@@ -74,6 +74,36 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		return { confirmed: button === 0, checkboxChecked, values };
 	}
 
+	async about(): Promise<void> {
+		const detailString = (useAgo: boolean): string => {
+			return localize('aboutDetail',
+				"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+				this.productService.version || 'Unknown',
+				this.productService.commit || 'Unknown',
+				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
+				navigator.userAgent
+			);
+		};
+
+		const detail = detailString(true);
+		const detailToCopy = detailString(false);
+
+		const { button } = await this.doShow(
+			Severity.Info,
+			this.productService.nameLong,
+			[
+				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+				localize('ok', "OK")
+			],
+			detail,
+			1
+		);
+
+		if (button === 0) {
+			this.clipboardService.writeText(detailToCopy);
+		}
+	}
+
 	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
@@ -123,35 +153,5 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		dialogDisposables.dispose();
 
 		return result;
-	}
-
-	async about(): Promise<void> {
-		const detailString = (useAgo: boolean): string => {
-			return localize('aboutDetail',
-				"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
-				this.productService.version || 'Unknown',
-				this.productService.commit || 'Unknown',
-				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
-				navigator.userAgent
-			);
-		};
-
-		const detail = detailString(true);
-		const detailToCopy = detailString(false);
-
-		const { button } = await this.doShow(
-			Severity.Info,
-			this.productService.nameLong,
-			[
-				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
-				localize('ok', "OK")
-			],
-			detail,
-			1
-		);
-
-		if (button === 0) {
-			this.clipboardService.writeText(detailToCopy);
-		}
 	}
 }

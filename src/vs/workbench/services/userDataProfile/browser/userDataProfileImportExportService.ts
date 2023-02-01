@@ -296,7 +296,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 						type: Severity.Info,
 						message,
 						buttons,
-						cancelButton: { label: localize('close', "Close"), run: () => { } }
+						cancelButton: localize('close', "Close")
 					});
 				} else {
 					await this.dialogService.info(message);
@@ -543,31 +543,35 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				return this.userDataProfilesService.createNamedProfile(`${profileTemplate.name} ${this.getProfileNameIndex(profileTemplate.name)}`, { shortName: profileTemplate.shortName, transient: temp });
 			}
 
-			const { result } = await this.dialogService.prompt<boolean | undefined>({
+			enum ImportProfileChoice {
+				Overwrite = 0,
+				CreateNew = 1,
+				Cancel = 2
+			}
+			const { result } = await this.dialogService.prompt<ImportProfileChoice>({
 				type: Severity.Info,
 				message: localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileTemplate.name),
 				buttons: [
 					{
 						label: localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Overwrite"),
-						run: () => true
+						run: () => ImportProfileChoice.Overwrite
 					},
 					{
 						label: localize({ key: 'create new', comment: ['&& denotes a mnemonic'] }, "&&Create New Profile"),
-						run: () => false
+						run: () => ImportProfileChoice.CreateNew
 					},
 				],
 				cancelButton: {
-					label: localize('cancel', "Cancel"),
-					run: () => undefined
+					run: () => ImportProfileChoice.Cancel
 				}
 			});
 
-			if (result === true) {
+			if (result === ImportProfileChoice.Overwrite) {
 				return profile;
 			}
 
-			if (result === undefined) {
-				return result;
+			if (result === ImportProfileChoice.Cancel) {
+				return undefined;
 			}
 
 			// Create new profile

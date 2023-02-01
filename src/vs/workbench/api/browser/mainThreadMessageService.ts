@@ -114,7 +114,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				};
 			} else {
 				cancelButton = {
-					label: nls.localize('ok', "OK"),
+					label: nls.localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
 					run: () => undefined
 				};
 			}
@@ -123,10 +123,10 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		const { result } = await this._dialogService.prompt({
 			type: severity,
 			message,
-			custom: useCustom,
 			detail,
 			buttons,
-			cancelButton
+			cancelButton,
+			custom: useCustom
 		});
 
 		return result;

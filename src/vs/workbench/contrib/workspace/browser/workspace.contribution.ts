@@ -111,12 +111,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			];
 
 			// Dialog
-			enum Choice {
-				Open = 0,
-				NewWindow = 1,
-				Cancel = 2
-			}
-			const { result, checkboxChecked } = await this.dialogService.prompt<Choice>({
+			await this.dialogService.prompt<void>({
 				type: Severity.Info,
 				message: this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
 					localize('openLooseFileWorkspaceMesssage', "Do you want to allow untrusted files in this workspace?") :
@@ -124,16 +119,15 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				buttons: [
 					{
 						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
-						run: () => Choice.Open
+						run: ({ checkboxChecked }) => this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Open, !!checkboxChecked)
 					},
 					{
 						label: localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "Open in &&Restricted Mode"),
-						run: () => Choice.NewWindow
+						run: ({ checkboxChecked }) => this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.OpenInNewWindow, !!checkboxChecked)
 					}
 				],
 				cancelButton: {
-					label: localize('cancel', "Cancel"),
-					run: () => Choice.Cancel
+					run: () => this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Cancel)
 				},
 				checkbox: {
 					label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
@@ -144,30 +138,18 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
 				}
 			});
-
-			switch (result) {
-				case Choice.Open:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Open, !!checkboxChecked);
-					break;
-				case Choice.NewWindow:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.OpenInNewWindow, !!checkboxChecked);
-					break;
-				default:
-					await this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Cancel);
-					break;
-			}
 		}));
 
 		// Workspace trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			// Title
-			const title = this.useWorkspaceLanguage ?
+			const message = this.useWorkspaceLanguage ?
 				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
 				localize('folderTrust', "Do you trust the authors of the files in this folder?");
 
 			// Message
-			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-			const message = requestOptions?.message ?? defaultMessage;
+			const defaultDetails = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
+			const details = requestOptions?.message ?? defaultDetails;
 
 			// Buttons
 			const buttons = requestOptions?.buttons ?? [
@@ -181,13 +163,13 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 
 			// Dialog
-			const { result } = await this.dialogService.prompt<'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel' | undefined>({
+			const { result } = await this.dialogService.prompt({
 				type: Severity.Info,
-				message: title,
+				message,
 				custom: {
 					icon: Codicon.shield,
 					markdownDetails: [
-						{ markdown: new MarkdownString(message) },
+						{ markdown: new MarkdownString(details) },
 						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
 					]
 				},

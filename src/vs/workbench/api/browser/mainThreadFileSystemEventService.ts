@@ -137,7 +137,7 @@ export class MainThreadFileSystemEventService {
 						enum Choice {
 							OK = 0,
 							Preview = 1,
-							Skip = 2
+							Cancel = 2
 						}
 						const { result, checkboxChecked } = await dialogService.prompt<Choice>({
 							type: Severity.Info,
@@ -154,16 +154,16 @@ export class MainThreadFileSystemEventService {
 							],
 							cancelButton: {
 								label: localize('cancel', "Skip Changes"),
-								run: () => Choice.Skip
+								run: () => Choice.Cancel
 							},
 							checkbox: { label: localize('again', "Don't ask again") }
 						});
-						if (result === Choice.Skip) {
+						if (result === Choice.Cancel) {
 							// no changes wanted, don't persist cancel option
 							return;
 						}
 						showPreview = result === Choice.Preview;
-						if (checkboxChecked /* && answer.choice !== Choice.Skip */) {
+						if (checkboxChecked) {
 							storageService.store(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, showPreview, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					}

@@ -962,7 +962,6 @@ export class UndoRedoService implements IUndoRedoService {
 					}
 				],
 				cancelButton: {
-					label: nls.localize('cancel', "Cancel"),
 					run: () => UndoChoice.Cancel
 				}
 			});

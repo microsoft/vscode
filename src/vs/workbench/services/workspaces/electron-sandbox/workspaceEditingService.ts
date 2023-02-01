@@ -124,19 +124,17 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
 					run: async () => {
 						await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
 						return false;
 					}
 				}
 			],
 			cancelButton: {
-				label: localize('cancel', "Cancel"),
-				run: () => {
-					return true; // veto
-				}
+				run: () => true // veto
 			}
 		});
 
-		return Boolean(result);
+		return result;
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {

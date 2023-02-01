@@ -734,7 +734,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					}, this._win);
 
 					// Handle choice
-					if (response !== 1 /* keep waiting */) {
+					if (response !== 2 /* keep waiting */) {
 						const reopen = response === 0;
 						await this.destroyWindow(reopen, checkboxChecked);
 					}

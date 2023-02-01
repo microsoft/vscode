@@ -414,19 +414,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				},
 				{
 					label: localize({ key: 'replace local', comment: ['&& denotes a mnemonic'] }, "Replace &&Local"),
-					run: async () => {
-						await this.replace(true);
-					}
+					run: async () => this.replace(true)
 				},
 				{
 					label: localize({ key: 'replace remote', comment: ['&& denotes a mnemonic'] }, "Replace &&Remote"),
-					run: async () => {
-						this.replace(false);
-					}
+					run: () => this.replace(false)
 				},
 			],
 			cancelButton: {
-				label: localize('cancel', "Cancel"),
 				run: () => {
 					throw new CancellationError();
 				}
@@ -434,7 +429,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		});
 	}
 
-	private async replace(local: boolean) {
+	private async replace(local: boolean): Promise<void> {
 		for (const conflict of this.userDataSyncService.conflicts) {
 			for (const preview of conflict.conflicts) {
 				await this.accept({ syncResource: conflict.syncResource, profile: conflict.profile }, local ? preview.remoteResource : preview.localResource, undefined, { force: true });
@@ -459,9 +454,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	async resetSyncedData(): Promise<void> {
 		const { confirmed } = await this.dialogService.confirm({
+			type: 'info',
 			message: localize('reset', "This will clear your data in the cloud and stop sync on all your devices."),
 			title: localize('reset title', "Clear"),
-			type: 'info',
 			primaryButton: localize({ key: 'resetButton', comment: ['&& denotes a mnemonic'] }, "&&Reset"),
 		});
 		if (confirmed) {

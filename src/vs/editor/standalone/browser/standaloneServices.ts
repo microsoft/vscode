@@ -243,16 +243,16 @@ class StandaloneDialogService implements IDialogService {
 		return { result };
 	}
 
-	async info(message: string): Promise<void> {
-		await this.prompt({ type: Severity.Info, message });
+	async info(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Info, message, detail });
 	}
 
-	async warn(message: string): Promise<void> {
-		await this.prompt({ type: Severity.Warning, message });
+	async warn(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Warning, message, detail });
 	}
 
-	async error(message: string): Promise<void> {
-		await this.prompt({ type: Severity.Error, message });
+	async error(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Error, message, detail });
 	}
 
 	input(): Promise<IInputResult> {

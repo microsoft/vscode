@@ -882,11 +882,11 @@ export class DebugService implements IDebugService {
 		await this.dialogService.prompt({
 			type: severity.Error,
 			message,
-			buttons: actions.map(action => ({ label: action.label, run: () => action.run() })),
-			cancelButton: {
-				label: nls.localize('cancel', "Cancel"),
-				run: () => { }
-			}
+			buttons: actions.map(action => ({
+				label: action.label,
+				run: () => action.run()
+			})),
+			cancelButton: true
 		});
 	}
 

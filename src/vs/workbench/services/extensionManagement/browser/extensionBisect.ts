@@ -309,7 +309,7 @@ registerAction2(class extends Action2 {
 				primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
 				cancelButton: localize('continue', "Continue"),
 				detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
-				checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },
+				checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true }
 			});
 			if (res.checkboxChecked) {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);

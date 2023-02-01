@@ -25,7 +25,7 @@ import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/edit
 import { isCancellationError } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export interface IOpenEditorResult {
@@ -207,27 +207,31 @@ export class EditorPanes extends Disposable {
 			});
 		}
 
-		let errorHandled = false;
+		let cancelButton: IPromptCancelButton<undefined> | undefined = undefined;
+		if (buttons.length === 1) {
+			cancelButton = {
+				run: () => {
+					errorHandled = true; // treat cancel as handled and do not show placeholder
+
+					return undefined;
+				}
+			};
+		}
+
+		let errorHandled = false;  // by default, show placeholder
 
 		const { result } = await this.dialogService.prompt({
 			type: severity,
 			message,
 			detail,
 			buttons,
-			cancelButton: buttons.length === 1 ? {
-				label: localize('cancel', "Cancel"),
-				run: () => {
-					errorHandled = true; // treat cancel as handled and do not show placeholder
-
-					return undefined;
-				}
-			} : undefined
+			cancelButton
 		});
 
 		if (result) {
-			const res = result.run();
-			if (res instanceof Promise) {
-				res.catch(error => this.dialogService.error(toErrorMessage(error)));
+			const errorActionResult = result.run();
+			if (errorActionResult instanceof Promise) {
+				errorActionResult.catch(error => this.dialogService.error(toErrorMessage(error)));
 			}
 
 			errorHandled = true; // treat custom error action as handled and do not show placeholder

@@ -334,31 +334,44 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 		if (this.extension.deprecationInfo) {
 			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
-			let action: () => Promise<any> = async () => undefined;
-			const buttons: IPromptButton<number | undefined>[] = [
+			enum DeprecationChoice {
+				InstallAnyway = 0,
+				ShowAlternateExtension = 1,
+				ConfigureSettings = 2,
+				Cancel = 3
+			}
+			const buttons: IPromptButton<DeprecationChoice>[] = [
 				{
 					label: localize({ key: 'install anyway', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
-					run: () => 0
+					run: () => DeprecationChoice.InstallAnyway
 				}
 			];
 
 			if (this.extension.deprecationInfo.extension) {
 				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", this.extension.deprecationInfo.extension.displayName);
+
+				const alternateExtension = this.extension.deprecationInfo.extension;
 				buttons.push({
 					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName),
-					run: () => 1
+					run: async () => {
+						const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None);
+						await this.extensionsWorkbenchService.open(extension);
+
+						return DeprecationChoice.ShowAlternateExtension;
+					}
 				});
-				const alternateExtension = this.extension.deprecationInfo.extension;
-				action = () => this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None)
-					.then(([extension]) => this.extensionsWorkbenchService.open(extension));
 			} else if (this.extension.deprecationInfo.settings) {
 				detail = localize('deprecated with alternate settings message', "This extension is deprecated as this functionality is now built-in to VS Code.");
+
+				const settings = this.extension.deprecationInfo.settings;
 				buttons.push({
 					label: localize({ key: 'configure in settings', comment: ['&& denotes a mnemonic'] }, "&&Configure Settings"),
-					run: () => 2
+					run: async () => {
+						await this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
+
+						return DeprecationChoice.ConfigureSettings;
+					}
 				});
-				const settings = this.extension.deprecationInfo.settings;
-				action = () => this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
 			} else if (this.extension.deprecationInfo.additionalInfo) {
 				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
 			}
@@ -372,18 +385,12 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 						markdown: detail
 					}]
 				},
-				buttons: [
-
-				],
+				buttons,
 				cancelButton: {
-					label: localize('cancel', "Cancel"),
-					run: () => undefined
+					run: () => DeprecationChoice.Cancel
 				}
 			});
-			if (result === 1) {
-				return action();
-			}
-			if (result === 2) {
+			if (result !== DeprecationChoice.InstallAnyway) {
 				return;
 			}
 		}

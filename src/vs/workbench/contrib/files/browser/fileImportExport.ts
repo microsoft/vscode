@@ -444,17 +444,17 @@ export class ExternalFileImport {
 		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = resolvedFiles.filter(resolvedFile => resolvedFile.success && resolvedFile.stat?.isDirectory).map(resolvedFile => ({ uri: resolvedFile.stat!.resource }));
 		if (folders.length > 0 && target.isRoot) {
-			enum Choice {
-				COPY = 1,
-				ADD = 2
+			enum ImportChoice {
+				Copy = 1,
+				Add = 2
 			}
 
-			const buttons: IPromptButton<Choice | undefined>[] = [
+			const buttons: IPromptButton<ImportChoice | undefined>[] = [
 				{
 					label: folders.length > 1 ?
 						localize('copyFolders', "&&Copy Folders") :
 						localize('copyFolder', "&&Copy Folder"),
-					run: () => Choice.COPY
+					run: () => ImportChoice.Copy
 				}
 			];
 
@@ -464,8 +464,10 @@ export class ExternalFileImport {
 			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(folder => folder.uri.scheme);
 			if (folders.some(folder => workspaceFolderSchemas.indexOf(folder.uri.scheme) >= 0)) {
 				buttons.unshift({
-					label: folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"),
-					run: () => Choice.ADD
+					label: folders.length > 1 ?
+						localize('addFolders', "&&Add Folders to Workspace") :
+						localize('addFolder', "&&Add Folder to Workspace"),
+					run: () => ImportChoice.Add
 				});
 				message = folders.length > 1 ?
 					localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?") :
@@ -480,19 +482,16 @@ export class ExternalFileImport {
 				type: Severity.Info,
 				message,
 				buttons,
-				cancelButton: {
-					label: localize('cancel', "Cancel"),
-					run: () => undefined
-				}
+				cancelButton: true
 			});
 
 			// Add folders
-			if (result === Choice.ADD) {
+			if (result === ImportChoice.Add) {
 				return this.workspaceEditingService.addFolders(folders);
 			}
 
 			// Copy resources
-			if (result === Choice.COPY) {
+			if (result === ImportChoice.Copy) {
 				return this.importResources(target, files, token);
 			}
 		}

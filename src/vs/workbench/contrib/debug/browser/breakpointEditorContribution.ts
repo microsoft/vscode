@@ -305,10 +305,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 									run: () => breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp))
 								}
 							],
-							cancelButton: {
-								label: nls.localize('cancel', "Cancel"),
-								run: () => { }
-							}
+							cancelButton: true
 						});
 					} else {
 						if (!enabled) {

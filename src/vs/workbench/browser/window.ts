@@ -173,10 +173,7 @@ export class BrowserWindow extends Disposable {
 										run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
 									}
 								],
-								cancelButton: {
-									label: localize('cancel', "Cancel"),
-									run: () => { }
-								}
+								cancelButton: true
 							});
 						}
 					} else {
@@ -198,19 +195,23 @@ export class BrowserWindow extends Disposable {
 
 					const showProtocolUrlOpenedDialog = async () => {
 						const { downloadUrl } = this.productService;
-						let detail = localize(
-							'openExternalDialogDetail.v2',
-							"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
-							this.productService.nameLong,
-							this.productService.nameLong
-						);
+						let detail: string;
+
 						const buttons: IPromptButton<void>[] = [
 							{
 								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
 								run: () => invokeProtocolHandler()
 							}
 						];
+
 						if (downloadUrl !== undefined) {
+							detail = localize(
+								'openExternalDialogDetail.v2',
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+								this.productService.nameLong,
+								this.productService.nameLong
+							);
+
 							buttons.push({
 								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
 								run: async () => {
@@ -234,10 +235,7 @@ export class BrowserWindow extends Disposable {
 							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							detail,
 							buttons,
-							cancelButton: {
-								label: localize('cancel', "Cancel"),
-								run: () => { }
-							}
+							cancelButton: true
 						});
 					};
 

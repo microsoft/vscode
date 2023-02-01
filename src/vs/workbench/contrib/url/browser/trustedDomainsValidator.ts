@@ -151,11 +151,11 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					}
 				],
 				cancelButton: {
-					label: localize('cancel', "Cancel"),
 					run: () => false
 				}
 			});
-			return Boolean(result);
+
+			return result;
 		}
 	}
 }

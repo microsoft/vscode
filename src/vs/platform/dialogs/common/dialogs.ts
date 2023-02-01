@@ -128,7 +128,7 @@ export interface IPrompt<T> extends IBaseDialogOptions {
 }
 
 export interface IPromptWithCustomCancel<T> extends IPrompt<T> {
-	readonly cancelButton: IPromptButton<T>;
+	readonly cancelButton: IPromptCancelButton<T>;
 }
 
 export interface IPromptWithDefaultCancel<T> extends IPrompt<T> {
