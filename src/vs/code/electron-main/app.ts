@@ -731,7 +731,7 @@ export class CodeApplication extends Disposable {
 
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
-		const accessibilitySupportEnabled: boolean = (<any>global).accessibilitySupportEnabled;
+
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
 			uri = uri.with({
@@ -789,9 +789,7 @@ export class CodeApplication extends Disposable {
 				cli: { ...this.environmentMainService.args },
 				urisToOpen: [windowOpenableFromProtocolUrl],
 				forceNewWindow: shouldOpenInNewWindow,
-				gotoLineMode: true,
-				accessibilitySupportEnabled
-
+				gotoLineMode: true
 				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
 			});
 
@@ -810,8 +808,7 @@ export class CodeApplication extends Disposable {
 				forceNewWindow: true,
 				forceEmpty: true,
 				gotoLineMode: true,
-				remoteAuthority: getRemoteAuthority(uri),
-				accessibilitySupportEnabled
+				remoteAuthority: getRemoteAuthority(uri)
 			});
 
 			await window.ready();
@@ -1089,8 +1086,7 @@ export class CodeApplication extends Disposable {
 					cli: args,
 					urisToOpen: initialProtocolUrls.openables,
 					gotoLineMode: true,
-					initialStartup: true,
-					accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
+					initialStartup: true
 					// remoteAuthority: will be determined based on openables
 				});
 			}
@@ -1121,8 +1117,7 @@ export class CodeApplication extends Disposable {
 							forceNewWindow: true,
 							forceEmpty: true,
 							gotoLineMode: true,
-							initialStartup: true,
-							accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
+							initialStartup: true
 							// remoteAuthority: will be determined based on openables
 						});
 					}
@@ -1131,7 +1126,6 @@ export class CodeApplication extends Disposable {
 		}
 
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
-		const accessibilitySupportEnabled: boolean = (<any>global).accessibilitySupportEnabled;
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
@@ -1156,8 +1150,7 @@ export class CodeApplication extends Disposable {
 					initialStartup: true,
 					remoteAuthority,
 					forceProfile,
-					forceTempProfile,
-					accessibilitySupportEnabled
+					forceTempProfile
 				});
 			}
 
@@ -1170,7 +1163,6 @@ export class CodeApplication extends Disposable {
 					noRecentEntry,
 					waitMarkerFileURI,
 					initialStartup: true,
-					accessibilitySupportEnabled
 					// remoteAuthority: will be determined based on macOpenFiles
 				});
 			}
@@ -1189,8 +1181,7 @@ export class CodeApplication extends Disposable {
 			initialStartup: true,
 			remoteAuthority,
 			forceProfile,
-			forceTempProfile,
-			accessibilitySupportEnabled
+			forceTempProfile
 		});
 	}
 

@@ -41,7 +41,6 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextKeyService, _layoutService, configurationService);
-		console.log(environmentService.window.accessibilitySupport);
 		this.setAccessibilitySupport(environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 

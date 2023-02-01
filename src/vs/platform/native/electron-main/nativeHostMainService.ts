@@ -166,7 +166,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				remoteAuthority: options.remoteAuthority || undefined,
 				forceProfile: options.forceProfile,
 				forceTempProfile: options.forceTempProfile,
-				accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
 			});
 		}
 	}
@@ -416,7 +415,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			cli: this.environmentMainService.args,
 			urisToOpen: openable,
 			forceNewWindow: options.forceNewWindow,
-			accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
 			/* remoteAuthority will be determined based on openable */
 		});
 	}
@@ -629,8 +627,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			cli: this.environmentMainService.args,
 			forceNewTabbedWindow: true,
 			forceEmpty: true,
-			remoteAuthority: this.environmentMainService.args.remote || undefined,
-			accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
+			remoteAuthority: this.environmentMainService.args.remote || undefined
 		});
 	}
 

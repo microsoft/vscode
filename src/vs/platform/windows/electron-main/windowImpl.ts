@@ -893,8 +893,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				urisToOpen: uriToOpen ? [uriToOpen] : undefined,
 				forceEmpty,
 				forceNewWindow: true,
-				remoteAuthority: this.remoteAuthority,
-				accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
+				remoteAuthority: this.remoteAuthority
 			});
 			window.focus();
 		}
@@ -1050,8 +1049,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
 		configuration.partsSplash = this.themeMainService.getWindowSplash();
-
-		configuration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Update with latest perf marks
 		mark('code/willOpenNewWindow');

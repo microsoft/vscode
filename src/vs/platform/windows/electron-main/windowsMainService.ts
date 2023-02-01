@@ -257,8 +257,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
-		const accessibilitySupportEnabled: boolean = (<any>global).accessibilitySupportEnabled;
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority, accessibilitySupportEnabled });
+
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
 	}
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {
@@ -1306,9 +1306,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			waitMarkerFileURI: openConfig.waitMarkerFileURI,
 			remoteAuthority,
 			forceProfile: openConfig.forceProfile,
-			forceTempProfile: openConfig.forceTempProfile,
-			accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
-
+			forceTempProfile: openConfig.forceTempProfile
 		};
 
 		return this.open(openArgs);

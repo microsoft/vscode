@@ -537,8 +537,7 @@ export class Menubar {
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
 					gotoLineMode: false,
-					remoteAuthority: item.remoteAuthority,
-					accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
+					remoteAuthority: item.remoteAuthority
 				})).length > 0;
 
 				if (!success) {

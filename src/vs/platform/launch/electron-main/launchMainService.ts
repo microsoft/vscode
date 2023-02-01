@@ -123,8 +123,7 @@ export class LaunchMainService implements ILaunchMainService {
 			waitMarkerFileURI,
 			remoteAuthority,
 			forceProfile: args.profile,
-			forceTempProfile: args['profile-temp'],
-			accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
+			forceTempProfile: args['profile-temp']
 		};
 
 		// Special case extension development
