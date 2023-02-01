@@ -860,9 +860,9 @@ configurationRegistry.registerConfiguration({
 			default: 'fromEditor'
 		},
 		[NotebookSetting.outputLineHeight]: {
-			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
-			default: 19,
+			default: 0,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {

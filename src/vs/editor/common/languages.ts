@@ -1395,6 +1395,20 @@ export class FoldingRangeKind {
 	static readonly Region = new FoldingRangeKind('region');
 
 	/**
+	 * Returns a {@link FoldingRangeKind} for the given value.
+	 *
+	 * @param value of the kind.
+	 */
+	static fromValue(value: string) {
+		switch (value) {
+			case 'comment': return FoldingRangeKind.Comment;
+			case 'imports': return FoldingRangeKind.Imports;
+			case 'region': return FoldingRangeKind.Region;
+		}
+		return new FoldingRangeKind(value);
+	}
+
+	/**
 	 * Creates a new {@link FoldingRangeKind}.
 	 *
 	 * @param value of the kind.
