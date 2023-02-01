@@ -19,7 +19,7 @@ const getCodeLineElements = (() => {
 	return (documentVersion: number) => {
 		if (!cachedElements || documentVersion !== cachedVersion) {
 			cachedVersion = documentVersion;
-			cachedElements = [{ element: document.body, line: 0 }];
+			cachedElements = [{ element: document.body, line: -1 }];
 			for (const element of document.getElementsByClassName(codeLineClass)) {
 				const line = +element.getAttribute('data-line')!;
 				if (isNaN(line)) {
