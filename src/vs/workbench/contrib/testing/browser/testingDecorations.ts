@@ -489,7 +489,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 					const building = hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
 					if (testIdWithMessages) {
 						const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
-						building.appendMarkdown(`[${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
+						building.appendMarkdown(` [${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
 					}
 				}
 
