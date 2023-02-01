@@ -653,16 +653,20 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 			}
 
 			if (typeof cancelButton === 'string') {
-				cancelId = buttons.indexOf(cancelButton);
-				if (cancelId !== buttons.length - 2 /* left to primary action */) {
+
+				// Ensure the cancelId is the correct one from our mapping
+				cancelId = buttonIndeces[cancelId];
+
+				// Ensure the cancel button is the first button after the default button
+				if (buttons.length > 2 && cancelId !== 1) {
 					buttons.splice(cancelId, 1);
-					buttons.splice(buttons.length - 1, 0, cancelButton);
+					buttons.splice(1, 0, cancelButton);
 
-					const buttonIndex = buttonIndeces[cancelId];
+					const cancelButtonIndex = buttonIndeces[cancelId];
 					buttonIndeces.splice(cancelId, 1);
-					buttonIndeces.splice(buttonIndeces.length - 1, 0, buttonIndex);
+					buttonIndeces.splice(1, 0, cancelButtonIndex);
 
-					cancelId = buttons.length - 2;
+					cancelId = 1;
 				}
 			}
 		} else if (isWindows) {
@@ -678,8 +682,7 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 			const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
 
 			if (typeof cancelButton === 'string') {
-				cancelId = buttons.indexOf(cancelButton);
-				if (cancelId !== buttons.length - 1 /* right to primary action */) {
+				if (cancelId !== buttons.length - 1 /* last action */) {
 					buttons.splice(cancelId, 1);
 					buttons.push(cancelButton);
 
