@@ -285,10 +285,10 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				//
 				// If this fails on a multi-character prefix, just keep the original.
 				if (prefixMatch.groups.prefix.length > 1) {
-					if (suffix.suffix.text[0].match(/['"]/) && prefixMatch.groups.prefix.at(-1) === suffix.suffix.text[0]) {
+					if (suffix.suffix.text[0].match(/['"]/) && prefixMatch.groups.prefix[prefixMatch.groups.prefix.length - 1] === suffix.suffix.text[0]) {
 						const trimPrefixAmount = prefixMatch.groups.prefix.length - 1;
 						prefix.index += trimPrefixAmount;
-						prefix.text = prefixMatch.groups.prefix.at(-1)!;
+						prefix.text = prefixMatch.groups.prefix[prefixMatch.groups.prefix.length - 1];
 						linkStartIndex += trimPrefixAmount;
 					}
 				}
