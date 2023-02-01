@@ -467,6 +467,8 @@ function registerListeners() {
 		macOpenFiles.push(path);
 	});
 
+	global['accessibilitySupportEnabled'] = app.accessibilitySupportEnabled;
+
 	/**
 	 * macOS: react to open-url requests.
 	 *

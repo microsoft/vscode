@@ -38,7 +38,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			context: OpenContext.API,
 			cli: pargs,
 			forceProfile: pargs.profile,
-			forceTempProfile: pargs['profile-temp']
+			forceTempProfile: pargs['profile-temp'],
+			accessibilitySupportEnabled: (<any>global).accessibilitySupportEnabled
 		});
 
 		if (!debugRenderer) {
