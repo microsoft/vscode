@@ -141,11 +141,6 @@ suite('UndoRedoService', () => {
 
 				return { result };
 			}
-			override async show() {
-				return {
-					choice: 0 // confirm!
-				};
-			}
 			override async confirm() {
 				return {
 					confirmed: true // confirm!

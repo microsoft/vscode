@@ -22,8 +22,6 @@ export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;
 	readonly inputArgs?: IInputDialogArgs;
 	readonly promptArgs?: IPromptDialogArgs;
-
-	readonly showArgs?: IShowDialogArgs;
 }
 
 export interface IBaseDialogOptions {
@@ -149,24 +147,7 @@ export interface IPromptResultWithCancel<T> extends IPromptResult<T> {
 	readonly result: T;
 }
 
-/**
- * @deprecated
- */
-export interface IShowDialogArgs {
-	readonly severity: Severity;
-	readonly message: string;
-	readonly buttons?: string[];
-	readonly options?: IDialogOptions;
-}
-
-/**
- * @deprecated
- */
-export interface IShowResult extends ICheckboxResult {
-	readonly choice: number;
-}
-
-export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown> | IShowResult;
+export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown>;
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -287,13 +268,6 @@ export interface ICustomDialogMarkdown {
 	readonly classes?: string[];
 }
 
-export interface IDialogOptions {
-	readonly cancelId?: number;
-	readonly detail?: string;
-	readonly checkbox?: ICheckbox;
-	readonly custom?: boolean | ICustomDialogOptions;
-}
-
 /**
  * A handler to bring up modal dialogs.
  */
@@ -318,11 +292,6 @@ export interface IDialogHandler {
 	 * Present the about dialog to the user.
 	 */
 	about(): Promise<void>;
-
-	/**
-	 * @deprecated use `prompt` instead
-	 */
-	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 }
 
 enum DialogKind {
@@ -449,7 +418,6 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
 	abstract prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
-	abstract show(severity: Severity, message: string, buttons?: string[] | undefined, options?: IDialogOptions | undefined): Promise<IShowResult>;
 	abstract about(): Promise<void>;
 }
 
@@ -491,11 +459,6 @@ export interface IDialogService {
 	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
 	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
 	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
-
-	/**
-	 * @deprecated
-	 */
-	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.

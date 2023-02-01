@@ -181,25 +181,38 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 
 			// Dialog
-			const result = await this.dialogService.show(
-				Severity.Info,
-				title,
-				buttons.map(b => b.label),
-				{
-					cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-					custom: {
-						icon: Codicon.shield,
-						markdownDetails: [
-							{ markdown: new MarkdownString(message) },
-							{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
-						]
+			const { result } = await this.dialogService.prompt<'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel' | undefined>({
+				type: Severity.Info,
+				message: title,
+				custom: {
+					icon: Codicon.shield,
+					markdownDetails: [
+						{ markdown: new MarkdownString(message) },
+						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+					]
+				},
+				buttons: buttons.map(button => {
+					return {
+						label: button.label,
+						run: () => button.type
+					};
+				}),
+				cancelButton: (() => {
+					const cancelButton = buttons.find(b => b.type === 'Cancel');
+					if (!cancelButton) {
+						return undefined;
 					}
-				}
-			);
+
+					return {
+						label: cancelButton.label,
+						run: () => cancelButton.type
+					};
+				})()
+			});
 
 
 			// Dialog result
-			switch (buttons[result.choice].type) {
+			switch (result) {
 				case 'ContinueWithTrust':
 					await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
 					break;
@@ -357,43 +370,41 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Dialog
 
 	private async doShowModal(question: string, trustedOption: { label: string; sublabel: string }, untrustedOption: { label: string; sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
-		const result = await this.dialogService.show(
-			Severity.Info,
-			question,
-			[
-				trustedOption.label,
-				untrustedOption.label,
-			],
-			{
-				checkbox: trustParentString ? {
-					label: trustParentString
-				} : undefined,
-				custom: {
-					buttonDetails: [
-						trustedOption.sublabel,
-						untrustedOption.sublabel
-					],
-					disableCloseAction: true,
-					icon: Codicon.shield,
-					markdownDetails: markdownStrings.map(md => { return { markdown: new MarkdownString(md) }; })
+		await this.dialogService.prompt({
+			type: Severity.Info,
+			message: question,
+			checkbox: trustParentString ? {
+				label: trustParentString
+			} : undefined,
+			buttons: [
+				{
+					label: trustedOption.label,
+					run: async ({ checkboxChecked }) => {
+						if (checkboxChecked) {
+							await this.workspaceTrustManagementService.setParentFolderTrust(true);
+						} else {
+							await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
+						}
+					}
 				},
-			}
-		);
-
-		// Dialog result
-		switch (result.choice) {
-			case 0:
-				if (result.checkboxChecked) {
-					await this.workspaceTrustManagementService.setParentFolderTrust(true);
-				} else {
-					await this.workspaceTrustRequestService.completeWorkspaceTrustRequest(true);
+				{
+					label: untrustedOption.label,
+					run: () => {
+						this.updateWorkbenchIndicators(false);
+						this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
+					}
 				}
-				break;
-			case 1:
-				this.updateWorkbenchIndicators(false);
-				this.workspaceTrustRequestService.cancelWorkspaceTrustRequest();
-				break;
-		}
+			],
+			custom: {
+				buttonDetails: [
+					trustedOption.sublabel,
+					untrustedOption.sublabel
+				],
+				disableCloseAction: true,
+				icon: Codicon.shield,
+				markdownDetails: markdownStrings.map(md => { return { markdown: new MarkdownString(md) }; })
+			}
+		});
 
 		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}

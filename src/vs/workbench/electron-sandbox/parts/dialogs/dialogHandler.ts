@@ -6,9 +6,8 @@
 import { localize } from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { isLinuxSnap } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -61,22 +60,6 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		});
 
 		return { confirmed: response === 0, checkboxChecked };
-	}
-
-	async show(severity: Severity, message: string, buttons?: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
-		this.logService.trace('DialogService#show', message);
-
-		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox({
-			type: this.getDialogType(severity),
-			message,
-			detail: dialogOptions ? dialogOptions.detail : undefined,
-			buttons,
-			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
-			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
-			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
-		});
-
-		return { choice: response, checkboxChecked };
 	}
 
 	input(): never {

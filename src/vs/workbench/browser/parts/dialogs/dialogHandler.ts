@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, IShowResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -74,14 +74,6 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		return { confirmed: button === 0, checkboxChecked, values };
 	}
 
-	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
-		this.logService.trace('DialogService#show', message);
-
-		const { button, checkboxChecked } = await this.doShow(severity, message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
-
-		return { choice: button, checkboxChecked };
-	}
-
 	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
@@ -147,20 +139,18 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
-		const { choice } = await this.show(
+		const { button } = await this.doShow(
 			Severity.Info,
 			this.productService.nameLong,
 			[
 				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
 				localize('ok', "OK")
 			],
-			{
-				detail,
-				cancelId: 1
-			}
+			detail,
+			1
 		);
 
-		if (choice === 0) {
+		if (button === 0) {
 			this.clipboardService.writeText(detailToCopy);
 		}
 	}

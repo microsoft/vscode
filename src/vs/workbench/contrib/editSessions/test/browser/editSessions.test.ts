@@ -88,9 +88,6 @@ suite('Edit session sync', () => {
 				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
 				return { result };
 			}
-			override async show() {
-				return { choice: 1 };
-			}
 			override async confirm() {
 				return { confirmed: false };
 			}
@@ -167,10 +164,6 @@ suite('Edit session sync', () => {
 		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
 		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
 
-		// Ensure that user does not get prompted here
-		const dialogServiceShowStub = sandbox.stub();
-		instantiationService.stub(IDialogService, 'show', dialogServiceShowStub);
-
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
@@ -179,7 +172,6 @@ suite('Edit session sync', () => {
 
 		// Verify edit session was correctly applied
 		assert.equal((await fileService.readFile(fileUri)).value.toString(), fileContents);
-		assert.equal(dialogServiceShowStub.called, false);
 	});
 
 	test('Edit session not stored if there are no edits', async function () {
