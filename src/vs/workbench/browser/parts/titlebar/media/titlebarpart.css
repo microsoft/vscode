@@ -127,7 +127,6 @@
 /* Window Title Menu */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center {
 	z-index: 2500;
-	padding: 0 8px;
 }
 
 /* MacOS Desktop supports click event despite `drag` and therefore we don't need to clear it */
@@ -159,7 +158,7 @@
 	background-color: var(--vscode-commandCenter-background);
 	border: 1px solid var(--vscode-commandCenter-border);
 	overflow: hidden;
-	margin: 0 6px;
+	margin-left: 6px;
 	border-top-left-radius: 6px;
 	border-bottom-left-radius: 6px;
 	border-top-right-radius: 6px;
@@ -167,6 +166,10 @@
 	height: 22px;
 	width: 38vw;
 	max-width: 600px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center:only-child {
+	margin-left: 0; /* no margin if there is only the command center, without nav buttons */
 }
 
 .monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center {

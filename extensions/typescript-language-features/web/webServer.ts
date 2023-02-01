@@ -171,7 +171,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		readFile(path) {
 			logVerbose('fs.readFile', { path });
 
-			if (!fs || path.startsWith('/lib.')) {
+			if (!fs) {
 				const webPath = getWebPath(path);
 				if (webPath) {
 					const request = new XMLHttpRequest();
@@ -588,27 +588,43 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 	session.listen();
 }
 
+function parseLogLevel(input: string | undefined): ts.server.LogLevel | undefined {
+	switch (input) {
+		case 'normal': return ts.server.LogLevel.normal;
+		case 'terse': return ts.server.LogLevel.terse;
+		case 'verbose': return ts.server.LogLevel.verbose;
+		default: return undefined;
+	}
+}
 
 let hasInitialized = false;
 const listener = async (e: any) => {
 	if (!hasInitialized) {
 		hasInitialized = true;
 		if ('args' in e.data) {
+			const args = e.data.args;
+
+			const logLevel = parseLogLevel(findArgument(args, '--logVerbosity'));
+			const doLog = typeof logLevel === 'undefined'
+				? (_message: string) => { }
+				: (message: string) => { postMessage({ type: 'log', body: message }); };
+
 			const logger: ts.server.Logger = {
 				close: () => { },
-				hasLevel: level => level <= ts.server.LogLevel.verbose,
+				hasLevel: level => typeof logLevel === 'undefined' ? false : level <= logLevel,
 				loggingEnabled: () => true,
 				perftrc: () => { },
-				info: s => postMessage({ type: 'log', body: s + '\n' }),
-				msg: s => postMessage({ type: 'log', body: s + '\n' }),
+				info: doLog,
+				msg: doLog,
 				startGroup: () => { },
 				endGroup: () => { },
-				getLogFileName: () => 'tsserver.log',
+				getLogFileName: () => undefined
 			};
+
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			const extensionUri = URI.from(e.data.extensionUri);
 			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
-			await initializeSession(e.data.args, extensionUri, { sync, tsserver, watcher }, logger);
+			await initializeSession(args, extensionUri, { sync, tsserver, watcher }, logger);
 		} else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
 		}
@@ -617,4 +633,3 @@ const listener = async (e: any) => {
 	console.error(`unexpected message on main channel: ${JSON.stringify(e)}`);
 };
 addEventListener('message', listener);
-

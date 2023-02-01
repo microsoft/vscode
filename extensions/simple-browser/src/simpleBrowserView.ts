@@ -17,6 +17,20 @@ export class SimpleBrowserView extends Disposable {
 	public static readonly viewType = 'simpleBrowser.view';
 	private static readonly title = vscode.l10n.t("Simple Browser");
 
+	private static getWebviewLocalResourceRoots(extensionUri: vscode.Uri): readonly vscode.Uri[] {
+		return [
+			vscode.Uri.joinPath(extensionUri, 'media')
+		];
+	}
+
+	private static getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
+		return {
+			enableScripts: true,
+			enableForms: true,
+			localResourceRoots: SimpleBrowserView.getWebviewLocalResourceRoots(extensionUri),
+		};
+	}
+
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
@@ -31,12 +45,8 @@ export class SimpleBrowserView extends Disposable {
 			viewColumn: showOptions?.viewColumn ?? vscode.ViewColumn.Active,
 			preserveFocus: showOptions?.preserveFocus
 		}, {
-			enableScripts: true,
-			enableForms: true,
 			retainContextWhenHidden: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(extensionUri, 'media')
-			]
+			...SimpleBrowserView.getWebviewOptions(extensionUri)
 		});
 		return new SimpleBrowserView(extensionUri, url, webview);
 	}
@@ -44,9 +54,9 @@ export class SimpleBrowserView extends Disposable {
 	public static restore(
 		extensionUri: vscode.Uri,
 		url: string,
-		webview: vscode.WebviewPanel,
+		webviewPanel: vscode.WebviewPanel,
 	): SimpleBrowserView {
-		return new SimpleBrowserView(extensionUri, url, webview);
+		return new SimpleBrowserView(extensionUri, url, webviewPanel);
 	}
 
 	private constructor(
@@ -57,6 +67,7 @@ export class SimpleBrowserView extends Disposable {
 		super();
 
 		this._webviewPanel = this._register(webviewPanel);
+		this._webviewPanel.webview.options = SimpleBrowserView.getWebviewOptions(extensionUri);
 
 		this._register(this._webviewPanel.webview.onDidReceiveMessage(e => {
 			switch (e.type) {
@@ -170,7 +181,6 @@ export class SimpleBrowserView extends Disposable {
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
 }
-
 
 function getNonce() {
 	let text = '';
