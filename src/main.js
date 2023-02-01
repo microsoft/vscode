@@ -152,6 +152,7 @@ async function onReady() {
 
 	try {
 		const [, nlsConfig] = await Promise.all([mkdirpIgnoreError(codeCachePath), resolveNlsConfiguration()]);
+		
 		startup(codeCachePath, nlsConfig);
 	} catch (error) {
 		console.error(error);
