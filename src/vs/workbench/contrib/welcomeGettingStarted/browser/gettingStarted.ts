@@ -684,7 +684,7 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
 			this.buildMediaComponent(id);
-			this.gettingStartedService.progressByEvent('stepSelected:' + id);
+			this.gettingStartedService.progressStep(id);
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
