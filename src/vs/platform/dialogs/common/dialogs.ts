@@ -649,15 +649,21 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 				buttons = buttons.reverse();
 				buttonIndeces = buttonIndeces.reverse();
 
+				// Since we reverse the buttons, we have to update
+				// positions of the default and cancel buttons as
+				// well because they point to the old order
 				defaultId = buttons.length - 1;
+				if (typeof cancelButton === 'string') {
+					cancelId = buttonIndeces[cancelId];
+				}
 			}
 
 			if (typeof cancelButton === 'string') {
 
-				// Ensure the cancelId is the correct one from our mapping
-				cancelId = buttonIndeces[cancelId];
-
 				// Ensure the cancel button is the first button after the default button
+				// This has some obscure rules based on how native macOS dialogs work
+				// so do not change this without having tested the impact!
+
 				if (buttons.length > 2 && cancelId !== 1) {
 					buttons.splice(cancelId, 1);
 					buttons.splice(1, 0, cancelButton);
