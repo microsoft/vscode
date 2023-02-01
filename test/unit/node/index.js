@@ -127,6 +127,20 @@ function main() {
 		return write.apply(process.stderr, args);
 	};
 
+	/**
+	 * @param {string[]} modules
+	 */
+	async function addModulesToTest(modules) {
+		for (const file of modules.sort()) {
+			mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, global, file, mocha);
+			const m = await new Promise((resolve, reject) => {
+				loader([file], resolve, reject);
+			});
+			mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
+			mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, global, file, mocha);
+		}
+	}
+
 	/** @type { (callback:(err:any)=>void)=>void } */
 	let loadFunc = null;
 
@@ -140,7 +154,7 @@ function main() {
 
 					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
 				});
-				loader(modulesToLoad, () => cb(null), cb);
+				addModulesToTest(modulesToLoad).then(() => cb(null), cb);
 			};
 
 			glob(argv.runGlob, { cwd: src }, function (err, files) { doRun(files); });
@@ -153,7 +167,7 @@ function main() {
 			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
 		});
 		loadFunc = (cb) => {
-			loader(modulesToLoad, () => cb(null), cb);
+			addModulesToTest(modulesToLoad).then(() => cb(null), cb);
 		};
 	} else {
 		loadFunc = (cb) => {
@@ -165,7 +179,7 @@ function main() {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
-				loader(modules, function () { cb(null); }, cb);
+				addModulesToTest(modules).then(() => cb(null), cb);
 			});
 		};
 	}

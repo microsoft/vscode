@@ -121,8 +121,18 @@ function loadWorkbenchTestingUtilsModule() {
 	});
 }
 
-function loadTestModules(opts) {
+async function addModulesToTest(modules) {
+	for (const file of modules.sort()) {
+		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, window, file, mocha);
+		const m = await new Promise((resolve, reject) => {
+			loader.require([file], resolve, reject);
+		});
+		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
+		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, window, file, mocha);
+	}
+}
 
+function loadTestModules(opts) {
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
@@ -130,9 +140,7 @@ function loadTestModules(opts) {
 			file = file.replace(/\.ts$/, '.js');
 			return path.relative(_out, file).replace(/\.js$/, '');
 		});
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
-		});
+		return addModulesToTest(modules);
 	}
 
 	const pattern = opts.runGlob || _tests_glob;
@@ -146,11 +154,7 @@ function loadTestModules(opts) {
 			const modules = files.map(file => file.replace(/\.js$/, ''));
 			resolve(modules);
 		});
-	}).then(modules => {
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
-		});
-	});
+	}).then(modules => addModulesToTest(modules));
 }
 
 function loadTests(opts) {
@@ -329,7 +333,7 @@ ipcRenderer.on('run', (e, opts) => {
 	initLoader(opts);
 	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
-			err = JSON.stringify(err);
+			err = JSON.stringify({ stack: err.stack, message: err.message });
 		}
 
 		console.error(err);
