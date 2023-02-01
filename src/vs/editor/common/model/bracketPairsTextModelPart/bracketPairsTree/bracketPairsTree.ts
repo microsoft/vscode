@@ -295,7 +295,7 @@ function collectBrackets(
 				return true;
 			}
 			case AstNodeKind.Pair: {
-				const colorize = node.closingBracket && (node.closingBracket.bracketInfo as ClosingBracketKind).closesColorized(node.openingBracket.bracketInfo as OpeningBracketKind);
+				const colorize = !onlyColorizedBrackets || !node.closingBracket || (node.closingBracket.bracketInfo as ClosingBracketKind).closesColorized(node.openingBracket.bracketInfo as OpeningBracketKind);
 
 				let levelPerBracket = 0;
 				if (levelPerBracketType) {
