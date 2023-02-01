@@ -280,7 +280,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		let canCollapseFileMatchLevel = false;
 		let canCollapseFirstLevel = false;
 
-		if (node instanceof FolderMatchWorkspaceRoot) {
+		if (node instanceof FolderMatchWorkspaceRoot || searchView.isTreeLayoutViewVisible) {
 			while (node = navigator.next()) {
 				if (node instanceof Match) {
 					canCollapseFileMatchLevel = true;
