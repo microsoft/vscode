@@ -75,7 +75,7 @@ import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDI
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';

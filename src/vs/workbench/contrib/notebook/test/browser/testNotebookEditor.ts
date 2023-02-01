@@ -53,7 +53,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
