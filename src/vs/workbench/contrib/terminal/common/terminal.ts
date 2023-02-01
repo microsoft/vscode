@@ -749,6 +749,16 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
 	extensionPoint: 'terminal',
 	defaultExtensionKind: ['workspace'],
+	activationEventsGenerator: (contribs: ITerminalContributions[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			for (const profileContrib of (contrib.profiles ?? [])) {
+				result.push(`onTerminalProfile:${profileContrib.id}`);
+			}
+			for (const quickFixContrib of (contrib.quickFixes ?? [])) {
+				result.push(`onTerminalQuickFixRequest:${quickFixContrib.id}`);
+			}
+		}
+	},
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
 		type: 'object',
