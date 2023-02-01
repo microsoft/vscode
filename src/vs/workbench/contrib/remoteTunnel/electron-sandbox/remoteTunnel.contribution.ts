@@ -37,6 +37,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { join } from 'vs/base/common/path';
 import { ITunnelApplicationConfig } from 'vs/base/common/product';
+import { isNumber, isObject, isString } from 'vs/base/common/types';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote Tunnels',
@@ -54,6 +55,9 @@ const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
+const REMOTE_TUNNEL_EXTENSION_TIMEOUT = 4 * 60 * 1000; // show the recommendation that a machine started using tunnels if it joined less than 4 minutes ago
+
+interface UsedOnHostMessage { hostName: string; timeStamp: number }
 
 type ExistingSessionItem = { session: AuthenticationSession; providerId: string; label: string; description: string };
 type IAuthenticationProvider = { id: string; scopes: string[] };
@@ -177,8 +181,23 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			if (await this.extensionService.getExtension(remoteExtension.extensionId)) {
 				return false;
 			}
-			const usedOnHost = this.storageService.get(REMOTE_TUNNEL_USED_STORAGE_KEY, StorageScope.APPLICATION);
-			if (!usedOnHost) {
+			const usedOnHostMessage = this.storageService.get(REMOTE_TUNNEL_USED_STORAGE_KEY, StorageScope.APPLICATION);
+			if (!usedOnHostMessage) {
+				return false;
+			}
+			let usedOnHost: string | undefined;
+			try {
+				const message = JSON.parse(usedOnHostMessage);
+				if (!isObject(message)) {
+					return false;
+				}
+				const { hostName, timeStamp } = message as UsedOnHostMessage;
+				if (!isString(hostName)! || !isNumber(timeStamp) || new Date().getTime() > timeStamp + REMOTE_TUNNEL_EXTENSION_TIMEOUT) {
+					return false;
+				}
+				usedOnHost = hostName;
+			} catch (_) {
+				// problems parsing the message, likly the old message format
 				return false;
 			}
 			const currentHostName = await this.remoteTunnelService.getHostName();
@@ -527,7 +546,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							]
 						}
 					});
-					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, connectionInfo.hostName, StorageScope.APPLICATION, StorageTarget.USER);
+					const usedOnHostMessage: UsedOnHostMessage = { hostName: connectionInfo.hostName, timeStamp: new Date().getTime() };
+					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, JSON.stringify(usedOnHostMessage), StorageScope.APPLICATION, StorageTarget.USER);
 				} else {
 					await notificationService.notify({
 						severity: Severity.Info,
