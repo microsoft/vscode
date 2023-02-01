@@ -477,16 +477,14 @@ export class Dialog extends Disposable {
 	}
 
 	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
-		const buttonMap: ButtonMapEntry[] = [];
-		if (buttons.length < 2) {
-			return buttonMap;
-		}
 
 		// Maps each button to its current label and old index
 		// so that when we move them around it's not a problem
-		buttons.forEach((label, index) => {
-			buttonMap.push({ label, index });
-		});
+		const buttonMap: ButtonMapEntry[] = buttons.map((label, index) => ({ label, index }));
+
+		if (buttons.length < 2) {
+			return buttonMap; // only need to rearrange if there are 2+ buttons
+		}
 
 		// macOS/linux: reverse button order and ensure cancel
 		// button is to the right of the primary button to match
