@@ -338,6 +338,18 @@ const newCommands: ApiCommand[] = [
 			return result.map(typeConverters.InlayHint.to.bind(undefined, converter));
 		})
 	),
+	// --- folding
+	new ApiCommand(
+		'vscode.executeFoldingRangeProvider', '_executeFoldingRangeProvider', 'Execute folding range provider',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<languages.FoldingRange[] | undefined, vscode.FoldingRange[] | undefined>('A promise that resolves to an array of FoldingRange objects', (result, args) => {
+			if (result) {
+				return result.map(typeConverters.FoldingRange.to);
+			}
+			return undefined;
+		})
+	),
+
 	// --- notebooks
 	new ApiCommand(
 		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',
@@ -441,6 +453,15 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.experimental.editSession.continue', '_workbench.editSessions.actions.continueEditSession', 'Continue the current edit session in a different workspace',
 		[ApiCommandArgument.Uri.with('workspaceUri', 'The target workspace to continue the current edit session in')],
+		ApiCommandResult.Void
+	),
+	// --- context keys
+	new ApiCommand(
+		'setContext', '_setContext', 'Set a custom context key value that can be used in when clauses.',
+		[
+			ApiCommandArgument.String.with('name', 'The context key name'),
+			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
+		],
 		ApiCommandResult.Void
 	)
 ];

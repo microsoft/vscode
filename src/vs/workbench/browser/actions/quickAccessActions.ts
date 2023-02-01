@@ -154,7 +154,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenWithModes',
-			title: localize('quickOpenWithModes', "Command Center"),
+			title: localize('quickOpenWithModes', "Quick Open"),
 			menu: {
 				id: MenuId.CommandCenter,
 				order: 100
@@ -165,8 +165,10 @@ registerAction2(class QuickAccessAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(undefined, {
+			preserveValue: true,
 			providerOptions: {
 				includeHelp: true,
+				from: 'commandCenter',
 			} as AnythingQuickAccessProviderRunOptions
 		});
 	}

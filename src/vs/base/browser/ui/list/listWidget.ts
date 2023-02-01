@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { createStyleSheet, Dimension, EventHelper } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alert, AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { binarySearch, firstOrDefault, range } from 'vs/base/common/arrays';
@@ -20,15 +20,13 @@ import { matchesPrefix } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IThemable } from 'vs/base/common/styler';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
-import { IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -222,7 +220,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 
 	constructor(
 		private trait: Trait<T>,
-		private view: ListView<T>,
+		private view: IListView<T>,
 		private identityProvider?: IIdentityProvider<T>
 	) { }
 
@@ -289,7 +287,7 @@ class KeyboardController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>,
+		private view: IListView<T>,
 		options: IListOptions<T>
 	) {
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
@@ -421,7 +419,7 @@ class TypeNavigationController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>,
+		private view: IListView<T>,
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
 		private keyboardNavigationEventFilter: IKeyboardNavigationEventFilter,
 		private delegate: IKeyboardNavigationDelegate
@@ -535,7 +533,7 @@ class DOMFocusController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>
+		private view: IListView<T>
 	) {
 		const onKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event))
 			.filter(e => !isInputElement(e.target as HTMLElement))
@@ -668,7 +666,7 @@ export class MouseController<T> implements IDisposable {
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<T>): void {
-		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 
@@ -782,7 +780,7 @@ export interface IStyleController {
 export interface IListAccessibilityProvider<T> extends IListViewAccessibilityProvider<T> {
 	getAriaLabel(element: T): string | null;
 	getWidgetAriaLabel(): string;
-	getWidgetRole?(): string;
+	getWidgetRole?(): AriaRole;
 	getAriaLevel?(element: T): number | undefined;
 	onDidChangeActiveDescendant?: Event<void>;
 	getActiveDescendantId?(element: T): string | undefined;
@@ -797,11 +795,7 @@ export class DefaultStyleController implements IStyleController {
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!platform.isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${this.selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			}
+			content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
 		if (styles.listFocusBackground) {
@@ -824,10 +818,6 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listActiveSelectionIconForeground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
-		}
-
-		if (styles.listFocusAndSelectionOutline) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { outline-color: ${styles.listFocusAndSelectionOutline} !important; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {
@@ -875,11 +865,15 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
 		}
 
-		if (styles.listSelectionOutline) {
-			content.push(`.monaco-list${suffix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
+		/**
+		 * Outlines
+		 */
+		const focusAndSelectionOutline = asCssValueWithDefault(styles.listFocusAndSelectionOutline, asCssValueWithDefault(styles.listSelectionOutline, styles.listFocusOutline ?? ''));
+		if (focusAndSelectionOutline) { // default: listFocusOutline
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
 		}
 
-		if (styles.listFocusOutline) {
+		if (styles.listFocusOutline) { // default: set
 			content.push(`
 				.monaco-drag-image,
 				.monaco-list${suffix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
@@ -887,11 +881,20 @@ export class DefaultStyleController implements IStyleController {
 			`);
 		}
 
-		if (styles.listInactiveFocusOutline) {
+		const inactiveFocusAndSelectionOutline = asCssValueWithDefault(styles.listSelectionOutline, styles.listInactiveFocusOutline ?? '');
+		if (inactiveFocusAndSelectionOutline) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused.selected { outline: 1px dotted ${inactiveFocusAndSelectionOutline}; outline-offset: -1px; }`);
+		}
+
+		if (styles.listSelectionOutline) { // default: activeContrastBorder
+			content.push(`.monaco-list${suffix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
+		}
+
+		if (styles.listInactiveFocusOutline) { // default: null
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listHoverOutline) {
+		if (styles.listHoverOutline) {  // default: activeContrastBorder
 			content.push(`.monaco-list${suffix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
@@ -905,10 +908,18 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.tableColumnsBorder) {
 			content.push(`
-				.monaco-table:hover > .monaco-split-view2,
-				.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+				.monaco-table > .monaco-split-view2,
+				.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before,
+				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2,
+				.monaco-workbench:not(.reduce-motion) .monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
 					border-color: ${styles.tableColumnsBorder};
-			}`);
+				}
+
+				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
+				.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+					border-color: transparent;
+				}
+			`);
 		}
 
 		if (styles.tableOddRowsBackgroundColor) {
@@ -954,6 +965,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
@@ -963,47 +975,59 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 }
 
 export interface IListStyles {
-	listBackground?: Color;
-	listFocusBackground?: Color;
-	listFocusForeground?: Color;
-	listActiveSelectionBackground?: Color;
-	listActiveSelectionForeground?: Color;
-	listActiveSelectionIconForeground?: Color;
-	listFocusAndSelectionOutline?: Color;
-	listFocusAndSelectionBackground?: Color;
-	listFocusAndSelectionForeground?: Color;
-	listInactiveSelectionBackground?: Color;
-	listInactiveSelectionIconForeground?: Color;
-	listInactiveSelectionForeground?: Color;
-	listInactiveFocusForeground?: Color;
-	listInactiveFocusBackground?: Color;
-	listHoverBackground?: Color;
-	listHoverForeground?: Color;
-	listDropBackground?: Color;
-	listFocusOutline?: Color;
-	listInactiveFocusOutline?: Color;
-	listSelectionOutline?: Color;
-	listHoverOutline?: Color;
-	treeIndentGuidesStroke?: Color;
-	tableColumnsBorder?: Color;
-	tableOddRowsBackgroundColor?: Color;
+	listBackground: string | undefined;
+	listFocusBackground: string | undefined;
+	listFocusForeground: string | undefined;
+	listActiveSelectionBackground: string | undefined;
+	listActiveSelectionForeground: string | undefined;
+	listActiveSelectionIconForeground: string | undefined;
+	listFocusAndSelectionOutline: string | undefined;
+	listFocusAndSelectionBackground: string | undefined;
+	listFocusAndSelectionForeground: string | undefined;
+	listInactiveSelectionBackground: string | undefined;
+	listInactiveSelectionIconForeground: string | undefined;
+	listInactiveSelectionForeground: string | undefined;
+	listInactiveFocusForeground: string | undefined;
+	listInactiveFocusBackground: string | undefined;
+	listHoverBackground: string | undefined;
+	listHoverForeground: string | undefined;
+	listDropBackground: string | undefined;
+	listFocusOutline: string | undefined;
+	listInactiveFocusOutline: string | undefined;
+	listSelectionOutline: string | undefined;
+	listHoverOutline: string | undefined;
+	treeIndentGuidesStroke: string | undefined;
+	treeInactiveIndentGuidesStroke: string | undefined;
+	tableColumnsBorder: string | undefined;
+	tableOddRowsBackgroundColor: string | undefined;
 }
 
-const defaultStyles: IListStyles = {
-	listFocusBackground: Color.fromHex('#7FB0D0'),
-	listActiveSelectionBackground: Color.fromHex('#0E639C'),
-	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
-	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
-	listFocusAndSelectionOutline: Color.fromHex('#90C2F9'),
-	listFocusAndSelectionBackground: Color.fromHex('#094771'),
-	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
-	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
-	listInactiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
-	listHoverBackground: Color.fromHex('#2A2D2E'),
-	listDropBackground: Color.fromHex('#383B3D'),
-	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),
-	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2),
-	tableOddRowsBackgroundColor: Color.fromHex('#cccccc').transparent(0.04)
+export const unthemedListStyles: IListStyles = {
+	listFocusBackground: '#7FB0D0',
+	listActiveSelectionBackground: '#0E639C',
+	listActiveSelectionForeground: '#FFFFFF',
+	listActiveSelectionIconForeground: '#FFFFFF',
+	listFocusAndSelectionOutline: '#90C2F9',
+	listFocusAndSelectionBackground: '#094771',
+	listFocusAndSelectionForeground: '#FFFFFF',
+	listInactiveSelectionBackground: '#3F3F46',
+	listInactiveSelectionIconForeground: '#FFFFFF',
+	listHoverBackground: '#2A2D2E',
+	listDropBackground: '#383B3D',
+	treeIndentGuidesStroke: '#a9a9a9',
+	treeInactiveIndentGuidesStroke: Color.fromHex('#a9a9a9').transparent(0.4).toString(),
+	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2).toString(),
+	tableOddRowsBackgroundColor: Color.fromHex('#cccccc').transparent(0.04).toString(),
+	listBackground: undefined,
+	listFocusForeground: undefined,
+	listInactiveSelectionForeground: undefined,
+	listInactiveFocusForeground: undefined,
+	listInactiveFocusBackground: undefined,
+	listHoverForeground: undefined,
+	listFocusOutline: undefined,
+	listInactiveFocusOutline: undefined,
+	listSelectionOutline: undefined,
+	listHoverOutline: undefined
 };
 
 const DefaultOptions: IListOptions<any> = {
@@ -1232,13 +1256,13 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
  * - Dynamic element height support
  * - Drag-and-drop support
  */
-export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
+export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private focus = new Trait<T>('focused');
 	private selection: Trait<T>;
 	private anchor = new Trait<T>('anchor');
 	private eventBufferer = new EventBufferer();
-	protected view: ListView<T>;
+	protected view: IListView<T>;
 	private spliceable: ISpliceable<T>;
 	private styleController: IStyleController;
 	private typeNavigationController?: TypeNavigationController<T>;
@@ -1330,8 +1354,6 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
 		this.selection = new SelectionTrait(role !== 'listbox');
 
-		mixin(_options, defaultStyles, false);
-
 		const baseRenderers: IListRenderer<T, ITraitTemplateData>[] = [this.focus.renderer, this.selection.renderer];
 
 		this.accessibilityProvider = _options.accessibilityProvider;
@@ -1349,7 +1371,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			dnd: _options.dnd && new ListViewDragAndDrop(this, _options.dnd)
 		};
 
-		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
+		this.view = this.createListView(container, virtualDelegate, renderers, viewOptions);
 		this.view.domNode.setAttribute('role', role);
 
 		if (_options.styleController) {
@@ -1398,6 +1420,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
+	}
+
+	protected createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<T>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<T>): IListView<T> {
+		return new ListView(container, virtualDelegate, renderers, viewOptions);
 	}
 
 	protected createMouseController(options: IListOptions<T>): MouseController<T> {

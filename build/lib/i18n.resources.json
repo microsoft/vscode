@@ -403,6 +403,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/suggest",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/textfile",
 			"project": "vscode-workbench"
 		},

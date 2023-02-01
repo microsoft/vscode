@@ -40,6 +40,8 @@ import { IEditorService, ISaveAllEditorsOptions } from 'vs/workbench/services/ed
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -74,6 +76,9 @@ suite('Edit session sync', () => {
 			override onDidSignIn = Event.None;
 			override onDidSignOut = Event.None;
 		});
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override onDidChangeExtensions = Event.None;
+		});
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
@@ -81,6 +86,11 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async show() {
 				return { choice: 1 };
+			}
+		});
+		instantiationService.stub(IRemoteAgentService, new class extends mock<IRemoteAgentService>() {
+			override async getEnvironment() {
+				return null;
 			}
 		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));

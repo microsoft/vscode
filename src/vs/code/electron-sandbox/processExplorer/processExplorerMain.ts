@@ -23,9 +23,11 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
-const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
-const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
+const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
+const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
 
 class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
@@ -54,13 +56,13 @@ class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformat
 }
 
 interface IProcessItemTemplateData extends IProcessRowTemplateData {
-	CPU: HTMLElement;
-	memory: HTMLElement;
-	PID: HTMLElement;
+	readonly CPU: HTMLElement;
+	readonly memory: HTMLElement;
+	readonly PID: HTMLElement;
 }
 
 interface IProcessRowTemplateData {
-	name: HTMLElement;
+	readonly name: HTMLElement;
 }
 
 class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
@@ -104,15 +106,16 @@ class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformati
 
 class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, void, IProcessItemTemplateData> {
 	templateId: string = 'header';
+
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const data = Object.create(null);
 		const row = append(container, $('.row'));
-		data.name = append(row, $('.nameLabel'));
-		data.CPU = append(row, $('.cpu'));
-		data.memory = append(row, $('.memory'));
-		data.PID = append(row, $('.pid'));
-		return data;
+		const name = append(row, $('.nameLabel'));
+		const CPU = append(row, $('.cpu'));
+		const memory = append(row, $('.memory'));
+		const PID = append(row, $('.pid'));
+		return { name, CPU, memory, PID };
 	}
+
 	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		templateData.name.textContent = localize('name', "Process Name");
 		templateData.CPU.textContent = localize('cpu', "CPU (%)");
@@ -120,6 +123,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 		templateData.memory.textContent = localize('memory', "Memory (MB)");
 
 	}
+
 	disposeTemplate(templateData: any): void {
 		// Nothing to do
 	}
@@ -163,15 +167,14 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 	templateId: string = 'process';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
-		const data = <IProcessItemTemplateData>Object.create(null);
 		const row = append(container, $('.row'));
 
-		data.name = append(row, $('.nameLabel'));
-		data.CPU = append(row, $('.cpu'));
-		data.memory = append(row, $('.memory'));
-		data.PID = append(row, $('.pid'));
+		const name = append(row, $('.nameLabel'));
+		const CPU = append(row, $('.cpu'));
+		const memory = append(row, $('.memory'));
+		const PID = append(row, $('.pid'));
 
-		return data;
+		return { name, CPU, PID, memory };
 	}
 	renderElement(node: ITreeNode<ProcessItem, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		const { element } = node;
@@ -338,6 +341,13 @@ class ProcessExplorer {
 
 		this.tree.setInput({ processes: { processRoots } });
 		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.onKeyDown(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.KeyE && event.altKey) {
+				const selectionPids = this.getSelectedPids();
+				void Promise.all(selectionPids.map((pid) => this.nativeHostService.killProcess(pid, 'SIGTERM'))).then(() => this.tree?.refresh());
+			}
+		});
 		this.tree.onContextMenu(e => {
 			if (isProcessItem(e.element)) {
 				this.showContextMenu(e.element, true);
@@ -354,7 +364,7 @@ class ProcessExplorer {
 
 	private isDebuggable(cmd: string): boolean {
 		const matches = DEBUG_FLAGS_PATTERN.exec(cmd);
-		return (matches && matches.length >= 2) || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
+		return (matches && matches.groups!.port !== '0') || cmd.indexOf('node ') >= 0 || cmd.indexOf('node.exe') >= 0;
 	}
 
 	private attachTo(item: ProcessItem) {
@@ -365,12 +375,8 @@ class ProcessExplorer {
 		};
 
 		let matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
-		if (matches && matches.length >= 2) {
-			// attach via port
-			if (matches.length === 4 && matches[3]) {
-				config.port = parseInt(matches[3]);
-			}
-			config.protocol = matches[1] === 'debug' ? 'legacy' : 'inspector';
+		if (matches) {
+			config.port = Number(matches.groups!.port);
 		} else {
 			// no port -> try to attach via pid (send SIGUSR1)
 			config.processId = String(item.pid);
@@ -378,9 +384,9 @@ class ProcessExplorer {
 
 		// a debug-port=n or inspect-port=n overrides the port
 		matches = DEBUG_PORT_PATTERN.exec(item.cmd);
-		if (matches && matches.length === 3) {
+		if (matches) {
 			// override port
-			config.port = parseInt(matches[2]);
+			config.port = Number(matches.groups!.port);
 		}
 
 		ipcRenderer.send('vscode:workbenchCommand', { id: 'debug.startFromConfig', from: 'processExplorer', args: [config] });
@@ -500,12 +506,7 @@ class ProcessExplorer {
 			label: localize('copy', "Copy"),
 			click: () => {
 				// Collect the selected pids
-				const selectionPids = this.tree?.getSelection()?.map(e => {
-					if (!e || !('pid' in e)) {
-						return undefined;
-					}
-					return e.pid;
-				}).filter(e => !!e) as number[];
+				const selectionPids = this.getSelectedPids();
 				// If the selection does not contain the right clicked item, copy the right clicked
 				// item only.
 				if (!selectionPids?.includes(pid)) {
@@ -560,6 +561,15 @@ class ProcessExplorer {
 				this.requestProcessList(waited);
 			}
 		}, 200);
+	}
+
+	private getSelectedPids() {
+		return this.tree?.getSelection()?.map(e => {
+			if (!e || !('pid' in e)) {
+				return undefined;
+			}
+			return e.pid;
+		}).filter(e => !!e) as number[];
 	}
 }
 

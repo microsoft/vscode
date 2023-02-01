@@ -6,18 +6,18 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
-import { IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
+import { getCodiconAriaLabel, IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -502,7 +502,7 @@ export class QuickInputList {
 				separator = previous;
 			}
 
-			result.push(new ListElement({
+			const element = new ListElement({
 				hasCheckbox,
 				index,
 				item: item.type !== 'separator' ? item : undefined,
@@ -519,11 +519,14 @@ export class QuickInputList {
 				separator,
 				fireButtonTriggered,
 				fireSeparatorButtonTriggered
-			}));
+			});
+
+			this.elementDisposables.push(element);
+			this.elementDisposables.push(element.onChecked(() => this.fireCheckedEvents()));
+
+			result.push(element);
 			return result;
 		}, [] as ListElement[]);
-		this.elementDisposables.push(...this.elements);
-		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
 			map.set(element.item ?? element.separator!, index);
@@ -862,7 +865,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 			: element.saneAriaLabel;
 	}
 
-	getWidgetRole() {
+	getWidgetRole(): AriaRole {
 		return 'listbox';
 	}
 

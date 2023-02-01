@@ -6,9 +6,9 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -16,7 +16,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
@@ -303,9 +304,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
 
-		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
-			this.updateTitle(this.title);
-		}));
+		const viewContainerModel = this.viewDescriptorService.getViewContainerByViewId(this.id);
+		if (viewContainerModel) {
+			this._register(this.viewDescriptorService.getViewContainerModel(viewContainerModel).onDidChangeContainerInfo(({ title }) => this.updateTitle(this.title)));
+		} else {
+			console.error(`View container model not found for view ${this.id}`);
+		}
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
@@ -321,14 +325,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const icon = this.getIcon();
 		if (this.iconContainer) {
-			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
+			const fgColor = asCssValueWithDefault(styles.headerForeground, asCssVariable(foreground));
 			if (URI.isUri(icon)) {
 				// Apply background color to activity bar item provided with iconUrls
-				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.backgroundColor = fgColor;
 				this.iconContainer.style.color = '';
 			} else {
 				// Apply foreground color to activity bar items provided with codicons
-				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.color = fgColor;
 				this.iconContainer.style.backgroundColor = '';
 			}
 		}
@@ -689,8 +693,10 @@ export abstract class FilterViewPane extends ViewPane {
 			this.updateActions();
 			if (!shouldShowFilterInHeader) {
 				append(this.filterContainer!, this.filterWidget.element);
-				height = height - 44;
 			}
+		}
+		if (!shouldShowFilterInHeader) {
+			height = height - 44;
 		}
 		this.filterWidget.layout(width);
 		this.layoutBodyContent(height, width);

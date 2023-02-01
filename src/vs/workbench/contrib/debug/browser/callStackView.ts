@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -34,9 +35,9 @@ import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/lis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -229,8 +230,8 @@ export class CallStackView extends ViewPane {
 			this.instantiationService.createInstance(ThreadsRenderer),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
-			new LoadMoreRenderer(this.themeService),
-			new ShowMoreRenderer(this.themeService)
+			new LoadMoreRenderer(),
+			new ShowMoreRenderer()
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
 			compressionEnabled: true,
@@ -495,7 +496,6 @@ interface IErrorTemplateData {
 
 interface ILabelTemplateData {
 	label: HTMLElement;
-	toDispose: IDisposable;
 }
 
 interface IStackFrameTemplateData {
@@ -812,7 +812,7 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 	static readonly ID = 'loadMore';
 	static readonly LABEL = localize('loadAllStackFrames', "Load More Stack Frames");
 
-	constructor(private readonly themeService: IThemeService) { }
+	constructor() { }
 
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
@@ -820,13 +820,8 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.load-all'));
-		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
-			if (colors.textLinkForeground) {
-				label.style.color = colors.textLinkForeground.toString();
-			}
-		});
-
-		return { label, toDispose };
+		label.style.color = asCssVariable(textLinkForeground);
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -838,14 +833,14 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		templateData.toDispose.dispose();
+		// noop
 	}
 }
 
 class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'showMore';
 
-	constructor(private readonly themeService: IThemeService) { }
+	constructor() { }
 
 
 	get templateId(): string {
@@ -854,13 +849,8 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.show-more'));
-		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
-			if (colors.textLinkForeground) {
-				label.style.color = colors.textLinkForeground.toString();
-			}
-		});
-
-		return { label, toDispose };
+		label.style.color = asCssVariable(textLinkForeground);
+		return { label };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -877,7 +867,7 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		templateData.toDispose.dispose();
+		// noop
 	}
 }
 
@@ -1042,12 +1032,12 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 		return localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
 	}
 
-	getWidgetRole(): string {
+	getWidgetRole(): AriaRole {
 		// Use treegrid as a role since each element can have additional actions inside #146210
 		return 'treegrid';
 	}
 
-	getRole(_element: CallStackItem): string | undefined {
+	getRole(_element: CallStackItem): AriaRole | undefined {
 		return 'row';
 	}
 

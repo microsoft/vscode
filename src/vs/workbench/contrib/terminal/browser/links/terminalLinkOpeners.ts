@@ -15,19 +15,17 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { basename } from 'vs/base/common/path';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
-		private readonly _os: OperatingSystem,
 		@IEditorService private readonly _editorService: IEditorService,
 	) {
 	}
@@ -36,80 +34,15 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
-		const lineColumnInfo: ILineColumnInfo = this.extractLineColumnInfo(link.text, link.uri);
-		const selection: ITextEditorSelection = {
-			startLineNumber: lineColumnInfo.lineNumber,
-			startColumn: lineColumnInfo.columnNumber
+		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
+		const selection: ITextEditorSelection | undefined = linkSuffix?.row === undefined ? undefined : {
+			startLineNumber: linkSuffix?.row ?? 1,
+			startColumn: linkSuffix?.col ?? 1
 		};
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
 		});
-	}
-
-	/**
-	 * Returns line and column number of URl if that is present, otherwise line 1 column 1.
-	 *
-	 * @param link Url link which may contain line and column number.
-	 */
-	extractLineColumnInfo(link: string, uri: URI): ILineColumnInfo {
-		const lineColumnInfo: ILineColumnInfo = {
-			lineNumber: 1,
-			columnNumber: 1
-		};
-
-		// Calculate the file name end using the URI if possible, this will help with sanitizing the
-		// link for the match regex. The actual path isn't important in extracting the line and
-		// column from the regex so modifying the link text before the file name is safe.
-		const fileName = basename(uri.path);
-		const index = link.indexOf(fileName);
-		const fileNameEndIndex: number = index !== -1 ? index + fileName.length : link.length;
-
-		// Sanitize the link text such that the folders and file name do not contain whitespace.
-		let sanitizedLink = link.slice(0, fileNameEndIndex).replace(/\s/g, '_') + link.slice(fileNameEndIndex);
-
-		// Remove / suffixes from Windows paths such that the windows link regex works
-		// (eg. /c:/file -> c:/file)
-		if (this._os === OperatingSystem.Windows && sanitizedLink.match(/^\/[a-z]:\//i)) {
-			sanitizedLink = sanitizedLink.slice(1);
-		}
-
-		// The local link regex only works for non file:// links, check these for a simple
-		// `:line:col` suffix
-		if (sanitizedLink.startsWith('file://')) {
-			const simpleMatches = sanitizedLink.match(/:(\d+)(:(\d+))?$/);
-			if (simpleMatches) {
-				if (simpleMatches[1] !== undefined) {
-					lineColumnInfo.lineNumber = parseInt(simpleMatches[1]);
-				}
-				if (simpleMatches[3] !== undefined) {
-					lineColumnInfo.columnNumber = parseInt(simpleMatches[3]);
-				}
-			}
-			return lineColumnInfo;
-		}
-
-		const matches: string[] | null = getLocalLinkRegex(this._os).exec(sanitizedLink);
-		if (!matches) {
-			return lineColumnInfo;
-		}
-
-		const lineAndColumnMatchIndex = this._os === OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
-		for (let i = 0; i < lineAndColumnClause.length; i++) {
-			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
-			const rowNumber = matches[lineMatchIndex];
-			if (rowNumber) {
-				lineColumnInfo['lineNumber'] = parseInt(rowNumber, 10);
-				// Check if column number exists
-				const columnNumber = matches[lineMatchIndex + 2];
-				if (columnNumber) {
-					lineColumnInfo['columnNumber'] = parseInt(columnNumber, 10);
-				}
-				break;
-			}
-		}
-
-		return lineColumnInfo;
 	}
 }
 
@@ -142,7 +75,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
-		private readonly _initialCwd: Promise<string>,
+		private readonly _initialCwd: string,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
@@ -156,13 +89,20 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		const pathSeparator = osPathModule(this._os).sep;
+		const osPath = osPathModule(this._os);
+		const pathSeparator = osPath.sep;
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
-		text = osPathModule(this._os).normalize(text).replace(/^(\.+[\\/])+/, '');
+		text = osPath.normalize(text).replace(/^(\.+[\\/])+/, '');
 
-		// Remove `:in` from the end which is how Ruby outputs stack traces
-		text = text.replace(/:in$/, '');
+		// Remove `:<one or more non number characters>` from the end of the link.
+		// Examples:
+		// - Ruby stack traces: <link>:in ...
+		// - Grep output: <link>:<result line>
+		// This only happens when the colon is _not_ followed by a forward- or back-slash as that
+		// would break absolute Windows paths (eg. `C:/Users/...`).
+		text = text.replace(/:[^\\/][^\d]+$/, '');
+
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
@@ -173,7 +113,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		});
 		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator)?.[0] || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, osPath)?.[0] || text;
 		}
 
 		// Try open the cwd resolved link first
@@ -198,9 +138,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		const pathModule = osPathModule(this._os);
 		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
 		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
-		const initialCwd = await this._initialCwd;
-		if (!isAbsolute && initialCwd.length > 0) {
-			absolutePath = pathModule.join(initialCwd, sanitizedLink);
+		if (!isAbsolute && this._initialCwd.length > 0) {
+			absolutePath = pathModule.join(this._initialCwd, sanitizedLink);
 		}
 
 		// Try open as an absolute link
@@ -300,6 +239,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -310,8 +250,9 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		// It's important to use the raw string value here to avoid converting pre-encoded values
 		// from the URL like `%2B` -> `+`.
 		this._openerService.open(link.text, {
-			allowTunneling: this._isRemote,
+			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
 			allowContributedOpeners: true,
+			openExternal: true
 		});
 	}
 }

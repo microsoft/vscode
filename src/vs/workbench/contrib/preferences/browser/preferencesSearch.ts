@@ -35,6 +35,7 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	declare readonly _serviceBrand: undefined;
 
+	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
 	constructor(
@@ -56,6 +57,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		});
 	}
 
+	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private get remoteSearchAllowed(): boolean {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (!workbenchSettings.enableNaturalLanguageSearch) {
@@ -80,13 +82,9 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider | undefined {
-		const opts: IRemoteSearchProviderOptions = {
-			filter,
-			newExtensionsOnly,
-			endpoint: this._endpoint
-		};
-
-		return this.remoteSearchAllowed ? this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions) : undefined;
+		// Disable for now because Bing search isn't supported anymore.
+		// Ref https://github.com/microsoft/vscode/issues/172411
+		return undefined;
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -165,6 +163,7 @@ interface IBingRequestDetails {
 	extensions?: ILocalExtension[];
 }
 
+// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 class RemoteSearchProvider implements ISearchProvider {
 	// Must keep extension filter size under 8kb. 42 filters puts us there.
 	private static readonly MAX_REQUEST_FILTERS = 42;

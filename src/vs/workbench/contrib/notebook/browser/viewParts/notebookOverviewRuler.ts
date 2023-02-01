@@ -6,7 +6,7 @@
 import * as browser from 'vs/base/browser/browser';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
@@ -61,7 +61,7 @@ export class NotebookOverviewRuler extends Themable {
 
 				decorations.filter(decoration => decoration.overviewRuler).forEach(decoration => {
 					const overviewRuler = decoration.overviewRuler!;
-					const fillStyle = this.getColor(overviewRuler.color)?.toString() || '#000000';
+					const fillStyle = this.getColor(overviewRuler.color) ?? '#000000';
 					const lineHeight = Math.min(fontInfo.lineHeight, (viewCell.layoutInfo.editorHeight / scrollHeight / textBuffer.getLineCount()) * ratio * height);
 					const lineNumbers = overviewRuler.modelRanges.map(range => range.startLineNumber).reduce((previous: number[], current: number) => {
 						if (previous.length === 0) {
@@ -76,11 +76,28 @@ export class NotebookOverviewRuler extends Themable {
 						return previous;
 					}, [] as number[]);
 
+					let x = 0;
+					switch (overviewRuler.position) {
+						case NotebookOverviewRulerLane.Left:
+							x = 0;
+							break;
+						case NotebookOverviewRulerLane.Center:
+							x = laneWidth;
+							break;
+						case NotebookOverviewRulerLane.Right:
+							x = laneWidth * 2;
+							break;
+						default:
+							break;
+					}
+
+					const width = overviewRuler.position === NotebookOverviewRulerLane.Full ? laneWidth * 3 : laneWidth;
+
 					for (let i = 0; i < lineNumbers.length; i++) {
 						ctx.fillStyle = fillStyle;
 						const lineNumber = lineNumbers[i];
 						const offset = (lineNumber - 1) * lineHeight;
-						ctx.fillRect(laneWidth, currentFrom + offset, laneWidth, lineHeight);
+						ctx.fillRect(x, currentFrom + offset, width, lineHeight);
 					}
 
 					if (overviewRuler.includeOutput) {

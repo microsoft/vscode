@@ -34,9 +34,8 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -149,7 +148,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookExecutionStateService = notebookExecutionStateService;
 		this.#extensionService = extensionService;
 
-		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, { cellToolbarInteraction: 'hover', globalToolbar: true, defaultCellCollapseConfig: { codeCell: { inputCollapsed: true } } });
+		this.#notebookOptions = new NotebookOptions(configurationService, notebookExecutionStateService, { cellToolbarInteraction: 'hover', globalToolbar: true, dragAndDropEnabled: false });
 		this.#editorMemento = this.getEditorMemento<InteractiveEditorViewState>(editorGroupService, textResourceConfigurationService, INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
@@ -416,9 +415,6 @@ export class InteractiveEditor extends EditorPane {
 			this.#scrollIfNecessary(cvm);
 		}));
 		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocusWidget(() => this.#onDidFocusWidget.fire()));
-		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
-			(model as ComplexNotebookEditorModel).setDirty(false);
-		}));
 		this.#widgetDisposableStore.add(this.#notebookOptions.onDidChangeOptions(e => {
 			if (e.compactView || e.focusIndicator) {
 				// update the styling
@@ -570,10 +566,15 @@ export class InteractiveEditor extends EditorPane {
 	layout(dimension: DOM.Dimension): void {
 		this.#rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this.#rootElement.classList.toggle('narrow-width', dimension.width < 600);
+		const editorHeightChanged = dimension.height !== this.#dimension?.height;
 		this.#dimension = dimension;
 
 		if (!this.#notebookWidget.value) {
 			return;
+		}
+
+		if (editorHeightChanged && this.#codeEditorWidget) {
+			SuggestController.get(this.#codeEditorWidget)?.cancelSuggestWidget();
 		}
 
 		this.#notebookEditorContainer.style.height = `${this.#dimension.height - this.#inputCellContainerHeight}px`;

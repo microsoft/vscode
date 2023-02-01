@@ -14,17 +14,21 @@ fi
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
+# By default, zsh will set the $HISTFILE to the $ZDOTDIR location automatically. In the case of the
+# shell integration being injected, this means that the terminal will use a different history file
+# to other terminals. To fix this issue, set $HISTFILE back to the default location before ~/.zshrc
+# is called as that may depend upon the value.
+if [[  "$VSCODE_INJECTION" == "1" ]]; then
+	HISTFILE=$USER_ZDOTDIR/.zsh_history
+fi
+
 # Only fix up ZDOTDIR if shell integration was injected (not manually installed) and has not been called yet
 if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
 		VSCODE_ZDOTDIR=$ZDOTDIR
 		ZDOTDIR=$USER_ZDOTDIR
+		# A user's custom HISTFILE location might be set when their .zshrc file is sourced below
 		. $USER_ZDOTDIR/.zshrc
-		ZDOTDIR=$VSCODE_ZDOTDIR
-	fi
-
-	if [[ -f $USER_ZDOTDIR/.zsh_history && -z $HISTFILE ]]; then
-		HISTFILE=$USER_ZDOTDIR/.zsh_history
 	fi
 fi
 
@@ -45,21 +49,13 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			token="\\x${(l:2::0:)$(( [##16] #byte ))}"
-			#            | |  |       |/|/ |_____|
-			#            | |  |       | |     |
-			# left-pad --+ |  |       | |     +- the byte value of the character
-			# two digits --+  |       | +------- in hexadecimal
-			# with '0' -------+       +--------- with no prefix
+			token="$byte"
 		fi
 
 		out+="$token"

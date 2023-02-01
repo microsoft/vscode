@@ -27,7 +27,7 @@ import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';

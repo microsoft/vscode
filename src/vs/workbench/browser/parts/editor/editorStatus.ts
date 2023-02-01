@@ -33,7 +33,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
-import { ConfigurationChangedEvent, IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
@@ -43,9 +43,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
-import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -148,7 +146,6 @@ class StateChange {
 	EOL: boolean = false;
 	tabFocusMode: boolean = false;
 	columnSelectionMode: boolean = false;
-	screenReaderMode: boolean = false;
 	metadata: boolean = false;
 
 	combine(other: StateChange) {
@@ -160,7 +157,6 @@ class StateChange {
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
-		this.screenReaderMode = this.screenReaderMode || other.screenReaderMode;
 		this.metadata = this.metadata || other.metadata;
 	}
 
@@ -173,7 +169,6 @@ class StateChange {
 			|| this.EOL
 			|| this.tabFocusMode
 			|| this.columnSelectionMode
-			|| this.screenReaderMode
 			|| this.metadata;
 	}
 }
@@ -186,7 +181,6 @@ type StateDelta = (
 	| { type: 'indentation'; indentation: string | undefined }
 	| { type: 'tabFocusMode'; tabFocusMode: boolean }
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
-	| { type: 'screenReaderMode'; screenReaderMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
 );
 
@@ -212,9 +206,6 @@ class State {
 
 	private _columnSelectionMode: boolean | undefined;
 	get columnSelectionMode(): boolean | undefined { return this._columnSelectionMode; }
-
-	private _screenReaderMode: boolean | undefined;
-	get screenReaderMode(): boolean | undefined { return this._screenReaderMode; }
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
@@ -272,13 +263,6 @@ class State {
 				}
 				break;
 
-			case 'screenReaderMode':
-				if (this._screenReaderMode !== update.screenReaderMode) {
-					this._screenReaderMode = update.screenReaderMode;
-					change.screenReaderMode = true;
-				}
-				break;
-
 			case 'metadata':
 				if (this._metadata !== update.metadata) {
 					this._metadata = update.metadata;
@@ -302,7 +286,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -315,17 +298,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
 	private toRender: StateChange | null = null;
-	private screenReaderNotification: INotificationHandle | null = null;
-	private promptedScreenReader: boolean = false;
+
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -336,10 +315,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			const screenReaderMode = this.accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-			this.updateState({ type: 'screenReaderMode', screenReaderMode });
-		}));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
@@ -347,32 +322,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() });
 		CommandsRegistry.registerCommand({ id: 'changeEditorIndentation', handler: () => this.showIndentationPicker() });
 	}
 
-	private showScreenReaderNotification(): void {
-		if (!this.screenReaderNotification) {
-			this.screenReaderNotification = this.notificationService.prompt(
-				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
-				[{
-					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
-					}
-				}, {
-					label: localize('screenReaderDetectedExplanation.answerNo', "No"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
-					}
-				}],
-				{ sticky: true }
-			);
-
-			Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);
-		}
-	}
 
 	private async showIndentationPicker(): Promise<unknown> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
@@ -446,24 +398,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 		} else {
 			this.columnSelectionModeElement.clear();
-		}
-	}
-
-	private updateScreenReaderModeElement(visible: boolean): void {
-		if (visible) {
-			if (!this.screenRedearModeElement.value) {
-				const text = localize('screenReaderDetected', "Screen Reader Optimized");
-				this.screenRedearModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.screenReaderMode', "Screen Reader Mode"),
-					text,
-					ariaLabel: text,
-					command: 'showEditorScreenReaderNotification',
-					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
-					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
-				}, 'status.editor.screenReaderMode', StatusbarAlignment.RIGHT, 100.6);
-			}
-		} else {
-			this.screenRedearModeElement.clear();
 		}
 	}
 
@@ -602,7 +536,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private doRenderNow(changed: StateChange): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
-		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
 		this.updateIndentationElement(this.state.indentation);
 		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
@@ -642,7 +575,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		// Update all states
 		this.onColumnSelectionModeChange(activeCodeEditor);
-		this.onScreenReaderModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
 		this.onLanguageChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
@@ -671,9 +603,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: ConfigurationChangedEvent) => {
 				if (event.hasChanged(EditorOption.columnSelection)) {
 					this.onColumnSelectionModeChange(activeCodeEditor);
-				}
-				if (event.hasChanged(EditorOption.accessibilitySupport)) {
-					this.onScreenReaderModeChange(activeCodeEditor);
 				}
 			}));
 
@@ -794,31 +723,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		this.updateState(info);
-	}
-
-	private onScreenReaderModeChange(editorWidget: ICodeEditor | undefined): void {
-		let screenReaderMode = false;
-
-		// We only support text based editors
-		if (editorWidget) {
-			const screenReaderDetected = this.accessibilityService.isScreenReaderOptimized();
-			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor')?.accessibilitySupport;
-				if (screenReaderConfiguration === 'auto') {
-					if (!this.promptedScreenReader) {
-						this.promptedScreenReader = true;
-						setTimeout(() => this.showScreenReaderNotification(), 100);
-					}
-				}
-			}
-			screenReaderMode = (editorWidget.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled);
-		}
-
-		if (screenReaderMode === false && this.screenReaderNotification) {
-			this.screenReaderNotification.close();
-		}
-
-		this.updateState({ type: 'screenReaderMode', screenReaderMode: screenReaderMode });
 	}
 
 	private onSelectionChange(editorWidget: ICodeEditor | undefined): void {

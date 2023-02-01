@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
@@ -21,6 +21,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -40,6 +41,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class DebugSession implements IDebugSession {
+	parentSession: IDebugSession | undefined;
 
 	private _subId: string | undefined;
 	raw: RawDebugSession | undefined; // used in tests
@@ -91,18 +93,21 @@ export class DebugSession implements IDebugSession {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._options = options || {};
+		this.parentSession = this._options.parentSession;
 		if (this.hasSeparateRepl()) {
 			this.repl = new ReplModel(this.configurationService);
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose: IDisposable[] = [];
-		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
+		const toDispose = new DisposableStore();
+		const replListener = toDispose.add(new MutableDisposable());
+		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 		if (lifecycleService) {
-			toDispose.push(lifecycleService.onWillShutdown(() => {
+			toDispose.add(lifecycleService.onWillShutdown(() => {
 				this.shutdown();
 				dispose(toDispose);
 			}));
@@ -110,7 +115,7 @@ export class DebugSession implements IDebugSession {
 
 		const compoundRoot = this._options.compoundRoot;
 		if (compoundRoot) {
-			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
+			toDispose.add(compoundRoot.onDidSessionStop(() => this.terminate()));
 		}
 		this.passFocusScheduler = new RunOnceScheduler(() => {
 			// If there is some session or thread that is stopped pass focus to it
@@ -130,6 +135,18 @@ export class DebugSession implements IDebugSession {
 				}
 			}
 		}, 800);
+
+		const parent = this._options.parentSession;
+		if (parent) {
+			toDispose.add(parent.onDidEndAdapter(() => {
+				// copy the parent repl and get a new detached repl for this child
+				if (!this.hasSeparateRepl()) {
+					this.repl = this.repl.clone();
+					replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+				}
+				this.parentSession = undefined;
+			}));
+		}
 	}
 
 	getId(): string {
@@ -156,8 +173,8 @@ export class DebugSession implements IDebugSession {
 		return this._configuration.unresolved;
 	}
 
-	get parentSession(): IDebugSession | undefined {
-		return this._options.parentSession;
+	get lifecycleManagedByParent(): boolean {
+		return !!this._options.lifecycleManagedByParent;
 	}
 
 	get compact(): boolean {
@@ -302,12 +319,12 @@ export class DebugSession implements IDebugSession {
 				supportsVariableType: true, // #8858
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true, // #10574
-				locale: platform.locale,
+				locale: platform.language, // #169114
 				supportsProgressReporting: true, // #92253
 				supportsInvalidatedEvent: true, // #106745
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
-				supportsMemoryEvent: true
+				supportsMemoryEvent: true, // #133643
 			});
 
 			this.initialized = true;
@@ -1253,7 +1270,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	getSource(raw?: DebugProtocol.Source): Source {
-		let source = new Source(raw, this.getId(), this.uriIdentityService);
+		let source = new Source(raw, this.getId(), this.uriIdentityService, this.logService);
 		const uriKey = source.uri.toString();
 		const found = this.sources.get(uriKey);
 		if (found) {

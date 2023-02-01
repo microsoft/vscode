@@ -16,25 +16,13 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "telemetryLogger",
     "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onCommand:markdown.preview.toggleLock",
-    "onCommand:markdown.preview.refresh",
-    "onCommand:markdown.showPreview",
-    "onCommand:markdown.showPreviewToSide",
-    "onCommand:markdown.showLockedPreviewToSide",
-    "onCommand:markdown.showSource",
-    "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onCommand:markdown.findAllFileReferences",
-    "onCommand:markdown.editor.insertLinkFromWorkspace",
-    "onCommand:markdown.editor.insertImageFromWorkspace",
-    "onWebviewPanel:markdown.preview",
-    "onCustomEditor:vscode.markdown.preview.editor"
+    "onWebviewPanel:markdown.preview"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -571,6 +559,13 @@
           "default": false,
           "description": "%configuration.markdown.occurrencesHighlight.enabled%",
           "scope": "resource"
+        },
+        "markdown.experimental.copyFiles.destination": {
+          "type": "object",
+          "markdownDescription": "%configuration.markdown.copyFiles.destination%",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
@@ -621,7 +616,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.1-preview",
+    "@vscode/extension-telemetry": "0.7.4-preview",
     "dompurify": "^2.4.1",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",

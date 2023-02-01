@@ -51,6 +51,7 @@ import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
 import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
+import 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
@@ -60,7 +61,7 @@ import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
-import 'vs/platform/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
+import 'vs/platform/extensionResourceLoader/common/extensionResourceLoaderService';
 import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
@@ -84,13 +85,17 @@ import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
-import 'vs/workbench/services/extensions/electron-sandbox/sandboxExtensionService';
+import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
 registerSingleton(IUserDataInitializationService, UserDataInitializationService, InstantiationType.Delayed);
+registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, InstantiationType.Delayed);
+
 
 //#endregion
 

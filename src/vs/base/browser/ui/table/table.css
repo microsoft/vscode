@@ -51,12 +51,7 @@
 	border-left: 1px solid transparent;
 }
 
-.monaco-table > .monaco-split-view2,
-.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2,
+.monaco-workbench:not(.reduce-motion) .monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
 	transition: border-color 0.2s ease-out;
 }
-/*
-.monaco-table:hover > .monaco-split-view2,
-.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
-	border-color: rgba(204, 204, 204, 0.2);
-} */

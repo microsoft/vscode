@@ -119,7 +119,6 @@
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
 	display: flex;
-	align-items: center;
 	height: 22px;
 	line-height: 22px;
 	flex: 1;
@@ -274,7 +273,7 @@
 
 .panel > .title .monaco-action-bar .action-item.viewpane-filter-container {
 	max-width: 400px;
-	min-width: 300px;
+	min-width: 150px;
 	margin-right: 10px;
 }
 
@@ -286,4 +285,10 @@
 
 .pane-body .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-item {
 	margin-right: 4px;
+}
+
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked {
+	border-color: var(--vscode-inputOption-activeBorder);
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
 }

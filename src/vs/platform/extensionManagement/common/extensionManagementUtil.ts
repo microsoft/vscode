@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { arch } from 'vs/base/common/process';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -133,8 +134,8 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 */
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
-		id: extension.identifier.id,
-		name: extension.name,
+		id: new TelemetryTrustedValue(extension.identifier.id),
+		name: new TelemetryTrustedValue(extension.name),
 		galleryId: extension.identifier.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
@@ -167,7 +168,7 @@ export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExt
 	return dependencies;
 }
 
-export async function isAlpineLinux(fileService: IFileService, logService: ILogService): Promise<boolean> {
+async function isAlpineLinux(fileService: IFileService, logService: ILogService): Promise<boolean> {
 	if (!isLinux) {
 		return false;
 	}

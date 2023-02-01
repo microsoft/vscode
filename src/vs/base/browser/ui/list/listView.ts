@@ -22,6 +22,8 @@ import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 interface IItem<T> {
 	readonly id: string;
@@ -49,7 +51,7 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
-	getRole?(element: T): string | undefined;
+	getRole?(element: T): AriaRole | undefined;
 	isChecked?(element: T): boolean | IObservableValue<boolean> | undefined;
 }
 
@@ -57,6 +59,7 @@ export interface IListViewOptionsUpdate {
 	readonly additionalScrollHeight?: number;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 }
@@ -179,7 +182,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 
 	readonly getSetSize: (element: any, index: number, listLength: number) => number;
 	readonly getPosInSet: (element: any, index: number) => number;
-	readonly getRole: (element: T) => string | undefined;
+	readonly getRole: (element: T) => AriaRole | undefined;
 	readonly isChecked: (element: T) => boolean | IObservableValue<boolean> | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
@@ -209,6 +212,52 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	}
 }
 
+export interface IListView<T> extends ISpliceable<T>, IDisposable {
+	readonly domId: string;
+	readonly domNode: HTMLElement;
+	readonly containerDomNode: HTMLElement;
+	readonly scrollableElementDomNode: HTMLElement;
+	readonly length: number;
+	readonly contentHeight: number;
+	readonly onDidChangeContentHeight: Event<number>;
+	readonly renderHeight: number;
+	readonly scrollHeight: number;
+	readonly firstVisibleIndex: number;
+	readonly lastVisibleIndex: number;
+	onDidScroll: Event<ScrollEvent>;
+	onWillScroll: Event<ScrollEvent>;
+	onMouseClick: Event<IListMouseEvent<T>>;
+	onMouseDblClick: Event<IListMouseEvent<T>>;
+	onMouseMiddleClick: Event<IListMouseEvent<T>>;
+	onMouseUp: Event<IListMouseEvent<T>>;
+	onMouseDown: Event<IListMouseEvent<T>>;
+	onMouseOver: Event<IListMouseEvent<T>>;
+	onMouseMove: Event<IListMouseEvent<T>>;
+	onMouseOut: Event<IListMouseEvent<T>>;
+	onContextMenu: Event<IListMouseEvent<T>>;
+	onTouchStart: Event<IListTouchEvent<T>>;
+	onTap: Event<IListGestureEvent<T>>;
+	element(index: number): T;
+	domElement(index: number): HTMLElement | null;
+	getElementDomId(index: number): string;
+	elementHeight(index: number): number;
+	elementTop(index: number): number;
+	indexOf(element: T): number;
+	indexAt(position: number): number;
+	indexAfter(position: number): number;
+	updateOptions(options: IListViewOptionsUpdate): void;
+	getScrollTop(): number;
+	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void;
+	getScrollLeft(): number;
+	setScrollLeft(scrollLeft: number): void;
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
+	updateWidth(index: number): void;
+	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
+	rerender(): void;
+	layout(height?: number, width?: number): void;
+}
+
 /**
  * The {@link ListView} is a virtual scrolling engine.
  *
@@ -219,7 +268,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
  * @remarks It is a low-level widget, not meant to be used directly. Refer to the
  * List widget instead.
  */
-export class ListView<T> implements ISpliceable<T>, IDisposable {
+export class ListView<T> implements IListView<T> {
 
 	private static InstanceCount = 0;
 	readonly domId = `list_id_${++ListView.InstanceCount}`;
@@ -359,7 +408,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			vertical: options.verticalScrollMode ?? DefaultOptions.verticalScrollMode,
 			useShadows: options.useShadows ?? DefaultOptions.useShadows,
 			mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity,
-			fastScrollSensitivity: options.fastScrollSensitivity
+			fastScrollSensitivity: options.fastScrollSensitivity,
+			scrollByPage: options.scrollByPage
 		}, this.scrollable));
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -399,12 +449,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.horizontalScrolling = options.horizontalScrolling;
 		}
 
+		let scrollableOptions: ScrollableElementChangeOptions | undefined;
+
+		if (options.scrollByPage !== undefined) {
+			scrollableOptions = { ...(scrollableOptions ?? {}), scrollByPage: options.scrollByPage };
+		}
+
 		if (options.mouseWheelScrollSensitivity !== undefined) {
-			this.scrollableElement.updateOptions({ mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity });
+			scrollableOptions = { ...(scrollableOptions ?? {}), mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity };
 		}
 
 		if (options.fastScrollSensitivity !== undefined) {
-			this.scrollableElement.updateOptions({ fastScrollSensitivity: options.fastScrollSensitivity });
+			scrollableOptions = { ...(scrollableOptions ?? {}), fastScrollSensitivity: options.fastScrollSensitivity };
+		}
+
+		if (scrollableOptions) {
+			this.scrollableElement.updateOptions(scrollableOptions);
 		}
 	}
 
@@ -744,7 +804,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// Render
 
-	private render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false): void {
+	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false): void {
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
 		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange);
@@ -1041,9 +1101,18 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 			const dragImage = $('.monaco-drag-image');
 			dragImage.textContent = label;
-			document.body.appendChild(dragImage);
+
+			const getDragImageContainer = (e: HTMLElement | null) => {
+				while (e && !e.classList.contains('monaco-workbench')) {
+					e = e.parentElement;
+				}
+				return e || document.body;
+			};
+
+			const container = getDragImageContainer(this.domNode);
+			container.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => document.body.removeChild(dragImage), 0);
+			setTimeout(() => container.removeChild(dragImage), 0);
 		}
 
 		this.domNode.classList.add('dragging');
@@ -1269,7 +1338,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	 * Given a stable rendered state, checks every rendered element whether it needs
 	 * to be probed for dynamic height. Adjusts scroll height and top if necessary.
 	 */
-	private _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
+	protected _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
 		const previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 
 		// Let's remember the second element's position, this helps in scrolling up

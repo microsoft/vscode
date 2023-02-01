@@ -45,7 +45,6 @@ suite('UserDataProfileMainService', () => {
 
 		testObject = new UserDataProfilesMainService(stateService, new UriIdentityService(fileService), environmentService, fileService, logService);
 		await stateService.init();
-		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());
@@ -68,6 +67,41 @@ suite('UserDataProfileMainService', () => {
 		const profile = await testObject.createNamedProfile('test');
 		await testObject.removeProfile(profile);
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
+	});
+
+	test('when no profile is set', async () => {
+		await testObject.createNamedProfile('profile1');
+
+		assert.equal(testObject.getProfileForWorkspace({ id: 'id' }), undefined);
+		assert.equal(testObject.getProfileForWorkspace({ id: 'id', configPath: environmentService.userRoamingDataHome }), undefined);
+		assert.equal(testObject.getProfileForWorkspace({ id: 'id', uri: environmentService.userRoamingDataHome }), undefined);
+	});
+
+	test('set profile to a workspace', async () => {
+		const workspace = { id: 'id', configPath: environmentService.userRoamingDataHome };
+		const profile = await testObject.createNamedProfile('profile1');
+
+		testObject.setProfileForWorkspace(workspace, profile);
+
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
+	});
+
+	test('set profile to a folder', async () => {
+		const workspace = { id: 'id', uri: environmentService.userRoamingDataHome };
+		const profile = await testObject.createNamedProfile('profile1');
+
+		testObject.setProfileForWorkspace(workspace, profile);
+
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
+	});
+
+	test('set profile to a window', async () => {
+		const workspace = { id: 'id' };
+		const profile = await testObject.createNamedProfile('profile1');
+
+		testObject.setProfileForWorkspace(workspace, profile);
+
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 });

@@ -3,7 +3,6 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "enabledApiProposals": [
-    "telemetryLogger",
     "externalUriOpener"
   ],
   "version": "1.0.0",
@@ -24,7 +23,6 @@
     "workspace"
   ],
   "activationEvents": [
-    "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
     "onOpenExternalUri:https",
@@ -68,7 +66,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.1-preview"
+    "@vscode/extension-telemetry": "0.7.4-preview"
   },
   "devDependencies": {
     "@types/vscode-webview": "^1.57.0",

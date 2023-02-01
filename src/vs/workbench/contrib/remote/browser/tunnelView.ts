@@ -30,7 +30,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
@@ -43,7 +44,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -737,7 +738,6 @@ const TunnelViewMultiSelectionKeyName = 'tunnelViewMultiSelection';
 // host:port[]
 const TunnelViewMultiSelectionContextKey = new RawContextKey<string[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
-const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb, true);
 
 export class TunnelPanel extends ViewPane {
 
@@ -1505,6 +1505,8 @@ namespace ChangeTunnelPrivacyAction {
 					source: arg.source
 				});
 			}
+
+			return undefined;
 		};
 	}
 }
@@ -1542,7 +1544,6 @@ const tunnelViewCommandsWeightBonus = 10; // give our commands a little bit more
 const isForwardedExpr = TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded);
 const isForwardedOrDetectedExpr = ContextKeyExpr.or(isForwardedExpr, TunnelTypeContextKey.isEqualTo(TunnelType.Detected));
 const isNotMultiSelectionExpr = TunnelViewMultiSelectionContextKey.isEqualTo(undefined);
-const isNotPrivateExpr = ContextKeyExpr.and(TunnelPrivacyContextKey.notEqualsTo(TunnelPrivacyId.Private), TunnelPrivacyContextKey.notEqualsTo(TunnelPrivacyId.ConstantPrivate));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LabelTunnelAction.ID,
@@ -1630,7 +1631,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		title: OpenPortInPreviewAction.LABEL,
 	},
 	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext), //todo
 		isForwardedOrDetectedExpr,
 		isNotMultiSelectionExpr)
 }));
@@ -1769,9 +1769,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		title: OpenPortInPreviewAction.LABEL,
 		icon: openPreviewIcon
 	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), isNotPrivateExpr, openPreviewEnabledContext),
-		isForwardedOrDetectedExpr)
+	when: isForwardedOrDetectedExpr
 }));
 
 registerColor('ports.iconRunningProcessForeground', {

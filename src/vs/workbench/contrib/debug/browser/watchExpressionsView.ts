@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, WATCH_VIEW_ID, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_CAN_VIEW_MEMORY } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -335,7 +335,7 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
-		const contextKeyService = getContextForWatchExpressionMenu(this.contextKeyService);
+		const contextKeyService = getContextForWatchExpressionMenu(this.contextKeyService, expression);
 		const menu = this.menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
 
 		const primary: IAction[] = [];
@@ -351,8 +351,9 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 /**
  * Gets a context key overlay that has context for the given expression.
  */
-function getContextForWatchExpressionMenu(parentContext: IContextKeyService) {
+function getContextForWatchExpressionMenu(parentContext: IContextKeyService, expression: IExpression) {
 	return parentContext.createOverlay([
+		[CONTEXT_CAN_VIEW_MEMORY.key, expression.memoryReference !== undefined],
 		[CONTEXT_WATCH_ITEM_TYPE.key, 'expression']
 	]);
 }
