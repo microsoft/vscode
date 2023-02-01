@@ -60,7 +60,6 @@ const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON = 'settings.switchToApplicationJSON';
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_CURRENT_PROFILE_JSON = 'settings.switchToCurrentProfileJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
-const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
@@ -523,7 +522,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
-					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings"),
+					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry and Online Services Settings"),
 					menu: {
 						id: MenuId.MenubarPreferencesMenu,
 						group: '3_settings',
@@ -537,28 +536,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					editorPane.focusSearch(`@tag:usesOnlineServices`);
 				} else {
 					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:usesOnlineServices' });
-				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY,
-					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
-					menu: {
-						id: MenuId.MenubarPreferencesMenu,
-						group: '3_settings',
-						order: 2,
-					}
-				});
-			}
-			run(accessor: ServicesAccessor) {
-				const editorPane = accessor.get(IEditorService).activeEditorPane;
-				if (editorPane instanceof SettingsEditor2) {
-					editorPane.focusSearch('@tag:telemetry');
-				} else {
-					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
 				}
 			}
 		});
