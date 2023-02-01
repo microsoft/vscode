@@ -486,20 +486,33 @@ export class Dialog extends Disposable {
 			return buttonMap; // only need to rearrange if there are 2+ buttons
 		}
 
-		// macOS/linux: reverse button order and ensure cancel
-		// button is to the right of the primary button to match
-		// HIG per OS
 		if (isMacintosh || isLinux) {
+
+			// Linux: the GNOME HIG (https://developer.gnome.org/hig/patterns/feedback/dialogs.html?highlight=dialog)
+			// recommend the following:
+			// "Always ensure that the cancel button appears first, before the affirmative button. In left-to-right
+			//  locales, this is on the left. This button order ensures that users become aware of, and are reminded
+			//  of, the ability to cancel prior to encountering the affirmative button."
+
+			// macOS: the HIG (https://developer.apple.com/design/human-interface-guidelines/components/presentation/alerts)
+			// recommend the following:
+			// "Place buttons where people expect. In general, place the button people are most likely to choose on the trailing side in a
+			//  row of buttons or at the top in a stack of buttons. Always place the default button on the trailing side of a row or at the
+			//  top of a stack. Cancel buttons are typically on the leading side of a row or at the bottom of a stack."
+
 			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
 				buttonMap.splice(1, 0, cancelButton);
 			}
 
 			buttonMap.reverse();
-		}
+		} else if (isWindows) {
 
-		// Windows: ensure cancel button is at the end to match HIG
-		else if (isWindows) {
+			// Windows: the HIG (https://learn.microsoft.com/en-us/windows/win32/uxguide/win-dialog-box)
+			// recommend the following:
+			// "One of the following sets of concise commands: Yes/No, Yes/No/Cancel, [Do it]/Cancel,
+			//  [Do it]/[Don't do it], [Do it]/[Don't do it]/Cancel."
+
 			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
 				buttonMap.push(cancelButton);
