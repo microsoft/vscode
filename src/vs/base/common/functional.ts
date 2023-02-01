@@ -19,3 +19,4 @@ export function once<T extends Function>(this: unknown, fn: T): T {
 		return result;
 	} as unknown as T;
 }
+

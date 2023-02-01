@@ -223,7 +223,7 @@ suite('Workbench - Test Results Service', () => {
 
 		test('serializes and re-hydrates', async () => {
 			results.push(r);
-			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed, 42);
+			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed, { from: 20, to: 42 });
 			r.markComplete();
 			await timeout(10); // allow persistImmediately async to happen
 
@@ -287,7 +287,7 @@ suite('Workbench - Test Results Service', () => {
 			request: defaultOpts([]),
 			items: [{
 				...(await getInitializedMainTestCollection()).getNodeById(new TestId(['ctrlId', 'id-a']).toString())!,
-				tasks: [{ state, duration: 0, messages: [] }],
+				tasks: [{ state, time: undefined, messages: [] }],
 				computedState: state,
 				ownComputedState: state,
 			}]

@@ -1841,7 +1841,7 @@ export namespace TestResults {
 			parent: undefined,
 			taskStates: item.tasks.map(t => ({
 				state: t.state as number as types.TestResultState,
-				duration: t.duration,
+				duration: t.time ? t.time.from - t.time.to : undefined,
 				messages: t.messages
 					.filter((m): m is ITestErrorMessage.Serialized => m.type === TestMessageType.Error)
 					.map(TestMessage.to),

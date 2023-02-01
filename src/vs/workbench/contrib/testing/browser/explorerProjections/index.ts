@@ -11,7 +11,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
-import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { InternalTestItem, ITestItemContext, ITestTaskTimeRange, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -143,7 +143,7 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	/**
 	 * Own, non-computed duration.
 	 */
-	public ownDuration: number | undefined;
+	public ownTime: ITestTaskTimeRange | undefined;
 
 	/**
 	 * Time it took this test/item to run.

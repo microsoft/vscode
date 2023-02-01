@@ -56,7 +56,7 @@ import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/out
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, IStartControllerTests, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, IStartControllerTests, TestResultState, TestsDiffOp, ITestTaskTimeRange } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
@@ -2302,7 +2302,7 @@ export interface MainThreadTestingShape {
 	 */
 	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void;
 	/** Updates the state of a test run in the given run. */
-	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
+	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: ITestTaskTimeRange): void;
 	/** Appends a message to a test in the run. */
 	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: ITestMessage.Serialized[]): void;
 	/** Appends raw output to the test run.. */

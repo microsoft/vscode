@@ -10,7 +10,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ITestTaskTimeRange, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -131,7 +131,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void {
+	public $updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: ITestTaskTimeRange): void {
 		this.withLiveRun(runId, r => r.updateState(testId, taskId, state, duration));
 	}
 

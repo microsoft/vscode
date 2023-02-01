@@ -26,8 +26,8 @@ const computedStateAccessor: IComputedStateAndDurationAccessor<IActionableTestTr
 	setComputedState: (i, s) => i.state = s,
 
 	getCurrentComputedDuration: i => i.duration,
-	getOwnDuration: i => i instanceof TestItemTreeElement ? i.ownDuration : undefined,
 	setComputedDuration: (i, d) => i.duration = d,
+	getOwnTime: i => i instanceof TestItemTreeElement ? i.ownTime : undefined,
 
 	getChildren: i => Iterable.filter(
 		i.children.values(),
@@ -77,7 +77,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
-				inTree.ownDuration = lookup?.ownDuration;
+				inTree.ownTime = lookup?.ownTime;
 				refreshComputedState(computedStateAccessor, inTree, lookup?.ownComputedState ?? TestResultState.Unset).forEach(this.addUpdated);
 			}
 
@@ -100,7 +100,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			}
 
 			// Skip refreshing the duration if we can trivially tell it didn't change.
-			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnDuration !== result.ownDuration;
+			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnTime !== result.ownTime;
 			// For items without children, always use the computed state. They are
 			// either leaves (for which it's fine) or nodes where we haven't expanded
 			// children and should trust whatever the result service gives us.
@@ -108,7 +108,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 			item.retired = !!result.retired;
 			item.ownState = result.ownComputedState;
-			item.ownDuration = result.ownDuration;
+			item.ownTime = result.ownTime;
 
 			refreshComputedState(computedStateAccessor, item, explicitComputed, refreshDuration).forEach(this.addUpdated);
 			this.addUpdated(item);
@@ -256,7 +256,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		parent?.children.delete(treeElement);
 		items.delete(treeElement.test.item.extId);
 		if (parent instanceof ByLocationTestItemElement) {
-			refreshComputedState(computedStateAccessor, parent, undefined, !!treeElement.duration).forEach(this.addUpdated);
+			refreshComputedState(computedStateAccessor, parent, undefined, !!treeElement.ownTime).forEach(this.addUpdated);
 		}
 
 		return treeElement.children;
@@ -276,9 +276,9 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		if (prevState) {
 			treeElement.retired = !!prevState.retired;
 			treeElement.ownState = prevState.computedState;
-			treeElement.ownDuration = prevState.ownDuration;
+			treeElement.ownTime = prevState.ownTime;
 
-			refreshComputedState(computedStateAccessor, treeElement, undefined, !!treeElement.ownDuration).forEach(this.addUpdated);
+			refreshComputedState(computedStateAccessor, treeElement, undefined, !!treeElement.ownTime).forEach(this.addUpdated);
 		}
 	}
 }

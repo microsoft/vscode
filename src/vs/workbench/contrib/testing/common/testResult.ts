@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ITestTaskTimeRange, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -248,9 +248,24 @@ export class LiveOutputController {
 	}
 }
 
+const enum TaskStartedAt {
+	Unset = 0,
+	Overridden = -1
+}
+
 interface TestResultItemWithChildren extends TestResultItem {
 	/** Children in the run */
 	children: TestResultItemWithChildren[];
+
+	/**
+	 * Time the result was first reported fir eacg tasj. The default duration of
+	 * an item is the time when the state of it or any child was first reported,
+	 * to the last time any of their states changed.
+	 *
+	 * A value of -1 indicates the test duration for the item in this task was
+	 * set explicitly.
+	 */
+	tasks: (ITestTaskState & { startedAt: number })[];
 }
 
 const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
@@ -270,7 +285,7 @@ export const enum TestResultItemChangeReason {
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.ComputedStateChange }
-	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
+	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnTime: ITestTaskTimeRange | undefined }
 );
 
 /**
@@ -381,7 +396,7 @@ export class LiveTestResult implements ITestResult {
 		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [] });
 
 		for (const test of this.tests) {
-			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
+			test.tasks.push({ time: undefined, messages: [], state: TestResultState.Unset, startedAt: TaskStartedAt.Unset });
 			this.fireUpdateAndRefresh(test, index, TestResultState.Queued);
 		}
 	}
@@ -410,7 +425,7 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * Updates the state of the test by its internal ID.
 	 */
-	public updateState(testId: string, taskId: string, state: TestResultState, duration?: number) {
+	public updateState(testId: string, taskId: string, state: TestResultState, duration?: ITestTaskTimeRange) {
 		const entry = this.testById.get(testId);
 		if (!entry) {
 			return;
@@ -446,7 +461,7 @@ export class LiveTestResult implements ITestResult {
 			result: this,
 			reason: TestResultItemChangeReason.OwnStateChange,
 			previousState: entry.ownComputedState,
-			previousOwnDuration: entry.ownDuration,
+			previousOwnTime: entry.ownTime,
 		});
 	}
 
@@ -513,26 +528,34 @@ export class LiveTestResult implements ITestResult {
 		}
 	}
 
-	private fireUpdateAndRefresh(entry: TestResultItem, taskIndex: number, newState: TestResultState, newOwnDuration?: number) {
+	private fireUpdateAndRefresh(entry: TestResultItemWithChildren, taskIndex: number, newState: TestResultState, newOwnTime?: ITestTaskTimeRange) {
 		const previousOwnComputed = entry.ownComputedState;
-		const previousOwnDuration = entry.ownDuration;
+		const previousOwnTime = entry.ownTime;
 		const changeEvent: TestResultItemChange = {
 			item: entry,
 			result: this,
 			reason: TestResultItemChangeReason.OwnStateChange,
 			previousState: previousOwnComputed,
-			previousOwnDuration: previousOwnDuration,
+			previousOwnTime,
 		};
 
 		entry.tasks[taskIndex].state = newState;
-		if (newOwnDuration !== undefined) {
-			entry.tasks[taskIndex].duration = newOwnDuration;
-			entry.ownDuration = Math.max(entry.ownDuration || 0, newOwnDuration);
+		if (newOwnTime !== undefined) {
+			const task = entry.tasks[taskIndex];
+			task.time = newOwnTime;
+			if (entry.ownTime) {
+				entry.ownTime = {
+					from: Math.min(entry.ownTime.from, newOwnTime.from),
+					to: Math.max(entry.ownTime.to, newOwnTime.to),
+				};
+			} else {
+				entry.ownTime = newOwnTime;
+			}
 		}
 
 		const newOwnComputed = maxPriority(...entry.tasks.map(t => t.state));
 		if (newOwnComputed === previousOwnComputed) {
-			if (newOwnDuration !== previousOwnDuration) {
+			if (newOwnTime !== previousOwnTime) {
 				this.changeEmitter.fire(changeEvent); // fire manually since state change won't do it
 			}
 			return;
@@ -561,7 +584,7 @@ export class LiveTestResult implements ITestResult {
 
 		if (this.tasks.length) {
 			for (let i = 0; i < this.tasks.length; i++) {
-				node.tasks.push({ duration: undefined, messages: [], state: TestResultState.Queued });
+				node.tasks.push({ time: undefined, messages: [], state: TestResultState.Queued, startedAt: TaskStartedAt.Unset });
 			}
 		}
 

@@ -231,34 +231,39 @@ export namespace ITestMessage {
 		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(message) : ITestOutputMessage.deserialize(message);
 }
 
+export interface ITestTaskTimeRange {
+	from: number;
+	to: number;
+}
+
 export interface ITestTaskState {
 	state: TestResultState;
-	duration: number | undefined;
+	time: ITestTaskTimeRange | undefined;
 	messages: ITestMessage[];
 }
 
 export namespace ITestTaskState {
 	export interface Serialized {
 		state: TestResultState;
-		duration: number | undefined;
+		time: ITestTaskTimeRange | undefined;
 		messages: ITestMessage.Serialized[];
 	}
 
 	export const serializeWithoutMessages = (state: ITestTaskState): Serialized => ({
 		state: state.state,
-		duration: state.duration,
+		time: state.time,
 		messages: [],
 	});
 
 	export const serialize = (state: ITestTaskState): Serialized => ({
 		state: state.state,
-		duration: state.duration,
+		time: state.time,
 		messages: state.messages.map(ITestMessage.serialize),
 	});
 
 	export const deserialize = (state: Serialized): ITestTaskState => ({
 		state: state.state,
-		duration: state.duration,
+		time: state.time,
 		messages: state.messages.map(ITestMessage.deserialize),
 	});
 }
@@ -456,7 +461,7 @@ export interface TestResultItem extends InternalTestItem {
 	/** Computed state based on children */
 	computedState: TestResultState;
 	/** Max duration of the item's tasks (if run directly) */
-	ownDuration?: number;
+	ownTime?: ITestTaskTimeRange;
 	/** Whether this test item is outdated */
 	retired?: boolean;
 }
