@@ -6734,6 +6734,10 @@ declare namespace monaco.languages {
 		*/
 		handleItemDidShow?(completions: T, item: T['items'][number]): void;
 		/**
+		 * Will be called when an item is partially accepted.
+		 */
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
 		freeInlineCompletions(completions: T): void;

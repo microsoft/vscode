@@ -794,17 +794,21 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		if (quickPickItem) {
 			const selectedKernelPickItem = quickPickItem as KernelQuickPickItem;
 			if (isKernelSourceQuickPickItem(selectedKernelPickItem)) {
-				const selectedKernelId = await this._executeCommand<string>(notebook, selectedKernelPickItem.command);
-				if (selectedKernelId) {
-					const { all } = await this._getMatchingResult(notebook);
-					const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
-					if (kernel) {
-						await this._selecteKernel(notebook, kernel);
+				try {
+					const selectedKernelId = await this._executeCommand<string>(notebook, selectedKernelPickItem.command);
+					if (selectedKernelId) {
+						const { all } = await this._getMatchingResult(notebook);
+						const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
+						if (kernel) {
+							await this._selecteKernel(notebook, kernel);
+							return true;
+						}
 						return true;
+					} else {
+						return this.displaySelectAnotherQuickPick(editor, false);
 					}
-					return true;
-				} else {
-					return this.displaySelectAnotherQuickPick(editor, false);
+				} catch (ex) {
+					return false;
 				}
 			} else if (isKernelPick(selectedKernelPickItem)) {
 				await this._selecteKernel(notebook, selectedKernelPickItem.kernel);
