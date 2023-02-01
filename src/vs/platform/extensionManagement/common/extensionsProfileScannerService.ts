@@ -24,6 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
 	location: UriComponents | string;
+	relativeLocation: string | undefined;
 	version: string;
 	metadata?: Metadata;
 }
@@ -247,14 +248,23 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						this.reportAndThrowInvalidConentError(file);
 					}
 					let location: URI;
-					if (isString(e.location)) {
+					if (isString(e.relativeLocation)) {
+						// Extension in new format. No migration needed.
+						location = this.resolveExtensionLocation(e.relativeLocation);
+					} else if (isString(e.location)) {
+						// Extension in intermediate format. Migrate to new format.
 						location = this.resolveExtensionLocation(e.location);
+						migrate = true;
+						e.relativeLocation = e.location;
+						// retain old format so that old clients can read it
+						e.location = location.toJSON();
 					} else {
 						location = URI.revive(e.location);
 						const relativePath = this.toRelativePath(location);
 						if (relativePath) {
+							// Extension in old format. Migrate to new format.
 							migrate = true;
-							e.location = relativePath;
+							e.relativeLocation = relativePath;
 						}
 					}
 					extensions.push({
@@ -275,7 +285,9 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					location: this.toRelativePath(e.location) ?? e.location.toJSON(),
+					// retain old format so that old clients can read it
+					location: e.location.toJSON(),
+					relativeLocation: this.toRelativePath(e.location),
 					metadata: e.metadata
 				}));
 				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
