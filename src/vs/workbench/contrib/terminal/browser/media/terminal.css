@@ -555,6 +555,8 @@
 	min-width: 10%;
 	width: fit-content;
 	max-width: 70%;
+	min-height: fit-content;
+	height: fit-content !important;
 	vertical-align: middle;
 	border: 2px solid var(--vscode-contrastBorder);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);

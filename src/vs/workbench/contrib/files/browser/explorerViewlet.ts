@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -65,6 +66,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 
 	private registerViews(): void {
+		mark('code/willRegisterExplorerViews');
+
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		const viewDescriptorsToRegister: IViewDescriptor[] = [];
@@ -102,6 +105,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		if (viewDescriptorsToDeregister.length) {
 			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
+
+		mark('code/didRegisterExplorerViews');
 	}
 
 	private createOpenEditorsViewDescriptor(): IViewDescriptor {

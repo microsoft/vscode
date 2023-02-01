@@ -16,6 +16,8 @@
 	background:rgba(0,0,0,0);
 
 	transition: opacity 100ms linear;
+	/* In front of peek view */
+	z-index: 11;
 }
 .monaco-scrollable-element > .invisible {
 	opacity: 0;

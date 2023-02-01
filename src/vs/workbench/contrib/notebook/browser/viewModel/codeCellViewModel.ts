@@ -17,7 +17,7 @@ import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';

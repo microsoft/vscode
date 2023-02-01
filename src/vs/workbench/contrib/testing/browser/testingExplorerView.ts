@@ -1248,7 +1248,11 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		}
 
 		data.label.title = getLabelForTestTreeElement(node.element);
-		dom.reset(data.label, ...renderLabelWithIcons(node.element.label));
+		if (node.element.label.trim()) {
+			dom.reset(data.label, ...renderLabelWithIcons(node.element.label));
+		} else {
+			data.label.textContent = String.fromCharCode(0xA0); // &nbsp;
+		}
 
 		let description = node.element.description;
 		if (node.element.duration !== undefined) {

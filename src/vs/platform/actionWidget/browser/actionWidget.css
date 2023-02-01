@@ -68,14 +68,14 @@
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
-	background-color: var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-quickInputList-focusBackground) !important;
 	color: var(--vscode-quickInputList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }
 
 .action-widget .monaco-list-row.group-header {
-	color: var(--vscode-pickerGroup-foreground);
+	color: var(--vscode-pickerGroup-foreground) !important;
 	font-weight: 600;
 }
 

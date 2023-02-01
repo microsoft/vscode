@@ -21,6 +21,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -28,12 +29,12 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugger, IDebugService, IDebugSession, IDebugSessionOptions, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IReplElementSource, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugger, IDebugService, IDebugSession, IDebugSessionOptions, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
+import { INewReplElementData, ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -92,6 +93,7 @@ export class DebugSession implements IDebugSession {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -1085,10 +1087,17 @@ export class DebugSession implements IDebugSession {
 				// see https://github.com/microsoft/vscode/issues/126967#issuecomment-874954269
 				outputQueue.queue(async () => {
 					const resolved = await children;
+					// For single logged variables, try to use the output if we can so
+					// present a better (i.e. ANSI-aware) representation of the output
+					if (resolved.length === 1) {
+						this.appendToRepl({ output: event.body.output, expression: resolved[0], sev: Severity.Info, source }, event.body.category === 'important');
+						return;
+					}
+
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						(<any>child).name = null;
-						this.appendToRepl(child, Severity.Info, event.body.category === 'important', source);
+						this.appendToRepl({ output: '', expression: child, sev: Severity.Info, source }, event.body.category === 'important');
 					});
 				});
 				return;
@@ -1137,7 +1146,7 @@ export class DebugSession implements IDebugSession {
 				}
 
 				if (typeof event.body.output === 'string') {
-					this.appendToRepl(event.body.output, outputSeverity, event.body.category === 'important', source);
+					this.appendToRepl({ output: event.body.output, sev: outputSeverity, source }, event.body.category === 'important');
 				}
 			});
 		}));
@@ -1268,7 +1277,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	getSource(raw?: DebugProtocol.Source): Source {
-		let source = new Source(raw, this.getId(), this.uriIdentityService);
+		let source = new Source(raw, this.getId(), this.uriIdentityService, this.logService);
 		const uriKey = source.uri.toString();
 		const found = this.sources.get(uriKey);
 		if (found) {
@@ -1330,10 +1339,10 @@ export class DebugSession implements IDebugSession {
 		this.debugService.getViewModel().updateViews();
 	}
 
-	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void {
-		this.repl.appendToRepl(this, data, severity, source);
+	appendToRepl(data: INewReplElementData, isImportant?: boolean): void {
+		this.repl.appendToRepl(this, data);
 		if (isImportant) {
-			this.notificationService.notify({ message: data.toString(), severity: severity, source: this.name });
+			this.notificationService.notify({ message: data.toString(), severity: data.sev, source: this.name });
 		}
 	}
 }

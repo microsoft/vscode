@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SYNC_CONTEXT } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -30,7 +30,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { Change, IRemoteUserData, ISyncData, ISyncExtension, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, EXTENSIONS_SYNC_CONTEXT_KEY, ILocalSyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, ISyncData, ISyncExtension, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ILocalSyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
@@ -513,7 +513,7 @@ export class LocalExtensionsProvider {
 					installGivenVersion: e.pinned && !!e.version,
 					installPreReleaseVersion: e.preRelease,
 					profileLocation: profile.extensionsResource,
-					context: { [EXTENSIONS_SYNC_CONTEXT_KEY]: true }
+					context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SYNC_CONTEXT]: true }
 				});
 				this.logService.info(`${syncResourceLogLabel}: Installed extension.`, extension.identifier.id, extension.version);
 				removeFromSkipped.push(extension.identifier);

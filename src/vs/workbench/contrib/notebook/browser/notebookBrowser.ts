@@ -23,7 +23,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';

@@ -28,7 +28,7 @@ interface IMergeResult {
 	conflicts: Set<string>;
 }
 
-export function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
+function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
 	return parse(content) || [];
 }
 

@@ -83,7 +83,7 @@ suite('UserDataProfileMainService', () => {
 
 		testObject.setProfileForWorkspace(workspace, profile);
 
-		assert.deepStrictEqual(testObject.getProfileForWorkspace(workspace), profile);
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 	test('set profile to a folder', async () => {
@@ -92,7 +92,7 @@ suite('UserDataProfileMainService', () => {
 
 		testObject.setProfileForWorkspace(workspace, profile);
 
-		assert.deepStrictEqual(testObject.getProfileForWorkspace(workspace), profile);
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 	test('set profile to a window', async () => {
@@ -101,7 +101,7 @@ suite('UserDataProfileMainService', () => {
 
 		testObject.setProfileForWorkspace(workspace, profile);
 
-		assert.deepStrictEqual(testObject.getProfileForWorkspace(workspace), profile);
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 });

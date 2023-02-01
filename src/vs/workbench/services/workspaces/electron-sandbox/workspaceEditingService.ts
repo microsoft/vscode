@@ -27,7 +27,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isMacintosh } from 'vs/base/common/platform';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -95,8 +94,8 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		const buttons = [
-			{ label: mnemonicButtonLabel(localize('save', "Save")), result: ConfirmResult.SAVE },
-			{ label: mnemonicButtonLabel(localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE },
+			{ label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"), result: ConfirmResult.SAVE },
+			{ label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"), result: ConfirmResult.DONT_SAVE },
 			{ label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
 		];
 		const message = localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");

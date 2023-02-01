@@ -104,8 +104,8 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (this.error.name === ExtensionManagementErrorCode.Unsupported) {
 			const productName = isWeb ? localize('VS Code for Web', "{0} for the Web", this.productService.nameLong) : this.productService.nameLong;
 			const message = localize('cannot be installed', "The '{0}' extension is not available in {1}. Click 'More Information' to learn more.", this.extension.displayName || this.extension.identifier.id, productName);
-			const result = await this.dialogService.show(Severity.Info, message, [localize('close', "Close"), localize('more information', "More Information")], { cancelId: 0 });
-			if (result.choice === 1) {
+			const result = await this.dialogService.show(Severity.Info, message, [localize('more information', "More Information"), localize('close', "Close")], { cancelId: 1 });
+			if (result.choice === 0) {
 				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-web-extensions-guide') : URI.parse('https://aka.ms/vscode-remote'));
 			}
 			return;
@@ -878,7 +878,7 @@ export class UpdateAction extends AbstractUpdateAction {
 
 	constructor(
 		private readonly verbose: boolean,
-		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super(`extensions.update`, localize('update', "Update"), extensionsWorkbenchService);
@@ -912,7 +912,7 @@ export class UpdateAction extends AbstractUpdateAction {
 export class SkipUpdateAction extends AbstractUpdateAction {
 
 	constructor(
-		@IExtensionsWorkbenchService override readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(`extensions.ignoreUpdates`, localize('ignoreUpdates', "Ignore Updates"), extensionsWorkbenchService);
 	}
@@ -1000,7 +1000,7 @@ export class ExtensionActionWithDropdownActionViewItem extends ActionWithDropdow
 		this.updateClass();
 	}
 
-	override updateClass(): void {
+	protected override updateClass(): void {
 		super.updateClass();
 		if (this.element && this.dropdownMenuActionViewItem && this.dropdownMenuActionViewItem.element) {
 			this.element.classList.toggle('empty', (<ActionWithDropDownAction>this._action).menuActions.length === 0);
