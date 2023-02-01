@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 
@@ -478,21 +478,33 @@ export class Dialog extends Disposable {
 
 	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
 		const buttonMap: ButtonMapEntry[] = [];
-		if (buttons.length === 0) {
+		if (buttons.length < 2) {
 			return buttonMap;
 		}
 
-		// Maps each button to its current label and old index so that when we move them around it's not a problem
-		buttons.forEach((button, index) => {
-			buttonMap.push({ label: button, index });
+		// Maps each button to its current label and old index
+		// so that when we move them around it's not a problem
+		buttons.forEach((label, index) => {
+			buttonMap.push({ label, index });
 		});
 
-		// macOS/linux: reverse button order if `cancelId` is defined
+		// macOS/linux: reverse button order and ensure cancel
+		// button is to the right of the primary button to match
+		// HIG per OS
 		if (isMacintosh || isLinux) {
-			if (cancelId !== undefined && cancelId < buttons.length) {
+			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
-				buttonMap.reverse();
-				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+				buttonMap.splice(1, 0, cancelButton);
+			}
+
+			buttonMap.reverse();
+		}
+
+		// Windows: ensure cancel button is at the end to match HIG
+		else if (isWindows) {
+			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.push(cancelButton);
 			}
 		}
 

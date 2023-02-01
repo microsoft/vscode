@@ -5,31 +5,14 @@
 
 import { localize } from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
+import { isLinuxSnap } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, massageMessageBoxOptions, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IDialogOptions, IShowResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-
-interface IMassagedMessageBoxOptions {
-
-	/**
-	 * OS massaged message box options.
-	 */
-	options: MessageBoxOptions;
-
-	/**
-	 * Since the massaged result of the message box options potentially
-	 * changes the order of buttons, we have to keep a map of these
-	 * changes so that we can still return the correct index to the caller.
-	 */
-	buttonIndexMap: number[];
-}
 
 export class NativeDialogHandler extends AbstractDialogHandler {
 
@@ -47,7 +30,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getPromptButtons(prompt);
 
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox({
 			type: this.getDialogType(prompt.type),
 			title: prompt.title,
 			message: prompt.message,
@@ -58,9 +41,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: prompt.checkbox?.checked
 		});
 
-		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
-
-		return this.getPromptResult(prompt, buttonIndexMap[response], checkboxChecked);
+		return this.getPromptResult(prompt, response, checkboxChecked);
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -68,7 +49,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getConfirmationButtons(confirmation);
 
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox({
 			type: this.getDialogType(confirmation.type) ?? 'question',
 			title: confirmation.title,
 			message: confirmation.message,
@@ -79,15 +60,13 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: confirmation.checkbox?.checked
 		});
 
-		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
-
-		return { confirmed: buttonIndexMap[response] === 0, checkboxChecked };
+		return { confirmed: response === 0, checkboxChecked };
 	}
 
 	async show(severity: Severity, message: string, buttons?: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox({
 			type: this.getDialogType(severity),
 			message,
 			detail: dialogOptions ? dialogOptions.detail : undefined,
@@ -97,53 +76,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
 		});
 
-		const { response, checkboxChecked } = await this.nativeHostService.showMessageBox(options);
-
-		return { choice: buttonIndexMap[response], checkboxChecked };
-	}
-
-	private massageMessageBoxOptions(options: MessageBoxOptions): IMassagedMessageBoxOptions {
-		let buttonIndexMap = (options.buttons || []).map((button, index) => index);
-		let buttons = (options.buttons || []).map(button => mnemonicButtonLabel(button));
-		let cancelId = options.cancelId;
-
-		// Linux: order of buttons is reverse
-		// macOS: also reverse, but the OS handles this for us!
-		if (isLinux) {
-			buttons = buttons.reverse();
-			buttonIndexMap = buttonIndexMap.reverse();
-		}
-
-		// Default Button (always first one)
-		options.defaultId = buttonIndexMap[0];
-
-		// Cancel Button
-		if (typeof cancelId === 'number') {
-
-			// Ensure the cancelId is the correct one from our mapping
-			cancelId = buttonIndexMap[cancelId];
-
-			// macOS/Linux: the cancel button should always be to the left of the primary action
-			// if we see more than 2 buttons, move the cancel one to the left of the primary
-			if (!isWindows && buttons.length > 2 && cancelId !== 1) {
-				const cancelButton = buttons[cancelId];
-				buttons.splice(cancelId, 1);
-				buttons.splice(1, 0, cancelButton);
-
-				const cancelButtonIndex = buttonIndexMap[cancelId];
-				buttonIndexMap.splice(cancelId, 1);
-				buttonIndexMap.splice(1, 0, cancelButtonIndex);
-
-				cancelId = 1;
-			}
-		}
-
-		options.buttons = buttons;
-		options.cancelId = cancelId;
-		options.noLink = true;
-		options.title = options.title || this.productService.nameLong;
-
-		return { options, buttonIndexMap };
+		return { choice: response, checkboxChecked };
 	}
 
 	input(): never {
@@ -178,7 +111,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
-		const { options, buttonIndeces } = massageMessageBoxOptions({
+		const { response } = await this.nativeHostService.showMessageBox({
 			type: 'info',
 			message: this.productService.nameLong,
 			detail: `\n${detail}`,
@@ -186,10 +119,9 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
 				localize('okButton', "OK")
 			]
-		}, this.productService);
+		});
 
-		const result = await this.nativeHostService.showMessageBox(options);
-		if (buttonIndeces[result.response] === 0) {
+		if (response === 0) {
 			this.clipboardService.writeText(detailToCopy);
 		}
 	}
