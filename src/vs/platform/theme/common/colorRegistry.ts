@@ -47,6 +47,7 @@ export const enum ColorTransformType {
 	Darken,
 	Lighten,
 	Transparent,
+	Opaque,
 	OneOf,
 	LessProminent,
 	IfDefinedThenElse
@@ -56,6 +57,7 @@ export type ColorTransform =
 	| { op: ColorTransformType.Darken; value: ColorValue; factor: number }
 	| { op: ColorTransformType.Lighten; value: ColorValue; factor: number }
 	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
+	| { op: ColorTransformType.Opaque; value: ColorValue; background: ColorValue }
 	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
 	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue };
@@ -586,6 +588,14 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme) 
 		case ColorTransformType.Transparent:
 			return resolveColorValue(transform.value, theme)?.transparent(transform.factor);
 
+		case ColorTransformType.Opaque: {
+			const backgroundColor = resolveColorValue(transform.background, theme);
+			if (!backgroundColor) {
+				return transform.value;
+			}
+			return resolveColorValue(transform.value, theme)?.makeOpaque(backgroundColor);
+		}
+
 		case ColorTransformType.OneOf:
 			for (const candidate of transform.values) {
 				const color = resolveColorValue(candidate, theme);
@@ -628,6 +638,10 @@ export function lighten(colorValue: ColorValue, factor: number): ColorTransform 
 
 export function transparent(colorValue: ColorValue, factor: number): ColorTransform {
 	return { op: ColorTransformType.Transparent, value: colorValue, factor };
+}
+
+export function opaque(colorValue: ColorValue, background: ColorValue): ColorTransform {
+	return { op: ColorTransformType.Opaque, value: colorValue, background };
 }
 
 export function oneOf(...colorValues: ColorValue[]): ColorTransform {
