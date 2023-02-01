@@ -107,7 +107,7 @@ if (locale) {
 // Pseudo Language Language Pack is being used.
 // In that case, use `en` as the Electron locale.
 
-if (process.platform === 'win32') {
+if (process.platform === 'win32' || process.platform === 'linux') {
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -575,17 +575,26 @@ async function resolveNlsConfiguration() {
 		// VS Code moves to Electron 22.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
-		// if ('getPreferredSystemLanguages' in app
-		// 	&& typeof app.getPreferredSystemLanguages === 'function'
-		// 	&& app.getPreferredSystemLanguages().length) {
-		// 	appLocale = app.getPreferredSystemLanguages()[0];
-		// }
+		if ((process.platform === 'win32' || process.platform === 'linux')
+			&& 'getPreferredSystemLanguages' in app
+			&& typeof app.getPreferredSystemLanguages === 'function'
+			&& app.getPreferredSystemLanguages().length) {
+			// Use the most preferred OS language for language recommendation.
+			appLocale = app.getPreferredSystemLanguages()[0];
+		}
+
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
 
 			// See above the comment about the loader and case sensitiveness
 			appLocale = appLocale.toLowerCase();
+
+			if (appLocale.startsWith('zh-hans')) {
+				appLocale = 'zh-cn';
+			} else if (appLocale.startsWith('zh-hant')) {
+				appLocale = 'zh-tw';
+			}
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);

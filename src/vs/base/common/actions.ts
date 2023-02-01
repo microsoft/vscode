@@ -14,10 +14,10 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
-	owner: 'bpasero';
-	comment: 'TODO @bpasero';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
+	owner: 'bpasero';
+	comment: 'Provides insight into actions that are executed within the workbench.';
 };
 
 export type WorkbenchActionExecutedEvent = {

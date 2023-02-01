@@ -23,11 +23,12 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DirtyDiffContribution } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -245,7 +246,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): Promise<ILineChange[]> {
+	$getDiffInformation(id: string): Promise<IChange[]> {
 		const editor = this._editorLocator.getEditor(id);
 
 		if (!editor) {
@@ -268,7 +269,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
 
 		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+			return Promise.resolve((dirtyDiffContribution as DirtyDiffContribution).getChanges());
 		}
 
 		return Promise.resolve([]);

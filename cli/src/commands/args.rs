@@ -146,6 +146,22 @@ impl<'a> From<&'a CliCore> for CodeServerArgs {
 pub enum StandaloneCommands {
 	/// Updates the CLI.
 	Update(StandaloneUpdateArgs),
+
+	/// Internal commands for WSL serving.
+	#[clap(hide = true)]
+	Wsl(WslArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct WslArgs {
+	#[clap(subcommand)]
+	pub command: WslCommands,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WslCommands {
+	/// Runs the WSL server on stdin/out
+	Serve,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -579,6 +595,10 @@ pub struct TunnelServeArgs {
 	/// Randomly name machine for port forwarding service
 	#[clap(long)]
 	pub random_name: bool,
+
+	/// Prevents the machine going to sleep while this command runs.
+	#[clap(long)]
+	pub no_sleep: bool,
 
 	/// Sets the machine name for port forwarding service
 	#[clap(long)]

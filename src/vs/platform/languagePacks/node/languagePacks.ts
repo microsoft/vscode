@@ -64,7 +64,7 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 
 	async getInstalledLanguages(): Promise<Array<ILanguagePackItem>> {
 		const languagePacks = await this.cache.getLanguagePacks();
-		const languages = Object.keys(languagePacks).map(locale => {
+		const languages: ILanguagePackItem[] = Object.keys(languagePacks).map(locale => {
 			const languagePack = languagePacks[locale];
 			const baseQuickPick = this.createQuickPickItem(locale, languagePack.label);
 			return {
@@ -72,10 +72,7 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 				extensionId: languagePack.extensions[0].extensionIdentifier.id,
 			};
 		});
-		languages.push({
-			...this.createQuickPickItem('en', 'English'),
-			extensionId: 'default',
-		});
+		languages.push(this.createQuickPickItem('en', 'English'));
 		languages.sort((a, b) => a.label.localeCompare(b.label));
 		return languages;
 	}

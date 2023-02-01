@@ -14,7 +14,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, locale, OperatingSystem, platform, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, language, OperatingSystem, platform, Platform } from 'vs/base/common/platform';
 import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 import { isString } from 'vs/base/common/types';
 import { ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -390,7 +390,7 @@ export async function createTerminalEnvironment(
 		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
-		addTerminalEnvironmentKeys(env, version, locale, detectLocale);
+		addTerminalEnvironmentKeys(env, version, language, detectLocale);
 	}
 	return env;
 }

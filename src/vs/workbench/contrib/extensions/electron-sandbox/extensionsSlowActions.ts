@@ -21,6 +21,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IRequestContext } from 'vs/base/parts/request/common/request';
 
 abstract class RepoInfo {
 	abstract get base(): string;
@@ -98,7 +99,12 @@ export async function createSlowExtensionAction(
 	const requestService = accessor.get(IRequestService);
 	const instaService = accessor.get(IInstantiationService);
 	const url = `https://api.github.com/search/issues?q=is:issue+state:open+in:title+repo:${info.owner}/${info.repo}+%22Extension+causes+high+cpu+load%22`;
-	const res = await requestService.request({ url }, CancellationToken.None);
+	let res: IRequestContext;
+	try {
+		res = await requestService.request({ url }, CancellationToken.None);
+	} catch {
+		return undefined;
+	}
 	const rawText = await asText(res);
 	if (!rawText) {
 		return undefined;

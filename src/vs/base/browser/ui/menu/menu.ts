@@ -16,7 +16,6 @@ import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon, getCodiconFontCharacters } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -50,19 +49,34 @@ export interface IMenuOptions {
 }
 
 export interface IMenuStyles {
-	shadowColor?: Color;
-	borderColor?: Color;
-	foregroundColor?: Color;
-	backgroundColor?: Color;
-	selectionForegroundColor?: Color;
-	selectionBackgroundColor?: Color;
-	selectionBorderColor?: Color;
-	separatorColor?: Color;
-	scrollbarShadow?: Color;
-	scrollbarSliderBackground?: Color;
-	scrollbarSliderHoverBackground?: Color;
-	scrollbarSliderActiveBackground?: Color;
+	shadowColor: string | undefined;
+	borderColor: string | undefined;
+	foregroundColor: string | undefined;
+	backgroundColor: string | undefined;
+	selectionForegroundColor: string | undefined;
+	selectionBackgroundColor: string | undefined;
+	selectionBorderColor: string | undefined;
+	separatorColor: string | undefined;
+	scrollbarShadow: string | undefined;
+	scrollbarSliderBackground: string | undefined;
+	scrollbarSliderHoverBackground: string | undefined;
+	scrollbarSliderActiveBackground: string | undefined;
 }
+
+export const unthemedMenuStyles: IMenuStyles = {
+	shadowColor: undefined,
+	borderColor: undefined,
+	foregroundColor: undefined,
+	backgroundColor: undefined,
+	selectionForegroundColor: undefined,
+	selectionBackgroundColor: undefined,
+	selectionBorderColor: undefined,
+	separatorColor: undefined,
+	scrollbarShadow: undefined,
+	scrollbarSliderBackground: undefined,
+	scrollbarSliderHoverBackground: undefined,
+	scrollbarSliderActiveBackground: undefined
+};
 
 interface ISubMenuData {
 	parent: Menu;
@@ -77,7 +91,7 @@ export class Menu extends ActionBar {
 	static globalStyleSheet: HTMLStyleElement;
 	protected styleSheet: HTMLStyleElement | undefined;
 
-	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions = {}) {
+	constructor(container: HTMLElement, actions: ReadonlyArray<IAction>, options: IMenuOptions, private readonly menuStyles: IMenuStyles) {
 		container.classList.add('monaco-menu-container');
 		container.setAttribute('role', 'presentation');
 		const menuElement = document.createElement('div');
@@ -101,7 +115,7 @@ export class Menu extends ActionBar {
 
 		this.menuDisposables = this._register(new DisposableStore());
 
-		this.initializeOrUpdateStyleSheet(container, {});
+		this.initializeOrUpdateStyleSheet(container, menuStyles);
 
 		this._register(Gesture.addTarget(menuElement));
 
@@ -229,6 +243,8 @@ export class Menu extends ActionBar {
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = '';
 
+		this.styleScrollElement(scrollElement, menuStyles);
+
 		// Support scroll on menu drag
 		this._register(addDisposableListener(menuElement, TouchEventType.Change, e => {
 			EventHelper.stop(e, true);
@@ -278,30 +294,19 @@ export class Menu extends ActionBar {
 		this.styleSheet.textContent = getMenuWidgetCSS(style, isInShadowDOM(container));
 	}
 
-	style(style: IMenuStyles): void {
-		const container = this.getContainer();
+	private styleScrollElement(scrollElement: HTMLElement, style: IMenuStyles): void {
 
-		this.initializeOrUpdateStyleSheet(container, style);
-
-		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
-		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
+		const fgColor = style.foregroundColor ?? '';
+		const bgColor = style.backgroundColor ?? '';
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const borderRadius = '5px';
 		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
-		container.style.outline = border;
-		container.style.borderRadius = borderRadius;
-		container.style.color = fgColor;
-		container.style.backgroundColor = bgColor;
-		container.style.boxShadow = shadow;
-
-		if (this.viewItems) {
-			this.viewItems.forEach(item => {
-				if (item instanceof BaseMenuActionViewItem || item instanceof MenuSeparatorActionViewItem) {
-					item.style(style);
-				}
-			});
-		}
+		scrollElement.style.outline = border;
+		scrollElement.style.borderRadius = borderRadius;
+		scrollElement.style.color = fgColor;
+		scrollElement.style.backgroundColor = bgColor;
+		scrollElement.style.boxShadow = shadow;
 	}
 
 	override getContainer(): HTMLElement {
@@ -364,9 +369,9 @@ export class Menu extends ActionBar {
 
 	private doGetActionViewItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): BaseActionViewItem {
 		if (action instanceof Separator) {
-			return new MenuSeparatorActionViewItem(options.context, action, { icon: true });
+			return new MenuSeparatorActionViewItem(options.context, action, { icon: true }, this.menuStyles);
 		} else if (action instanceof SubmenuAction) {
-			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) });
+			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) }, this.menuStyles);
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
@@ -396,7 +401,7 @@ export class Menu extends ActionBar {
 				}
 			}
 
-			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions);
+			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions, this.menuStyles);
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
@@ -433,9 +438,8 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	private check: HTMLElement | undefined;
 	private mnemonic: string | undefined;
 	private cssClass: string;
-	protected menuStyle: IMenuStyles | undefined;
 
-	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions = {}) {
+	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions, protected readonly menuStyle: IMenuStyles) {
 		options.isMenu = true;
 		super(action, action, options);
 
@@ -542,6 +546,8 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		this.updateTooltip();
 		this.updateEnabled();
 		this.updateChecked();
+
+		this.applyStyle();
 	}
 
 	override blur(): void {
@@ -681,10 +687,6 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	protected applyStyle(): void {
-		if (!this.menuStyle) {
-			return;
-		}
-
 		const isSelected = this.element && this.element.classList.contains('focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : undefined;
@@ -692,20 +694,15 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const outlineOffset = isSelected && this.menuStyle.selectionBorderColor ? `-1px` : '';
 
 		if (this.item) {
-			this.item.style.color = fgColor ? fgColor.toString() : '';
-			this.item.style.backgroundColor = bgColor ? bgColor.toString() : '';
+			this.item.style.color = fgColor ?? '';
+			this.item.style.backgroundColor = bgColor ?? '';
 			this.item.style.outline = outline;
 			this.item.style.outlineOffset = outlineOffset;
 		}
 
 		if (this.check) {
-			this.check.style.color = fgColor ? fgColor.toString() : '';
+			this.check.style.color = fgColor ?? '';
 		}
-	}
-
-	style(style: IMenuStyles): void {
-		this.menuStyle = style;
-		this.applyStyle();
 	}
 }
 
@@ -723,9 +720,10 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		action: IAction,
 		private submenuActions: ReadonlyArray<IAction>,
 		private parentData: ISubMenuData,
-		private submenuOptions?: IMenuOptions
+		private submenuOptions: IMenuOptions,
+		menuStyles: IMenuStyles
 	) {
-		super(action, action, submenuOptions);
+		super(action, action, submenuOptions, menuStyles);
 
 		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.Right;
 
@@ -888,10 +886,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuContainer.style.top = '0';
 			this.submenuContainer.style.left = '0';
 
-			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions.length ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions);
-			if (this.menuStyle) {
-				this.parentData.submenu.style(this.menuStyle);
-			}
+			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions.length ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions, this.menuStyle);
 
 			// layout submenu
 			const entryBox = this.element.getBoundingClientRect();
@@ -951,18 +946,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	protected override applyStyle(): void {
 		super.applyStyle();
 
-		if (!this.menuStyle) {
-			return;
-		}
-
 		const isSelected = this.element && this.element.classList.contains('focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 
 		if (this.submenuIndicator) {
-			this.submenuIndicator.style.color = fgColor ? `${fgColor}` : '';
+			this.submenuIndicator.style.color = fgColor ?? '';
 		}
-
-		this.parentData.submenu?.style(this.menuStyle);
 	}
 
 	override dispose(): void {
@@ -982,9 +971,14 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 }
 
 class MenuSeparatorActionViewItem extends ActionViewItem {
-	style(style: IMenuStyles): void {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly menuStyles: IMenuStyles) {
+		super(context, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
 		if (this.label) {
-			this.label.style.borderBottomColor = style.separatorColor ? `${style.separatorColor}` : '';
+			this.label.style.borderBottomColor = this.menuStyles.separatorColor ? `${this.menuStyles.separatorColor}` : '';
 		}
 	}
 }

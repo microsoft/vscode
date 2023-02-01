@@ -101,7 +101,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			},
 			contextKeyService,
 			listService,
-			themeService,
 			_configurationService,
 			instantiationService,
 		);

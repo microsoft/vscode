@@ -10,8 +10,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, editorBackground, asCssVariable, asCssVariableWithDefault, widgetBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { append, $, addDisposableListener, EventType, EventHelper, prepend } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -291,22 +290,21 @@ export class FeedbackWidget extends Disposable {
 
 		this.sendButton.onDidClick(() => this.onSubmit());
 
-		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
-			if (this.feedbackForm) {
-				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
-				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px 2px ${colors.widgetShadow}` : '';
-				this.feedbackForm.style.border = colors.widgetBorder ? `1px solid ${colors.widgetBorder}` : '';
-			}
-			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
-			}
+		if (this.feedbackForm) {
+			this.feedbackForm.style.backgroundColor = asCssVariable(editorWidgetBackground);
+			this.feedbackForm.style.color = asCssVariable(editorWidgetForeground);
+			this.feedbackForm.style.boxShadow = `0 0 8px 2px ${asCssVariable(widgetShadow)}`;
+			this.feedbackForm.style.border = `1px solid ${asCssVariable(widgetBorder)}`;
+		}
+		if (this.feedbackDescriptionInput) {
+			this.feedbackDescriptionInput.style.backgroundColor = asCssVariable(inputBackground);
+			this.feedbackDescriptionInput.style.color = asCssVariable(inputForeground);
+			this.feedbackDescriptionInput.style.border = `1px solid ${asCssVariableWithDefault(inputBorder, 'transparent')}`;
+		}
 
-			contactUsContainer.style.backgroundColor = colors.editorBackground ? colors.editorBackground.toString() : '';
-			contactUsContainer.style.border = `1px solid ${colors.contrastBorder || 'transparent'}`;
-		}));
+		contactUsContainer.style.backgroundColor = asCssVariable(editorBackground);
+		contactUsContainer.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, 'transparent')}`;
+
 
 		return {
 			dispose: () => {

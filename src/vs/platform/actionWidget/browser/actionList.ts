@@ -17,7 +17,8 @@ import { localize } from 'vs/nls';
 import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asCssValue } from 'vs/platform/theme/common/colorRegistry';
+import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -106,7 +107,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
-				data.icon.style.color = asCssValue(element.group.icon.color.id);
+				data.icon.style.color = asCssVariable(element.group.icon.color.id);
 			}
 		} else {
 			data.icon.className = ThemeIcon.asClassName(Codicon.lightBulb);
@@ -210,6 +211,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 				getWidgetRole: () => 'listbox'
 			},
 		}));
+		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));

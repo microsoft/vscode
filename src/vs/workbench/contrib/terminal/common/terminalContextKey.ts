@@ -21,6 +21,7 @@ export const enum TerminalContextKeyStrings {
 	TerminalEditorActive = 'terminalEditorActive',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
+	SuggestWidgetVisible = 'terminalSuggestWidgetVisible',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
 	NavigationModeActive = 'terminalNavigationModeActive',
 	ViewShowing = 'terminalViewShowing',
@@ -32,7 +33,7 @@ export const enum TerminalContextKeyStrings {
 	SplitTerminal = 'terminalSplitTerminal',
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
-	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled'
+	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
 }
 
 export namespace TerminalContextKeys {
@@ -77,6 +78,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal's alt buffer is active. */
 	export const altBufferActive = new RawContextKey<boolean>(TerminalContextKeyStrings.AltBufferActive, false, localize('terminalAltBufferActive', "Whether the terminal's alt buffer is active."));
+
+	/** Whether the terminal's suggest widget is visible. */
+	export const suggestWidgetVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.SuggestWidgetVisible, false, localize('terminalSuggestWidgetVisible', "Whether the terminal's suggest widget is visible."));
 
 	/** Whether the terminal is NOT focused. */
 	export const notFocus = focus.toNegated();

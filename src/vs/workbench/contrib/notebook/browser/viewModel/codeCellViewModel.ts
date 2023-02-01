@@ -17,7 +17,7 @@ import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
@@ -50,8 +50,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private _editorHeight = 0;
 	set editorHeight(height: number) {
-		this._editorHeight = height;
+		if (this._editorHeight === height) {
+			return;
+		}
 
+		this._editorHeight = height;
 		this.layoutChange({ editorHeight: true }, 'CodeCellViewModel#editorHeight');
 	}
 
@@ -339,11 +342,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
-	}
-
-	hasDynamicHeight() {
-		// CodeCellVM always measures itself and controls its cell's height
-		return false;
 	}
 
 	getDynamicHeight() {

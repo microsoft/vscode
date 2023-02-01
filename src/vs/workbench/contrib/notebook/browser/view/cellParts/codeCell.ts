@@ -61,6 +61,7 @@ export class CodeCell extends Disposable {
 		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
+		this._renderedInputCollapseState = false; // editor is always expanded initially
 
 		this.registerViewCellLayoutChange();
 		this.registerCellEditorEventListeners();
@@ -116,6 +117,7 @@ export class CodeCell extends Disposable {
 		// Render Outputs
 		this.viewCell.editorHeight = editorHeight;
 		this._outputContainerRenderer.render();
+		this._renderedOutputCollapseState = false; // the output is always rendered initially
 		// Need to do this after the intial renderOutput
 		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
 			this.initialViewUpdateExpanded();
@@ -239,10 +241,6 @@ export class CodeCell extends Disposable {
 					this.onCellWidthChange();
 				}
 			}
-
-			if (e.totalHeight) {
-				this.relayoutCell();
-			}
 		}));
 	}
 
@@ -271,7 +269,7 @@ export class CodeCell extends Disposable {
 					this.onCellEditorHeightChange(contentHeight);
 				}
 				const lastSelection = selections[selections.length - 1];
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
 		}));
 	}

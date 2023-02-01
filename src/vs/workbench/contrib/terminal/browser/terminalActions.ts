@@ -176,6 +176,29 @@ export function registerTerminalActions() {
 			instance.focusWhenReady();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.ShowTerminalAccessibilityHelp,
+				title: { value: localize('workbench.action.terminal.showAccessibilityHelp', "Show Terminal Accessibility Help"), original: 'Show Terminal Accessibility Help' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.F1,
+					weight: KeybindingWeight.WorkbenchContrib,
+					linux: {
+						primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+						secondary: [KeyMod.Alt | KeyCode.F1]
+					},
+					when: TerminalContextKeys.focus
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).showTerminalAccessibilityHelp();
+		}
+	});
 
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -380,6 +403,25 @@ export function registerTerminalActions() {
 			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.EnterAccessibilityMode,
+				title: { value: localize('workbench.action.terminal.enterAccessibilityMode', 'Enter Accessibility Mode'), original: 'Enter Accessibility Mode' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.Tab,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: TerminalContextKeys.focus
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			accessor.get(ITerminalService).activeInstance?.focusAccessibilityBuffer();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -2221,13 +2263,128 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.SelectPrevSuggestion,
+				title: { value: localize('workbench.action.terminal.selectPrevSuggestion', "Select the Previous Suggestion"), original: 'Select the Previous Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Up is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectPreviousSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SelectPrevPageSuggestion,
+				title: { value: localize('workbench.action.terminal.selectPrevPageSuggestion', "Select the Previous Page Suggestion"), original: 'Select the Previous Page Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Up is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.PageUp,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectPreviousPageSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SelectNextSuggestion,
+				title: { value: localize('workbench.action.terminal.selectNextSuggestion', "Select the Next Suggestion"), original: 'Select the Next Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Down is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectNextSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SelectNextPageSuggestion,
+				title: { value: localize('workbench.action.terminal.selectNextPageSuggestion', "Select the Next Page Suggestion"), original: 'Select the Next Page Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					// Down is bound to other workbench keybindings that this needs to beat
+					primary: KeyCode.PageDown,
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.selectNextPageSuggestion());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.AcceptSelectedSuggestion,
+				title: { value: localize('workbench.action.terminal.acceptSelectedSuggestion', "Accept Selected Suggestion"), original: 'Accept Selected Suggestion' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					primary: KeyCode.Enter,
+					secondary: [KeyCode.Tab],
+					// Enter is bound to other workbench keybindings that this needs to beat
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).activeInstance?.acceptSelectedSuggestion();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.HideSuggestWidget,
+				title: { value: localize('workbench.action.terminal.hideSuggestWidget', "Hide Suggest Widget"), original: 'Hide Suggest Widget' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+				keybinding: {
+					primary: KeyCode.Escape,
+					// Escape is bound to other workbench keybindings that this needs to beat
+					weight: KeybindingWeight.WorkbenchContrib + 1
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).activeInstance?.hideSuggestWidget();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ShowQuickFixes,
 				title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
 				category,
 				precondition: TerminalContextKeys.focus,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.Period,
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
 		}
