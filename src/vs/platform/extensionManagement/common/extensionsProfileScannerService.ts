@@ -17,7 +17,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Mutable, isObject, isString } from 'vs/base/common/types';
+import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -388,6 +388,7 @@ function isStoredProfileExtension(candidate: any): candidate is IStoredProfileEx
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
 		&& (isUriComponents(candidate.location) || isString(candidate.location))
+		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
 		&& candidate.version && isString(candidate.version);
 }
 

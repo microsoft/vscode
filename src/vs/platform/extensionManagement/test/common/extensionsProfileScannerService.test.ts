@@ -301,6 +301,108 @@ suite('ExtensionsProfileScannerService', () => {
 		]);
 	});
 
+	test('throws error if extension has invalid relativePath', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: extension.identifier,
+			location: extension.location.toJSON(),
+			version: extension.manifest.version,
+			relativePath: 2
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		try {
+			await testObject.scanProfileExtensions(extensionsManifest);
+			assert.fail('Should throw error');
+		} catch (error) { /*expected*/ }
+	});
+
+	test('throws error if extension has no location', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: extension.identifier,
+			version: extension.manifest.version,
+			relativePath: 'pub.a-1.0.0'
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		try {
+			await testObject.scanProfileExtensions(extensionsManifest);
+			assert.fail('Should throw error');
+		} catch (error) { /*expected*/ }
+	});
+
+	test('throws error if extension location is invalid', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: extension.identifier,
+			location: {},
+			version: extension.manifest.version,
+			relativePath: 'pub.a-1.0.0'
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		try {
+			await testObject.scanProfileExtensions(extensionsManifest);
+			assert.fail('Should throw error');
+		} catch (error) { /*expected*/ }
+	});
+
+	test('throws error if extension has no identifier', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			location: extension.location.toJSON(),
+			version: extension.manifest.version,
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		try {
+			await testObject.scanProfileExtensions(extensionsManifest);
+			assert.fail('Should throw error');
+		} catch (error) { /*expected*/ }
+	});
+
+	test('throws error if extension identifier is invalid', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: 'pub.a',
+			location: extension.location.toJSON(),
+			version: extension.manifest.version,
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		try {
+			await testObject.scanProfileExtensions(extensionsManifest);
+			assert.fail('Should throw error');
+		} catch (error) { /*expected*/ }
+	});
+
+	test('throws error if extension has no version', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
+			identifier: extension.identifier,
+			location: extension.location.toJSON(),
+		}])));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		try {
+			await testObject.scanProfileExtensions(extensionsManifest);
+			assert.fail('Should throw error');
+		} catch (error) { /*expected*/ }
+	});
+
 	function aExtension(id: string, location: URI, e?: Partial<IExtension>): IExtension {
 		return {
 			identifier: { id },
