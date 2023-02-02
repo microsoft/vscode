@@ -592,7 +592,7 @@ export const enum TerminalCommandId {
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
-	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
+	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
 	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal',
 	ShowTextureAtlas = 'workbench.action.terminal.showTextureAtlas',
 	ShowTerminalAccessibilityHelp = 'workbench.action.terminal.showAccessibilityHelp',

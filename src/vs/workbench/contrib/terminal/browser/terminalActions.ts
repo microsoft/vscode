@@ -2248,8 +2248,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ClearCommandHistory,
-				title: { value: localize('workbench.action.terminal.clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+				id: TerminalCommandId.ClearPreviousSessionHistory,
+				title: { value: localize('workbench.action.terminal.clearPreviousSessionHistory', "Clear Previous Session History"), original: 'Clear Previous Session History' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
