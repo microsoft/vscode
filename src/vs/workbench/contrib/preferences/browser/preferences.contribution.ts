@@ -522,7 +522,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
-					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry and Online Services Settings"),
+					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings"),
 					menu: {
 						id: MenuId.MenubarPreferencesMenu,
 						group: '3_settings',
