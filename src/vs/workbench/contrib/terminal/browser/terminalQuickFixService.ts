@@ -10,16 +10,19 @@ import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
+	declare _serviceBrand: undefined;
+
+	private _selectors: Map<string, ITerminalCommandSelector> = new Map();
+
+	private _providers: Map<string, ITerminalQuickFixProvider> = new Map();
+	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
+
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
 	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
 	private readonly _onDidRegisterCommandSelector = new Emitter<ITerminalCommandSelector>();
 	readonly onDidRegisterCommandSelector = this._onDidRegisterCommandSelector.event;
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
-	_serviceBrand: undefined;
-	_providers: Map<string, ITerminalQuickFixProvider> = new Map();
-	_selectors: Map<string, ITerminalCommandSelector> = new Map();
-	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
 
 	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
 		this._terminalContributionService.quickFixes.then(selectors => {
