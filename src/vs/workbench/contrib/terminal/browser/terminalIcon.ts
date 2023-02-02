@@ -9,7 +9,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';

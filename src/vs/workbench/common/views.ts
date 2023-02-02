@@ -10,7 +10,7 @@ import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -295,6 +295,7 @@ export interface IViewDescriptor {
 	readonly group?: string;
 
 	readonly remoteAuthority?: string | string[];
+	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 }
@@ -693,6 +694,8 @@ export interface ITreeView extends IDisposable {
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
 
+	isCollapsed(item: ITreeItem): boolean;
+
 	setSelection(items: ITreeItem[]): void;
 
 	getSelection(): ITreeItem[];
@@ -844,6 +847,12 @@ export class ResolvableTreeItem implements ITreeItem {
 	}
 }
 
+export class NoTreeViewError extends Error {
+	constructor(treeViewId: string) {
+		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	}
+}
+
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
@@ -877,7 +886,6 @@ export interface IViewPaneContainer {
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;
-	saveState(): void;
 }
 
 export interface IViewBadge {

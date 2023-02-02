@@ -107,3 +107,5 @@ export function hashedEditSessionId(editSessionId: string) {
 	sha1.update(editSessionId);
 	return sha1.digest();
 }
+
+export const editSessionsLogId = 'editSessionsSyncLog';

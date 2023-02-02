@@ -67,8 +67,6 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	);
 }
 
-export const PROFILES_ENABLEMENT_CONFIG = 'workbench.experimental.settingsProfiles.enabled';
-
 export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
@@ -178,7 +176,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly _serviceBrand: undefined;
 
-	protected enabled: boolean = false;
+	protected enabled: boolean = true;
 	readonly profilesHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
@@ -214,6 +212,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this.profilesHome = joinPath(this.environmentService.userRoamingDataHome, 'profiles');
 	}
 
+	init(): void {
+		this._profilesObject = undefined;
+	}
+
 	setEnablement(enabled: boolean): void {
 		if (this.enabled !== enabled) {
 			this._profilesObject = undefined;
@@ -230,43 +232,53 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!this._profilesObject) {
 			const profiles = [];
 			if (this.enabled) {
-				for (const storedProfile of this.getStoredProfiles()) {
-					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
-						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
-						continue;
+				try {
+					for (const storedProfile of this.getStoredProfiles()) {
+						if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
+							this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
+							continue;
+						}
+						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
 					}
-					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
+				} catch (error) {
+					this.logService.error(error);
 				}
 			}
 			const workspaces = new ResourceMap<IUserDataProfile>();
 			const emptyWindows = new Map<string, IUserDataProfile>();
-			const defaultProfile = toUserDataProfile(hash(this.environmentService.userRoamingDataHome.path).toString(16), localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
+			const defaultProfile = this.createDefaultProfile();
 			profiles.unshift({ ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true });
 			if (profiles.length) {
-				const profileAssociaitions = this.getStoredProfileAssociations();
-				if (profileAssociaitions.workspaces) {
-					for (const [workspacePath, profilePath] of Object.entries(profileAssociaitions.workspaces)) {
-						const workspace = URI.parse(workspacePath);
-						const profileLocation = URI.parse(profilePath);
-						const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profileLocation));
-						if (profile) {
-							workspaces.set(workspace, profile);
+				try {
+					const profileAssociaitions = this.getStoredProfileAssociations();
+					if (profileAssociaitions.workspaces) {
+						for (const [workspacePath, profileId] of Object.entries(profileAssociaitions.workspaces)) {
+							const workspace = URI.parse(workspacePath);
+							const profile = profiles.find(p => p.id === profileId);
+							if (profile) {
+								workspaces.set(workspace, profile);
+							}
 						}
 					}
-				}
-				if (profileAssociaitions.emptyWindows) {
-					for (const [windowId, profilePath] of Object.entries(profileAssociaitions.emptyWindows)) {
-						const profileLocation = URI.parse(profilePath);
-						const profile = profiles.find(p => this.uriIdentityService.extUri.isEqual(p.location, profileLocation));
-						if (profile) {
-							emptyWindows.set(windowId, profile);
+					if (profileAssociaitions.emptyWindows) {
+						for (const [windowId, profileId] of Object.entries(profileAssociaitions.emptyWindows)) {
+							const profile = profiles.find(p => p.id === profileId);
+							if (profile) {
+								emptyWindows.set(windowId, profile);
+							}
 						}
 					}
+				} catch (error) {
+					this.logService.error(error);
 				}
 			}
 			this._profilesObject = { profiles, workspaces, emptyWindows };
 		}
 		return this._profilesObject;
+	}
+
+	private createDefaultProfile() {
+		return toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome);
 	}
 
 	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -288,7 +300,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		const profile = await this.doCreateProfile(id, name, options);
@@ -338,7 +350,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async updateProfile(profileToUpdate: IUserDataProfile, options: IUserDataProfileUpdateOptions): Promise<IUserDataProfile> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		let profile = this.profiles.find(p => p.id === profileToUpdate.id);
@@ -354,7 +366,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 		if (profileToRemove.isDefault) {
 			throw new Error('Cannot remove default profile');
@@ -405,7 +417,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		const profile = this.profiles.find(p => p.id === profileToSet.id);
@@ -418,7 +430,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient?: boolean): void {
 		if (!this.enabled) {
-			throw new Error(`Profiles are disabled. Enable them via the '${PROFILES_ENABLEMENT_CONFIG}' setting.`);
+			throw new Error(`Profiles are disabled in the current environment.`);
 		}
 
 		this.updateWorkspaceAssociation(workspaceIdentifier, undefined, transient);
@@ -546,14 +558,34 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	private updateStoredProfileAssociations() {
 		const workspaces: IStringDictionary<string> = {};
 		for (const [workspace, profile] of this.profilesObject.workspaces.entries()) {
-			workspaces[workspace.toString()] = profile.location.toString();
+			workspaces[workspace.toString()] = profile.id;
 		}
 		const emptyWindows: IStringDictionary<string> = {};
 		for (const [windowId, profile] of this.profilesObject.emptyWindows.entries()) {
-			emptyWindows[windowId.toString()] = profile.location.toString();
+			emptyWindows[windowId.toString()] = profile.id;
 		}
 		this.saveStoredProfileAssociations({ workspaces, emptyWindows });
 		this._profilesObject = undefined;
+	}
+
+	// TODO: @sandy081 Remove migration after couple of releases
+	protected migrateStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): StoredProfileAssociations {
+		const workspaces: IStringDictionary<string> = {};
+		const defaultProfile = this.createDefaultProfile();
+		if (storedProfileAssociations.workspaces) {
+			for (const [workspace, location] of Object.entries(storedProfileAssociations.workspaces)) {
+				const uri = URI.parse(location);
+				workspaces[workspace] = this.uriIdentityService.extUri.isEqual(uri, defaultProfile.location) ? defaultProfile.id : this.uriIdentityService.extUri.basename(uri);
+			}
+		}
+		const emptyWindows: IStringDictionary<string> = {};
+		if (storedProfileAssociations.emptyWindows) {
+			for (const [workspace, location] of Object.entries(storedProfileAssociations.emptyWindows)) {
+				const uri = URI.parse(location);
+				emptyWindows[workspace] = this.uriIdentityService.extUri.isEqual(uri, defaultProfile.location) ? defaultProfile.id : this.uriIdentityService.extUri.basename(uri);
+			}
+		}
+		return { workspaces, emptyWindows };
 	}
 
 	protected getStoredProfiles(): StoredUserDataProfile[] { return []; }

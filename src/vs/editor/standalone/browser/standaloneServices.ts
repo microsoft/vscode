@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keybindings';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding, decodeKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -31,7 +31,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogService, IInputResult, IPrompt, IPromptResult, IPromptWithCustomCancel, IPromptResultWithCancel, IPromptWithDefaultCancel, IPromptBaseButton } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -49,7 +49,7 @@ import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -57,7 +57,6 @@ import { IContextMenuService, IContextViewDelegate, IContextViewService } from '
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -87,9 +86,10 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 import 'vs/editor/common/services/languageFeaturesService';
-import { DefaultConfigurationModel } from 'vs/platform/configuration/common/configurations';
+import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { LogService } from 'vs/platform/log/common/logService';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -202,38 +202,64 @@ class StandaloneProgressService implements IProgressService {
 
 class StandaloneDialogService implements IDialogService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.doConfirm(confirmation).then(confirmed => {
-			return {
-				confirmed,
-				checkboxChecked: false // unsupported
-			} as IConfirmationResult;
-		});
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		const confirmed = this.doConfirm(confirmation.message, confirmation.detail);
+
+		return {
+			confirmed,
+			checkboxChecked: false // unsupported
+		} as IConfirmationResult;
 	}
 
-	private doConfirm(confirmation: IConfirmation): Promise<boolean> {
-		let messageText = confirmation.message;
-		if (confirmation.detail) {
-			messageText = messageText + '\n\n' + confirmation.detail;
+	private doConfirm(message: string, detail?: string): boolean {
+		let messageText = message;
+		if (detail) {
+			messageText = messageText + '\n\n' + detail;
 		}
 
-		return Promise.resolve(window.confirm(messageText));
+		return window.confirm(messageText);
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
-		return Promise.resolve({ choice: 0 });
+	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
+		let result: T | undefined = undefined;
+		const confirmed = this.doConfirm(prompt.message, prompt.detail);
+		if (confirmed) {
+			const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
+			if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
+				promptButtons.push(prompt.cancelButton);
+			}
+
+			result = await promptButtons[0]?.run({ checkboxChecked: false });
+		}
+
+		return { result };
 	}
 
-	public input(): Promise<IInputResult> {
-		return Promise.resolve({ choice: 0 }); // unsupported
+	async info(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Info, message, detail });
 	}
 
-	public about(): Promise<void> {
+	async warn(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Warning, message, detail });
+	}
+
+	async error(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Error, message, detail });
+	}
+
+	input(): Promise<IInputResult> {
+		return Promise.resolve({ confirmed: false }); // unsupported
+	}
+
+	about(): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 }
@@ -423,9 +449,9 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 	public addDynamicKeybindings(rules: IKeybindingRule[]): IDisposable {
 		const entries: IKeybindingItem[] = rules.map((rule) => {
-			const keybinding = createKeybinding(rule.keybinding, OS);
+			const keybinding = decodeKeybinding(rule.keybinding, OS);
 			return {
-				keybinding: keybinding?.parts ?? null,
+				keybinding,
 				command: rule.command ?? null,
 				commandArgs: rule.commandArgs,
 				when: rule.when,
@@ -480,7 +506,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
-				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
+				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}
@@ -491,18 +517,18 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+		return USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS);
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		const keybinding = new SimpleKeybinding(
+		const chord = new KeyCodeChord(
 			keyboardEvent.ctrlKey,
 			keyboardEvent.shiftKey,
 			keyboardEvent.altKey,
 			keyboardEvent.metaKey,
 			keyboardEvent.keyCode
-		).toChord();
-		return new USLayoutResolvedKeybinding(keybinding, OS);
+		);
+		return new USLayoutResolvedKeybinding([chord], OS);
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
@@ -549,7 +575,9 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	private readonly _configuration: Configuration;
 
 	constructor() {
-		this._configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		const defaultConfiguration = new DefaultConfiguration();
+		this._configuration = new Configuration(defaultConfiguration.reload(), new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel());
+		defaultConfiguration.dispose();
 	}
 
 	getValue<T>(): T;
@@ -979,11 +1007,10 @@ class StandaloneContextMenuService extends ContextMenuService {
 		@INotificationService notificationService: INotificationService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(telemetryService, notificationService, contextViewService, keybindingService, themeService, menuService, contextKeyService);
+		super(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		this.configure({ blockMouse: false }); // we do not want that in the standalone editor
 	}
 }

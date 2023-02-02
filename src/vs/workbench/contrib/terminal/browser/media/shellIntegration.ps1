@@ -20,22 +20,19 @@ $Global:__LastHistoryId = -1
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, '[^a-zA-Z0-9]', { param($match)
-		# Backslashes must be doubled.
-		if ($match.Value -eq '\') {
-			'\\'
-		} else {
-			# Any other characters are encoded as their UTF-8 hex values.
-			-Join (
-				[System.Text.Encoding]::UTF8.GetBytes($match.Value)
-				| ForEach-Object { '\x{0:x2}' -f $_ }
-			)
-		}
+	[regex]::Replace($value, '[\\\n;]', { param($match)
+		# Encode the (ascii) matches as `\x<hex>`
+		-Join (
+			[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
+		)
 	})
 }
 
 function Global:Prompt() {
 	$FakeCode = [int]!$global:?
+	# NOTE: We disable strict mode for the scope of this function because it unhelpfully throws an
+	# error when $LastHistoryEntry is null, and is not otherwise useful.
+	Set-StrictMode -Off
 	$LastHistoryEntry = Get-History -Count 1
 	# Skip finishing the command if the first command has not yet started
 	if ($Global:__LastHistoryId -ne -1) {
@@ -109,6 +106,49 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+
+	# Conditionally enable suggestions
+	if ($env:VSCODE_SUGGEST -eq '1') {
+		Remove-Item Env:VSCODE_SUGGEST
+
+		# VS Code send completions request (may override Ctrl+Spacebar)
+		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
+			Send-Completions
+		}
+
+		# Suggest trigger characters
+		Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
+			[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
+			Send-Completions
+		}
+	}
 }
 
-Set-MappedKeyHandlers
+function Send-Completions {
+	$commandLine = ""
+	$cursorIndex = 0
+	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
+	#       last space and then filter on the client side? That would let you trigger ctrl+space
+	#       anywhere on a word and have full completions available
+	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
+	$completionPrefix = $commandLine
+
+	# Get completions
+	$result = "`e]633;Completions"
+	if ($completionPrefix.Length -gt 0) {
+		# Get and send completions
+		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		if ($null -ne $completions.CompletionMatches) {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+		}
+	}
+	$result += "`a"
+
+	Write-Host -NoNewLine $result
+}
+
+# Register key handlers if PSReadLine is available
+if (Get-Module -Name PSReadLine) {
+	Set-MappedKeyHandlers
+}

@@ -10,6 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,8 +18,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -49,6 +50,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -60,8 +62,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._refreshStyles(true);
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
 				this._removeCapabilityDisposables(TerminalCapability.CommandDetection);
-				this._updateDecorationVisibility();
-			} else if (e.affectsConfiguration(TaskSettingId.ShowDecorations)) {
 				this._updateDecorationVisibility();
 			}
 		}));
@@ -384,6 +384,19 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (actions.length > 0) {
 			actions.push(new Separator());
 		}
+		const labelRunRecent = localize('workbench.action.terminal.runRecentCommand', "Run Recent Command");
+		actions.push({
+			class: undefined, tooltip: labelRunRecent, id: 'workbench.action.terminal.runRecentCommand', label: labelRunRecent, enabled: true,
+			run: () => this._commandService.executeCommand('workbench.action.terminal.runRecentCommand')
+		});
+		const labelGoToRecent = localize('workbench.action.terminal.goToRecentDirectory', "Go To Recent Directory");
+		actions.push({
+			class: undefined, tooltip: labelRunRecent, id: 'workbench.action.terminal.goToRecentDirectory', label: labelGoToRecent, enabled: true,
+			run: () => this._commandService.executeCommand('workbench.action.terminal.goToRecentDirectory')
+		});
+
+		actions.push(new Separator());
+
 		const labelConfigure = localize("terminal.configureCommandDecorations", 'Configure Command Decorations');
 		actions.push({
 			class: undefined, tooltip: labelConfigure, id: 'terminal.configureCommandDecorations', label: labelConfigure, enabled: true,

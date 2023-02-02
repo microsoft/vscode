@@ -16,7 +16,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -210,15 +211,13 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	public async handleSettingOption(selectedType: string) {
-		const noButton = nls.localize('TaskQuickPick.changeSettingNo', "No");
-		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
-		const changeSettingResult = await this._dialogService.show(Severity.Warning,
-			nls.localize('TaskQuickPick.changeSettingDetails',
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: nls.localize('TaskQuickPick.changeSettingDetails',
 				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[noButton, yesButton],
-			{ cancelId: 1 }
-		);
-		if (changeSettingResult.choice === 1) {
+			cancelButton: nls.localize('TaskQuickPick.changeSettingNo', "No")
+		});
+		if (confirmed) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);

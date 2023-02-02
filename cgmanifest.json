@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "16e28102fdf876ce6d136674ba66343ede07441f"
+					"commitHash": "a8a8309404d39efa9c624d7aee0e27562721e522"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "102.0.5005.167"
+			"version": "102.0.5005.194"
 		},
 		{
 			"component": {
@@ -533,7 +533,7 @@
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "19.1.8"
+			"version": "19.1.9"
 		},
 		{
 			"component": {

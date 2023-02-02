@@ -4325,6 +4325,7 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
+		showToolbar?: 'always' | 'onHover';
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -4393,7 +4394,7 @@ declare namespace monaco.editor {
 		/**
 		 * Select suggestions when triggered via quick suggest or trigger characters
 		 */
-		selectQuickSuggestions?: boolean;
+		selectionMode?: 'always' | 'never' | 'whenTriggerCharacter' | 'whenQuickSuggestion';
 		/**
 		 * Enable or disable icons in suggestions. Defaults to true.
 		 */
@@ -5632,6 +5633,10 @@ declare namespace monaco.editor {
 		 */
 		getTopForPosition(lineNumber: number, column: number): number;
 		/**
+		 * Write the screen reader content to be the current selection
+		 */
+		writeScreenReaderContent(reason: string): void;
+		/**
 		 * Returns the editor's container dom node
 		 */
 		getContainerDomNode(): HTMLElement;
@@ -6729,6 +6734,10 @@ declare namespace monaco.languages {
 		*/
 		handleItemDidShow?(completions: T, item: T['items'][number]): void;
 		/**
+		 * Will be called when an item is partially accepted.
+		 */
+		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
 		freeInlineCompletions(completions: T): void;
@@ -7304,6 +7313,12 @@ declare namespace monaco.languages {
 		 * The value of the kind is 'region'.
 		 */
 		static readonly Region: FoldingRangeKind;
+		/**
+		 * Returns a {@link FoldingRangeKind} for the given value.
+		 *
+		 * @param value of the kind.
+		 */
+		static fromValue(value: string): FoldingRangeKind;
 		/**
 		 * Creates a new {@link FoldingRangeKind}.
 		 *

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, MessageBoxOptions, WebContents } from 'electron';
+import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, WebContents } from 'electron';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel, mnemonicMenuLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
@@ -430,20 +430,15 @@ export class Menubar {
 
 		const confirmBeforeClose = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.isKeyboardEvent(event))) {
-			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
-					mnemonicButtonLabel(nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit")),
-					mnemonicButtonLabel(nls.localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"))
+					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
+					nls.localize('cancel', "Cancel")
 				],
-				message: nls.localize('quitMessage', "Are you sure you want to quit?"),
-				noLink: true,
-				defaultId: 0,
-				cancelId: 1
-			};
+				message: nls.localize('quitMessage', "Are you sure you want to quit?")
+			});
 
-			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, options);
 			return response === 0;
 		}
 

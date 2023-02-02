@@ -5,8 +5,8 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider } from './git';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
@@ -32,7 +32,10 @@ export class ApiChange implements Change {
 export class ApiRepositoryState implements RepositoryState {
 
 	get HEAD(): Branch | undefined { return this._repository.HEAD; }
-	get refs(): Ref[] { return [...this._repository.refs]; }
+	/**
+	 * @deprecated Use ApiRepository.getRefs() instead.
+	 */
+	get refs(): Ref[] { console.warn('Deprecated. Use ApiRepository.getRefs() instead.'); return []; }
 	get remotes(): Remote[] { return [...this._repository.remotes]; }
 	get submodules(): Submodule[] { return [...this._repository.submodules]; }
 	get rebaseCommit(): Commit | undefined { return this._repository.rebaseCommit; }
@@ -170,12 +173,16 @@ export class ApiRepository implements Repository {
 		return this.repository.getBranch(name);
 	}
 
-	getBranches(query: BranchQuery): Promise<Ref[]> {
-		return this.repository.getBranches(query);
+	getBranches(query: BranchQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return this.repository.getBranches(query, cancellationToken);
 	}
 
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this.repository.setBranchUpstream(name, upstream);
+	}
+
+	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return this.repository.getRefs(query, cancellationToken);
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {

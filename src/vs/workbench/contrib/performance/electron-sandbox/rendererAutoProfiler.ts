@@ -76,7 +76,7 @@ export class RendererProfiling {
 
 					try {
 						const profile = await nativeHostService.profileRenderer(sessionId, 5000);
-						const output = await profileAnalysisService.analyseBottomUp(profile, _url => '<<renderer>>', perfBaseline);
+						const output = await profileAnalysisService.analyseBottomUp(profile, _url => '<<renderer>>', perfBaseline, true);
 						if (output === ProfilingOutput.Interesting) {
 							this._store(profile, sessionId);
 							break;

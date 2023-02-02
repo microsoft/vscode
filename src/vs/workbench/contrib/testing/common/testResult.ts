@@ -15,6 +15,7 @@ import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { language } from 'vs/base/common/platform';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -85,6 +86,11 @@ export interface ITestResult {
 	 * in the workspace.
 	 */
 	toJSON(): ISerializedTestResults | undefined;
+
+	/**
+	 * Serializes the test result, includes messages. Used to send the test states to the extension host.
+	 */
+	toJSONWithMessages(): ISerializedTestResults | undefined;
 }
 
 export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
@@ -105,17 +111,6 @@ export const makeEmptyCounts = () => {
 	}
 
 	return o as TestStateCount;
-};
-
-export const sumCounts = (counts: Iterable<TestStateCount>) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
-		}
-	}
-
-	return total;
 };
 
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
@@ -178,7 +173,7 @@ export class LiveOutputController {
 		this.dataEmitter.fire(data);
 		this._offset += data.byteLength;
 
-		return this.writer.getValue()[0].write(data);
+		return this.writer.value[0].write(data);
 	}
 
 	/**
@@ -239,10 +234,10 @@ export class LiveOutputController {
 			return this.closed;
 		}
 
-		if (!this.writer.hasValue()) {
+		if (!this.writer.hasValue) {
 			this.closed = Promise.resolve();
 		} else {
-			const [stream, ended] = this.writer.getValue();
+			const [stream, ended] = this.writer.value;
 			stream.end();
 			this.closed = ended;
 		}
@@ -297,7 +292,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly tasks: ITestRunTaskResults[] = [];
-	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
+	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString(language));
 
 	/**
 	 * @inheritdoc
@@ -508,7 +503,11 @@ export class LiveTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
-		return this.completedAt && this.persist ? this.doSerialize.getValue() : undefined;
+		return this.completedAt && this.persist ? this.doSerialize.value : undefined;
+	}
+
+	public toJSONWithMessages(): ISerializedTestResults | undefined {
+		return this.completedAt && this.persist ? this.doSerializeWithMessages.value : undefined;
 	}
 
 	/**
@@ -594,6 +593,15 @@ export class LiveTestResult implements ITestResult {
 		name: this.name,
 		request: this.request,
 		items: [...this.testById.values()].map(TestResultItem.serializeWithoutMessages),
+	}));
+
+	private readonly doSerializeWithMessages = new Lazy((): ISerializedTestResults => ({
+		id: this.id,
+		completedAt: this.completedAt!,
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name })),
+		name: this.name,
+		request: this.request,
+		items: [...this.testById.values()].map(TestResultItem.serialize),
 	}));
 }
 
@@ -691,5 +699,12 @@ export class HydratedTestResult implements ITestResult {
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
 		return this.persist ? this.serialized : undefined;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public toJSONWithMessages(): ISerializedTestResults | undefined {
+		return this.toJSON();
 	}
 }

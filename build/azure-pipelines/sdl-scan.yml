@@ -30,12 +30,13 @@ variables:
     value: x64
   - name: VSCODE_ARCH
     value: x64
+  - name: Codeql.enabled
+    value: true
 
 stages:
   - stage: Windows
     condition: eq(variables.SCAN_WINDOWS, 'true')
-    pool:
-      vmImage: windows-latest
+    pool: vscode-1es-windows
     jobs:
       - job: WindowsJob
         timeoutInMinutes: 0
@@ -102,20 +103,9 @@ stages:
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
             displayName: Setup NPM Registry
 
-          - task: Semmle@1
-            inputs:
-              sourceCodeDirectory: "$(Build.SourcesDirectory)"
-              language: "cpp"
-              buildCommandsString: "yarn --frozen-lockfile --check-files"
-              querySuite: "Required"
-              timeout: "1800"
-              ram: "16384"
-              addProjectDirToScanningExclusionList: true
-            env:
-              npm_config_arch: "$(NPM_ARCH)"
-              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-            displayName: CodeQL
+          - task: CodeQL3000Init@0
+            displayName: CodeQL Initialize
+            condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
@@ -128,6 +118,22 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
               CHILD_CONCURRENCY: 1
             displayName: Install dependencies
+
+          - powershell: |
+              . build/azure-pipelines/win32/exec.ps1
+              . build/azure-pipelines/win32/retry.ps1
+              $ErrorActionPreference = "Stop"
+              retry { exec { yarn compile } }
+            env:
+              npm_config_arch: "$(NPM_ARCH)"
+              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+              GITHUB_TOKEN: "$(github-distro-mixin-password)"
+              CHILD_CONCURRENCY: 1
+            displayName: Compile
+
+          - task: CodeQL3000Finalize@0
+            displayName: CodeQL Finalize
+            condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
@@ -215,7 +221,7 @@ stages:
 
           - script: |
               set -e
-              for i in {1..3}; do # try 3 times
+              for i in {1..5}; do # try 5 times
                 yarn --cwd build --frozen-lockfile --check-files && break
                 if [ $i -eq 3 ]; then
                   echo "Yarn failed too many times" >&2
@@ -248,7 +254,7 @@ stages:
                 export VSCODE_REMOTE_CXX=$(which g++)
               fi
 
-              for i in {1..3}; do # try 3 times
+              for i in {1..5}; do # try 5 times
                 yarn --frozen-lockfile --check-files && break
                 if [ $i -eq 3 ]; then
                   echo "Yarn failed too many times" >&2

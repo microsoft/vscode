@@ -414,6 +414,10 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
 	}
 
+	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		super.renderExpressionElement(node.element, node, data);
+	}
+
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {
 		const variable = <Variable>expression;
 		return {
@@ -525,9 +529,27 @@ const HEX_EDITOR_EDITOR_ID = 'hexEditor.hexedit';
 
 CommandsRegistry.registerCommand({
 	id: VIEW_MEMORY_ID,
-	handler: async (accessor: ServicesAccessor, arg: IVariablesContext, ctx?: (Variable | Expression)[]) => {
-		if (!arg.sessionId || !arg.variable.memoryReference) {
-			return;
+	handler: async (accessor: ServicesAccessor, arg: IVariablesContext | IExpression, ctx?: (Variable | Expression)[]) => {
+		const debugService = accessor.get(IDebugService);
+		let sessionId: string;
+		let memoryReference: string;
+		if ('sessionId' in arg) { // IVariablesContext
+			if (!arg.sessionId || !arg.variable.memoryReference) {
+				return;
+			}
+			sessionId = arg.sessionId;
+			memoryReference = arg.variable.memoryReference;
+		} else { // IExpression
+			if (!arg.memoryReference) {
+				return;
+			}
+			const focused = debugService.getViewModel().focusedSession;
+			if (!focused) {
+				return;
+			}
+
+			sessionId = focused.getId();
+			memoryReference = arg.memoryReference;
 		}
 
 		const commandService = accessor.get(ICommandService);
@@ -536,7 +558,6 @@ CommandsRegistry.registerCommand({
 		const progressService = accessor.get(IProgressService);
 		const extensionService = accessor.get(IExtensionService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const debugService = accessor.get(IDebugService);
 
 		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
 		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
@@ -547,11 +568,11 @@ CommandsRegistry.registerCommand({
 				}
 			*/
 			telemetryService.publicLog('debug/didViewMemory', {
-				debugType: debugService.getModel().getSession(arg.sessionId)?.configuration.type,
+				debugType: debugService.getModel().getSession(sessionId)?.configuration.type,
 			});
 
 			await editorService.openEditor({
-				resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
+				resource: getUriForDebugMemory(sessionId, memoryReference),
 				options: {
 					revealIfOpened: true,
 					override: HEX_EDITOR_EDITOR_ID,

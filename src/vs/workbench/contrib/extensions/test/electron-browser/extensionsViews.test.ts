@@ -100,6 +100,7 @@ suite('ExtensionsViews Tests', () => {
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
 			onDidChangeProfile: Event.None,
+			onDidUpdateExtensionMetadata: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
@@ -425,7 +426,7 @@ suite('ExtensionsViews Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[1][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
@@ -450,7 +451,7 @@ suite('ExtensionsViews Tests', () => {
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended:all').then(result => {
-			const extensionInfos: IExtensionInfo[] = target.args[1][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
 			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
