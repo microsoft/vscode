@@ -2126,7 +2126,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last URL"), original: 'Open Last URL' },
+				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last URL Link"), original: 'Open Last URL Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
