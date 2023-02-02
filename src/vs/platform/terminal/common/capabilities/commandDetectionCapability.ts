@@ -619,7 +619,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
 				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: e.markProperties,
-				replayed: true
+				wasReplayed: true
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
