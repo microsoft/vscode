@@ -68,7 +68,7 @@ const commonLoaders = {
 
 build({
 	entryPoints: [`${srcFolder}/vs/workbench/workbench.desktop.main.js`],
-	platform: 'node',
+	platform: 'browser',
 	external: npmDependencies,
 	bundle: true,
 	outdir: path.join(__dirname, 'out/'),
