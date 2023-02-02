@@ -17,7 +17,7 @@ const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders 
 const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));
 const extensionEnabledApiProposals: Record<string, string[]> = product.extensionEnabledApiProposals ?? {};
 const reservedImplicitActivationEventPrefixes = ['onNotebookSerializer:'];
-const redundantImplicitActivationEventPrefixes = ['onLanguage:', 'onView:', 'onAuthenticationRequest:', 'onCommand:', 'onCustomEditor:'];
+const redundantImplicitActivationEventPrefixes = ['onLanguage:', 'onView:', 'onAuthenticationRequest:', 'onCommand:', 'onCustomEditor:', 'onTerminalProfile:', 'onRenderer:', 'onTerminalQuickFixRequest:', 'onWalkthrough:'];
 
 function isTrustedSVGSource(uri: Uri): boolean {
 	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
@@ -451,6 +451,42 @@ function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
 				activationEvents.add(`onView:${id.value}`);
 			}
 		});
+	});
+
+	// walkthroughs
+	const walkthroughs = findNodeAtLocation(tree, ['contributes', 'walkthroughs']);
+	walkthroughs?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onWalkthrough:${id.value}`);
+		}
+	});
+
+	// notebookRenderers
+	const notebookRenderers = findNodeAtLocation(tree, ['contributes', 'notebookRenderer']);
+	notebookRenderers?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onRenderer:${id.value}`);
+		}
+	});
+
+	// terminalProfiles
+	const terminalProfiles = findNodeAtLocation(tree, ['contributes', 'terminal', 'profiles']);
+	terminalProfiles?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onTerminalProfile:${id.value}`);
+		}
+	});
+
+	// terminalQuickFixes
+	const terminalQuickFixes = findNodeAtLocation(tree, ['contributes', 'terminal', 'quickFixes']);
+	terminalQuickFixes?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['id']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onTerminalQuickFixRequest:${id.value}`);
+		}
 	});
 
 	return activationEvents;
