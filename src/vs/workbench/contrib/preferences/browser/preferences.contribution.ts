@@ -41,10 +41,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -1040,6 +1041,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerKeybindingEditorActions(): void {
+		const that = this;
+
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -1239,6 +1242,36 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 		});
+
+		const profileScopedActionDisposables = this._register(new DisposableStore());
+		const registerProfileScopedActions = () => {
+			profileScopedActionDisposables.clear();
+			profileScopedActionDisposables.add(registerAction2(class DefineKeybindingAction extends Action2 {
+				constructor() {
+					const when = ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString());
+					super({
+						id: 'editor.action.defineKeybinding',
+						title: { value: nls.localize('defineKeybinding.start', "Define Keybinding"), original: 'Define Keybinding' },
+						f1: true,
+						precondition: when,
+						menu: {
+							id: MenuId.EditorContent,
+							when,
+						}
+					});
+				}
+
+				async run(accessor: ServicesAccessor): Promise<void> {
+					const codeEditor = accessor.get(IEditorService).activeTextEditorControl;
+					if (isCodeEditor(codeEditor)) {
+						codeEditor.getContribution<IDefineKeybindingEditorContribution>(DEFINE_KEYBINDING_EDITOR_CONTRIB_ID)?.showDefineKeybindingWidget();
+					}
+				}
+			}));
+		};
+
+		registerProfileScopedActions();
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerProfileScopedActions()));
 	}
 
 	private updatePreferencesEditorMenuItem() {

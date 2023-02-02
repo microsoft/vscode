@@ -491,22 +491,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 			if (conflictingChanges.length > 0) {
-				const yes = localize('resume edit session yes', 'Yes');
-				const cancel = localize('resume edit session cancel', 'Cancel');
 				// Allow to show edit sessions
 
-				const result = await this.dialogService.show(
-					Severity.Warning,
-					conflictingChanges.length > 1 ?
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Warning,
+					message: conflictingChanges.length > 1 ?
 						localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
 						localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
-					[yes, cancel],
-					{
-						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
-						cancelId: 1
-					});
+					detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined
+				});
 
-				if (result.choice === 1) {
+				if (!confirmed) {
 					return;
 				}
 			}

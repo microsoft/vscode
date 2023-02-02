@@ -12,7 +12,6 @@ import { isMacintosh, language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -431,17 +430,16 @@ export class Menubar {
 
 		const confirmBeforeClose = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.isKeyboardEvent(event))) {
-			const { options, buttonIndeces } = massageMessageBoxOptions({
+			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
 					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
-					nls.localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					nls.localize('cancel', "Cancel")
 				],
 				message: nls.localize('quitMessage', "Are you sure you want to quit?")
-			}, this.productService);
+			});
 
-			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, options);
-			return buttonIndeces[response] === 0;
+			return response === 0;
 		}
 
 		return true;
