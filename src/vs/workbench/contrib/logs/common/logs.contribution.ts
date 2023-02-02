@@ -12,7 +12,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { IOutputChannelRegistry, IOutputService, Extensions } from 'vs/workbench/services/output/common/output';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService, ILoggerResource, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerResource, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -20,6 +20,7 @@ import { rendererLogId, showWindowLogActionId } from 'vs/workbench/common/logCon
 import { createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -32,6 +33,19 @@ registerAction2(class extends Action2 {
 	}
 	run(servicesAccessor: ServicesAccessor): Promise<void> {
 		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.setDefaultLogLevel',
+			title: { value: nls.localize('setDefaultLogLevel', "Set Default Log Level"), original: 'Set Default Log Level' },
+			category: Categories.Developer,
+		});
+	}
+	run(servicesAccessor: ServicesAccessor, logLevel: LogLevel, extensionId?: string): Promise<void> {
+		return servicesAccessor.get(IDefaultLogLevelsService).setDefaultLogLevel(logLevel, extensionId);
 	}
 });
 

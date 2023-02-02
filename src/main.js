@@ -227,6 +227,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					} else if (Array.isArray(argvValue)) {
+						for (const value of argvValue) {
+							process.argv.push('--log', value);
+						}
 					}
 					break;
 			}
