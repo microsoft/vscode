@@ -1328,13 +1328,17 @@
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
   integrity sha512-zSUH9HYCw5qsCtd7b31yqkpaCU6jhtkKLkvOOA8yTrIRfBSOFb8PPhgmMicD7B/m+t4PwOJXzU1XDtrM9Fd3/g==
 
-"@vscode/vscode-perf@^0.0.5":
-  version "0.0.5"
-  resolved "https://registry.yarnpkg.com/@vscode/vscode-perf/-/vscode-perf-0.0.5.tgz#08e1308d744c977305d04e4f8230f58695f71c1f"
-  integrity sha512-MA03bCrycSQ8VM9Ln/56+zTGIUMMer3eZAX1Aj4h2APkrQFyKcVGX7539pKhabt0BXvsftJA0SuhbPYfnzLz0w==
+"@vscode/vscode-perf@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-perf/-/vscode-perf-0.0.6.tgz#a2070882c953ba422badcf459d70e15852f93432"
+  integrity sha512-d/deAaHLT2SSA1hXPmPbM0mtm6G4fgBWohirk+AKkL+6IGQCVDeZadvY0yAWpeTeLdQFJcSRkOrXu1S05/eD0w==
   dependencies:
     chalk "^4.x"
     commander "^9.4.0"
+    cookie "^0.5.0"
+    js-base64 "^3.7.4"
+    node-fetch "2.6.8"
+    playwright "^1.29.2"
 
 "@vscode/windows-registry@1.0.6":
   version "1.0.6"
@@ -3110,6 +3114,11 @@ cookie@^0.4.0:
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.4.1.tgz#afd713fe26ebd21ba95ceb61f9a8116e50a537d1"
   integrity sha512-ZwrFkGJxUR3EIoXtO+yVE69Eb7KlixbaeAWfBQB9vVsNn/o+Yw69gBWSSDK825hQNdN+wF8zELf3dFNl/kxkUA==
+
+cookie@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.5.0.tgz#d1f5d71adec6558c58f389987c366aa47e994f8b"
+  integrity sha512-YZ3GUyn/o8gfKJlnlX7g7xq4gyO6OSuhGPKaaGssGB2qgDUS0gPgtTvoyZLTt9Ab6dC4hfc9dV5arkvc/OCmrw==
 
 cookies@~0.8.0:
   version "0.8.0"
@@ -6592,6 +6601,11 @@ jest-worker@^27.0.2:
     merge-stream "^2.0.0"
     supports-color "^8.0.0"
 
+js-base64@^3.7.4:
+  version "3.7.4"
+  resolved "https://registry.yarnpkg.com/js-base64/-/js-base64-3.7.4.tgz#af95b20f23efc8034afd2d1cc5b9d0adf7419037"
+  integrity sha512-wpM/wi20Tl+3ifTyi0RdDckS4YTD4Lf953mBRrpG8547T7hInHNPEj8+ck4gB8VDcGyeAWFK++Wb/fU1BeavKQ==
+
 js-beautify@^1.8.9:
   version "1.8.9"
   resolved "https://registry.yarnpkg.com/js-beautify/-/js-beautify-1.8.9.tgz#08e3c05ead3ecfbd4f512c3895b1cda76c87d523"
@@ -7732,6 +7746,13 @@ node-addon-api@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.3.0.tgz#52a1a0b475193e0928e98e0426a0d1254782b77f"
   integrity sha512-73sE9+3UaLYYFmDsFZnqCInzPyh3MqIwZO9cw58yIqAZhONrrabrYyYe3TuIqtIiOuTXVhsGau8hcrhhwSsDIQ==
 
+node-fetch@2.6.8:
+  version "2.6.8"
+  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.8.tgz#a68d30b162bc1d8fd71a367e81b997e1f4d4937e"
+  integrity sha512-RZ6dBYuj8dRSfxpUSu+NsdF1dpPpluJxwOp+6IoDp/sH2QNDSvurYsAa+F1WxY2RjA1iP93xhcsUoYbF2XBqVg==
+  dependencies:
+    whatwg-url "^5.0.0"
+
 node-fetch@^2.6.0, node-fetch@^2.6.7:
   version "2.6.7"
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.7.tgz#24de9fba827e3b4ae44dc8b20256a379160052ad"
@@ -8512,12 +8533,24 @@ playwright-core@1.27.1:
   resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.27.1.tgz#840ef662e55a3ed759d8b5d3d00a5f885a7184f4"
   integrity sha512-9EmeXDncC2Pmp/z+teoVYlvmPWUC6ejSSYZUln7YaP89Z6lpAaiaAnqroUt/BoLo8tn7WYShcfaCh+xofZa44Q==
 
+playwright-core@1.30.0:
+  version "1.30.0"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.30.0.tgz#de987cea2e86669e3b85732d230c277771873285"
+  integrity sha512-7AnRmTCf+GVYhHbLJsGUtskWTE33SwMZkybJ0v6rqR1boxq2x36U7p1vDRV7HO2IwTZgmycracLxPEJI49wu4g==
+
 playwright@^1.27.1:
   version "1.27.1"
   resolved "https://registry.yarnpkg.com/playwright/-/playwright-1.27.1.tgz#4eecac5899566c589d4220ca8acc16abe8a67450"
   integrity sha512-xXYZ7m36yTtC+oFgqH0eTgullGztKSRMb4yuwLPl8IYSmgBM88QiB+3IWb1mRIC9/NNwcgbG0RwtFlg+EAFQHQ==
   dependencies:
     playwright-core "1.27.1"
+
+playwright@^1.29.2:
+  version "1.30.0"
+  resolved "https://registry.yarnpkg.com/playwright/-/playwright-1.30.0.tgz#b1d7be2d45d97fbb59f829f36f521f12010fe072"
+  integrity sha512-ENbW5o75HYB3YhnMTKJLTErIBExrSlX2ZZ1C/FzmHjUYIfxj/UnI+DWpQr992m+OQVSg0rCExAOlRwB+x+yyIg==
+  dependencies:
+    playwright-core "1.30.0"
 
 plist@^3.0.1:
   version "3.0.5"
