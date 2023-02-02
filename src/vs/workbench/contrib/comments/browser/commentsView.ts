@@ -464,7 +464,20 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.someCommentsExpandedContextKey.set(this.isSomeCommentsExpanded());
 	}
 
-	private isSomeCommentsExpanded(): boolean {
+	public areAllCommentsExpanded(): boolean {
+		if (!this.tree) {
+			return false;
+		}
+		const navigator = this.tree.navigate();
+		while (navigator.next()) {
+			if (this.tree.isCollapsed(navigator.current())) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public isSomeCommentsExpanded(): boolean {
 		if (!this.tree) {
 			return false;
 		}
