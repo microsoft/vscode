@@ -176,7 +176,7 @@ export class ExtensionLinter {
 						if (activationEvent === '*') {
 							const start = document.positionAt(activationEventNode.offset);
 							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
-							const diagnostic = new Diagnostic(new Range(start, end), starActivation, DiagnosticSeverity.Warning);
+							const diagnostic = new Diagnostic(new Range(start, end), starActivation, DiagnosticSeverity.Information);
 							diagnostic.code = {
 								value: 'star-activation',
 								target: Uri.parse('https://code.visualstudio.com/api/references/activation-events#Start-up'),
