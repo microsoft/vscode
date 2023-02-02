@@ -33,6 +33,7 @@ const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs requ
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
 const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
+const starActivation = l10n.t("Star activation bad");
 
 enum Context {
 	ICON,
@@ -155,18 +156,27 @@ export class ExtensionLinter {
 				if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
 					for (const activationEventNode of activationEventsNode.children) {
 						const activationEvent = getNodeValue(activationEventNode);
+						// Redundant Implicit Activation
 						if (info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
 							const start = document.positionAt(activationEventNode.offset);
 							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
 							diagnostics.push(new Diagnostic(new Range(start, end), redundantImplicitActivationEvent, DiagnosticSeverity.Warning));
-						} else {
-							for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {
-								if (activationEvent.startsWith(implicitActivationEventPrefix)) {
-									const start = document.positionAt(activationEventNode.offset);
-									const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
-									diagnostics.push(new Diagnostic(new Range(start, end), implicitActivationEvent, DiagnosticSeverity.Error));
-								}
+						}
+
+						// Reserved Implicit Activation
+						for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {
+							if (activationEvent.startsWith(implicitActivationEventPrefix)) {
+								const start = document.positionAt(activationEventNode.offset);
+								const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
+								diagnostics.push(new Diagnostic(new Range(start, end), implicitActivationEvent, DiagnosticSeverity.Error));
 							}
+						}
+
+						// Star activation
+						if (activationEvent === '*') {
+							const start = document.positionAt(activationEventNode.offset);
+							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
+							diagnostics.push(new Diagnostic(new Range(start, end), starActivation, DiagnosticSeverity.Warning));
 						}
 					}
 				}
