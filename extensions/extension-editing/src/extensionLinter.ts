@@ -489,5 +489,14 @@ function parseImplicitActivationEvents(tree: JsonNode): Set<string> {
 		}
 	});
 
+	// tasks
+	const tasks = findNodeAtLocation(tree, ['contributes', 'taskDefinitions']);
+	tasks?.children?.forEach(child => {
+		const id = findNodeAtLocation(child, ['type']);
+		if (id && id.type === 'string') {
+			activationEvents.add(`onTaskType:${id.value}`);
+		}
+	});
+
 	return activationEvents;
 }
