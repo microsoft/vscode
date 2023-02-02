@@ -38,16 +38,29 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
-		this._providers.set(id, provider);
-		const selector = this._selectors.get(id);
-		if (!selector) {
-			throw new Error(`No registered selector for ID: ${id}`);
-		}
-		this._onDidRegisterProvider.fire({ selector, provider });
+		// This is more complicated than it looks like it should be because we need to return an
+		// IDisposable synchronously but we must await ITerminalContributionService.quickFixes
+		// asynchronously before actually registering the provider.
+		let disposed = false;
+		this._terminalContributionService.quickFixes.then(() => {
+			if (disposed) {
+				return;
+			}
+			this._providers.set(id, provider);
+			const selector = this._selectors.get(id);
+			if (!selector) {
+				throw new Error(`No registered selector for ID: ${id}`);
+			}
+			this._onDidRegisterProvider.fire({ selector, provider });
+		});
 		return toDisposable(() => {
-			this._selectors.delete(id);
+			disposed = true;
 			this._providers.delete(id);
-			this._onDidUnregisterProvider.fire(selector.id);
+			const selector = this._selectors.get(id);
+			if (selector) {
+				this._selectors.delete(id);
+				this._onDidUnregisterProvider.fire(selector.id);
+			}
 		});
 	}
 }
