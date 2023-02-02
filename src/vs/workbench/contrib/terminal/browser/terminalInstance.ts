@@ -2729,7 +2729,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.appendChild(this._contentDomNode);
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
-			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
+			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
 			}
 		}));
@@ -2778,8 +2778,9 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 			if (co === readMore) {
 				const link: HTMLElement = document.createElement('a');
 				elt.appendChild(link);
+				elt.tabIndex = 0;
 				link.setAttribute('href', 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
-				this._register(dom.addStandardDisposableListener(link, 'keydown', event => {
+				this._register(dom.addStandardDisposableListener(elt, 'keydown', event => {
 					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
 						this._openerService.open('https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
 					}
