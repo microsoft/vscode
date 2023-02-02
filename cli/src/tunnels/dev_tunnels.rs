@@ -635,7 +635,6 @@ impl DevTunnels {
 		mut use_random_name: bool,
 	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_all_server_tunnels().await?;
-		println!("{:?}", existing_tunnels);
 		let is_name_free = |n: &str| {
 			!existing_tunnels.iter().any(|v| {
 				v.status
