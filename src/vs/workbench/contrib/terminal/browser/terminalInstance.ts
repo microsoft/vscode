@@ -2703,7 +2703,7 @@ const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
 const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
 const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
-const readMore = nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.');
+const readMore = nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility.');
 const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
 const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
 const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
@@ -2715,7 +2715,8 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _contentDomNode: FastDomNode<HTMLElement>;
 	constructor(
 		private readonly _hasShellIntegration: boolean,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 		this._domNode = createFastDomNode(document.createElement('div'));
@@ -2726,9 +2727,8 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._domNode.setAttribute('role', 'dialog');
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.appendChild(this._contentDomNode);
-		this.onblur(this._contentDomNode.domNode, () => this.hide());
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
-			if (e.keyCode === KeyCode.Escape) {
+			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
 				this.hide();
 			}
 		}));
@@ -2762,7 +2762,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	}
 
 	private _buildContent(): void {
-		const content = [introMessage];
+		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
@@ -2771,8 +2771,22 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
 		content.push(readMore, dismiss);
-		const joinedContent = content.join('\n\n');
-		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
-		this._contentDomNode.domNode.setAttribute('aria-label', joinedContent);
+		for (const co of content) {
+			const elt = renderFormattedText(co);
+			if (co === readMore) {
+				const link: HTMLElement = document.createElement('a');
+				elt.appendChild(link);
+				link.setAttribute('href', 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
+				this._register(dom.addStandardDisposableListener(link, 'keydown', event => {
+					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+						this._openerService.open('https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
+					}
+				}));
+			}
+			elt.ariaLabel = co;
+			this._contentDomNode.domNode.appendChild(elt);
+		}
+		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
 	}
 }
+
