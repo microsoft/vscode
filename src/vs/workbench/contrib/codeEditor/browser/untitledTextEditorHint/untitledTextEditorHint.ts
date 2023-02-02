@@ -113,7 +113,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 					'Preserve double-square brackets and their order',
 					'language refers to a programming language'
 				]
-			}, '[[Select a language]], [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			}, '[[Select a language]], or [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
 			const hintHandler: IContentActionHandler = {
 				disposables: this.toDispose,
 				callback: (index, event) => {
