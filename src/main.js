@@ -550,6 +550,17 @@ async function mkdirpIgnoreError(dir) {
 
 //#region NLS Support
 
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
 /**
  * Resolve the NLS configuration
  *
@@ -586,15 +597,8 @@ async function resolveNlsConfiguration() {
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
-
 			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			if (appLocale.startsWith('zh-hans')) {
-				appLocale = 'zh-cn';
-			} else if (appLocale.startsWith('zh-hant')) {
-				appLocale = 'zh-tw';
-			}
+			appLocale = processZhLocale(appLocale.toLowerCase());
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
