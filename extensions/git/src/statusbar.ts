@@ -6,7 +6,7 @@
 import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
 import { Repository } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
-import { Branch, RefType, RemoteSourcePublisher } from './api/git';
+import { Ref, RefType, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { CheckoutOperation, CheckoutTrackingOperation, OperationKind } from './operation';
 
@@ -121,7 +121,7 @@ interface SyncStatusBarState {
 	readonly isCommitRunning: boolean;
 	readonly isSyncRunning: boolean;
 	readonly hasRemotes: boolean;
-	readonly HEAD: Branch | undefined;
+	readonly HEAD: Ref | undefined;
 	readonly remoteSourcePublishers: RemoteSourcePublisher[];
 }
 
@@ -225,7 +225,7 @@ class SyncStatusBar {
 		let command = '';
 		let tooltip = '';
 
-		if (HEAD && HEAD.name && HEAD.commit) {
+		if (HEAD && HEAD.type === RefType.Head && HEAD.name && HEAD.commit) {
 			if (HEAD.upstream) {
 				if (HEAD.ahead || HEAD.behind) {
 					text += this.repository.syncLabel;

@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
+import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, BranchRef } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
@@ -2332,11 +2332,11 @@ export class CommandCenter {
 
 			const heads = refs.filter(ref => ref.type === RefType.Head)
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(ref));
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(ref));
 
 			return [...heads, ...remoteHeads];
 		};
@@ -2375,7 +2375,7 @@ export class CommandCenter {
 			const picks = [...heads, ...remoteHeads].map(ref => new RebaseItem(ref));
 
 			// set upstream branch as first
-			if (repository.HEAD?.upstream) {
+			if ((repository.HEAD?.type === RefType.Head || repository.HEAD?.type === RefType.RemoteHead) && repository.HEAD?.upstream) {
 				const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
 				const index = picks.findIndex(e => e.ref.name === upstreamName);
 
@@ -2499,10 +2499,10 @@ export class CommandCenter {
 
 		const remoteItems: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
 
-		if (repository.HEAD?.upstream?.remote) {
+		if ((repository.HEAD?.type === RefType.Head || repository.HEAD?.type === RefType.RemoteHead) && repository.HEAD?.upstream?.remote) {
 			// Move default remote to the top
 			const defaultRemoteIndex = remoteItems
-				.findIndex(r => r.remoteName === repository.HEAD!.upstream!.remote);
+				.findIndex(r => r.remoteName === (repository.HEAD as BranchRef).upstream!.remote);
 
 			if (defaultRemoteIndex !== -1) {
 				remoteItems.splice(0, 0, ...remoteItems.splice(defaultRemoteIndex, 1));
@@ -2838,7 +2838,7 @@ export class CommandCenter {
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 
-		if (!HEAD) {
+		if (!HEAD || HEAD.type !== RefType.Head) {
 			return;
 		} else if (!HEAD.upstream) {
 			this._push(repository, { pushType: PushType.Push });
@@ -2892,7 +2892,7 @@ export class CommandCenter {
 
 			const HEAD = repository.HEAD;
 
-			if (!HEAD || !HEAD.upstream) {
+			if (!HEAD || HEAD.type !== RefType.Head || !HEAD.upstream) {
 				return;
 			}
 

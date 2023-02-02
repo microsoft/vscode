@@ -15,7 +15,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
+import { Ref, RefType, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, BranchRef } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -2085,8 +2085,8 @@ export class Repository {
 		}
 	}
 
-	async getHEADRef(): Promise<Branch | undefined> {
-		let HEAD: Branch | undefined;
+	async getHEADRef(): Promise<Ref | undefined> {
+		let HEAD: Ref | undefined;
 
 		try {
 			HEAD = await this.getHEAD();
@@ -2107,6 +2107,7 @@ export class Repository {
 			// noop
 		}
 
+		// Commit
 		return HEAD;
 	}
 
@@ -2139,7 +2140,7 @@ export class Repository {
 			throw new Error('Error parsing HEAD');
 		}
 
-		return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
+		return { name: undefined, commit: result.stdout.trim(), type: RefType.Commit };
 	}
 
 	async getHEADFS(): Promise<Ref> {
@@ -2154,18 +2155,18 @@ export class Repository {
 		// Detached
 		const commitMatch = raw.match(/^(?<commit>[0-9a-f]{40})$/m);
 		if (commitMatch?.groups?.commit) {
-			return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Head };
+			return { name: undefined, commit: commitMatch.groups.commit, type: RefType.Commit };
 		}
 
 		throw new Error(`Unable to parse HEAD file. HEAD file contents: ${raw}.`);
 	}
 
-	async findTrackingBranches(upstreamBranch: string): Promise<Branch[]> {
+	async findTrackingBranches(upstreamBranch: string): Promise<BranchRef[]> {
 		const result = await this.exec(['for-each-ref', '--format', '%(refname:short)%00%(upstream:short)', 'refs/heads']);
 		return result.stdout.trim().split('\n')
 			.map(line => line.trim().split('\0'))
 			.filter(([_, upstream]) => upstream === upstreamBranch)
-			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
+			.map(([ref]) => ({ name: ref, type: RefType.Head } as BranchRef));
 	}
 
 	async getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
@@ -2325,7 +2326,7 @@ export class Repository {
 		return remotes;
 	}
 
-	async getBranch(name: string): Promise<Branch> {
+	async getBranch(name: string): Promise<BranchRef> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
 		}
@@ -2349,7 +2350,7 @@ export class Repository {
 		}
 
 		const result = await this.exec(args);
-		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
+		const branches: BranchRef[] = result.stdout.trim().split('\n').map<BranchRef | undefined>(line => {
 			let [branchName, upstream, ref, status, remoteName, upstreamRef] = line.trim().split('\0');
 
 			if (branchName.startsWith('refs/heads/')) {
@@ -2387,7 +2388,7 @@ export class Repository {
 			} else {
 				return undefined;
 			}
-		}).filter((b?: Branch): b is Branch => !!b);
+		}).filter((b?: BranchRef): b is BranchRef => !!b);
 
 		if (branches.length) {
 			const [branch] = branches;
@@ -2405,7 +2406,7 @@ export class Repository {
 			return branch;
 		}
 
-		return Promise.reject<Branch>(new Error('No such branch'));
+		return Promise.reject<BranchRef>(new Error('No such branch'));
 	}
 
 	// TODO: Support core.commentChar
