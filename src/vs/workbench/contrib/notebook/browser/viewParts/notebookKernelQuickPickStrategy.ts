@@ -994,14 +994,14 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	}
 
 	static async resolveKernel(notebook: INotebookTextModel, notebookKernelService: INotebookKernelService, notebookKernelHistoryService: INotebookKernelHistoryService, commandService: ICommandService): Promise<INotebookKernel | undefined> {
-		const { selected } = notebookKernelHistoryService.getKernels(notebook);
+		const alreadySelected = notebookKernelHistoryService.getKernels(notebook);
 
-		if (selected) {
-			return selected;
+		if (alreadySelected.selected) {
+			return alreadySelected.selected;
 		}
 
 		await commandService.executeCommand(SELECT_KERNEL_ID);
-		const kernel = notebookKernelService.getSelectedOrSuggestedKernel(notebook);
-		return kernel;
+		const { selected } = notebookKernelHistoryService.getKernels(notebook);
+		return selected;
 	}
 }
