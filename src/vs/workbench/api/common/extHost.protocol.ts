@@ -118,6 +118,7 @@ export interface CommentChanges {
 	readonly commentReactions?: languages.CommentReaction[];
 	readonly label?: string;
 	readonly mode?: languages.CommentMode;
+	readonly visibility?: languages.CommentVisibility;
 	readonly timestamp?: string;
 }
 
