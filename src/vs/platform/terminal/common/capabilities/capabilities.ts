@@ -222,7 +222,7 @@ export interface ITerminalCommand {
 	commandStartLineContent?: string;
 	markProperties?: IMarkProperties;
 	aliases?: string[][];
-	replayed?: boolean;
+	wasReplayed?: boolean;
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
