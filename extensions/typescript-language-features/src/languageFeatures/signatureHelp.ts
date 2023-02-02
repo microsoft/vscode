@@ -26,7 +26,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		token: vscode.CancellationToken,
 		context: vscode.SignatureHelpContext,
 	): Promise<vscode.SignatureHelp | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
