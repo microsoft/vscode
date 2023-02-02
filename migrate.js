@@ -295,9 +295,11 @@ function patchCSSImportsAdoptedStyleSheet(filePath, fileContents) {
 		replacements.push({ pos: lastImportPos + 1, end: lastImportPos + 1, text: `registerStyleSheet(${variableName});\n` });
 	} while (true);
 
-	const firstImportStart = findFirstImportPosition(fileContents);
-	const cssModuleRelativePath = path.relative(path.dirname(filePath), path.join(__dirname, 'src/vs/base/browser/css')).replace(/\\/g, '/');
-	replacements.push({ pos: firstImportStart, end: firstImportStart, text: `import { registerStyleSheet } from '${cssModuleRelativePath}';\n` });
+	if (replacements.length > 0) {
+		const firstImportStart = findFirstImportPosition(fileContents);
+		const cssModuleRelativePath = path.relative(path.dirname(filePath), path.join(__dirname, 'src/vs/base/browser/css')).replace(/\\/g, '/');
+		replacements.push({ pos: firstImportStart, end: firstImportStart, text: `import { registerStyleSheet } from '${cssModuleRelativePath}';\n` });
+	}
 
 	fileContents = applyReplacements(fileContents, replacements);
 
