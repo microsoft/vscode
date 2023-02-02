@@ -454,8 +454,8 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['off', 'on', 'notRemote'],
 			enumDescriptions: [
 				localize('enableFileLinks.off', "Always off."),
-				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace."),
-				localize('enableFileLinks.on', "Always on.")
+				localize('enableFileLinks.on', "Always on."),
+				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace.")
 			],
 			default: 'on'
 		},

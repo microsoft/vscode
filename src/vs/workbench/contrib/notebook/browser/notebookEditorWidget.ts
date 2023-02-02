@@ -75,7 +75,7 @@ import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDI
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -1159,7 +1159,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (selection) {
 					cell.updateEditState(CellEditState.Editing, 'setOptions');
 					cell.focusMode = CellFocusMode.Editor;
-					await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
+					await this.revealRangeInCenterIfOutsideViewportAsync(cell, new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber || selection.startLineNumber, selection.endColumn || selection.startColumn));
 				} else if (options?.cellRevealType === CellRevealType.NearTopIfOutsideViewport) {
 					await this._list.revealCellAsync(cell, CellRevealType.NearTopIfOutsideViewport);
 				} else {
@@ -1170,16 +1170,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (editor) {
 					if (cellOptions.options?.selection) {
 						const { selection } = cellOptions.options;
-						editor.setSelection({
-							...selection,
-							endLineNumber: selection.endLineNumber || selection.startLineNumber,
-							endColumn: selection.endColumn || selection.startColumn
-						});
+						const editorSelection = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber || selection.startLineNumber, selection.endColumn || selection.startColumn);
+						editor.setSelection(editorSelection);
 						editor.revealPositionInCenterIfOutsideViewport({
 							lineNumber: selection.startLineNumber,
 							column: selection.startColumn
 						});
-						await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
+						await this.revealRangeInCenterIfOutsideViewportAsync(cell, editorSelection);
 					}
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
@@ -1502,15 +1499,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
 
-		this.logService.log('NotebookEditorWidget', 'warmup ' + this.viewModel?.uri.toString());
+		this.logService.debug('NotebookEditorWidget', 'warmup ' + this.viewModel?.uri.toString());
 		await this._resolveWebview();
-		this.logService.log('NotebookEditorWidget', 'warmup - webview resolved');
+		this.logService.debug('NotebookEditorWidget', 'warmup - webview resolved');
 
 		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
 		this._webview!.element.style.visibility = 'hidden';
 		// warm up can take around 200ms to load markdown libraries, etc.
 		await this._warmupViewport(viewModel, viewState);
-		this.logService.log('NotebookEditorWidget', 'warmup - viewport warmed up');
+		this.logService.debug('NotebookEditorWidget', 'warmup - viewport warmed up');
 
 		// todo@rebornix @mjbvz, is this too complicated?
 
@@ -1529,7 +1526,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
 		this._debug('finish initial viewport warmup and view state restore.');
 		this._webview!.element.style.visibility = 'visible';
-		this.logService.log('NotebookEditorWidget', 'warmup - list view model attached, set to visible');
+		this.logService.debug('NotebookEditorWidget', 'warmup - list view model attached, set to visible');
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
@@ -1705,7 +1702,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, _position?: DOM.IDomPosition): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
 			return;
@@ -1717,7 +1714,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement, dimension, /*position*/ undefined);
+			this.updateShadowElement(shadowElement, dimension, position);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1746,7 +1743,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension, /*position*/ undefined);
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -2602,7 +2599,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
-			if (!this._webview) {
+			if (this._isDisposed || !this._webview) {
 				return;
 			}
 
@@ -2630,10 +2627,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const existingOutput = this._webview.insetMapping.get(output.source);
 			if (!existingOutput
 				|| (!existingOutput.renderer && output.type === RenderOutputType.Extension)
-				|| (existingOutput.renderer
-					&& output.type === RenderOutputType.Extension
-					&& existingOutput.renderer.id !== output.renderer.id)
 			) {
+				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+			} else if (existingOutput.renderer
+				&& output.type === RenderOutputType.Extension
+				&& existingOutput.renderer.id !== output.renderer.id) {
+				// switch mimetype
+				this._webview.removeInsets([output.source]);
 				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
@@ -2651,7 +2651,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async updateOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
-			if (!this._webview) {
+			if (this._isDisposed || !this._webview) {
 				return;
 			}
 
@@ -2681,6 +2681,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	removeInset(output: ICellOutputViewModel) {
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+			if (this._isDisposed || !this._webview) {
+				return;
+			}
+
 			if (this._webview?.isResolved()) {
 				this._webview.removeInsets([output]);
 			}
@@ -2689,6 +2693,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	hideInset(output: ICellOutputViewModel) {
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+			if (this._isDisposed || !this._webview) {
+				return;
+			}
+
 			if (this._webview?.isResolved()) {
 				this._webview.hideInset(output);
 			}

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -77,23 +76,13 @@ export class StopTracing extends Action2 {
 		const progressService = accessor.get(IProgressService);
 
 		if (!environmentService.args.trace) {
-			const { choice } = await dialogService.show(
-				Severity.Info,
-				localize('stopTracing.message', "Tracing requires to launch with a '--trace' argument"),
-				[
-					localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
-					localize('cancel', "Cancel")
-				],
-				{
-					cancelId: 1
-				}
-			);
+			const { confirmed } = await dialogService.confirm({
+				message: localize('stopTracing.message', "Tracing requires to launch with a '--trace' argument"),
+				primaryButton: localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
+			});
 
-			switch (choice) {
-				case 0:
-					return nativeHostService.relaunch({ addArgs: ['--trace'] });
-				case 1:
-					return; // canceled
+			if (confirmed) {
+				return nativeHostService.relaunch({ addArgs: ['--trace'] });
 			}
 		}
 

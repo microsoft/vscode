@@ -9,5 +9,6 @@ export const INotebookLoggingService = createDecorator<INotebookLoggingService>(
 
 export interface INotebookLoggingService {
 	readonly _serviceBrand: undefined;
-	log(category: string, output: string): void;
+	info(category: string, output: string): void;
+	debug(category: string, output: string): void;
 }

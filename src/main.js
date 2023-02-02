@@ -107,7 +107,7 @@ if (locale) {
 // Pseudo Language Language Pack is being used.
 // In that case, use `en` as the Electron locale.
 
-if (process.platform === 'win32') {
+if (process.platform === 'win32' || process.platform === 'linux') {
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -227,6 +227,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					} else if (Array.isArray(argvValue)) {
+						for (const value of argvValue) {
+							process.argv.push('--log', value);
+						}
 					}
 					break;
 			}
@@ -550,6 +554,26 @@ async function mkdirpIgnoreError(dir) {
 
 //#region NLS Support
 
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
 /**
  * Resolve the NLS configuration
  *
@@ -575,7 +599,7 @@ async function resolveNlsConfiguration() {
 		// VS Code moves to Electron 22.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
-		if (process.platform === 'win32'
+		if ((process.platform === 'win32' || process.platform === 'linux')
 			&& 'getPreferredSystemLanguages' in app
 			&& typeof app.getPreferredSystemLanguages === 'function'
 			&& app.getPreferredSystemLanguages().length) {
@@ -586,15 +610,8 @@ async function resolveNlsConfiguration() {
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
-
 			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			if (appLocale.startsWith('zh-hans')) {
-				appLocale = 'zh-cn';
-			} else if (appLocale.startsWith('zh-hant')) {
-				appLocale = 'zh-tw';
-			}
+			appLocale = processZhLocale(appLocale.toLowerCase());
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);

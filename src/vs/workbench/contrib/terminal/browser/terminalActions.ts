@@ -188,12 +188,8 @@ export function registerTerminalActions() {
 					primary: KeyMod.Alt | KeyCode.F1,
 					weight: KeybindingWeight.WorkbenchContrib,
 					linux: {
-						primary: KeyMod.Shift | KeyCode.F1,
-						secondary: [KeyMod.Shift | KeyCode.F1]
-					},
-					win: {
-						primary: KeyMod.Shift | KeyCode.F1,
-						secondary: [KeyMod.Shift | KeyCode.F1]
+						primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+						secondary: [KeyMod.Alt | KeyCode.F1]
 					},
 					when: TerminalContextKeys.focus
 				}
@@ -2252,8 +2248,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ClearCommandHistory,
-				title: { value: localize('workbench.action.terminal.clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+				id: TerminalCommandId.ClearPreviousSessionHistory,
+				title: { value: localize('workbench.action.terminal.clearPreviousSessionHistory', "Clear Previous Session History"), original: 'Clear Previous Session History' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
@@ -2388,7 +2384,7 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.focus,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.Period,
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
 		}

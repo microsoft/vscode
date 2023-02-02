@@ -132,6 +132,11 @@ export interface IReplElement extends ITreeElement {
 	readonly sourceData?: IReplElementSource;
 }
 
+export interface INestingReplElement extends IReplElement {
+	readonly hasChildren: boolean;
+	getChildren(): Promise<IReplElement[]> | IReplElement[];
+}
+
 export interface IReplElementSource {
 	readonly source: Source;
 	readonly lineNumber: number;
@@ -291,6 +296,31 @@ export interface IMemoryRegion extends IDisposable {
 	write(offset: number, data: VSBuffer): Promise<number>;
 }
 
+/** Data that can be inserted in {@link IDebugSession.appendToRepl} */
+export interface INewReplElementData {
+	/**
+	 * Output string to display
+	 */
+	output: string;
+
+	/**
+	 * Expression data to display. Will result in the item being expandable in
+	 * the REPL. Its value will be used if {@link output} is not provided.
+	 */
+	expression?: IExpression;
+
+	/**
+	 * Output severity.
+	 */
+	sev: severity;
+
+	/**
+	 * Originating location.
+	 */
+	source?: IReplElementSource;
+}
+
+
 export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
@@ -332,7 +362,7 @@ export interface IDebugSession extends ITreeElement {
 	hasSeparateRepl(): boolean;
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
-	appendToRepl(data: string | IExpression, severity: severity, isImportant?: boolean, source?: IReplElementSource): void;
+	appendToRepl(data: INewReplElementData): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;

@@ -226,7 +226,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('export profile', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						value: localize('export profile', "Export Profile..."),
 						original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					category: PROFILES_CATEGORY,
