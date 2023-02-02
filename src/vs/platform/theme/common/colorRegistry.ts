@@ -577,7 +577,7 @@ export const chartsPurple = registerColor('charts.purple', { dark: '#B180D7', li
 
 // ----- color functions
 
-export function executeTransform(transform: ColorTransform, theme: IColorTheme) {
+export function executeTransform(transform: ColorTransform, theme: IColorTheme): Color | undefined {
 	switch (transform.op) {
 		case ColorTransformType.Darken:
 			return resolveColorValue(transform.value, theme)?.darken(transform.factor);
@@ -591,7 +591,7 @@ export function executeTransform(transform: ColorTransform, theme: IColorTheme) 
 		case ColorTransformType.Opaque: {
 			const backgroundColor = resolveColorValue(transform.background, theme);
 			if (!backgroundColor) {
-				return transform.value;
+				return resolveColorValue(transform.value, theme);
 			}
 			return resolveColorValue(transform.value, theme)?.makeOpaque(backgroundColor);
 		}
