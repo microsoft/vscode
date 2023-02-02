@@ -66,23 +66,61 @@ const commonLoaders = {
 	'.sh': 'file',
 };
 
-build({
-	entryPoints: [`${srcFolder}/vs/workbench/workbench.desktop.main.js`],
-	platform: 'browser',
-	external: npmDependencies,
+/**
+ * @type {import('esbuild').BuildOptions} BuildOptions
+ */
+const commonOptions = {
 	bundle: true,
-	outdir: path.join(__dirname, 'out/'),
-	loader: commonLoaders,
-	format: 'esm'
+	minify: false,
+	platform: 'browser',
+	loader: commonLoaders
+};
+
+build({
+	...commonOptions,
+	entryPoints: [`${srcFolder}/vs/workbench/workbench.desktop.main.ts`],
+	outdir: path.join(dstFolder, 'vs/workbench/'),
+	external: npmDependencies,
+	format: 'esm' // exports: main
 });
 
 build({
-	entryPoints: [`${srcFolder}/vs/code/electron-main/main.js`],
-	platform: 'node',
+	...commonOptions,
+	entryPoints: [`${srcFolder}/vs/code/browser/workbench/workbench.ts`],
+	outdir: path.join(dstFolder, 'vs/code/browser/workbench'),
 	external: npmDependencies,
-	bundle: true,
-	outdir: path.join(__dirname, 'out/'),
-	loader: commonLoaders,
+	format: 'esm' // exports: main
+});
+
+build({
+	...commonOptions,
+	entryPoints: [`${srcFolder}/vs/base/common/worker/simpleWorker.ts`],
+	outdir: path.join(dstFolder, 'vs/base/common/worker/'),
+	format: 'esm' // exports: create
+});
+
+build({
+	...commonOptions,
+	entryPoints: [`${srcFolder}/vs/editor/common/services/editorSimpleWorker.ts`],
+	outdir: path.join(dstFolder, 'vs/editor/common/services/'),
+	format: 'esm' // exports: create
+});
+
+build({
+	...commonOptions,
+	entryPoints: [`${srcFolder}/vs/workbench/api/worker/extensionHostWorker.esm.ts`],
+	outdir: path.join(dstFolder, 'vs/workbench/api/worker/'),
+	external: npmDependencies,
+	treeShaking: true,
+	format: 'iife'
+});
+
+build({
+	...commonOptions,
+	platform: 'node',
+	entryPoints: [`${srcFolder}/vs/code/electron-main/main.js`],
+	outdir: path.join(dstFolder, 'vs/code/electron-main/'),
+	external: npmDependencies,
 	format: 'esm'
 });
 
