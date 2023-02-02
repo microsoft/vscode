@@ -427,6 +427,11 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.changes', '_workbench.changes', 'Opens the provided resources in the changes editor to compare their contents.',
+		[],
+		ApiCommandResult.Void
+	),
 	// --- type hierarchy
 	new ApiCommand(
 		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',

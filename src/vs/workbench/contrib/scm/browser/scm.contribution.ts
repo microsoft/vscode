@@ -32,6 +32,9 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { EditorExtensions } from 'vs/workbench/common/editor';
+import { SCMChangesEditor } from 'vs/workbench/contrib/scm/browser/scmChangesEditor';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -384,6 +387,25 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	},
 	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
 });
+
+/**
+ * Changes Editor
+ */
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		SCMChangesEditor,
+		SCMChangesEditor.ID,
+		'Source Control Changes Editor'
+	),
+	[
+		new SyncDescriptor(SCMChangesEditorInput)
+	]
+);
+
+/**
+ * Services
+ */
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);

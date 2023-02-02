@@ -558,6 +558,24 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
+	// partial, renderer-side API command to open diff editor
+	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
+	CommandsRegistry.registerCommand({
+		id: 'vscode.changes',
+		handler: (accessor, left, right, label) => {
+			console.log('handler');
+			//accessor.get(ICommandService).executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
+		},
+		description: {
+			description: 'Opens the provided resources in the diff editor to compare their contents.',
+			args: [
+				{ name: 'left', description: 'Left-hand side resource of the diff editor' },
+				{ name: 'right', description: 'Right-hand side resource of the diff editor' },
+				{ name: 'title', description: 'Human readable title for the diff editor' },
+			]
+		}
+	});
+
 	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, labelAndOrDescription?: string | { label: string; description: string }, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);

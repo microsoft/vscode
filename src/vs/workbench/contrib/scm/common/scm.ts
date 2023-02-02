@@ -209,3 +209,7 @@ export interface ISCMViewService {
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
 }
+
+export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
+
+export interface ISCMChangesEditor { }
