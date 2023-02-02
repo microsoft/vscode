@@ -1640,13 +1640,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _restoreSelectedKernel(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.selectedKernelId && this.textModel) {
-			const matching = this.notebookKernelService.getMatchingKernel(this.textModel);
-			const kernel = matching.all.find(k => k.id === viewState.selectedKernelId);
-			// Selected kernel may have already been picked prior to the view state loading
-			// If so, don't overwrite it with the saved kernel.
-			if (kernel && !matching.selected) {
-				this.notebookKernelService.selectKernelForNotebook(kernel, this.textModel);
-			}
+			this.notebookKernelService.restoreKernelIdForNotebook(viewState.selectedKernelId, this.textModel);
 		}
 	}
 

@@ -118,6 +118,12 @@ export interface INotebookKernelService {
 	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
+	 * Restore a previously selected kernel id. The kernel may or may not be registered yet
+	 * when this is called.
+	 */
+	restoreKernelIdForNotebook(kernelId: string, notebook: INotebookTextModelLike): void;
+
+	/**
 	 * Set the kernel that a notebook should use when it starts up
 	 */
 	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
