@@ -33,7 +33,7 @@ const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs requ
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
 const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
-const starActivation = l10n.t("Star activation bad");
+const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
 
 enum Context {
 	ICON,
@@ -176,7 +176,12 @@ export class ExtensionLinter {
 						if (activationEvent === '*') {
 							const start = document.positionAt(activationEventNode.offset);
 							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
-							diagnostics.push(new Diagnostic(new Range(start, end), starActivation, DiagnosticSeverity.Warning));
+							const diagnostic = new Diagnostic(new Range(start, end), starActivation, DiagnosticSeverity.Warning);
+							diagnostic.code = {
+								value: 'star-activation',
+								target: Uri.parse('https://code.visualstudio.com/api/references/activation-events#Start-up'),
+							};
+							diagnostics.push(diagnostic);
 						}
 					}
 				}
