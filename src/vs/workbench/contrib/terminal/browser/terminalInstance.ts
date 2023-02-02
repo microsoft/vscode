@@ -2779,7 +2779,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 				const link: HTMLElement = document.createElement('a');
 				elt.appendChild(link);
 				elt.tabIndex = 0;
-				link.ariaLabel = 'Read more about terminal accessibility';
+				link.ariaLabel = 'Press enter to open a link and read more about terminal accessibility';
 				link.setAttribute('href', 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
 				this._register(dom.addStandardDisposableListener(elt, 'keydown', event => {
 					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
