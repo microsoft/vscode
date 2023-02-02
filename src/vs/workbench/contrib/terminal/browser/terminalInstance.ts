@@ -74,12 +74,11 @@ import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/bro
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalQuickFixAddon, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
-import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -87,7 +86,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
@@ -184,8 +183,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _terminalShellIntegrationEnabledContextKey: IContextKey<boolean>;
-	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
-	private _navigationModeActiveContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _fixedCols: number | undefined;
@@ -203,7 +200,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = new TerminalWidgetManager();
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget; disposable: IDisposable } | undefined;
-	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 	private _dndObserver: IDisposable | undefined;
 	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
 	private _lastLayoutDimensions: dom.Dimension | undefined;
@@ -303,7 +299,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	get shellType(): TerminalShellType | undefined { return this._shellType; }
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
-	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return this._wrapperElement.contains(document.activeElement) ?? false; }
@@ -461,8 +456,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(scopedContextKeyService);
 		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(scopedContextKeyService);
 		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(scopedContextKeyService);
-		this._terminalA11yTreeFocusContextKey = TerminalContextKeys.a11yTreeFocus.bindTo(scopedContextKeyService);
-		this._navigationModeActiveContextKey = TerminalContextKeys.navigationModeActive.bindTo(scopedContextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
@@ -1880,15 +1873,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	updateAccessibilitySupport(): void {
-		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
-		if (isEnabled && this.xterm?.raw) {
-			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey, this._navigationModeActiveContextKey);
-			this.xterm!.raw.loadAddon(this._navigationModeAddon);
-		} else {
-			this._navigationModeAddon?.dispose();
-			this._navigationModeAddon = undefined;
-		}
-		this.xterm!.raw.options.screenReaderMode = isEnabled;
+		this.xterm!.raw.options.screenReaderMode = this._accessibilityService.isScreenReaderOptimized();
 	}
 
 	private _setCommandsToSkipShell(commands: string[]): void {
@@ -2003,11 +1988,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ShowTerminalAccessibilityHelp)?.getLabel();
 			if (accessibilityHelpKeybinding) {
 				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
-			}
-			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
-			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
-			if (navigateUpKeybinding && navigateDownKeybinding) {
-				labelParts.push(nls.localize('terminalNavigationMode', "Use {0} and {1} to navigate the terminal buffer", navigateUpKeybinding, navigateDownKeybinding));
 			}
 			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
 		}
