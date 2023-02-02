@@ -271,33 +271,6 @@ function rewriteDefaultImports(fileContents) {
  * @param {string} filePath
  * @param {string} fileContents
  */
-function patchCSSImportsImportOnly(filePath, fileContents) {
-	const search = /import ['"]vs\/css!([^'"]+)['"];/g;
-
-	/** @type {Replacement[]} */
-	const replacements = [];
-	do {
-		const m = search.exec(fileContents);
-		if (!m) {
-			break;
-		}
-
-		const pos = m.index;
-		const end = pos + m[0].length;
-
-		replacements.push({ pos, end, text: `import '${m[1]}.css';` });
-	} while (true);
-
-	fileContents = applyReplacements(fileContents, replacements);
-
-	return fileContents;
-}
-
-/**
- *
- * @param {string} filePath
- * @param {string} fileContents
- */
 function patchCSSImportsAdoptedStyleSheet(filePath, fileContents) {
 	const search = /import ['"]vs\/css!([^'"]+)['"];/g;
 	let lastUsedVariable = 0;
@@ -313,18 +286,36 @@ function patchCSSImportsAdoptedStyleSheet(filePath, fileContents) {
 		const pos = m.index;
 		const end = pos + m[0].length;
 
-		const variableName = `sheet_${++lastUsedVariable}`;
+		const variableName = ++lastUsedVariable === 1 ? 'sheet' : `sheet_${lastUsedVariable}`;
 		replacements.push({ pos, end, text: `import ${variableName} from '${m[1]}.css' assert { type: 'css' };` });
 
 		if (lastImportPos === -1) {
 			lastImportPos = findLastImportPosition(fileContents);
 		}
-		replacements.push({ pos: lastImportPos + 1, end: lastImportPos + 1, text: `document.adoptedStyleSheets.push(${variableName});\n` });
+		replacements.push({ pos: lastImportPos + 1, end: lastImportPos + 1, text: `registerStyleSheet(${variableName});\n` });
 	} while (true);
+
+	const firstImportStart = findFirstImportPosition(fileContents);
+	const cssModuleRelativePath = path.relative(path.dirname(filePath), path.join(__dirname, 'src/vs/base/browser/css')).replace(/\\/g, '/');
+	replacements.push({ pos: firstImportStart, end: firstImportStart, text: `import { registerStyleSheet } from '${cssModuleRelativePath}';\n` });
 
 	fileContents = applyReplacements(fileContents, replacements);
 
 	return fileContents;
+}
+
+/**
+ * @param {string} fileContents
+ */
+function findFirstImportPosition(fileContents) {
+	const search = /import (([^']* from '[^']+')|('[^']+'));/g;
+	do {
+		const m = search.exec(fileContents);
+		if (m) {
+			return m.index;
+		}
+		return 0;
+	} while (true);
 }
 
 /**
