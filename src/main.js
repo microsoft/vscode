@@ -114,7 +114,7 @@ if (locale) {
 // Pseudo Language Language Pack is being used.
 // In that case, use `en` as the Electron locale.
 
-if (process.platform === 'win32') {
+if (process.platform === 'win32' || process.platform === 'linux') {
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -582,7 +582,7 @@ async function resolveNlsConfiguration() {
 		// VS Code moves to Electron 22.
 		// Ref https://github.com/microsoft/vscode/issues/159813
 		// and https://github.com/electron/electron/pull/36035
-		if (process.platform === 'win32'
+		if ((process.platform === 'win32' || process.platform === 'linux')
 			&& 'getPreferredSystemLanguages' in app
 			&& typeof app.getPreferredSystemLanguages === 'function'
 			&& app.getPreferredSystemLanguages().length) {

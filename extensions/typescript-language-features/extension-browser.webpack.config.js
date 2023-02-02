@@ -66,7 +66,7 @@ module.exports = [withBrowserDefaults({
 	module: {
 		exprContextCritical: false,
 	},
-	ignoreWarnings: [/Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/],
+	ignoreWarnings: [/Critical dependency: the request of a dependency is an expression/],
 	output: {
 		// all output goes into `dist`.
 		// packaging depends on that and this must always be like it

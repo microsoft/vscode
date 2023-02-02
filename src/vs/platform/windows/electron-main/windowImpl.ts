@@ -51,7 +51,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -723,7 +722,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					}
 
 					// Show Dialog
-					const { options, buttonIndeces } = massageMessageBoxOptions({
+					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
 						buttons: [
 							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen"),
@@ -733,15 +732,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						message: localize('appStalled', "The window is not responding"),
 						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this.productService);
-
-					const result = await this.dialogMainService.showMessageBox(options, this._win);
-					const buttonIndex = buttonIndeces[result.response];
+					}, this._win);
 
 					// Handle choice
-					if (buttonIndex !== 1 /* keep waiting */) {
-						const reopen = buttonIndex === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+					if (response !== 2 /* keep waiting */) {
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 
@@ -766,7 +762,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 
 						// Show Dialog
-						const { options, buttonIndeces } = massageMessageBoxOptions({
+						const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 							type: 'warning',
 							buttons: [
 								this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
@@ -777,13 +773,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 								localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
 								localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
 							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-						}, this.productService);
-
-						const result = await this.dialogMainService.showMessageBox(options, this._win);
+						}, this._win);
 
 						// Handle choice
-						const reopen = buttonIndeces[result.response] === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 				break;
@@ -826,7 +820,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Inform user
-		const { options, buttonIndeces } = massageMessageBoxOptions({
+		const { response } = await this.dialogMainService.showMessageBox({
 			type: 'error',
 			buttons: [
 				localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
@@ -834,10 +828,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			],
 			message: localize('appGoneAdminMessage', "Running as administrator is not supported in your environment"),
 			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong)
-		}, this.productService);
+		}, this._win);
 
-		const result = await this.dialogMainService.showMessageBox(options, this._win);
-		if (buttonIndeces[result.response] === 0) {
+		if (response === 0) {
 			await this.nativeHostMainService.openExternal(undefined, 'https://go.microsoft.com/fwlink/?linkid=2220179');
 		}
 
