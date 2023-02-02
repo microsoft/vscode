@@ -82,7 +82,7 @@ export class Source {
 				selection,
 				revealIfOpened: true,
 				selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
-				pinned: pinned || (!preserveFocus && !this.inMemory)
+				pinned
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
