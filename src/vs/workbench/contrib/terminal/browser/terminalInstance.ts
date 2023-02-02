@@ -1152,7 +1152,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.buffer || !this._container) {
 			return;
 		}
-		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
 	}
 
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
@@ -2713,6 +2713,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _domNode: FastDomNode<HTMLElement>;
 	private _contentDomNode: FastDomNode<HTMLElement>;
 	constructor(
+		private readonly _instance: ITerminalInstance,
 		private readonly _hasShellIntegration: boolean,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService
@@ -2731,6 +2732,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 				this.hide();
 			}
 		}));
+		this._register(this._instance.onDidFocus(() => this.hide()));
 	}
 
 	public hide(): void {
