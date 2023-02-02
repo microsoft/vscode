@@ -18,7 +18,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -98,7 +98,6 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 const enum Constants {
 	/**
@@ -2703,7 +2702,7 @@ const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
 const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
 const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
-const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility).');
+const readMore = nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility.');
 const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
 const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
 const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
@@ -2714,12 +2713,9 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _domNode: FastDomNode<HTMLElement>;
 	private _contentDomNode: FastDomNode<HTMLElement>;
 	private readonly _hasShellIntegration: boolean;
-	private readonly _markdownRenderer: MarkdownRenderer;
-
 	constructor(
 		instance: ITerminalInstance,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
@@ -2738,7 +2734,6 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 			}
 		}));
 		this._register(instance.onDidFocus(() => this.hide()));
-		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
 	}
 
 	public hide(): void {
@@ -2777,28 +2772,25 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
-		content.push(readMoreLink, dismiss);
-		for (const c of content) {
-			const element = c === readMoreLink ? renderElementAsMarkdown(this._markdownRenderer, this._openerService, readMoreLink, this._register(new DisposableStore())) : renderFormattedText(c);
-			if (c === readMoreLink) {
-				element.classList.add('terminal-help-link');
-				const link: HTMLElement | null = element.querySelector('p a');
-				if (link) {
-					link.tabIndex = 0;
-				}
+		content.push(readMore, dismiss);
+		for (const co of content) {
+			const elt = renderFormattedText(co);
+			if (co === readMore) {
+				const link: HTMLElement = document.createElement('a');
+				elt.appendChild(link);
+				elt.tabIndex = 0;
+				link.ariaLabel = 'Read more about terminal accessibility';
+				link.setAttribute('href', 'https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
+				this._register(dom.addStandardDisposableListener(elt, 'keydown', event => {
+					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+						this._openerService.open('https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility');
+					}
+				}));
 			}
-			element.ariaLabel = c;
-			this._contentDomNode.domNode.appendChild(element);
+			elt.ariaLabel = co;
+			this._contentDomNode.domNode.appendChild(elt);
 		}
 		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
 	}
 }
-function renderElementAsMarkdown(markdownRenderer: MarkdownRenderer, openerSerivce: IOpenerService, text: string, disposables: DisposableStore): HTMLElement {
-	const result = markdownRenderer.render({ value: text, isTrusted: true }, {
-		actionHandler: {
-			callback: (content: string) => openerSerivce.open(content),
-			disposables
-		}
-	});
-	return result.element;
-}
+
