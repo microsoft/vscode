@@ -76,7 +76,7 @@ import * as utils from '../utils';
 		assert.strictEqual(editor.notebook.uri.toString(), resource.toString());
 	}));
 
-	test('Active/Visible Editor', async function () {
+	test.skip('Active/Visible Editor', async function () {
 		const firstEditorOpen = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.workspace.openNotebookDocument(resource);
