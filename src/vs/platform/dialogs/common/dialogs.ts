@@ -625,6 +625,8 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 
 	// Apply HIG per OS when more than one button is used
 	if (buttons.length > 1) {
+		const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
+
 		if (isLinux || isMacintosh) {
 
 			// Linux: the GNOME HIG (https://developer.gnome.org/hig/patterns/feedback/dialogs.html?highlight=dialog)
@@ -648,36 +650,24 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 			// button in the same way as we do on Linux. This will not have any impact on newer macOS versions where
 			// shuffling is done for us.
 
-			const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
+			if (typeof cancelButton === 'string' && buttons.length > 1 && cancelId !== 1) {
+				buttons.splice(cancelId, 1);
+				buttons.splice(1, 0, cancelButton);
 
-			if (isLinux) {
+				const cancelButtonIndex = buttonIndeces[cancelId];
+				buttonIndeces.splice(cancelId, 1);
+				buttonIndeces.splice(1, 0, cancelButtonIndex);
+
+				cancelId = 1;
+			}
+
+			if (isLinux && buttons.length > 1) {
 				buttons = buttons.reverse();
 				buttonIndeces = buttonIndeces.reverse();
 
-				// Since we reverse the buttons, we have to update
-				// positions of the default and cancel buttons as
-				// well because they point to the old order
 				defaultId = buttons.length - 1;
 				if (typeof cancelButton === 'string') {
-					cancelId = buttonIndeces[cancelId];
-				}
-			}
-
-			if (typeof cancelButton === 'string') {
-
-				// Ensure the cancel button is the first button after the default button
-				// This has some obscure rules based on how native macOS dialogs work
-				// so do not change this without having tested the impact!
-
-				if (buttons.length > 2 && cancelId !== 1) {
-					buttons.splice(cancelId, 1);
-					buttons.splice(1, 0, cancelButton);
-
-					const cancelButtonIndex = buttonIndeces[cancelId];
-					buttonIndeces.splice(cancelId, 1);
-					buttonIndeces.splice(1, 0, cancelButtonIndex);
-
-					cancelId = 1;
+					cancelId = defaultId - 1;
 				}
 			}
 		} else if (isWindows) {
@@ -690,19 +680,15 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 			// Electron APIs do not reorder buttons for us, so we ensure the position of the cancel button
 			// (if provided) that matches the HIG
 
-			const cancelButton = typeof cancelId === 'number' ? buttons[cancelId] : undefined;
+			if (typeof cancelButton === 'string' && buttons.length > 1 && cancelId !== buttons.length - 1 /* last action */) {
+				buttons.splice(cancelId, 1);
+				buttons.push(cancelButton);
 
-			if (typeof cancelButton === 'string') {
-				if (cancelId !== buttons.length - 1 /* last action */) {
-					buttons.splice(cancelId, 1);
-					buttons.push(cancelButton);
+				const buttonIndex = buttonIndeces[cancelId];
+				buttonIndeces.splice(cancelId, 1);
+				buttonIndeces.push(buttonIndex);
 
-					const buttonIndex = buttonIndeces[cancelId];
-					buttonIndeces.splice(cancelId, 1);
-					buttonIndeces.push(buttonIndex);
-
-					cancelId = buttons.length - 1;
-				}
+				cancelId = buttons.length - 1;
 			}
 		}
 	}
