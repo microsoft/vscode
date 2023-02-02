@@ -553,6 +553,15 @@ async function mkdirpIgnoreError(dir) {
 function processZhLocale(appLocale) {
 	if (appLocale.startsWith('zh')) {
 		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
 		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
 			return 'zh-cn';
 		}
