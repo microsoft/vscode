@@ -56,6 +56,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_COPIED: return l10n.t('Index Copied');
 			case Status.UNTRACKED: return l10n.t('Untracked');
 			case Status.IGNORED: return l10n.t('Ignored');
+			case Status.RENAMED: return l10n.t('Intent to Add');
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
@@ -70,7 +71,7 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.RENAMED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
 			return this.renameResourceUri;
 		}
 
@@ -130,6 +131,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED: return Resource.Icons[theme].Added;
 			case Status.INDEX_DELETED: return Resource.Icons[theme].Deleted;
 			case Status.DELETED: return Resource.Icons[theme].Deleted;
+			case Status.RENAMED: return Resource.Icons[theme].Renamed;
 			case Status.INDEX_RENAMED: return Resource.Icons[theme].Renamed;
 			case Status.INDEX_COPIED: return Resource.Icons[theme].Copied;
 			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
@@ -191,6 +193,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
 				return 'D';
+			case Status.RENAMED:
 			case Status.INDEX_RENAMED:
 				return 'R';
 			case Status.UNTRACKED:
@@ -227,6 +230,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
+			case Status.RENAMED:
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
 				return new ThemeColor('gitDecoration.renamedResourceForeground');
@@ -553,6 +557,7 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
+			case Status.RENAMED:
 			case Status.INTENT_TO_ADD: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
@@ -2154,6 +2159,7 @@ export class Repository implements Disposable {
 			switch (raw.y) {
 				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
 				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
+				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.RENAMED, useIcons, renameUri)); break;
 				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 			}
 

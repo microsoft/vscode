@@ -127,6 +127,10 @@ class GitDecorationProvider implements FileDecorationProvider {
 				// not deleted and has a decoration
 				bucket.set(r.original.toString(), decoration);
 
+				if (r.type === Status.RENAMED && r.rightUri) {
+					bucket.set(r.rightUri.toString(), decoration);
+				}
+
 				if (r.type === Status.DELETED && r.rightUri) {
 					bucket.set(r.rightUri.toString(), decoration);
 				}
