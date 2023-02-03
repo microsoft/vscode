@@ -38,7 +38,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
+import { getSnippetSuggestSupport, setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -1128,7 +1128,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	test('Snippets gone from IntelliSense #173244', function () {
 
-		const old = setSnippetSuggestSupport({
+		const snippetProvider: CompletionItemProvider = {
 			provideCompletionItems(doc, pos, ctx) {
 				return {
 					suggestions: [{
@@ -1139,8 +1139,14 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					}]
 				};
 			}
-		});
-		disposables.add(toDisposable(() => old && setSnippetSuggestSupport(old)));
+		};
+		const old = setSnippetSuggestSupport(snippetProvider);
+
+		disposables.add(toDisposable(() => {
+			if (getSnippetSuggestSupport() === snippetProvider) {
+				setSnippetSuggestSupport(old);
+			}
+		}));
 
 		disposables.add(registry.register({ scheme: 'test' }, {
 			triggerCharacters: ['.'],
