@@ -140,7 +140,6 @@ function migrateTS(filePath, fileContents) {
 	}
 
 	fileContents = patchCSSImportsAdoptedStyleSheet(filePath, fileContents);
-	// fileContents = patchCSSImportsImportOnly(filePath, fileContents);
 	// fileContents = patchFileAccess(filePath, fileContents);
 
 	const imports = discoverImports(fileContents);
@@ -298,7 +297,7 @@ function patchCSSImportsAdoptedStyleSheet(filePath, fileContents) {
 	if (replacements.length > 0) {
 		const firstImportStart = findFirstImportPosition(fileContents);
 		const cssModuleRelativePath = path.relative(path.dirname(filePath), path.join(__dirname, 'src/vs/base/browser/css')).replace(/\\/g, '/');
-		replacements.push({ pos: firstImportStart, end: firstImportStart, text: `import { registerStyleSheet } from '${cssModuleRelativePath}';\n` });
+		replacements.unshift({ pos: firstImportStart, end: firstImportStart, text: `import { registerStyleSheet } from '${cssModuleRelativePath}';\n` });
 	}
 
 	fileContents = applyReplacements(fileContents, replacements);
