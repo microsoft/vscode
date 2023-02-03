@@ -1147,17 +1147,13 @@ suite('Event utils', () => {
 			const accumulated = Event.accumulate(event, 0);
 
 			const results1 = await new Promise<number[]>(r => {
-				accumulated(e => {
-					r(e);
-				});
+				accumulated(r);
 				eventEmitter.fire(1);
 			});
 			assert.deepStrictEqual(results1, [1]);
 
 			const results2 = await new Promise<number[]>(r => {
-				accumulated(e => {
-					r(e);
-				});
+				accumulated(r);
 				eventEmitter.fire(2);
 			});
 			assert.deepStrictEqual(results2, [2]);
@@ -1168,9 +1164,7 @@ suite('Event utils', () => {
 			const accumulated = Event.accumulate(event, 0);
 
 			const results1 = await new Promise<number[]>(r => {
-				accumulated(e => {
-					r(e);
-				});
+				accumulated(r);
 				eventEmitter.fire(1);
 				eventEmitter.fire(2);
 				eventEmitter.fire(3);
@@ -1178,9 +1172,7 @@ suite('Event utils', () => {
 			assert.deepStrictEqual(results1, [1, 2, 3]);
 
 			const results2 = await new Promise<number[]>(r => {
-				accumulated(e => {
-					r(e);
-				});
+				accumulated(r);
 				eventEmitter.fire(4);
 				eventEmitter.fire(5);
 				eventEmitter.fire(6);
