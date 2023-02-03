@@ -822,8 +822,9 @@ export function patternsEquals(patternsA: Array<string | IRelativePattern> | und
 
 /**
  * Split string given first opportunity for brace expansion in the string.
- * - if the brace is prepended by a \ character, then it is escaped.
+ * - If the brace is prepended by a \ character, then it is escaped.
  * - Does not process escapes that are within the sub-glob.
+ * - If two unescaped `{` occur before `}`, then ripgrep will return an error for brace nesting, so don't split on those.
  */
 function getEscapeAwareSplitString(pattern: string): { fixedStart?: string; strInBraces: string; fixedEnd?: string } {
 	let inBraces = false;
@@ -858,7 +859,7 @@ function getEscapeAwareSplitString(pattern: string): { fixedStart?: string; strI
 					escaped = false;
 				} else {
 					if (inBraces) {
-						// ripgrep treats this as attempting to do an alternating group, which is invalid
+						// ripgrep treats this as attempting to do an alternating group, which is invalid. Return with pattern including changes from escaped braces.
 						return { strInBraces: fixedStart + '{' + strInBraces };
 					} else {
 						inBraces = true;
@@ -895,6 +896,7 @@ function getEscapeAwareSplitString(pattern: string): { fixedStart?: string; strI
 		}
 	}
 
+	// we are haven't hit the last brace, so no splitting should occur. Return with pattern including changes from escaped braces.
 	return { strInBraces: fixedStart + (inBraces ? ('{' + strInBraces) : '') };
 }
 
