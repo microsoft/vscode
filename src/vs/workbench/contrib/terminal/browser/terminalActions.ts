@@ -412,7 +412,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.enterAccessibilityMode', 'Enter Accessibility Mode'), original: 'Enter Accessibility Mode' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 				keybinding: {
 					primary: KeyMod.Shift | KeyCode.Tab,
 					weight: KeybindingWeight.WorkbenchContrib,

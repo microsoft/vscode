@@ -1115,6 +1115,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._accessibilityBuffer) {
 			return;
 		}
+		const accessibleBufferContentEditable = this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
+		this._accessibilityBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
 		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
 		const font = this.xterm.getFont();
 		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
