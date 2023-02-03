@@ -212,6 +212,7 @@ export namespace Event {
 		let output: O | undefined = undefined;
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
+		let doFire: (() => void) | undefined;
 
 		const options: EmitterOptions | undefined = {
 			leakWarningThreshold,
@@ -225,7 +226,7 @@ export namespace Event {
 						output = undefined;
 					}
 
-					const doFire = () => {
+					doFire = () => {
 						const _output = output;
 						output = undefined;
 						handle = undefined;
@@ -246,7 +247,12 @@ export namespace Event {
 					}
 				});
 			},
+			onWillRemoveListener() {
+				// Flush any events when any listener is removed to ensure it gets
+				doFire?.();
+			},
 			onDidRemoveLastListener() {
+				doFire = undefined;
 				subscription.dispose();
 			}
 		};
@@ -557,6 +563,10 @@ export interface EmitterOptions {
 	 */
 	onDidRemoveLastListener?: Function;
 	/**
+	 * Optional function that's called *before* a listener is removed
+	 */
+	onWillRemoveListener?: Function;
+	/**
 	 * Number of listeners that are allowed before assuming a leak. Default to
 	 * a globally configured value
 	 *
@@ -823,6 +833,7 @@ export class Emitter<T> {
 				const result = listener.subscription.set(() => {
 					removeMonitor?.();
 					if (!this._disposed) {
+						this._options?.onWillRemoveListener?.(this);
 						removeListener();
 						if (this._options && this._options.onDidRemoveLastListener) {
 							const hasListeners = (this._listeners && !this._listeners.isEmpty());
