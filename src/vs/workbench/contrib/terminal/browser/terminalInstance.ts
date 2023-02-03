@@ -18,7 +18,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -95,8 +95,8 @@ import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/envi
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 const enum Constants {
 	/**
@@ -1145,7 +1145,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.buffer || !this._container) {
 			return;
 		}
-		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode).attach(this._wrapperElement);
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this).attach(this._wrapperElement);
 	}
 
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
@@ -2682,7 +2682,7 @@ const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
 const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
 const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
-const readMore = nls.localize('readMore', 'Read more about terminal accessibility at https://code.visualstudio.com/docs/terminal/shell-integration.');
+const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
 const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
 const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
 const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
@@ -2692,11 +2692,17 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _container: HTMLElement | undefined;
 	private _domNode: FastDomNode<HTMLElement>;
 	private _contentDomNode: FastDomNode<HTMLElement>;
+	private readonly _hasShellIntegration: boolean;
+	private readonly _markdownRenderer: MarkdownRenderer;
+
 	constructor(
-		private readonly _hasShellIntegration: boolean,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		instance: ITerminalInstance,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
+		this._hasShellIntegration = instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode.setClassName('terminal-accessibility-help');
@@ -2705,12 +2711,13 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._domNode.setAttribute('role', 'dialog');
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.appendChild(this._contentDomNode);
-		this.onblur(this._contentDomNode.domNode, () => this.hide());
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
 			}
 		}));
+		this._register(instance.onDidFocus(() => this.hide()));
+		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
 	}
 
 	public hide(): void {
@@ -2741,17 +2748,29 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	}
 
 	private _buildContent(): void {
-		const content = [introMessage];
+		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb));
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
-		content.push(readMore, dismiss);
-		const joinedContent = content.join('\n\n');
-		this._contentDomNode.domNode.appendChild(renderFormattedText(joinedContent));
-		this._contentDomNode.domNode.setAttribute('aria-label', joinedContent);
+		content.push(readMoreLink, dismiss);
+		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
+		const anchorElements = element.querySelectorAll('a');
+		for (const a of anchorElements) {
+			a.tabIndex = 0;
+		}
+		this._contentDomNode.domNode.appendChild(element);
+		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
 	}
+}
+function renderElementAsMarkdown(markdownRenderer: MarkdownRenderer, openerSerivce: IOpenerService, text: string, disposables: DisposableStore): HTMLElement {
+	const result = markdownRenderer.render({ value: text, isTrusted: true }, {
+		actionHandler: {
+			callback: (content: string) => openerSerivce.open(content),
+			disposables
+		}
+	});
+	return result.element;
 }
