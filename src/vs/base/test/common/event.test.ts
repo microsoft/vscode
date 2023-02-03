@@ -195,6 +195,24 @@ suite('Event', function () {
 		assert.strictEqual(lastCount, 1);
 	});
 
+	test('onWillRemoveListener', () => {
+		let count = 0;
+		const a = new Emitter({
+			onWillRemoveListener() { count += 1; }
+		});
+
+		assert.strictEqual(count, 0);
+
+		let subscription = a.event(function () { });
+		assert.strictEqual(count, 0);
+
+		subscription.dispose();
+		assert.strictEqual(count, 1);
+
+		subscription = a.event(function () { });
+		assert.strictEqual(count, 1);
+	});
+
 	test('throwingListener', () => {
 		const origErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => null);
