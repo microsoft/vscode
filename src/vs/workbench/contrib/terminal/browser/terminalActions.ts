@@ -413,11 +413,19 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-				keybinding: {
-					primary: KeyMod.Shift | KeyCode.Tab,
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: TerminalContextKeys.focus
-				}
+				keybinding: [
+					{
+						primary: KeyMod.Shift | KeyCode.Tab,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus)
+					},
+					{
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyA,
+						mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyA },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(), TerminalContextKeys.focus)
+					}
+				],
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
