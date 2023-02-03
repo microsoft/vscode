@@ -2299,6 +2299,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			listInactiveSelectionForeground: foreground,
 			listInactiveFocusBackground: editorBackground,
 			listInactiveFocusOutline: editorBackground,
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined,
 		}));
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
