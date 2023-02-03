@@ -398,8 +398,8 @@ suite('Strings', () => {
 
 	test('removeAnsiEscapeCodes', () => {
 		const CSI = '\x1b\[';
-		// @see https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
 		const sequences = [
+			// Base cases from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
 			`${CSI}42@`,
 			`${CSI}42 @`,
 			`${CSI}42A`,
@@ -503,6 +503,14 @@ suite('Strings', () => {
 			`${CSI}42$}`,
 			`${CSI}42'~`,
 			`${CSI}42$~`,
+
+			// Common SGR cases:
+			`${CSI}1;31m`, // multiple attrs
+			`${CSI}105m`, // bright background
+			`${CSI}48:5:128m`, // 256 indexed color
+			`${CSI}48;5;128m`, // 256 indexed color alt
+			`${CSI}38:2:0:255:255:255m`, // truecolor
+			`${CSI}38;2;255;255;255m`, // truecolor alt
 		];
 
 		for (const sequence of sequences) {
