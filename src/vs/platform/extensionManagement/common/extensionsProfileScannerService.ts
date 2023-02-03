@@ -9,21 +9,22 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Metadata, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtension, IExtensionIdentifier, isIExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Mutable, isObject, isString } from 'vs/base/common/types';
+import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
 	location: UriComponents | string;
+	relativeLocation: string | undefined;
 	version: string;
 	metadata?: Metadata;
 }
@@ -247,14 +248,23 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						this.reportAndThrowInvalidConentError(file);
 					}
 					let location: URI;
-					if (isString(e.location)) {
+					if (isString(e.relativeLocation)) {
+						// Extension in new format. No migration needed.
+						location = this.resolveExtensionLocation(e.relativeLocation);
+					} else if (isString(e.location)) {
+						// Extension in intermediate format. Migrate to new format.
 						location = this.resolveExtensionLocation(e.location);
+						migrate = true;
+						e.relativeLocation = e.location;
+						// retain old format so that old clients can read it
+						e.location = location.toJSON();
 					} else {
 						location = URI.revive(e.location);
 						const relativePath = this.toRelativePath(location);
 						if (relativePath) {
+							// Extension in old format. Migrate to new format.
 							migrate = true;
-							e.location = relativePath;
+							e.relativeLocation = relativePath;
 						}
 					}
 					extensions.push({
@@ -275,7 +285,9 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					location: this.toRelativePath(e.location) ?? e.location.toJSON(),
+					// retain old format so that old clients can read it
+					location: e.location.toJSON(),
+					relativeLocation: this.toRelativePath(e.location),
 					metadata: e.metadata
 				}));
 				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
@@ -376,6 +388,7 @@ function isStoredProfileExtension(candidate: any): candidate is IStoredProfileEx
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
 		&& (isUriComponents(candidate.location) || isString(candidate.location))
+		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
 		&& candidate.version && isString(candidate.version);
 }
 

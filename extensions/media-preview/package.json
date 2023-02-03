@@ -19,13 +19,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCustomEditor:imagePreview.previewEditor",
-    "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut",
-    "onCustomEditor:vscode.audioPreview",
-    "onCustomEditor:vscode.videoPreview"
-  ],
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {

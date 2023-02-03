@@ -191,4 +191,47 @@ suite('vscode API - languages', () => {
 		assert.ok(result!.items.some(i => i.label === 'foo'), 'Results do not include "foo"');
 	});
 
+	test('folding command', async function () {
+		const content = `[
+			/**
+			 * This is a comment with indentation issues
+		*/
+			{
+				"name": "bag of items",
+				"items": [
+					"foo", "bar"
+				]
+			}
+		]`;
+		const uri = await createRandomFile(content, undefined, '.jsonc');
+		await vscode.workspace.openTextDocument(uri);
+		const jsonExtension = await vscode.extensions.getExtension('vscode.json-language-features');
+		assert.ok(jsonExtension);
+		await jsonExtension.activate();
+		const result1 = await vscode.commands.executeCommand<vscode.FoldingRange[]>('vscode.executeFoldingRangeProvider', uri);
+		assert.deepEqual(result1, [
+			{ start: 0, end: 9 },
+			{ start: 1, end: 3, kind: vscode.FoldingRangeKind.Comment },
+			{ start: 4, end: 8 },
+			{ start: 6, end: 7 },
+		]);
+
+		await vscode.workspace.getConfiguration('editor').update('foldingStrategy', 'indentation');
+		try {
+			const result2 = await vscode.commands.executeCommand<vscode.FoldingRange[]>('vscode.executeFoldingRangeProvider', uri);
+			assert.deepEqual(result2, [
+				{ start: 0, end: 10 },
+				{ start: 1, end: 2 },
+				{ start: 3, end: 9 },
+				{ start: 4, end: 8 },
+				{ start: 6, end: 7 },
+			]);
+			await vscode.workspace.getConfiguration('editor').update('folding', false);
+			const result3 = await vscode.commands.executeCommand<vscode.FoldingRange[]>('vscode.executeFoldingRangeProvider', uri);
+			assert.deepEqual(result3, []);
+		} finally {
+			await vscode.workspace.getConfiguration('editor').update('foldingStrategy', undefined);
+			await vscode.workspace.getConfiguration('editor').update('folding', undefined);
+		}
+	});
 });

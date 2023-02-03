@@ -511,9 +511,6 @@ export class FolderMatch extends Disposable {
 	private _replacingAll: boolean = false;
 	private _name: Lazy<string>;
 
-	// if this is compressed in a node with other FolderMatches, then this is set to the parent where compression starts
-	public compressionStartParent: FolderMatch | undefined;
-
 	constructor(
 		protected _resource: URI | null,
 		private _id: string,

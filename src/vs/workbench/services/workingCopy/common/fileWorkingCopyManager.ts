@@ -11,7 +11,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toLocalResource, joinPath, isEqual, basename, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IFileDialogService, IDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ISaveOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -475,15 +475,14 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
 			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
-			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
-		};
+			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+		});
 
-		const result = await this.dialogService.confirm(confirm);
-		return result.confirmed;
+		return confirmed;
 	}
 
 	private async suggestSavePath(resource: URI): Promise<URI> {

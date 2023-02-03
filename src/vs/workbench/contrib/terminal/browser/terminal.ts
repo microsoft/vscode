@@ -19,7 +19,7 @@ import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/termin
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
-import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { IMarker } from 'xterm';
@@ -653,11 +653,6 @@ export interface ITerminalInstance {
 	 * resize events.
 	 */
 	disableLayout: boolean;
-
-	/**
-	 * Access to the navigation mode accessibility feature.
-	 */
-	readonly navigationMode: INavigationMode | undefined;
 
 	/**
 	 * The description of the terminal, this is typically displayed next to {@link title}.
