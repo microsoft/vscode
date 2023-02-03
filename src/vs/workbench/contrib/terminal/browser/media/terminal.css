@@ -562,21 +562,21 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
-.terminal-help-link {
+.terminal-accessibility-help a {
 	color: var(--vscode-textLink-foreground);
 }
 
-.terminal-help-link:hover {
+.terminal-accessibility-help a:hover {
 	cursor: pointer;
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.terminal-help-link:active {
+.terminal-accessibility-help a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.terminal-help-link:focus {
+.terminal-accessibility-help a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;

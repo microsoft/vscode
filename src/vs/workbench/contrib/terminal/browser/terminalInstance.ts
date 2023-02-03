@@ -96,7 +96,6 @@ import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/envi
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
@@ -2773,23 +2772,16 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb));
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
 		content.push(readMoreLink, dismiss);
-		for (const c of content) {
-			const element = c === readMoreLink ? renderElementAsMarkdown(this._markdownRenderer, this._openerService, readMoreLink, this._register(new DisposableStore())) : renderFormattedText(c);
-			if (c === readMoreLink) {
-				element.classList.add('terminal-help-link');
-				const link: HTMLElement | null = element.querySelector('p a');
-				if (link) {
-					link.tabIndex = 0;
-				}
-			}
-			element.ariaLabel = c;
-			this._contentDomNode.domNode.appendChild(element);
+		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
+		const anchorElements = element.querySelectorAll('a');
+		for (const a of anchorElements) {
+			a.tabIndex = 0;
 		}
+		this._contentDomNode.domNode.appendChild(element);
 		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
 	}
 }
