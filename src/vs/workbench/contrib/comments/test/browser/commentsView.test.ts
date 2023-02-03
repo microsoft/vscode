@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CommentService, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { Comment, CommentInput, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from 'vs/editor/common/languages';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,6 +15,7 @@ import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewConta
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -52,7 +52,11 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		return null;
 	}
 	getViewContainerByViewId(id: string): ViewContainer | null {
-		return null;
+		return {
+			id: 'comments',
+			title: 'Comments',
+			ctorDescriptor: {} as any
+		};
 	}
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel {
 		const partialViewContainerModel: Partial<IViewContainerModel> = {
@@ -67,11 +71,13 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 
 suite('Comments View', function () {
 
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let commentService: ICommentService;
+	let commentService: CommentService;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService({}, disposables);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IContextViewService, {});
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
@@ -79,8 +85,13 @@ suite('Comments View', function () {
 		instantiationService.stub(ICommentService, commentService);
 	});
 
+	teardown(() => {
+		commentService.dispose();
+		disposables.dispose();
+	});
+
 	test('collapse all', async function () {
-		const view = instantiationService.createInstance<CommentsPanel>(new SyncDescriptor(CommentsPanel));
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
 		view.render();
 		commentService.setWorkspaceComments('test', [
 			new TestCommentThread(1, 1, '1', 'test1', new Range(1, 1, 1, 1), [{ body: 'test', uniqueIdInThread: 1, userName: 'alex' }]),
@@ -90,10 +101,11 @@ suite('Comments View', function () {
 		assert.strictEqual(view.areAllCommentsExpanded(), true);
 		view.collapseAll();
 		assert.strictEqual(view.isSomeCommentsExpanded(), false);
+		view.dispose();
 	});
 
 	test('expand all', async function () {
-		const view = instantiationService.createInstance<CommentsPanel>(new SyncDescriptor(CommentsPanel));
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
 		view.render();
 		commentService.setWorkspaceComments('test', [
 			new TestCommentThread(1, 1, '1', 'test1', new Range(1, 1, 1, 1), [{ body: 'test', uniqueIdInThread: 1, userName: 'alex' }]),
@@ -104,10 +116,11 @@ suite('Comments View', function () {
 		assert.strictEqual(view.isSomeCommentsExpanded(), false);
 		view.expandAll();
 		assert.strictEqual(view.areAllCommentsExpanded(), true);
+		view.dispose();
 	});
 
 	test('filter by text', async function () {
-		const view = instantiationService.createInstance<CommentsPanel>(new SyncDescriptor(CommentsPanel));
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
 		view.setVisible(true);
 		view.render();
 		commentService.setWorkspaceComments('test', [
@@ -127,5 +140,6 @@ suite('Comments View', function () {
 		view.filters.showResolved = true;
 		assert.strictEqual(view.getFilterStats().total, 2);
 		assert.strictEqual(view.getFilterStats().filtered, 2);
+		view.dispose();
 	});
 });
