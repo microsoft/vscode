@@ -1916,6 +1916,8 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 		connect() { }
 	};
 
+	registerLifecycleEvents(lifecycleService: ILifecycleService): void { }
+
 	getConnection(): IRemoteAgentConnection | null { return null; }
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }

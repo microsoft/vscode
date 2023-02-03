@@ -12,6 +12,7 @@ import { PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/co
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export const RemoteExtensionLogFileName = 'remoteagent';
 
@@ -21,6 +22,8 @@ export interface IRemoteAgentService {
 	readonly _serviceBrand: undefined;
 
 	readonly socketFactory: ISocketFactory;
+
+	registerLifecycleEvents(lifecycleService: ILifecycleService): void;
 
 	getConnection(): IRemoteAgentConnection | null;
 	/**
@@ -73,4 +76,6 @@ export interface IRemoteAgentConnection {
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
 	getInitialConnectionTimeMs(): Promise<number>;
+
+	disconnect(): Promise<void>;
 }

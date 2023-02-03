@@ -260,11 +260,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		return Promise.resolve(false);
 	}
 
-	override dispose(): void {
-		super.dispose();
-
+	async disconnect(): Promise<void> {
 		this._terminating = true;
-
 		if (this._protocol) {
 			// Send the extension host a request to terminate itself
 			// (graceful termination)
@@ -272,7 +269,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			// console.log(`SENDING TERMINATE TO REMOTE EXT HOST!`);
 			const socket = this._protocol.getSocket();
 			this._protocol.send(createMessageOfType(MessageType.Terminate));
-			this._protocol.sendDisconnect();
+			await this._protocol.sendDisconnectAndWait();
 			this._protocol.dispose();
 			// this._protocol.drain();
 			socket.end();
@@ -280,5 +277,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			// }, 1000);
 		}
 	}
-}
 
+	override dispose(): void {
+		super.dispose();
+	}
+}

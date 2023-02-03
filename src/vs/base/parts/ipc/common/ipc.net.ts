@@ -469,6 +469,26 @@ class ProtocolWriter {
 		this._writeNow();
 	}
 
+	public async writeImmediately(msg: ProtocolMessage): Promise<void> {
+		if (this._isDisposed) {
+			// ignore: there could be left-over promises which complete and then
+			// decide to write a response, etc...
+			return;
+		}
+		msg.writtenTime = Date.now();
+		this.lastWriteTime = Date.now();
+
+		const header = VSBuffer.alloc(ProtocolConstants.HeaderLength);
+		header.writeUInt8(msg.type, 0);
+		header.writeUInt32BE(msg.id, 1);
+		header.writeUInt32BE(msg.ack, 5);
+		header.writeUInt32BE(msg.data.byteLength, 9);
+
+		if (this._bufferAdd(header, msg.data)) {
+			this._writeNow();
+		}
+	}
+
 	public pause(): void {
 		this._isPaused = true;
 	}
@@ -999,6 +1019,20 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
 		this._socketWriter.write(msg);
 		this._socketWriter.flush();
+	}
+
+	async sendDisconnectAndWait(): Promise<void> {
+		const disconnectImpl = async () => {
+			const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
+			await this._socketWriter.writeImmediately(msg);
+			await this._socketWriter.drain();
+			this._socketDisposables.dispose();
+		};
+
+		await Promise.race([
+			disconnectImpl(),
+			new Promise(r => setTimeout(r, 5000))
+		]);
 	}
 
 	sendPause(): void {

@@ -21,6 +21,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -46,6 +47,12 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			this._connection = null;
 		}
 		this._environment = null;
+	}
+
+	// NOTE: This was the least invasive way to do this, because requiring lifecycle service to be injected had huge fallout
+	// because IRemoteAgentService is instantiated manually
+	registerLifecycleEvents(lifecycleService: ILifecycleService): void {
+		lifecycleService.onWillShutdown(e => this.disconnect());
 	}
 
 	getConnection(): IRemoteAgentConnection | null {
@@ -155,6 +162,15 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		return connection.withChannel('remoteextensionsenvironment', (channel) => callback(channel, connection));
 	}
 
+	private async disconnect(): Promise<void> {
+		const connection = this.getConnection();
+		if (!connection) {
+			return;
+		}
+
+		await connection.disconnect();
+	}
+
 	private _withTelemetryChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
 		const connection = this.getConnection();
 		if (!connection) {
@@ -173,7 +189,8 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	public readonly onDidStateChange = this._onDidStateChange.event;
 
 	readonly remoteAuthority: string;
-	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
+	private _connection: ManagementPersistentConnection | null;
+	private _connectionClient: Promise<Client<RemoteAgentConnectionContext>> | null;
 
 	private _initialConnectionMs: number | undefined;
 
@@ -189,6 +206,7 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		super();
 		this.remoteAuthority = remoteAuthority;
 		this._connection = null;
+		this._connectionClient = null;
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
@@ -216,10 +234,10 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	}
 
 	private _getOrCreateConnection(): Promise<Client<RemoteAgentConnectionContext>> {
-		if (!this._connection) {
-			this._connection = this._createConnection();
+		if (!this._connectionClient) {
+			this._connectionClient = this._createConnection();
 		}
-		return this._connection;
+		return this._connectionClient;
 	}
 
 	private async _createConnection(): Promise<Client<RemoteAgentConnectionContext>> {
@@ -255,6 +273,16 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 			connection.dispose();
 		});
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
+
+		this._connection = connection;
 		return connection.client;
+	}
+
+	public async disconnect(): Promise<void> {
+		if (!this._connection) {
+			return;
+		}
+
+		await this._connection.disconnect();
 	}
 }

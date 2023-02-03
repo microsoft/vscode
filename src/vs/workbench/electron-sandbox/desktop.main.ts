@@ -55,6 +55,7 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class DesktopMain extends Disposable {
 
@@ -120,6 +121,12 @@ export class DesktopMain extends Disposable {
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
+
+		// Register remote agent lifecycle events
+		instantiationService.invokeFunction(acc => {
+			const remoteAgentService = acc.get(IRemoteAgentService);
+			remoteAgentService.registerLifecycleEvents(acc.get(ILifecycleService));
+		});
 	}
 
 	private getExtraClasses(): string[] {

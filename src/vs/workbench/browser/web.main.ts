@@ -125,6 +125,11 @@ export class BrowserMain extends Disposable {
 		// Logging
 		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
 
+		instantiationService.invokeFunction(acc => {
+			const remoteAgentService = acc.get(IRemoteAgentService);
+			remoteAgentService.registerLifecycleEvents(acc.get(ILifecycleService));
+		});
+
 		instantiationService.invokeFunction(accessor => {
 			const telemetryService = accessor.get(ITelemetryService);
 			for (const indexedDbFileSystemProvider of this.indexedDBFileSystemProviders) {

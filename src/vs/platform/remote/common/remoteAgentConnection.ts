@@ -640,6 +640,13 @@ export abstract class PersistentConnection extends Disposable {
 		}
 	}
 
+	public async disconnect(): Promise<void> {
+		const socket = this.protocol.getSocket();
+		await this.protocol.sendDisconnectAndWait();
+		this.protocol.dispose();
+		socket.end();
+	}
+
 	private async _beginReconnecting(): Promise<void> {
 		// Only have one reconnection loop active at a time.
 		if (this._isReconnecting) {
