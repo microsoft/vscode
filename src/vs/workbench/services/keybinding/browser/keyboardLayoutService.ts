@@ -30,6 +30,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { isESM } from 'vs/base/common/amd';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
+
 
 export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
@@ -451,12 +454,12 @@ export class BrowserKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBa
 		super(configurationService);
 
 		const platform = isWindows ? 'win' : isMacintosh ? 'darwin' : 'linux';
-		// ESM-comment-begin
-		const mod = 'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform;
-		// ESM-comment-end
-		// ESM-uncomment-begin
-		// const mod = './keyboardLayouts/layout.contribution.' + platform + '.js';
-		// ESM-uncomment-end
+		let mod = 'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform;
+
+		if (isESM) {
+			const uri = FileAccess.asBrowserUri('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.' + platform + '.js' as AppResourcePath);
+			mod = uri.path;
+		}
 
 		import(mod).then((m) => {
 			const keymapInfos: IKeymapInfo[] = m.KeyboardLayoutContribution.INSTANCE.layoutInfos;
