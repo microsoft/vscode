@@ -1139,4 +1139,47 @@ suite('Event utils', () => {
 			{ label: 'dispose', idx: 1 },
 		]);
 	});
+
+	suite('accumulate', () => {
+		test('should accumulate a single event', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const results1 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(1);
+			});
+			assert.deepStrictEqual(results1, [1]);
+
+			const results2 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(2);
+			});
+			assert.deepStrictEqual(results2, [2]);
+		});
+		test('should accumulate multiple events', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const results1 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(1);
+				eventEmitter.fire(2);
+				eventEmitter.fire(3);
+			});
+			assert.deepStrictEqual(results1, [1, 2, 3]);
+
+			const results2 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(4);
+				eventEmitter.fire(5);
+				eventEmitter.fire(6);
+				eventEmitter.fire(7);
+				eventEmitter.fire(8);
+			});
+			assert.deepStrictEqual(results2, [4, 5, 6, 7, 8]);
+		});
+	});
 });

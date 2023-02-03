@@ -554,6 +554,26 @@ async function mkdirpIgnoreError(dir) {
 
 //#region NLS Support
 
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
 /**
  * Resolve the NLS configuration
  *
@@ -590,15 +610,8 @@ async function resolveNlsConfiguration() {
 		if (!appLocale) {
 			nlsConfiguration = { locale: 'en', availableLanguages: {} };
 		} else {
-
 			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			if (appLocale.startsWith('zh-hans')) {
-				appLocale = 'zh-cn';
-			} else if (appLocale.startsWith('zh-hant')) {
-				appLocale = 'zh-tw';
-			}
+			appLocale = processZhLocale(appLocale.toLowerCase());
 
 			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
