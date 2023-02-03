@@ -11,6 +11,7 @@ import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'j
 import * as MarkdownItType from 'markdown-it';
 
 import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
+import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
@@ -33,6 +34,7 @@ const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs requ
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
 const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
+const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75 as VS Code will generate these automatically from your package.json contribution declarations.");
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
 
 enum Context {
@@ -52,6 +54,7 @@ interface PackageJsonInfo {
 	hasHttpsRepository: boolean;
 	repository: Uri;
 	implicitActivationEvents: Set<string> | undefined;
+	engineVersion: INormalizedVersion | null;
 }
 
 export class ExtensionLinter {
@@ -156,16 +159,18 @@ export class ExtensionLinter {
 				if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
 					for (const activationEventNode of activationEventsNode.children) {
 						const activationEvent = getNodeValue(activationEventNode);
+						const isImplicitActivationSupported = info.engineVersion && info.engineVersion?.majorBase >= 1 && info.engineVersion?.minorBase >= 75;
 						// Redundant Implicit Activation
 						if (info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
 							const start = document.positionAt(activationEventNode.offset);
 							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
-							diagnostics.push(new Diagnostic(new Range(start, end), redundantImplicitActivationEvent, DiagnosticSeverity.Warning));
+							const message = isImplicitActivationSupported ? redundantImplicitActivationEvent : bumpEngineForImplicitActivationEvents;
+							diagnostics.push(new Diagnostic(new Range(start, end), message, isImplicitActivationSupported ? DiagnosticSeverity.Warning : DiagnosticSeverity.Information));
 						}
 
 						// Reserved Implicit Activation
 						for (const implicitActivationEventPrefix of reservedImplicitActivationEventPrefixes) {
-							if (activationEvent.startsWith(implicitActivationEventPrefix)) {
+							if (isImplicitActivationSupported && activationEvent.startsWith(implicitActivationEventPrefix)) {
 								const start = document.positionAt(activationEventNode.offset);
 								const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
 								diagnostics.push(new Diagnostic(new Range(start, end), implicitActivationEvent, DiagnosticSeverity.Error));
@@ -314,6 +319,7 @@ export class ExtensionLinter {
 
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
+		const parsedEngineVersion = engine?.type === 'string' ? normalizeVersion(parseVersion(engine.value)) : null;
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
 		const uri = repo && parseUri(repo.value);
 		const activationEvents = tree && parseImplicitActivationEvents(tree);
@@ -322,7 +328,8 @@ export class ExtensionLinter {
 			isExtension: !!(engine && engine.type === 'string'),
 			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
 			repository: uri!,
-			implicitActivationEvents: activationEvents
+			implicitActivationEvents: activationEvents,
+			engineVersion: parsedEngineVersion
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
