@@ -22,6 +22,7 @@ import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, Work
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
+
 /**
  * One folder to search and a glob expression that should be applied.
  */
