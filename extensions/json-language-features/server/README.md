@@ -66,9 +66,9 @@ The server supports the following settings:
     - `enable`: Whether the server should validate. Defaults to `true` if not set.
   - `schemas`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
     - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there is at least one matching pattern and the last matching pattern is not an exclusion pattern.
+    - `folderUri`: If provided, the association is only used if the document is located in the given folder (directly or in a subfolder)
     - `url`: The URL of the schema, optional when also a schema is provided.
     - `schema`: The schema content, optional
-		- `folderUri`: If provided, the association is only used if the document is located in the given folder (directly or indirectly)
   - `resultLimit`: The max number of color decorators and outline symbols to be computed (for performance reasons)
   - `jsonFoldingLimit`: The max number of folding ranges to be computed for json documents (for performance reasons)
   - `jsoncFoldingLimit`: The max number of folding ranges to be computed for jsonc documents (for performance reasons)
@@ -172,7 +172,7 @@ interface ISchemaAssociation {
    */
   fileMatch: string[];
   /**
-   * If provided, the association is only used if the validated document is located in the given folder (directly or indirectly)
+   * If provided, the association is only used if the validated document is located in the given folder (directly or in a subfolder)
    */
   folderUri?: string;
   /*
