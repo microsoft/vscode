@@ -159,10 +159,10 @@ export class MainThreadNotebooksAndEditors {
 		}
 		if (activeEditor) {
 			if (!editors.has(activeEditor)) {
-				this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, editors.keys());
+				this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, [...editors.keys()]);
 				activeEditor = null;
 			} else {
-				this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is in editors list', activeEditor, editors.keys());
+				this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is in editors list', activeEditor, [...editors.keys()]);
 			}
 		}
 
