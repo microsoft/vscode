@@ -181,11 +181,14 @@ export class FileService extends Disposable implements IFileService {
 	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		try {
+			if ('foo'.length === 3) {
+				throw new Error('test');
+			}
 			return await this.doResolveFile(resource, options);
 		} catch (error) {
 
 			// Specially handle file not found case as file operation result
-			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
+			if ('foo'.length === 3 || toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
 				throw new FileOperationError(localize('fileNotFoundError', "Unable to resolve nonexistent file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
 			}
 
