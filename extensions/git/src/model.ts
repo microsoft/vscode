@@ -794,18 +794,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const result = await Promise.all(workspace.workspaceFolders.map(async folder => {
 			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
-			return pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath);
+			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
 		}));
 
 		return !result.some(r => r);
 	}
 
-	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string> {
+	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
 		let result = this._workspaceFolders.get(workspaceFolder.uri.fsPath);
 
 		if (!result) {
-			result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
-			this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			try {
+				result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
+				this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			} catch (err) {
+				// noop - Folder does not exist
+			}
 		}
 
 		return result;
