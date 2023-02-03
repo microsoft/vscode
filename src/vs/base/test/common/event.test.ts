@@ -91,7 +91,7 @@ suite('Event utils dispose', function () {
 	test('no leak with debounce-util', function () {
 		const store = new DisposableStore();
 		const emitter = new Emitter<number>();
-		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, store);
+		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, undefined, store);
 		assertDisposablesCount(1); // debounce only listens when `debounce` is being listened on
 
 		let all = 0;
