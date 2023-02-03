@@ -63,6 +63,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 
 const $ = DOM.$;
 
@@ -2271,7 +2272,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				renderIndentGuides: RenderIndentGuides.None
 			},
 			instantiationService,
 			contextKeyService,

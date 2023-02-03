@@ -24,9 +24,9 @@ import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions,
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, IReplElement, IReplElementSource, IReplOptions } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, SimpleReplElement } from 'vs/workbench/contrib/debug/common/replModel';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
@@ -43,7 +43,7 @@ interface IReplEvaluationResultTemplateData {
 	value: HTMLElement;
 }
 
-interface ISimpleReplElementTemplateData {
+interface IOutputReplElementTemplateData {
 	container: HTMLElement;
 	count: CountBadge;
 	countContainer: HTMLElement;
@@ -145,8 +145,8 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	}
 }
 
-export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplElement, FuzzyScore, ISimpleReplElementTemplateData> {
-	static readonly ID = 'simpleReplElement';
+export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElement, FuzzyScore, IOutputReplElementTemplateData> {
+	static readonly ID = 'outputReplElement';
 
 	constructor(
 		private readonly linkDetector: LinkDetector,
@@ -156,11 +156,11 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 	) { }
 
 	get templateId(): string {
-		return ReplSimpleElementsRenderer.ID;
+		return ReplOutputElementRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): ISimpleReplElementTemplateData {
-		const data: ISimpleReplElementTemplateData = Object.create(null);
+	renderTemplate(container: HTMLElement): IOutputReplElementTemplateData {
+		const data: IOutputReplElementTemplateData = Object.create(null);
 		container.classList.add('output');
 		const expression = dom.append(container, $('.output.expression.value-and-source'));
 
@@ -187,15 +187,15 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		return data;
 	}
 
-	renderElement({ element }: ITreeNode<SimpleReplElement, FuzzyScore>, index: number, templateData: ISimpleReplElementTemplateData): void {
+	renderElement({ element }: ITreeNode<ReplOutputElement, FuzzyScore>, index: number, templateData: IOutputReplElementTemplateData): void {
 		this.setElementCount(element, templateData);
 		templateData.elementListener = element.onDidChangeCount(() => this.setElementCount(element, templateData));
 		// value
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root);
-		templateData.value.appendChild(result);
+
+		templateData.value.appendChild(handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root));
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${basename(element.sourceData.source.name)}:${element.sourceData.lineNumber}` : '';
@@ -203,7 +203,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
-	private setElementCount(element: SimpleReplElement, templateData: ISimpleReplElementTemplateData): void {
+	private setElementCount(element: ReplOutputElement, templateData: IOutputReplElementTemplateData): void {
 		if (element.count >= 2) {
 			templateData.count.setCount(element.count);
 			templateData.countContainer.hidden = false;
@@ -212,16 +212,16 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		}
 	}
 
-	disposeTemplate(templateData: ISimpleReplElementTemplateData): void {
+	disposeTemplate(templateData: IOutputReplElementTemplateData): void {
 		dispose(templateData.toDispose);
 	}
 
-	disposeElement(_element: ITreeNode<SimpleReplElement, FuzzyScore>, _index: number, templateData: ISimpleReplElementTemplateData): void {
+	disposeElement(_element: ITreeNode<ReplOutputElement, FuzzyScore>, _index: number, templateData: IOutputReplElementTemplateData): void {
 		templateData.elementListener.dispose();
 	}
 }
 
-export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
+export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpression | ReplVariableElement> {
 
 	static readonly ID = 'replVariable';
 
@@ -237,9 +237,20 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer {
 		super(debugService, contextViewService);
 	}
 
-	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
-		data.expression.classList.toggle('nested-variable', isNestedVariable(expression));
+	public renderElement(node: ITreeNode<IExpression | ReplVariableElement, FuzzyScore>, _index: number, data: IExpressionTemplateData): void {
+		const element = node.element;
+		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expr : element, node, data);
+	}
+
+	protected renderExpression(expression: IExpression | ReplVariableElement, data: IExpressionTemplateData, highlights: IHighlight[]): void {
+		const isReplVariable = expression instanceof ReplVariableElement;
+		if (isReplVariable || !expression.name) {
+			renderExpressionValue(isReplVariable ? expression.expr : expression, data.value, { showHover: false, colorize: true, linkDetector: this.linkDetector });
+			data.expression.classList.remove('nested-variable');
+		} else {
+			renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+			data.expression.classList.toggle('nested-variable', isNestedVariable(expression));
+		}
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
@@ -324,7 +335,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 			const value = element.value;
 			const valueRows = countNumberOfLines(value)
 				+ (ignoreValueLength ? 0 : Math.floor(value.length / 70)) // Make an estimate for wrapping
-				+ (element instanceof SimpleReplElement ? 0 : 1); // A SimpleReplElement ends in \n if it's a complete line
+				+ (element instanceof ReplOutputElement ? 0 : 1); // A SimpleReplElement ends in \n if it's a complete line
 
 			return Math.max(valueRows, 1) * lineHeight;
 		}
@@ -333,18 +344,17 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 	}
 
 	getTemplateId(element: IReplElement): string {
-		if (element instanceof Variable && element.name) {
+		if (element instanceof Variable || element instanceof ReplVariableElement) {
 			return ReplVariablesRenderer.ID;
 		}
-		if (element instanceof ReplEvaluationResult || (element instanceof Variable && !element.name)) {
-			// Variable with no name is a top level variable which should be rendered like a repl element #17404
+		if (element instanceof ReplEvaluationResult) {
 			return ReplEvaluationResultsRenderer.ID;
 		}
 		if (element instanceof ReplEvaluationInput) {
 			return ReplEvaluationInputsRenderer.ID;
 		}
-		if (element instanceof SimpleReplElement) {
-			return ReplSimpleElementsRenderer.ID;
+		if (element instanceof ReplOutputElement) {
+			return ReplOutputElementRenderer.ID;
 		}
 		if (element instanceof ReplGroup) {
 			return ReplGroupRenderer.ID;
@@ -374,21 +384,15 @@ export class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElem
 			return true;
 		}
 
-		return !!(<IExpressionContainer | ReplGroup>element).hasChildren;
+		return !!(<IExpressionContainer | INestingReplElement>element).hasChildren;
 	}
 
 	getChildren(element: IReplElement | IDebugSession): Promise<IReplElement[]> {
 		if (isDebugSession(element)) {
 			return Promise.resolve(element.getReplElements());
 		}
-		if (element instanceof RawObjectReplElement) {
-			return element.getChildren();
-		}
-		if (element instanceof ReplGroup) {
-			return Promise.resolve(element.getChildren());
-		}
 
-		return (<IExpression>element).getChildren();
+		return Promise.resolve((<IExpression | INestingReplElement>element).getChildren());
 	}
 }
 
@@ -402,8 +406,8 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 		if (element instanceof Variable) {
 			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
-		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return element.value + (element instanceof SimpleReplElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
+		if (element instanceof ReplOutputElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
+			return element.value + (element instanceof ReplOutputElement && element.count > 1 ? localize({ key: 'occurred', comment: ['Front will the value of the debug console element. Placeholder will be replaced by a number which represents occurrance count.'] },
 				", occurred {0} times", element.count) : '');
 		}
 		if (element instanceof RawObjectReplElement) {

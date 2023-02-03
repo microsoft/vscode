@@ -211,15 +211,13 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	public async handleSettingOption(selectedType: string) {
-		const noButton = nls.localize('TaskQuickPick.changeSettingNo', "No");
-		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
-		const changeSettingResult = await this._dialogService.show(Severity.Warning,
-			nls.localize('TaskQuickPick.changeSettingDetails',
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: nls.localize('TaskQuickPick.changeSettingDetails',
 				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[yesButton, noButton],
-			{ cancelId: 1 }
-		);
-		if (changeSettingResult.choice === 0) {
+			cancelButton: nls.localize('TaskQuickPick.changeSettingNo', "No")
+		});
+		if (confirmed) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);
