@@ -27,7 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService, matchesScheme, matchesSomeScheme, OpenInternalOptions } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -888,13 +888,14 @@ var requirejs = (function() {
 				const fragment = uri.fragment.substring(0, lineMatch.index);
 
 				// open the uri with selection
+				const editorOptions: ITextEditorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
+				};
 				this.openerService.open(uri.with({ fragment }), {
 					fromUserGesture: true,
 					fromWorkspace: true,
-					editorOptions: {
-						selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
-					}
-				} as OpenInternalOptions);
+					editorOptions: editorOptions
+				});
 				return;
 			}
 		}
