@@ -93,7 +93,6 @@ namespace ServerState {
 
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
-	private readonly pathSeparator: string;
 	private readonly emptyAuthority = 'ts-nul-authority';
 	private readonly inMemoryResourcePrefix = '^';
 
@@ -150,7 +149,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.versionProvider = services.versionProvider;
 		this.processFactory = services.processFactory;
 
-		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
 
 		let resolve: () => void;
@@ -678,20 +676,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 	}
 
-	public normalizedPath(resource: vscode.Uri): string | undefined {
+	public toTsFilePath(resource: vscode.Uri): string | undefined {
 		if (fileSchemes.disabledSchemes.has(resource.scheme)) {
 			return undefined;
 		}
 
 		if (resource.scheme === fileSchemes.file && !isWeb()) {
-			let result = resource.fsPath;
-			if (!result) {
+			if (!resource.fsPath) {
 				return undefined;
 			}
-			result = path.normalize(result);
 
-			// Both \ and / must be escaped in regular expressions
-			return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
+			// Convert to posix style path
+			return path.posix.normalize(resource.fsPath.split(path.sep).join(path.posix.sep));
 		}
 
 		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)
@@ -701,18 +697,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			+ (resource.fragment ? '#' + resource.fragment : '');
 	}
 
-	public toPath(resource: vscode.Uri): string | undefined {
-		return this.normalizedPath(resource);
-	}
 
-	public toOpenedFilePath(document: vscode.TextDocument, options: { suppressAlertOnFailure?: boolean } = {}): string | undefined {
+	public toOpenTsFilePath(document: vscode.TextDocument, options: { suppressAlertOnFailure?: boolean } = {}): string | undefined {
 		if (!this.bufferSyncSupport.ensureHasBuffer(document.uri)) {
 			if (!options.suppressAlertOnFailure && !fileSchemes.disabledSchemes.has(document.uri.scheme)) {
 				console.error(`Unexpected resource ${document.uri}`);
 			}
 			return undefined;
 		}
-		return this.toPath(document.uri);
+		return this.toTsFilePath(document.uri);
 	}
 
 	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
@@ -767,23 +760,22 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
-		switch (resource.scheme) {
-			case fileSchemes.file:
-			case fileSchemes.untitled:
-			case fileSchemes.vscodeNotebookCell:
-			case fileSchemes.memFs:
-			case fileSchemes.vscodeVfs:
-			case fileSchemes.officeScript:
-				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
-						return root.uri.fsPath;
-					}
+		let tsRootPath: string | undefined;
+		for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
+			if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
+				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
+					tsRootPath = this.toTsFilePath(root.uri);
+					break;
 				}
-				return roots[0].uri.fsPath;
-
-			default:
-				return undefined;
+			}
 		}
+
+		tsRootPath ??= this.toTsFilePath(roots[0].uri);
+		if (!tsRootPath || tsRootPath.startsWith(this.inMemoryResourcePrefix)) {
+			return undefined;
+		}
+
+		return tsRootPath;
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {

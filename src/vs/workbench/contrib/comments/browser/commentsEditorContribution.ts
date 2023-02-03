@@ -15,7 +15,7 @@ import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiff
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorType, IDiffEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
@@ -46,9 +46,6 @@ import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/brows
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
 
 export const ID = 'editor.contrib.review';
 
@@ -392,6 +389,12 @@ export class CommentController implements IEditorContribution {
 		}));
 
 		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this.globalToDispose.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
+				this.beginCompute();
+			}
+		}));
+
 		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
@@ -447,11 +450,19 @@ export class CommentController implements IEditorContribution {
 		this._activeCursorHasCommentingRange.set(hasCommentingRange);
 	}
 
-	private isEditorInlineOriginal(editorURI: URI | undefined, activeEditor: EditorInput | undefined): activeEditor is DiffEditorInput {
-		if (editorURI && activeEditor instanceof DiffEditorInput && !this.configurationService.getValue('diffEditor.renderSideBySide')) {
-			return activeEditor.original.resource?.toString() === editorURI.toString();
+	private isEditorInlineOriginal(testEditor: ICodeEditor): boolean {
+		if (this.configurationService.getValue<boolean>('diffEditor.renderSideBySide')) {
+			return false;
 		}
-		return false;
+
+		const foundEditor = this.editorService.visibleTextEditorControls.find(editor => {
+			if (editor.getEditorType() === EditorType.IDiffEditor) {
+				const diffEditor = editor as IDiffEditor;
+				return diffEditor.getOriginalEditor() === testEditor;
+			}
+			return false;
+		});
+		return !!foundEditor;
 	}
 
 	private beginCompute(): Promise<void> {
@@ -719,8 +730,7 @@ export class CommentController implements IEditorContribution {
 		if (!this.editor) {
 			return;
 		}
-		const activeEditor = this.editorService.activeEditor;
-		if (this.isEditorInlineOriginal(this.editor.getModel()?.uri, activeEditor)) {
+		if (this.isEditorInlineOriginal(this.editor)) {
 			return;
 		}
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);

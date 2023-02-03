@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.76.0",
-  "distro": "d901f79eb829ae790a4039b7baaaacc5a8ddffe3",
+  "distro": "3d06c97aefbfd05e412eb481566438d1e63fd1ac",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -101,7 +101,7 @@
     "7zip": "0.0.6",
     "@playwright/test": "1.27.1",
     "@swc/cli": "0.1.57",
-    "@swc/core": "1.2.245",
+    "@swc/core": "1.3.32",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
     "@types/cssnano": "^4.0.0",
@@ -132,7 +132,7 @@
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.8",
     "@vscode/test-web": "^0.0.34",
-    "@vscode/vscode-perf": "^0.0.5",
+    "@vscode/vscode-perf": "^0.0.6",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
