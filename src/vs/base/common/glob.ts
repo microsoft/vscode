@@ -821,10 +821,11 @@ export function patternsEquals(patternsA: Array<string | IRelativePattern> | und
 // brace expansion
 
 /**
- * get first `{` and `}` curly braces that aren't escaped
- * - if the brace is prepended by a \ character, then the next character is escaped
+ * Split string given first opportunity for brace expansion in the string.
+ * - if the brace is prepended by a \ character, then it is escaped.
+ * - Does not process escapes that are within the sub-glob.
  */
-function getEscapeAwareStartEndInfo(pattern: string): { fixedStart: string; strInBraces: string; fixedEnd: string } {
+function getEscapeAwareSplitString(pattern: string): { fixedStart?: string; strInBraces: string; fixedEnd?: string } {
 	let inBraces = false;
 	let escaped = false;
 	let fixedStart = '';
@@ -858,7 +859,7 @@ function getEscapeAwareStartEndInfo(pattern: string): { fixedStart: string; strI
 				} else {
 					if (inBraces) {
 						// ripgrep treats this as attempting to do an alternating group, which is invalid
-						return { fixedStart: '', strInBraces: fixedStart + '{' + strInBraces, fixedEnd: '' };
+						return { strInBraces: fixedStart + '{' + strInBraces };
 					} else {
 						inBraces = true;
 					}
@@ -894,15 +895,15 @@ function getEscapeAwareStartEndInfo(pattern: string): { fixedStart: string; strI
 		}
 	}
 
-	return { fixedStart: '', strInBraces: fixedStart + (inBraces ? ('{' + strInBraces) : ''), fixedEnd: '' };
+	return { strInBraces: fixedStart + (inBraces ? ('{' + strInBraces) : '') };
 }
 
 /**
  * Parses out curly braces and returns equivalent globs. Only supports one level of nesting.
  */
 export function performBraceExpansion(pattern: string): string[] {
-	const { fixedStart, strInBraces, fixedEnd } = getEscapeAwareStartEndInfo(pattern);
-	if (fixedStart.length === 0 && fixedEnd.length === 0) {
+	const { fixedStart, strInBraces, fixedEnd } = getEscapeAwareSplitString(pattern);
+	if (fixedStart === undefined || fixedEnd === undefined) {
 		return [strInBraces];
 	}
 
