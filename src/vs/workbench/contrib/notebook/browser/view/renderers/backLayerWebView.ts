@@ -750,7 +750,11 @@ var requirejs = (function() {
 						this._handleResourceOpening(data.href);
 					} else {
 						// uri with scheme
-						this._openUri(URI.parse(data.href));
+						if (osPath.isAbsolute(data.href)) {
+							this._openUri(URI.file(data.href));
+						} else {
+							this._openUri(URI.parse(data.href));
+						}
 					}
 					break;
 				}
