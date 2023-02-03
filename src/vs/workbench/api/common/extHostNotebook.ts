@@ -423,7 +423,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (delta.value.newActiveEditor === null) {
 			// clear active notebook as current active editor is non-notebook editor
 			this._activeNotebookEditor = undefined;
+			console.log('Clear active notebook editor');
 		} else if (delta.value.newActiveEditor) {
+			console.log('Set active notebook editor', delta.value.newActiveEditor);
 			const activeEditor = this._editors.get(delta.value.newActiveEditor);
 			if (!activeEditor) {
 				console.error(`FAILED to find active notebook editor ${delta.value.newActiveEditor}`);

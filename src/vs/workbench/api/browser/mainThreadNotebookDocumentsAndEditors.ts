@@ -157,9 +157,13 @@ export class MainThreadNotebooksAndEditors {
 		} else if (focusedEditor?.textModel) {
 			activeEditor = focusedEditor.getId();
 		}
-		if (activeEditor && !editors.has(activeEditor)) {
-			this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, editors.keys());
-			activeEditor = null;
+		if (activeEditor) {
+			if (!editors.has(activeEditor)) {
+				this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, editors.keys());
+				activeEditor = null;
+			} else {
+				this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is in editors list', activeEditor, editors.keys());
+			}
 		}
 
 		for (const editorPane of this._editorService.visibleEditorPanes) {

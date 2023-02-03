@@ -30,7 +30,7 @@ import * as utils from '../utils';
 
 			const sub = vscode.window.onDidChangeActiveNotebookEditor((e) => {
 				console.log('active notebook editor change', e?.notebook.uri.toString());
-				console.log('is active notebook editor defined', vscode.window.activeNotebookEditor !== undefined ? 'yes' : 'no');
+				console.log('active notebook editor defined?', vscode.window.activeNotebookEditor !== undefined ? 'yes' : 'no');
 				if (vscode.window.activeNotebookEditor === undefined) {
 					// skip if there is no active notebook editor (e.g. when opening a new notebook)
 					return;
