@@ -1943,6 +1943,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalProfileService = accessor.get(ITerminalProfileService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -1970,8 +1971,12 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
-			} else if (TerminalContextKeys.webExtensionContributedProfile) {
-				commandService.executeCommand(TerminalCommandId.NewWithProfile);
+			} else {
+				if (terminalProfileService.contributedProfiles.length > 0) {
+					commandService.executeCommand(TerminalCommandId.NewWithProfile);
+				} else {
+					commandService.executeCommand(TerminalCommandId.Toggle);
+				}
 			}
 		}
 	});
