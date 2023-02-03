@@ -7121,6 +7121,10 @@ declare namespace monaco.languages {
 		 * Prefer spaces over tabs.
 		 */
 		insertSpaces: boolean;
+		/**
+		 * The list of multiple ranges to format at once, if the provider supports it.
+		 */
+		ranges?: Range[];
 	}
 
 	/**
@@ -7141,7 +7145,7 @@ declare namespace monaco.languages {
 	 */
 	export interface DocumentRangeFormattingEditProvider {
 		readonly displayName?: string;
-		readonly multiRange: boolean;
+		readonly canFormatMultipleRanges: boolean;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *
@@ -7149,7 +7153,7 @@ declare namespace monaco.languages {
 		 * or larger range. Often this is done by adjusting the start and end
 		 * of the range to full syntax nodes.
 		 */
-		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range | Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**

@@ -1182,6 +1182,10 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
+	/**
+	 * The list of multiple ranges to format at once, if the provider supports it.
+	 */
+	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1213,7 +1217,7 @@ export interface DocumentRangeFormattingEditProvider {
 
 	readonly displayName?: string;
 
-	readonly multiRange: boolean;
+	readonly canFormatMultipleRanges: boolean;
 
 	/**
 	 * Provide formatting edits for a range in a document.
@@ -1222,7 +1226,7 @@ export interface DocumentRangeFormattingEditProvider {
 	 * or larger range. Often this is done by adjusting the start and end
 	 * of the range to full syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range | Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and

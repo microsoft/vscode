@@ -107,11 +107,6 @@ export interface IFormattingEditProviderSelector {
 	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
 }
 
-interface IEditResult {
-	cancelled: boolean;
-	allEdits: TextEdit[];
-}
-
 export abstract class FormattingConflicts {
 
 	private static readonly _selectors = new LinkedList<IFormattingEditProviderSelector>();
@@ -172,95 +167,7 @@ export async function formatDocumentRangesWithProvider(
 		model = editorOrModel;
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
-	let result: IEditResult;
-	if (provider.multiRange) {
-		result = await formatDocumentRangesWithMultiRangeProvider(provider, editorOrModel, rangeOrRanges, cts, model, workerService);
-	} else {
-		result = await formatDocumentRangesWithSingleRangeProvider(provider, editorOrModel, rangeOrRanges, cts, model, workerService);
-	}
-	if (result.cancelled) { return true; }
 
-	const { allEdits } = result;
-
-	if (allEdits.length === 0) {
-		return false;
-	}
-
-	if (isCodeEditor(editorOrModel)) {
-		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, allEdits, true);
-		alertFormattingEdits(allEdits);
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
-
-	} else {
-		// use model to apply edits
-		const [{ range }] = allEdits;
-		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], allEdits.map(edit => {
-			return {
-				text: edit.text,
-				range: Range.lift(edit.range),
-				forceMoveMarkers: true
-			};
-		}), undoEdits => {
-			for (const { range } of undoEdits) {
-				if (Range.areIntersectingOrTouching(range, initialSelection)) {
-					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
-				}
-			}
-			return null;
-		});
-	}
-
-	return true;
-}
-
-async function formatDocumentRangesWithMultiRangeProvider(
-	provider: DocumentRangeFormattingEditProvider,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	rangeOrRanges: Range | Range[],
-	cts: CancellationTokenSource,
-	model: ITextModel,
-	workerService: IEditorWorkerService
-): Promise<IEditResult> {
-	const ranges = asArray(rangeOrRanges);
-
-	const allEdits: TextEdit[] = [];
-	try {
-		if (cts.token.isCancellationRequested) {
-			return { cancelled: true, allEdits };
-		}
-
-		const rawEdits = (await provider.provideDocumentRangeFormattingEdits(
-			model,
-			ranges,
-			model.getFormattingOptions(),
-			cts.token
-		)) || [];
-
-		if (cts.token.isCancellationRequested) {
-			return { cancelled: true, allEdits };
-		}
-
-		const minimalEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-		if (minimalEdits) {
-			allEdits.push(...minimalEdits);
-		}
-	} finally {
-		cts.dispose();
-	}
-
-	return { cancelled: false, allEdits };
-}
-
-async function formatDocumentRangesWithSingleRangeProvider(
-	provider: DocumentRangeFormattingEditProvider,
-	editorOrModel: ITextModel | IActiveCodeEditor,
-	rangeOrRanges: Range | Range[],
-	cts: CancellationTokenSource,
-	model: ITextModel,
-	workerService: IEditorWorkerService
-): Promise<IEditResult> {
 	// make sure that ranges don't overlap nor touch each other
 	const ranges: Range[] = [];
 	let len = 0;
@@ -310,17 +217,29 @@ async function formatDocumentRangesWithSingleRangeProvider(
 	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
-		for (const range of ranges) {
-			if (cts.token.isCancellationRequested) {
-				return { cancelled: true, allEdits };
+		if (provider.canFormatMultipleRanges) {
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, ranges);
+			const result = (await provider.provideDocumentRangeFormattingEdits(
+				model,
+				ranges[0],
+				{ ...model.getFormattingOptions(), ranges },
+				cts.token
+			)) || [];
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+			rawEditsList.push(result);
+		} else {
+			for (const range of ranges) {
+				if (cts.token.isCancellationRequested) {
+					return true;
+				}
+				rawEditsList.push(await computeEdits(range));
 			}
-			rawEditsList.push(await computeEdits(range));
 		}
 
 		for (let i = 0; i < ranges.length; ++i) {
 			for (let j = i + 1; j < ranges.length; ++j) {
 				if (cts.token.isCancellationRequested) {
-					return { cancelled: true, allEdits };
+					return true;
 				}
 				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
 					// Merge ranges i and j into a single range, recompute the associated edits
@@ -341,7 +260,7 @@ async function formatDocumentRangesWithSingleRangeProvider(
 
 		for (const rawEdits of rawEditsList) {
 			if (cts.token.isCancellationRequested) {
-				return { cancelled: true, allEdits };
+				return true;
 			}
 			const minimalEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 			if (minimalEdits) {
@@ -351,7 +270,38 @@ async function formatDocumentRangesWithSingleRangeProvider(
 	} finally {
 		cts.dispose();
 	}
-	return { cancelled: false, allEdits };
+
+	if (allEdits.length === 0) {
+		return false;
+	}
+
+	if (isCodeEditor(editorOrModel)) {
+		// use editor to apply edits
+		FormattingEdit.execute(editorOrModel, allEdits, true);
+		alertFormattingEdits(allEdits);
+		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
+
+	} else {
+		// use model to apply edits
+		const [{ range }] = allEdits;
+		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+		model.pushEditOperations([initialSelection], allEdits.map(edit => {
+			return {
+				text: edit.text,
+				range: Range.lift(edit.range),
+				forceMoveMarkers: true
+			};
+		}), undoEdits => {
+			for (const { range } of undoEdits) {
+				if (Range.areIntersectingOrTouching(range, initialSelection)) {
+					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
+				}
+			}
+			return null;
+		});
+	}
+
+	return true;
 }
 
 export async function formatDocumentWithSelectedProvider(

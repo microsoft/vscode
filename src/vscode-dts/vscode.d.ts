@@ -4090,9 +4090,14 @@ declare module 'vscode' {
 		insertSpaces: boolean;
 
 		/**
+		 * The list of multiple ranges to format at once, if the provider supports it.
+		 */
+		ranges?: Range[];
+
+		/**
 		 * Signature for further properties.
 		 */
-		[key: string]: boolean | number | string;
+		[key: string]: boolean | number | string | Range[] | undefined;
 	}
 
 	/**
@@ -4117,7 +4122,7 @@ declare module 'vscode' {
 	 * The document formatting provider interface defines the contract between extensions and
 	 * the formatting-feature.
 	 */
-	export interface DocumentRangeFormattingEditProvider<T extends Range | Range[] = Range> {
+	export interface DocumentRangeFormattingEditProvider {
 
 		/**
 		 * Provide formatting edits for a range in a document.
@@ -4127,13 +4132,13 @@ declare module 'vscode' {
 		 * of the range to full syntax nodes.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The range or ranges which should be formatted.
+		 * @param range The range which should be formatted.
 		 * @param options Options controlling formatting.
 		 * @param token A cancellation token.
 		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentRangeFormattingEdits(document: TextDocument, range: T, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**
@@ -4143,7 +4148,7 @@ declare module 'vscode' {
 		/**
 		 * `true` if the range formatting provider supports formatting multiple ranges at once.
 		 */
-		readonly multiRange?: boolean;
+		readonly canFormatMultipleRanges?: boolean;
 	}
 
 	/**

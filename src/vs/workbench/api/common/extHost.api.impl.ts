@@ -526,7 +526,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentFormattingEditProvider(extension, checkSelector(selector), provider);
 			},
-			registerDocumentRangeFormattingEditProvider<T extends vscode.Range | vscode.Range[]>(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider<T>, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
+			registerDocumentRangeFormattingEditProvider<T extends vscode.Range | vscode.Range[]>(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentRangeFormattingEditProvider<T>(extension, checkSelector(selector), provider, metadata);
 			},
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {

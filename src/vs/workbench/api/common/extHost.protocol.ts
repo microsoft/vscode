@@ -353,7 +353,7 @@ export interface IDocumentFilterDto {
 }
 
 export interface IRangeFormattingProviderMetadataDto {
-	readonly multiRange?: boolean;
+	readonly canFormatMultipleRanges?: boolean;
 }
 
 export interface ISignatureHelpProviderMetadataDto {
