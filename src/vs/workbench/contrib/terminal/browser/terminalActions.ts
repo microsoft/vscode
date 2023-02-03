@@ -408,8 +408,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.EnterAccessibilityMode,
-				title: { value: localize('workbench.action.terminal.enterAccessibilityMode', 'Enter Accessibility Mode'), original: 'Enter Accessibility Mode' },
+				id: TerminalCommandId.FocusAccessibleBuffer,
+				title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),

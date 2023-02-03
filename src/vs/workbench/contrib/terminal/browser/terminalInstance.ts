@@ -2697,8 +2697,8 @@ export function parseExitResult(
 }
 
 const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
-const enterAccessibilityModeNls = nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.');
-const enterAccessibilityModeNoKb = nls.localize('enterAccessibilityModeNoKb', 'The Enter Accessibility Mode command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
+const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
+const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
 const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
 const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
@@ -2764,7 +2764,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 
 	private _buildContent(): void {
 		const content = [introMessage];
-		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb));
