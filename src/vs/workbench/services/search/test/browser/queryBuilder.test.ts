@@ -551,27 +551,6 @@ suite('QueryBuilder', () => {
 			});
 	});
 
-	suite('parseSearchPathWithBraceExpansion', () => {
-		test('simple includes', () => {
-			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
-				const result = queryBuilder.parseSearchPathWithBraceExpansion(includePattern);
-				assert.deepStrictEqual(
-					{ ...result.pattern },
-					patternsToIExpression(...expectedPatterns),
-					includePattern);
-				assert.strictEqual(result.searchPaths, undefined);
-			}
-
-			[
-				['eep/{a,b}/test', ['eep/a/test', 'eep/b/test']],
-				['eep/{a,b}/{c,d,e}', ['eep/a/c', 'eep/a/d', 'eep/a/e', 'eep/b/c', 'eep/b/d', 'eep/b/e']],
-				['eep/{a,b}/\\{c,d,e}', ['eep/a/{c,d,e}', 'eep/b/{c,d,e}']],
-				['eep/{a,b\\}/test', ['eep/{a,b}/test']],
-				['eep/{a,\\b}/test', ['eep/\\b/test', 'eep/a/test']],
-			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
-		});
-	});
-
 	suite('parseSearchPaths', () => {
 		test('simple includes', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {

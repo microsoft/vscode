@@ -9,7 +9,7 @@ import { StringDecoder } from 'string_decoder';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
-import { splitGlobAware } from 'vs/base/common/glob';
+import { performBraceExpansion, splitGlobAware } from 'vs/base/common/glob';
 import * as path from 'vs/base/common/path';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -495,9 +495,14 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 /**
  * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
  */
-function spreadGlobComponents(globArg: string): string[] {
-	const components = splitGlobAware(globArg, '/');
-	return components.map((_, i) => components.slice(0, i + 1).join('/'));
+function spreadGlobComponents(globComponent: string): string[] {
+	const globComponentWithBraceExpansion = performBraceExpansion(globComponent);
+
+	return globComponentWithBraceExpansion.flatMap((globArg) => {
+		const components = splitGlobAware(globArg, '/');
+		return components.map((_, i) => components.slice(0, i + 1).join('/'));
+	});
+
 }
 
 export function unicodeEscapesToPCRE2(pattern: string): string {

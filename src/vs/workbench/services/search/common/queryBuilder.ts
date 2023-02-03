@@ -163,7 +163,7 @@ export class QueryBuilder {
 		pattern = Array.isArray(pattern) ? pattern.map(normalizeSlashes) : normalizeSlashes(pattern);
 		return expandPatterns
 			? this.parseSearchPaths(pattern)
-			: this.parseSearchPathWithBraceExpansion(pattern);
+			: { pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) };
 	}
 
 	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
@@ -276,90 +276,6 @@ export class QueryBuilder {
 		}
 
 		return !!contentPattern.isMultiline;
-	}
-
-	/**
-	 * get first `{` and `}` curly braces that aren't escaped
-	 * - if the brace is prepended by a \ character, then the next character is escaped
-	 */
-	private getStartEndInfo(pattern: string): { start: number; end: number; escapedString: string } {
-		let start = -1;
-		let inBraces = false;
-		let escaped = false;
-		let escapedString = '';
-		for (let i = 0; i < pattern.length; i++) {
-			const char = pattern[i];
-			if (escaped) {
-				escaped = false;
-				// if we escaped the brace, discard of it, otherwise, keep the escape character
-				escapedString += (char === '{' || char === '}') ? char : ('\\' + char);
-				continue;
-			}
-			switch (char) {
-				case '\\':
-					escaped = true;
-					break;
-				case '{':
-					escapedString += char;
-					inBraces = true;
-					start = escapedString.length - 1;
-					break;
-				case '}':
-					escapedString += char;
-					if (inBraces) {
-						return { start, end: escapedString.length - 1, escapedString: escapedString + pattern.substring(i + 1) };
-					}
-					break;
-				default:
-					escapedString += char;
-					break;
-			}
-		}
-
-		return { start, end: -1, escapedString };
-	}
-	/**
-	 * parses out curly braces and returns equivalent globs
-	 * @param pattern
-	 * @returns
-	 */
-	private parseOutBraces(pattern: string): string[] {
-		const { start, end, escapedString } = this.getStartEndInfo(pattern);
-		if (start === -1 || end === -1) {
-			return [escapedString];
-		}
-
-		const strInBraces = escapedString.substring(start + 1, end);
-		const fixedStart = escapedString.substring(0, start);
-		const fixedEnd = escapedString.substring(end + 1);
-
-		const arr = glob.splitGlobAware(strInBraces, ',');
-
-		const ends = this.parseOutBraces(fixedEnd);
-
-		return arr.flatMap((elem) => {
-			const start = fixedStart + elem;
-			return ends.map((end) => {
-				return start + end;
-			});
-		});
-	}
-
-	/**
-	 * parse out the FIRST-LEVEL curly braces from glob
-	 * is aware of escaping, but no other nuances
-	 * @param pattern
-	 * @returns
-	 */
-	parseSearchPathWithBraceExpansion(pattern: string | string[]): ISearchPathsInfo {
-		if (!Array.isArray(pattern)) {
-			pattern = [pattern];
-		}
-		const patterns = pattern.flatMap((currentPattern) => {
-			return this.parseOutBraces(currentPattern);
-		});
-
-		return { pattern: patternListToIExpression(...(patterns)) };
 	}
 
 	/**

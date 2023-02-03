@@ -817,3 +817,105 @@ export function patternsEquals(patternsA: Array<string | IRelativePattern> | und
 		return false;
 	});
 }
+
+// brace expansion
+
+/**
+ * get first `{` and `}` curly braces that aren't escaped
+ * - if the brace is prepended by a \ character, then the next character is escaped
+ */
+function getEscapeAwareStartEndInfo(pattern: string): { fixedStart: string; strInBraces: string; fixedEnd: string } {
+	let inBraces = false;
+	let escaped = false;
+	let fixedStart = '';
+	let strInBraces = '';
+	for (let i = 0; i < pattern.length; i++) {
+		const char = pattern[i];
+		switch (char) {
+			case '\\':
+				if (escaped) {
+					// If we're already escaped, then just leave the escaped slash and the preceeding slash that escapes it.
+					// The two escaped slashes will result in a single slash and whatever processes the glob later will properly process the escape
+					if (inBraces) {
+						strInBraces += '\\' + char;
+					} else {
+						fixedStart += '\\' + char;
+					}
+					escaped = false;
+				} else {
+					escaped = true;
+				}
+				break;
+			case '{':
+				if (escaped) {
+					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowleged it and add the `{` to the appropriate string
+					if (inBraces) {
+						strInBraces += char;
+					} else {
+						fixedStart += char;
+					}
+					escaped = false;
+				} else {
+					if (inBraces) {
+						// ripgrep treats this as attempting to do an alternating group, which is invalid
+						return { fixedStart: '', strInBraces: fixedStart + '{' + strInBraces, fixedEnd: '' };
+					} else {
+						inBraces = true;
+					}
+				}
+				break;
+			case '}':
+				if (escaped) {
+					// same as `}`, but for closing bracket
+					if (inBraces) {
+						strInBraces += char;
+					} else {
+						fixedStart += char;
+					}
+					escaped = false;
+				} else if (inBraces) {
+					// we found an end bracket to a valid opening bracket. Return the appropriate strings.
+					return { fixedStart, strInBraces, fixedEnd: pattern.substring(i + 1) };
+				} else {
+					// if we're not in braces and not escaped, then this is a literal `}` character and we're still adding to fixedStart.
+					fixedStart += char;
+				}
+				break;
+			default:
+				// similar to the `\\` case, we didn't do anything with the escape, so we should re-insert it into the appropriate string
+				// to be consumed later when individual parts of the glob are processed
+				if (inBraces) {
+					strInBraces += (escaped ? '\\' : '') + char;
+				} else {
+					fixedStart += (escaped ? '\\' : '') + char;
+				}
+				escaped = false;
+				break;
+		}
+	}
+
+	return { fixedStart: '', strInBraces: fixedStart + (inBraces ? ('{' + strInBraces) : ''), fixedEnd: '' };
+}
+
+/**
+ * Parses out curly braces and returns equivalent globs. Only supports one level of nesting.
+ */
+export function performBraceExpansion(pattern: string): string[] {
+	const { fixedStart, strInBraces, fixedEnd } = getEscapeAwareStartEndInfo(pattern);
+	if (fixedStart.length === 0 && fixedEnd.length === 0) {
+		return [strInBraces];
+	}
+
+	const arr = splitGlobAware(strInBraces, ',');
+
+	const ends = performBraceExpansion(fixedEnd);
+
+	return arr.flatMap((elem) => {
+		const start = fixedStart + elem;
+		return ends.map((end) => {
+			return start + end;
+		});
+	});
+}
+
+
