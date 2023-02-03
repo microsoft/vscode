@@ -88,6 +88,7 @@ import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = DOM.$;
 
@@ -1693,7 +1694,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}
 		state.contributionsState = contributionsState;
-		state.selectedKernelId = this.activeKernel?.id;
+		if (this.textModel?.uri.scheme === Schemas.untitled) {
+			state.selectedKernelId = this.activeKernel?.id;
+		}
 
 		return state;
 	}
