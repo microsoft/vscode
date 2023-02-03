@@ -303,8 +303,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._updateTheme();
 		if (!this._container) {
 			this.raw.open(container);
-			// HACK: This must be done after the viewport is created
-			this.raw.options.screenReaderMode = this._configHelper.config.accessibleBufferContentEditable !== 'off';
 		}
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
@@ -326,7 +324,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorWidth(config.cursorWidth);
-		this.raw.options.screenReaderMode = config.accessibleBufferContentEditable !== 'off';
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
