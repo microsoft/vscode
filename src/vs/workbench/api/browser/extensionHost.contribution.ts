@@ -6,6 +6,9 @@
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IExtensionHostHeapService } from 'vs/workbench/api/browser/extensionHostHeapService';
+import { ExtensionHostHeapService } from 'vs/workbench/api/browser/extensionHostHeapServiceImpl';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 // --- other interested parties
@@ -79,6 +82,7 @@ import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadProfilContentHandlers';
 
+
 export class ExtensionPoints implements IWorkbenchContribution {
 
 	constructor(
@@ -94,3 +98,5 @@ export class ExtensionPoints implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);
+
+registerSingleton(IExtensionHostHeapService, ExtensionHostHeapService, InstantiationType.Delayed);
