@@ -16,7 +16,7 @@ futures = "0.3"
 clap = { version = "3.0", features = ["derive", "env"] }
 open = { version = "2.1.0" }
 reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls-vendored"] }
-tokio = { version = "1.23", features = ["full"] }
+tokio = { version = "1.24", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 flate2 = { version = "1.0.22" }
 zip = { version = "0.5.13", default-features = false, features = ["time", "deflate"] }
