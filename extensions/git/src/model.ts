@@ -808,7 +808,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
 				this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
 			} catch (err) {
-				// noop - Folder does not exist
+				// noop - Workspace folder does not exist
+				this.logger.trace(`Failed to resolve workspace folder: "${workspaceFolder.uri.fsPath}". ${err}`);
 			}
 		}
 
