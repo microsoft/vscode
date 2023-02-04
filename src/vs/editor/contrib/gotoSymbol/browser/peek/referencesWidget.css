@@ -74,11 +74,13 @@
 
 /* High Contrast Theming */
 
-.monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file {
+.monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file,
+.monaco-editor.hc-light .reference-zone-widget .ref-tree .reference-file {
 	font-weight: bold;
 }
 
-.monaco-editor.hc-black .reference-zone-widget .ref-tree .referenceMatch .highlight {
+.monaco-editor.hc-black .reference-zone-widget .ref-tree .referenceMatch .highlight,
+.monaco-editor.hc-light .reference-zone-widget .ref-tree .referenceMatch .highlight {
 	border: 1px dotted var(--vscode-contrastActiveBorder, transparent);
 	box-sizing: border-box;
 }

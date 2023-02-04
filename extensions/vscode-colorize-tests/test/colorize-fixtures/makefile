@@ -41,7 +41,7 @@ echo:
 	@-./point-and-slash-should-not-be-highlighted
 
 define defined
-  $(info Checking existance of $(1) $(flavor $(1)))
+  $(info Checking existence of $(1) $(flavor $(1)))
   $(if $(filter undefined,$(flavor $(1))),0,1)
 endef
 
@@ -63,7 +63,10 @@ ${info Parentheses () in braces {()}: $(ok)}
 
 ifeq ("${ok}", "skip")
   $(ok))}
+else ifeq ("${ok}", "skip")
   ${ok}})
+else
+  $(info Else: ${ok})
 endif
 
 result != echo "'$(ok)' $(shell echo "from inlined shell")"
@@ -77,6 +80,10 @@ var!=echo val
 var:=val \
 notvar=butval
 var:=$(val:.c=.o)
+var:=blah#comment
+var?=blah\#not_a_comment
+var:=blah\\#comment
+var!=blah\\\#not_a_comment
 
 var-$(nested-var)=val
 

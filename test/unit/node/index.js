@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
@@ -24,12 +25,13 @@ const optimist = require('optimist')
 
 
 const TEST_GLOB = '**/test/**/*.test.js';
-const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main}/**/*.test.js';
-const excludeModules = [
-	'vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
-	'vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
-	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
-]
+
+const excludeGlobs = [
+	'**/{browser,electron-sandbox,electron-browser,electron-main}/**/*.test.js',
+	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
+	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
+	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
+];
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
@@ -54,6 +56,15 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 }
 
 function main() {
+
+	// VSCODE_GLOBALS: node_modules
+	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
+
+	// VSCODE_GLOBALS: package/product.json
+	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
+	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
+
+
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
 	});
@@ -92,7 +103,6 @@ function main() {
 
 	const loaderConfig = {
 		nodeRequire: require,
-		nodeMain: __filename,
 		baseUrl: fileUriFromPath(src, { isWindows: process.platform === 'win32' }),
 		catchError: true
 	};
@@ -150,8 +160,8 @@ function main() {
 			glob(TEST_GLOB, { cwd: src }, function (err, files) {
 				/** @type {string[]} */
 				const modules = [];
-				for (let file of files) {
-					if (!minimatch(file, excludeGlob) && excludeModules.indexOf(file) === -1) {
+				for (const file of files) {
+					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
@@ -178,7 +188,7 @@ function main() {
 		}
 
 		// report failing test for every unexpected error during any of the tests
-		let unexpectedErrors = [];
+		const unexpectedErrors = [];
 		mocha.suite('Errors', function () {
 			test('should not have unexpected errors in tests', function () {
 				if (unexpectedErrors.length) {

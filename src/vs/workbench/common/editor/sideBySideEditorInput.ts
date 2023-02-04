@@ -8,8 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -42,6 +41,9 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		if (this.secondary.hasCapability(EditorInputCapabilities.Singleton)) {
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
+
+		// Indicate we show more than one editor
+		capabilities |= EditorInputCapabilities.MultipleEditors;
 
 		return capabilities;
 	}
@@ -162,22 +164,41 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.isSaving();
 	}
 
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		const editor = await this.primary.save(group, options);
-		if (!editor || !this.hasIdenticalSides) {
-			return editor;
-		}
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
+		const primarySaveResult = await this.primary.save(group, options);
 
-		return new SideBySideEditorInput(this.preferredName, this.preferredDescription, editor, editor, this.editorService);
+		return this.saveResultToEditor(primarySaveResult);
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		const editor = await this.primary.saveAs(group, options);
-		if (!editor || !this.hasIdenticalSides) {
-			return editor;
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
+		const primarySaveResult = await this.primary.saveAs(group, options);
+
+		return this.saveResultToEditor(primarySaveResult);
+	}
+
+	private saveResultToEditor(primarySaveResult: EditorInput | IUntypedEditorInput | undefined): EditorInput | IUntypedEditorInput | undefined {
+		if (!primarySaveResult || !this.hasIdenticalSides) {
+			return primarySaveResult;
 		}
 
-		return new SideBySideEditorInput(this.preferredName, this.preferredDescription, editor, editor, this.editorService);
+		if (this.primary.matches(primarySaveResult)) {
+			return this;
+		}
+
+		if (primarySaveResult instanceof EditorInput) {
+			return new SideBySideEditorInput(this.preferredName, this.preferredDescription, primarySaveResult, primarySaveResult, this.editorService);
+		}
+
+		if (!isResourceDiffEditorInput(primarySaveResult) && !isResourceSideBySideEditorInput(primarySaveResult) && !isResourceMergeEditorInput(primarySaveResult)) {
+			return {
+				primary: primarySaveResult,
+				secondary: primarySaveResult,
+				label: this.preferredName,
+				description: this.preferredDescription
+			};
+		}
+
+		return undefined;
 	}
 
 	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -233,7 +254,8 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		if (
 			primaryResourceEditorInput && secondaryResourceEditorInput &&
 			!isResourceDiffEditorInput(primaryResourceEditorInput) && !isResourceDiffEditorInput(secondaryResourceEditorInput) &&
-			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput)
+			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput) &&
+			!isResourceMergeEditorInput(primaryResourceEditorInput) && !isResourceMergeEditorInput(secondaryResourceEditorInput)
 		) {
 			const untypedInput: IResourceSideBySideEditorInput = {
 				label: this.preferredName,
@@ -290,7 +312,7 @@ interface ISerializedSideBySideEditorInput {
 export abstract class AbstractSideBySideEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
-		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
+		const input = editorInput as SideBySideEditorInput;
 
 		if (input.primary && input.secondary) {
 			const [secondaryInputSerializer, primaryInputSerializer] = this.getSerializers(input.secondary.typeId, input.primary.typeId);

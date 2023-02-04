@@ -27,9 +27,7 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 				for (const welcome of contribution.value) {
 					const disposable = this.viewWelcomeContents.get(welcome);
 
-					if (disposable) {
-						disposable.dispose();
-					}
+					disposable?.dispose();
 				}
 			}
 
@@ -68,7 +66,7 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
-function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointUser<ViewsWelcomeExtensionPoint>): { group: string | undefined, order: number | undefined } {
+function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointUser<ViewsWelcomeExtensionPoint>): { group: string | undefined; order: number | undefined } {
 
 	let group: string | undefined;
 	let order: number | undefined;

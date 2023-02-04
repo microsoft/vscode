@@ -9,13 +9,10 @@ import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { isMacintosh } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
-export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
-export const FOLDER_NOT_IN_WORKSPACE_LABEL = localize('openFolder', 'Open folder in new window');
+import { TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
@@ -27,17 +24,19 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
-
+	get type(): TerminalLinkType { return this._type; }
 
 	constructor(
 		private readonly _xterm: Terminal,
 		readonly range: IBufferRange,
 		readonly text: string,
+		readonly actions: IHoverAction[] | undefined,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => Promise<void>,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _isHighConfidenceLink: boolean,
 		readonly label: string | undefined,
+		private readonly _type: TerminalLinkType,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();

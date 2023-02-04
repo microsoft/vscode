@@ -5,7 +5,7 @@
 
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
@@ -22,4 +22,4 @@ export class NativeWorkspacesService implements IWorkspacesService {
 	}
 }
 
-registerSingleton(IWorkspacesService, NativeWorkspacesService, true);
+registerSingleton(IWorkspacesService, NativeWorkspacesService, InstantiationType.Delayed);

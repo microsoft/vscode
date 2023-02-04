@@ -10,14 +10,17 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isReadable, isReadableStream } from 'vs/base/common/stream';
+import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 suite('Untitled text editors', () => {
 
@@ -43,6 +46,7 @@ suite('Untitled text editors', () => {
 		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		await input1.resolve();
 		assert.strictEqual(service.get(input1.resource), input1.model);
+		assert.ok(!isUntitledWithAssociatedResource(input1.resource));
 
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
@@ -134,6 +138,7 @@ suite('Untitled text editors', () => {
 		});
 
 		const model = service.create({ associatedResource: file });
+		assert.ok(isUntitledWithAssociatedResource(model.resource));
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, model);
 		assert.ok(untitled.isDirty());
 		assert.strictEqual(model, onDidChangeDirtyModel);
@@ -218,6 +223,17 @@ suite('Untitled text editors', () => {
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' }));
 		assert.ok(untitled.isDirty());
 
+		const backup = (await untitled.model.backup(CancellationToken.None)).content;
+		if (isReadableStream(backup)) {
+			const value = await streamToBuffer(backup as VSBufferReadableStream);
+			assert.strictEqual(value.toString(), 'Hello World');
+		} else if (isReadable(backup)) {
+			const value = readableToBuffer(backup as VSBufferReadable);
+			assert.strictEqual(value.toString(), 'Hello World');
+		} else {
+			assert.fail('Missing untitled backup');
+		}
+
 		// dirty
 		const model = await untitled.resolve();
 		assert.ok(model.isDirty());
@@ -278,7 +294,7 @@ suite('Untitled text editors', () => {
 	test('can change language afterwards', async () => {
 		const languageId = 'untitled-input-test';
 
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -296,12 +312,13 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+		registration.dispose();
 	});
 
 	test('remembers that language was set explicitly', async () => {
 		const language = 'untitled-input-test';
 
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: language,
 		});
 
@@ -317,6 +334,56 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+		registration.dispose();
+	});
+
+	// Issue #159202
+	test('remembers that language was set explicitly if set by another source (i.e. ModelService)', async () => {
+		const language = 'untitled-input-test';
+
+		const registration = accessor.languageService.registerLanguage({
+			id: language,
+		});
+
+		const service = accessor.untitledTextEditorService;
+		const model = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
+		await input.resolve();
+
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+		accessor.modelService.setMode(model.textEditorModel!, accessor.languageService.createById(language));
+		assert.ok(input.model.hasLanguageSetExplicitly);
+
+		assert.strictEqual(model.getLanguageId(), language);
+
+		model.dispose();
+		registration.dispose();
+	});
+
+	test('Language is not set explicitly if set by language detection source', async () => {
+		const language = 'untitled-input-test';
+
+		const registration = accessor.languageService.registerLanguage({
+			id: language,
+		});
+
+		const service = accessor.untitledTextEditorService;
+		const model = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
+		await input.resolve();
+
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+		accessor.modelService.setMode(
+			model.textEditorModel!,
+			accessor.languageService.createById(language),
+			// This is really what this is testing
+			LanguageDetectionLanguageEventSource);
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+
+		assert.strictEqual(model.getLanguageId(), language);
+
+		model.dispose();
+		registration.dispose();
 	});
 
 	test('service#onDidChangeEncoding', async () => {
@@ -479,8 +546,8 @@ suite('Untitled text editors', () => {
 		model.textEditorModel?.setValue('Hello\nWorld');
 		assert.strictEqual(counter, 7);
 
-		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-			let range = new Range(
+		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
+			const range = new Range(
 				selectionLineNumber,
 				selectionColumn,
 				positionLineNumber,
@@ -488,7 +555,6 @@ suite('Untitled text editors', () => {
 			);
 
 			return {
-				identifier: null,
 				range,
 				text,
 				forceMoveMarkers: false

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import * as types from 'vs/base/common/types';
@@ -52,7 +53,7 @@ export interface IView<TLayoutContext = undefined> {
 	readonly minimumSize: number;
 
 	/**
-	 * A minimum size for this view.
+	 * A maximum size for this view.
 	 *
 	 * @remarks If none, set it to `Number.POSITIVE_INFINITY`.
 	 */
@@ -65,6 +66,14 @@ export interface IView<TLayoutContext = undefined> {
 	 * @remarks Only used when `proportionalLayout` is false.
 	 */
 	readonly priority?: LayoutPriority;
+
+	/**
+	 * If the {@link SplitView} supports {@link ISplitViewOptions.proportionalLayout proportional layout},
+	 * this property allows for finer control over the proportional layout algorithm, per view.
+	 *
+	 * @defaultValue `true`
+	 */
+	readonly proportionalLayout?: boolean;
 
 	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
@@ -231,9 +240,7 @@ abstract class ViewItem<TLayoutContext> {
 
 		this.container.classList.toggle('visible', visible);
 
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
-		}
+		this.view.setVisible?.(visible);
 	}
 
 	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
@@ -243,6 +250,7 @@ abstract class ViewItem<TLayoutContext> {
 	get viewMaximumSize(): number { return this.view.maximumSize; }
 
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
+	get proportionalLayout(): boolean { return this.view.proportionalLayout ?? true; }
 	get snap(): boolean { return !!this.view.snap; }
 
 	set enabled(enabled: boolean) {
@@ -324,21 +332,21 @@ enum State {
 }
 
 /**
- * When adding or removing views, distribute the delta space among
- * all other views.
+ * When adding or removing views, uniformly distribute the entire split view space among
+ * all views.
  */
 export type DistributeSizing = { type: 'distribute' };
 
 /**
- * When adding or removing views, split the delta space with another
- * specific view, indexed by the provided `index`.
+ * When adding a view, make space for it by reducing the size of another view,
+ * indexed by the provided `index`.
  */
-export type SplitSizing = { type: 'split', index: number };
+export type SplitSizing = { type: 'split'; index: number };
 
 /**
  * When adding or removing views, assume the view is invisible.
  */
-export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
+export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
 
 /**
  * When adding or removing views, the sizing provides fine grained
@@ -413,9 +421,9 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private size = 0;
 	private layoutContext: TLayoutContext | undefined;
 	private contentSize = 0;
-	private proportions: undefined | number[] = undefined;
+	private proportions: (number | undefined)[] | undefined = undefined;
 	private viewItems: ViewItem<TLayoutContext>[] = [];
-	private sashItems: ISashItem[] = [];
+	sashItems: ISashItem[] = []; // used in tests
 	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
@@ -556,10 +564,27 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
+		// https://github.com/microsoft/vscode/issues/157737
+		const onDidScrollViewContainer = this._register(new DomEmitter(this.viewContainer, 'scroll')).event;
+		this._register(onDidScrollViewContainer(_ => {
+			const position = this.scrollableElement.getScrollPosition();
+			const scrollLeft = Math.abs(this.viewContainer.scrollLeft - position.scrollLeft) <= 1 ? undefined : this.viewContainer.scrollLeft;
+			const scrollTop = Math.abs(this.viewContainer.scrollTop - position.scrollTop) <= 1 ? undefined : this.viewContainer.scrollTop;
+
+			if (scrollLeft !== undefined || scrollTop !== undefined) {
+				this.scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
+			}
+		}));
+
 		this.onDidScroll = this.scrollableElement.onScroll;
 		this._register(this.onDidScroll(e => {
-			this.viewContainer.scrollTop = e.scrollTop;
-			this.viewContainer.scrollLeft = e.scrollLeft;
+			if (e.scrollTopChanged) {
+				this.viewContainer.scrollTop = e.scrollTop;
+			}
+
+			if (e.scrollLeftChanged) {
+				this.viewContainer.scrollLeft = e.scrollLeft;
+			}
 		}));
 
 		append(this.el, this.scrollableElement.getDomNode());
@@ -749,9 +774,26 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		} else {
+			let total = 0;
+
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
-				item.size = clamp(Math.round(this.proportions[i] * size), item.minimumSize, item.maximumSize);
+				const proportion = this.proportions[i];
+
+				if (typeof proportion === 'number') {
+					total += proportion;
+				} else {
+					size -= item.size;
+				}
+			}
+
+			for (let i = 0; i < this.viewItems.length; i++) {
+				const item = this.viewItems[i];
+				const proportion = this.proportions[i];
+
+				if (typeof proportion === 'number') {
+					item.size = clamp(Math.round(proportion * size / total), item.minimumSize, item.maximumSize);
+				}
 			}
 		}
 
@@ -761,7 +803,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	private saveProportions(): void {
 		if (this.proportionalLayout && this.contentSize > 0) {
-			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
+			this.proportions = this.viewItems.map(i => i.proportionalLayout ? i.size / this.contentSize : undefined);
 		}
 	}
 
@@ -934,6 +976,23 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	}
 
 	/**
+	 * Returns whether all other {@link IView views} are at their minimum size.
+	 */
+	isViewSizeMaximized(index: number): boolean {
+		if (index < 0 || index >= this.viewItems.length) {
+			return false;
+		}
+
+		for (const item of this.viewItems) {
+			if (item !== this.viewItems[index] && item.size > item.minimumSize) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Distribute the entire {@link SplitView} size among all {@link IView views}.
 	 */
 	distributeViewSizes(): void {
@@ -1011,7 +1070,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
-			let opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+			const opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
 
 			const sash = this.orientation === Orientation.VERTICAL
 				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })
@@ -1326,7 +1385,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	override dispose(): void {
 		super.dispose();
 
-		this.viewItems.forEach(i => i.dispose());
+		dispose(this.viewItems);
 		this.viewItems = [];
 
 		this.sashItems.forEach(i => i.disposable.dispose());

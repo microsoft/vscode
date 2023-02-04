@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
-import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -59,11 +59,19 @@ export interface IProcessDetails {
 	icon: TerminalIcon | undefined;
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
+	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
+	reconnectionProperties?: IReconnectionProperties;
+	waitOnExit?: WaitOnExitValue;
+	hideFromUser?: boolean;
+	isFeatureTerminal?: boolean;
+	type?: TerminalType;
+	hasChildProcesses: boolean;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
 
-export interface ReplayEntry { cols: number; rows: number; data: string; }
-export interface IPtyHostProcessReplayEvent {
-	events: ReplayEntry[];
+export interface ReplayEntry {
+	cols: number;
+	rows: number;
+	data: string;
 }

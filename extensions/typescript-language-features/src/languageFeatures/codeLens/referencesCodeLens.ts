@@ -4,24 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ExecutionTarget } from '../../tsServer/server';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
+import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
-const localize = nls.loadMessageBundle();
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
 		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
-		private modeId: string
+		private readonly language: LanguageDescription
 	) {
 		super(client, _cachedResponse);
 	}
@@ -55,22 +54,22 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 
 	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
 		return locations.length === 1
-			? localize('oneReferenceLabel', '1 reference')
-			: localize('manyReferenceLabel', '{0} references', locations.length);
+			? vscode.l10n.t("1 reference")
+			: vscode.l10n.t("{0} references", locations.length);
 	}
 
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null
-	): vscode.Range | null {
+		parent: Proto.NavigationTree | undefined
+	): vscode.Range | undefined {
 		if (parent && parent.kind === PConst.Kind.enum) {
 			return getSymbolRange(document, item);
 		}
 
 		switch (item.kind) {
 			case PConst.Kind.function: {
-				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
+				const showOnAllFunctions = vscode.workspace.getConfiguration(this.language.id).get<boolean>('referencesCodeLens.showOnAllFunctions');
 				if (showOnAllFunctions) {
 					return getSymbolRange(document, item);
 				}
@@ -107,7 +106,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 				if (parent &&
 					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
 				) {
-					return null;
+					return undefined;
 				}
 
 				// Only show if parent is a class type object (not a literal)
@@ -120,21 +119,21 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 				break;
 		}
 
-		return null;
+		return undefined;
 	}
 }
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'referencesCodeLens.enabled'),
+		requireGlobalConfiguration(language.id, 'referencesCodeLens.enabled'),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, language));
 	});
 }

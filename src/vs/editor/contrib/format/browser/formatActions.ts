@@ -9,15 +9,15 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { alertFormattingEdits, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
 import * as nls from 'vs/nls';
@@ -37,10 +37,11 @@ class FormatOnType implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
 	) {
 
-		this._disposables.add(OnTypeFormattingEditProviderRegistry.onDidChange(this._update, this));
+		this._disposables.add(_languageFeaturesService.onTypeFormattingEditProvider.onDidChange(this._update, this));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
@@ -73,18 +74,18 @@ class FormatOnType implements IEditorContribution {
 		const model = this._editor.getModel();
 
 		// no support
-		const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
+		const [support] = this._languageFeaturesService.onTypeFormattingEditProvider.ordered(model);
 		if (!support || !support.autoFormatTriggerCharacters) {
 			return;
 		}
 
 		// register typing listeners that will trigger the format
-		let triggerChars = new CharacterSet();
-		for (let ch of support.autoFormatTriggerCharacters) {
+		const triggerChars = new CharacterSet();
+		for (const ch of support.autoFormatTriggerCharacters) {
 			triggerChars.add(ch.charCodeAt(0));
 		}
 		this._sessionDisposables.add(this._editor.onDidType((text: string) => {
-			let lastCharCode = text.charCodeAt(text.length - 1);
+			const lastCharCode = text.charCodeAt(text.length - 1);
 			if (triggerChars.has(lastCharCode)) {
 				this._trigger(String.fromCharCode(lastCharCode));
 			}
@@ -129,6 +130,7 @@ class FormatOnType implements IEditorContribution {
 
 		getOnTypeFormattingEdits(
 			this._workerService,
+			this._languageFeaturesService,
 			model,
 			position,
 			ch,
@@ -157,12 +159,13 @@ class FormatOnPaste implements IEditorContribution {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._callOnDispose.add(editor.onDidChangeConfiguration(() => this._update()));
 		this._callOnDispose.add(editor.onDidChangeModel(() => this._update()));
 		this._callOnDispose.add(editor.onDidChangeModelLanguage(() => this._update()));
-		this._callOnDispose.add(DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this));
+		this._callOnDispose.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._update, this));
 	}
 
 	dispose(): void {
@@ -186,7 +189,7 @@ class FormatOnPaste implements IEditorContribution {
 		}
 
 		// no formatter
-		if (!DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())) {
+		if (!this._languageFeaturesService.documentRangeFormattingEditProvider.has(this.editor.getModel())) {
 			return;
 		}
 
@@ -279,8 +282,8 @@ class FormatSelectionAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(FormatOnType.ID, FormatOnType);
-registerEditorContribution(FormatOnPaste.ID, FormatOnPaste);
+registerEditorContribution(FormatOnType.ID, FormatOnType, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorContribution(FormatOnPaste.ID, FormatOnPaste, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(FormatDocumentAction);
 registerEditorAction(FormatSelectionAction);
 

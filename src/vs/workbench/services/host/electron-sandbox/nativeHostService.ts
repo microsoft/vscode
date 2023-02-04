@@ -6,10 +6,10 @@
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -21,7 +21,7 @@ class WorkbenchNativeHostService extends NativeHostService {
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		super(environmentService.configuration.windowId, mainProcessService);
+		super(environmentService.window.id, mainProcessService);
 	}
 }
 
@@ -43,7 +43,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
 		Event.map(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus),
 		Event.map(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus)
-	));
+	), undefined, this._store);
 
 	get hasFocus(): boolean {
 		return document.hasFocus();
@@ -91,11 +91,11 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	private getRecentLabel(openable: IWindowOpenable): string {
 		if (isFolderToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: true });
+			return this.labelService.getWorkspaceLabel(openable.folderUri, { verbose: Verbosity.LONG });
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: true });
+			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: Verbosity.LONG });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);
@@ -138,5 +138,5 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	//#endregion
 }
 
-registerSingleton(IHostService, WorkbenchHostService, true);
-registerSingleton(INativeHostService, WorkbenchNativeHostService, true);
+registerSingleton(IHostService, WorkbenchHostService, InstantiationType.Delayed);
+registerSingleton(INativeHostService, WorkbenchNativeHostService, InstantiationType.Delayed);

@@ -12,19 +12,19 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 
-export const TOKEN_TYPE_WILDCARD = '*';
-export const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
-export const CLASSIFIER_MODIFIER_SEPARATOR = '.';
+const TOKEN_TYPE_WILDCARD = '*';
+const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
+const CLASSIFIER_MODIFIER_SEPARATOR = '.';
 
 // qualified string [type|*](.modifier)*(/language)!
-export type TokenClassificationString = string;
+type TokenClassificationString = string;
 
-export const idPattern = '\\w+[-_\\w+]*';
+const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
-export const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
+const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[], language: string): number;
@@ -97,7 +97,7 @@ export namespace TokenStyle {
 	export function is(s: any): s is TokenStyle {
 		return s instanceof TokenStyle;
 	}
-	export function fromData(data: { foreground: Color | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined }): TokenStyle {
+	export function fromData(data: { foreground: Color | undefined; bold: boolean | undefined; underline: boolean | undefined; strikethrough: boolean | undefined; italic: boolean | undefined }): TokenStyle {
 		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic);
 	}
 	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle;
@@ -134,7 +134,8 @@ export interface TokenStyleDefaults {
 	scopesToProbe?: ProbeScope[];
 	light?: TokenStyleValue;
 	dark?: TokenStyleValue;
-	hc?: TokenStyleValue;
+	hcDark?: TokenStyleValue;
+	hcLight?: TokenStyleValue;
 }
 
 export interface SemanticTokenDefaultRule {
@@ -185,7 +186,7 @@ export namespace SemanticTokenRule {
 export type TokenStyleValue = TokenStyle | TokenClassificationString;
 
 // TokenStyle registry
-export const Extensions = {
+const Extensions = {
 	TokenClassificationContribution: 'base.contributions.tokenClassification'
 };
 
@@ -275,7 +276,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	private typeHierarchy: { [id: string]: string[] };
 
-	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap, patternProperties: IJSONSchemaMap } = {
+	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap; patternProperties: IJSONSchemaMap } = {
 		type: 'object',
 		properties: {},
 		patternProperties: {
@@ -360,7 +361,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		}
 
 		const num = this.currentTypeNumber++;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
+		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
 
 		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
@@ -375,7 +376,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 		const num = this.currentModifierBit;
 		this.currentModifierBit = this.currentModifierBit * 2;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
+		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
 		this.tokenModifierById[id] = tokenStyleContribution;
 
 		this.tokenStylingSchema.properties[`*.${id}`] = getStylingSchemeEntry(description, deprecationMessage);
@@ -471,9 +472,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 
 	public toString() {
-		let sorter = (a: string, b: string) => {
-			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
-			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
+		const sorter = (a: string, b: string) => {
+			const cat1 = a.indexOf('.') === -1 ? 0 : 1;
+			const cat2 = b.indexOf('.') === -1 ? 0 : 1;
 			if (cat1 !== cat2) {
 				return cat1 - cat2;
 			}
@@ -488,9 +489,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 const CHAR_LANGUAGE = TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR.charCodeAt(0);
 const CHAR_MODIFIER = CLASSIFIER_MODIFIER_SEPARATOR.charCodeAt(0);
 
-export function parseClassifierString(s: string, defaultLanguage: string): { type: string, modifiers: string[], language: string; };
-export function parseClassifierString(s: string, defaultLanguage?: string): { type: string, modifiers: string[], language: string | undefined; };
-export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string, modifiers: string[], language: string | undefined; } {
+export function parseClassifierString(s: string, defaultLanguage: string): { type: string; modifiers: string[]; language: string };
+export function parseClassifierString(s: string, defaultLanguage?: string): { type: string; modifiers: string[]; language: string | undefined };
+export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string; modifiers: string[]; language: string | undefined } {
 	let k = s.length;
 	let language: string | undefined = defaultLanguage;
 	const modifiers = [];
@@ -512,7 +513,7 @@ export function parseClassifierString(s: string, defaultLanguage: string | undef
 }
 
 
-let tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
+const tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
 platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassificationRegistry);
 
 
@@ -618,7 +619,7 @@ function getStylingSchemeEntry(description?: string, deprecationMessage?: string
 
 export const tokenStylingSchemaId = 'vscode://schemas/token-styling';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(tokenStylingSchemaId, tokenClassificationRegistry.getTokenStylingSchema());
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(tokenStylingSchemaId), 200);

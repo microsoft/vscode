@@ -37,8 +37,8 @@ type ConfigurationInspect<T> = {
 
 	defaultValue?: T;
 	globalValue?: T;
-	workspaceValue?: T,
-	workspaceFolderValue?: T,
+	workspaceValue?: T;
+	workspaceFolderValue?: T;
 
 	defaultLanguageValue?: T;
 	globalLanguageValue?: T;
@@ -52,7 +52,7 @@ function isUri(thing: any): thing is vscode.Uri {
 	return thing instanceof URI;
 }
 
-function isResourceLanguage(thing: any): thing is { uri: URI, languageId: string } {
+function isResourceLanguage(thing: any): thing is { uri: URI; languageId: string } {
 	return thing
 		&& thing.uri instanceof URI
 		&& (thing.languageId && typeof thing.languageId === 'string');
@@ -251,22 +251,22 @@ export class ExtHostConfigProvider {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> | undefined => {
 				key = section ? `${section}.${key}` : key;
-				const config = deepClone(this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace));
+				const config = this._configuration.inspect<T>(key, overrides, this._extHostWorkspace.workspace);
 				if (config) {
 					return {
 						key,
 
-						defaultValue: config.default?.value,
-						globalValue: config.user?.value,
-						workspaceValue: config.workspace?.value,
-						workspaceFolderValue: config.workspaceFolder?.value,
+						defaultValue: deepClone(config.policy?.value ?? config.default?.value),
+						globalValue: deepClone(config.user?.value ?? config.application?.value),
+						workspaceValue: deepClone(config.workspace?.value),
+						workspaceFolderValue: deepClone(config.workspaceFolder?.value),
 
-						defaultLanguageValue: config.default?.override,
-						globalLanguageValue: config.user?.override,
-						workspaceLanguageValue: config.workspace?.override,
-						workspaceFolderLanguageValue: config.workspaceFolder?.override,
+						defaultLanguageValue: deepClone(config.default?.override),
+						globalLanguageValue: deepClone(config.user?.override ?? config.application?.override),
+						workspaceLanguageValue: deepClone(config.workspace?.override),
+						workspaceFolderLanguageValue: deepClone(config.workspaceFolder?.override),
 
-						languageIds: config.overrideIdentifiers
+						languageIds: deepClone(config.overrideIdentifiers)
 					};
 				}
 				return undefined;
@@ -277,7 +277,7 @@ export class ExtHostConfigProvider {
 			mixin(result, config, false);
 		}
 
-		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+		return Object.freeze(result);
 	}
 
 	private _toReadonlyValue(result: any): any {
@@ -313,7 +313,7 @@ export class ExtHostConfigProvider {
 		}
 	}
 
-	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData, workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
+	private _toConfigurationChangeEvent(change: IConfigurationChange, previous: { data: IConfigurationData; workspace: Workspace | undefined }): vscode.ConfigurationChangeEvent {
 		const event = new ConfigurationChangeEvent(change, previous, this._configuration, this._extHostWorkspace.workspace);
 		return Object.freeze({
 			affectsConfiguration: (section: string, scope?: vscode.ConfigurationScope) => event.affectsConfiguration(section, scopeToOverrides(scope))

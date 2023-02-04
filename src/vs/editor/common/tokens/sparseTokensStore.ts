@@ -7,7 +7,8 @@ import * as arrays from 'vs/base/common/arrays';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { ILanguageIdCodec, MetadataConsts } from 'vs/editor/common/languages';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * Represents sparse tokens in a text model.
@@ -51,7 +52,7 @@ export class SparseTokensStore {
 			range = _range.plusRange(_firstRange).plusRange(_lastRange);
 		}
 
-		let insertPosition: { index: number; } | null = null;
+		let insertPosition: { index: number } | null = null;
 		for (let i = 0, len = this._pieces.length; i < len; i++) {
 			const piece = this._pieces[i];
 			if (piece.endLineNumber < range.startLineNumber) {
@@ -123,6 +124,11 @@ export class SparseTokensStore {
 	}
 
 	public addSparseTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
+		if (aTokens.getLineContent().length === 0) {
+			// Don't do anything for empty lines
+			return aTokens;
+		}
+
 		const pieces = this._pieces;
 
 		if (pieces.length === 0) {

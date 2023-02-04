@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostProfile, ProfileSession, IExtensionService, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -92,9 +92,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 			const timeStarted = Date.now();
 			const handle = setInterval(() => {
-				if (this.profilingStatusBarIndicator) {
-					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
-				}
+				this.profilingStatusBarIndicator?.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 			}, 1000);
 			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
 
@@ -116,14 +114,14 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			return null;
 		}
 
-		const inspectPort = await this._extensionService.getInspectPort(true);
-		if (!inspectPort) {
+		const inspectPorts = await this._extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, true);
+
+		if (inspectPorts.length === 0) {
 			return this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this._productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
+				primaryButton: nls.localize({ key: 'restart3', comment: ['&& denotes a mnemonic'] }, "&&Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
@@ -131,9 +129,14 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			});
 		}
 
+		if (inspectPorts.length > 1) {
+			// TODO
+			console.warn(`There are multiple extension hosts available for profiling. Picking the first one...`);
+		}
+
 		this._setState(ProfileSessionState.Starting);
 
-		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPort).start().then((value) => {
+		return this._instantiationService.createInstance(ExtensionHostProfiler, inspectPorts[0]).start().then((value) => {
 			this._profileSession = value;
 			this._setState(ProfileSessionState.Running);
 		}, (err) => {

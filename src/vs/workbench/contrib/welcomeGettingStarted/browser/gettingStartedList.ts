@@ -22,7 +22,7 @@ type GettingStartedIndexListOptions<T> = {
 	contextService: IContextKeyService;
 };
 
-export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyExpression; }> extends Disposable {
+export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyExpression }> extends Disposable {
 	private readonly _onDidChangeEntries = new Emitter<void>();
 	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
 
@@ -115,9 +115,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		this.contextKeysToWatch.clear();
 		entryList.forEach(e => {
 			const keys = e.when?.keys();
-			if (keys) {
-				keys.forEach(key => this.contextKeysToWatch.add(key));
-			}
+			keys?.forEach(key => this.contextKeysToWatch.add(key));
 		});
 
 		this.lastRendered = toRender;

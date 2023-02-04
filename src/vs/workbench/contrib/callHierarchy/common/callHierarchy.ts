@@ -32,7 +32,7 @@ export interface CallHierarchyItem {
 	uri: URI;
 	range: IRange;
 	selectionRange: IRange;
-	tags?: SymbolTag[]
+	tags?: SymbolTag[];
 }
 
 export interface IncomingCall {

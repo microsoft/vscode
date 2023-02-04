@@ -8,20 +8,22 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
 import { CompletionOptions, provideSuggestionItems, SnippetSortOrder } from 'vs/editor/contrib/suggest/browser/suggest';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 
 suite('Suggest', function () {
 
 	let model: TextModel;
 	let registration: IDisposable;
+	let registry: LanguageFeatureRegistry<CompletionItemProvider>;
 
 	setup(function () {
-
+		registry = new LanguageFeatureRegistry();
 		model = createTextModel('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
-		registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
+		registration = registry.register({ pattern: 'bar/path', scheme: 'foo' }, {
 			provideCompletionItems(_doc, pos) {
 				return {
 					incomplete: false,
@@ -52,7 +54,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet inline', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Inline));
+		const { items } = await provideSuggestionItems(registry, model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Inline));
 		assert.strictEqual(items.length, 3);
 		assert.strictEqual(items[0].completion.label, 'aaa');
 		assert.strictEqual(items[1].completion.label, 'fff');
@@ -60,7 +62,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet top', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Top));
+		const { items } = await provideSuggestionItems(registry, model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Top));
 		assert.strictEqual(items.length, 3);
 		assert.strictEqual(items[0].completion.label, 'aaa');
 		assert.strictEqual(items[1].completion.label, 'zzz');
@@ -68,7 +70,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet bottom', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Bottom));
+		const { items } = await provideSuggestionItems(registry, model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Bottom));
 		assert.strictEqual(items.length, 3);
 		assert.strictEqual(items[0].completion.label, 'fff');
 		assert.strictEqual(items[1].completion.label, 'aaa');
@@ -76,7 +78,7 @@ suite('Suggest', function () {
 	});
 
 	test('sort - snippet none', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(registry, model, new Position(1, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.label, 'fff');
 	});
@@ -97,9 +99,9 @@ suite('Suggest', function () {
 				};
 			}
 		};
-		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const registration = registry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
 
-		provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo))).then(({ items }) => {
+		provideSuggestionItems(registry, model, new Position(1, 1), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo))).then(({ items }) => {
 			registration.dispose();
 
 			assert.strictEqual(items.length, 1);
@@ -137,8 +139,8 @@ suite('Suggest', function () {
 			}
 		};
 
-		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
-		const { items } = await provideSuggestionItems(model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
+		const registration = registry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const { items } = await provideSuggestionItems(registry, model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
 		registration.dispose();
 
 		assert.strictEqual(items.length, 2);

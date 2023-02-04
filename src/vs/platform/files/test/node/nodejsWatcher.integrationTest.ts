@@ -6,7 +6,7 @@
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -16,6 +16,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { FileAccess } from 'vs/base/common/network';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -64,6 +65,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 	setup(async () => {
 		watcher = new TestNodeJSWatcher();
+		watcher?.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {
@@ -79,7 +81,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
@@ -259,7 +261,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'lorem.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -271,7 +273,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Delete + Recreate file
 		const newFilePath = join(filePath);
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -370,6 +372,38 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		await watcher.watch([{ path: filePath, excludes: ['**'], recursive: false }]);
 
 		return basicCrudTest(filePath, true);
+	});
+
+	test('includes can be updated (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['nothing'], recursive: false }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('non-includes are ignored (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], includes: ['nothing'], recursive: false }]);
+
+		return basicCrudTest(filePath, true);
+	});
+
+	test('includes are supported (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern explicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'files-includes.txt' }], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
@@ -495,5 +529,3 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return watchPromise;
 	});
 });
-
-// TODO test for excludes? subsequent updates to rewatch like parcel?

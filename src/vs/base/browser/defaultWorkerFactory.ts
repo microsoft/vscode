@@ -3,10 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { COI } from 'vs/base/common/network';
 import { globals } from 'vs/base/common/platform';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
 const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+
+export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Worker {
+	if (!blobUrl.startsWith('blob:')) {
+		throw new URIError('Not a blob-url: ' + blobUrl);
+	}
+	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, options);
+}
 
 function getWorker(label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
@@ -41,7 +49,21 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		const blob = new Blob([js], { type: 'application/javascript' });
 		return URL.createObjectURL(blob);
 	}
-	return scriptPath + '#' + label;
+
+	const start = scriptPath.lastIndexOf('?');
+	const end = scriptPath.lastIndexOf('#', start);
+	const params = start > 0
+		? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+		: new URLSearchParams();
+
+	COI.addSearchParam(params, true, true);
+	const search = params.toString();
+
+	if (!search) {
+		return `${scriptPath}#${label}`;
+	} else {
+		return `${scriptPath}?${params.toString()}#${label}`;
+	}
 }
 // ESM-comment-end
 
@@ -86,15 +108,11 @@ class WebWorker implements IWorker {
 	}
 
 	public postMessage(message: any, transfer: Transferable[]): void {
-		if (this.worker) {
-			this.worker.then(w => w.postMessage(message, transfer));
-		}
+		this.worker?.then(w => w.postMessage(message, transfer));
 	}
 
 	public dispose(): void {
-		if (this.worker) {
-			this.worker.then(w => w.terminate());
-		}
+		this.worker?.then(w => w.terminate());
 		this.worker = null;
 	}
 }
@@ -112,7 +130,7 @@ export class DefaultWorkerFactory implements IWorkerFactory {
 	}
 
 	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
-		let workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+		const workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
 
 		if (this._webWorkerFailedBeforeError) {
 			throw this._webWorkerFailedBeforeError;

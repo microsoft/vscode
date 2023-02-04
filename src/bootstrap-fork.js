@@ -37,9 +37,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Configure Crash Reporter
-configureCrashReporter();
-
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
@@ -83,15 +80,6 @@ function pipeLoggingToParent() {
 				}
 
 				argsArray.push(arg);
-			}
-		}
-
-		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
-		// to start the stacktrace where the console message was being written
-		if (process.env['VSCODE_LOG_STACK'] === 'true') {
-			const stack = new Error().stack;
-			if (stack) {
-				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
 			}
 		}
 
@@ -153,13 +141,8 @@ function pipeLoggingToParent() {
 		safeSend({ type: '__$console', severity, arguments: args });
 	}
 
-	let isMakingConsoleCall = false;
-
 	/**
-	 * Wraps a console message so that it is transmitted to the renderer. If
-	 * native logging is turned on, the original console message will be written
-	 * as well. This is needed since the console methods are "magic" in V8 and
-	 * are the only methods that allow later introspection of logged variables.
+	 * Wraps a console message so that it is transmitted to the renderer.
 	 *
 	 * The wrapped property is not defined with `writable: false` to avoid
 	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
@@ -168,26 +151,10 @@ function pipeLoggingToParent() {
 	 * @param {'log' | 'warn' | 'error'} severity
 	 */
 	function wrapConsoleMethod(method, severity) {
-		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
-			const original = console[method];
-			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
-			Object.defineProperty(console, method, {
-				set: () => { },
-				get: () => function () {
-					safeSendConsoleMessage(severity, safeToArray(arguments));
-					isMakingConsoleCall = true;
-					stream.write('\nSTART_NATIVE_LOG\n');
-					original.apply(console, arguments);
-					stream.write('\nEND_NATIVE_LOG\n');
-					isMakingConsoleCall = false;
-				},
-			});
-		} else {
-			Object.defineProperty(console, method, {
-				set: () => { },
-				get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
-			});
-		}
+		Object.defineProperty(console, method, {
+			set: () => { },
+			get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+		});
 	}
 
 	/**
@@ -207,14 +174,13 @@ function pipeLoggingToParent() {
 		let buf = '';
 
 		Object.defineProperty(stream, 'write', {
-			value: (chunk, encoding, callback) => {
-				if (!isMakingConsoleCall) {
-					buf += chunk.toString(encoding);
-					const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
-					if (eol !== -1) {
-						console[severity](buf.slice(0, eol));
-						buf = buf.slice(eol + 1);
-					}
+			set: () => { },
+			get: () => (chunk, encoding, callback) => {
+				buf += chunk.toString(encoding);
+				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
+				if (eol !== -1) {
+					console[severity](buf.slice(0, eol));
+					buf = buf.slice(eol + 1);
 				}
 
 				original.call(stream, chunk, encoding, callback);
@@ -228,7 +194,7 @@ function pipeLoggingToParent() {
 		wrapConsoleMethod('log', 'log');
 		wrapConsoleMethod('warn', 'warn');
 		wrapConsoleMethod('error', 'error');
-	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
+	} else {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
@@ -263,20 +229,6 @@ function terminateWhenParentTerminates() {
 				process.exit();
 			}
 		}, 5000);
-	}
-}
-
-function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['VSCODE_CRASH_REPORTER_START_OPTIONS'];
-	if (typeof crashReporterOptionsRaw === 'string') {
-		try {
-			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
-				process['crashReporter'].start(crashReporterOptions);
-			}
-		} catch (error) {
-			console.error(error);
-		}
 	}
 }
 

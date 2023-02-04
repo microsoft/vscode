@@ -4,23 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { raceTimeout } from 'vs/base/common/async';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
 
-// Simple promisify of setTimeout
-function wait(delayMS: number) {
-	return new Promise(function (resolve) {
-		setTimeout(resolve, delayMS);
-	});
+// Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
+// kick this off before you launch the picker and then await the promise returned after you launch the picker.
+async function setupWaitTilShownListener(controller: QuickInputController): Promise<void> {
+	const result = await raceTimeout(new Promise<boolean>(resolve => {
+		const event = controller.onShow(_ => {
+			event.dispose();
+			resolve(true);
+		});
+	}), 2000);
+
+	if (!result) {
+		throw new Error('Cancelled');
+	}
 }
 
-suite('QuickInput', () => {
+suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	let fixture: HTMLElement, controller: QuickInputController, quickpick: IQuickPick<IQuickPickItem>;
 
 	function getScrollTop(): number {
-		return (quickpick as any).scrollTop;
+		return quickpick.scrollTop;
 	}
 
 	setup(() => {
@@ -30,7 +45,7 @@ suite('QuickInput', () => {
 		controller = new QuickInputController({
 			container: fixture,
 			idPrefix: 'testQuickInput',
-			ignoreFocusOut() { return false; },
+			ignoreFocusOut() { return true; },
 			isScreenReaderOptimized() { return false; },
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
@@ -43,13 +58,24 @@ suite('QuickInput', () => {
 				options: IListOptions<T>,
 			) => new List<T>(user, container, delegate, renderers, options),
 			styles: {
-				button: {},
-				countBadge: {},
-				inputBox: {},
-				keybindingLabel: {},
-				list: {},
-				progressBar: {},
-				widget: {}
+				button: unthemedButtonStyles,
+				countBadge: unthemedCountStyles,
+				inputBox: unthemedInboxStyles,
+				toggle: unthemedToggleStyles,
+				keybindingLabel: unthemedKeybindingLabelOptions,
+				list: unthemedListStyles,
+				progressBar: unthemedProgressBarOptions,
+				widget: {
+					quickInputBackground: undefined,
+					quickInputForeground: undefined,
+					quickInputTitleBackground: undefined,
+					widgetBorder: undefined,
+					widgetShadow: undefined,
+				},
+				pickerGroup: {
+					pickerGroupBorder: undefined,
+					pickerGroupForeground: undefined,
+				},
 			}
 		});
 
@@ -65,30 +91,38 @@ suite('QuickInput', () => {
 
 	test('pick - basecase', async () => {
 		const item = { label: 'foo' };
+
+		const wait = setupWaitTilShownListener(controller);
 		const pickPromise = controller.pick([item, { label: 'bar' }]);
-		// wait a bit to let the pick get set up.
-		await wait(200);
+		await wait;
+
 		controller.accept();
-		const pick = await pickPromise;
+		const pick = await raceTimeout(pickPromise, 2000);
+
 		assert.strictEqual(pick, item);
 	});
 
 	test('pick - activeItem is honored', async () => {
 		const item = { label: 'foo' };
+
+		const wait = setupWaitTilShownListener(controller);
 		const pickPromise = controller.pick([{ label: 'bar' }, item], { activeItem: item });
-		// wait a bit to let the pick get set up.
-		await wait(200);
+		await wait;
+
 		controller.accept();
 		const pick = await pickPromise;
+
 		assert.strictEqual(pick, item);
 	});
 
 	test('input - basecase', async () => {
+		const wait = setupWaitTilShownListener(controller);
 		const inputPromise = controller.input({ value: 'foo' });
-		// wait a bit to let the pick get set up.
-		await wait(200);
+		await wait;
+
 		controller.accept();
-		const value = await inputPromise;
+		const value = await raceTimeout(inputPromise, 2000);
+
 		assert.strictEqual(value, 'foo');
 	});
 
@@ -102,8 +136,6 @@ suite('QuickInput', () => {
 		quickpick.value = 'changed';
 
 		try {
-			// wait a bit to let the event play out.
-			await wait(200);
 			assert.strictEqual(value, quickpick.value);
 		} finally {
 			quickpick.dispose();
@@ -122,7 +154,7 @@ suite('QuickInput', () => {
 		quickpick.activeItems = [items[items.length - 1]];
 		quickpick.show();
 
-		let cursorTop = getScrollTop();
+		const cursorTop = getScrollTop();
 
 		assert.notStrictEqual(cursorTop, 0);
 
@@ -147,7 +179,7 @@ suite('QuickInput', () => {
 		quickpick.activeItems = [items[items.length - 1]];
 		quickpick.show();
 
-		let cursorTop = getScrollTop();
+		const cursorTop = getScrollTop();
 		assert.notStrictEqual(cursorTop, 0);
 
 		quickpick.keepScrollPosition = true;

@@ -90,7 +90,7 @@ export class NestedWorker extends EventTarget implements Worker {
 				type: '_terminateWorker',
 				id
 			};
-			channel.port1.postMessage(msg);
+			nativePostMessage(msg);
 			URL.revokeObjectURL(blobUrl);
 
 			channel.port1.close();

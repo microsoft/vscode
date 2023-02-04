@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -43,7 +43,7 @@ class TestEditor extends EditorPane {
 
 	override getId(): string { return 'testEditor'; }
 	layout(): void { }
-	createEditor(): any { }
+	protected createEditor(): any { }
 }
 
 export class OtherTestEditor extends EditorPane {
@@ -55,7 +55,7 @@ export class OtherTestEditor extends EditorPane {
 	override getId(): string { return 'testOtherEditor'; }
 
 	layout(): void { }
-	createEditor(): any { }
+	protected createEditor(): any { }
 }
 
 class TestInputSerializer implements IEditorSerializer {
@@ -286,7 +286,7 @@ suite('EditorPane', () => {
 		const configurationService = new TestTextResourceConfigurationService();
 		const editorGroupService = new TestEditorGroupsService([testGroup0]);
 
-		interface TestViewState { line: number; }
+		interface TestViewState { line: number }
 
 		const rawMemento = Object.create(null);
 		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
@@ -419,7 +419,7 @@ suite('EditorPane', () => {
 		}));
 		const editorGroupService = new TestEditorGroupsService([testGroup0]);
 
-		interface TestViewState { line: number; }
+		interface TestViewState { line: number }
 
 		const rawMemento = Object.create(null);
 		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
@@ -464,7 +464,7 @@ suite('EditorPane', () => {
 
 			override getId(): string { return 'trustRequiredTestEditor'; }
 			layout(): void { }
-			createEditor(): any { }
+			protected createEditor(): any { }
 		}
 
 		class TrustRequiredTestInput extends EditorInput {
@@ -505,10 +505,10 @@ suite('EditorPane', () => {
 		const testInput = new TrustRequiredTestInput();
 
 		await group.openEditor(testInput);
-		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredEditor.ID);
+		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredPlaceholderEditor.ID);
 
 		const getEditorPaneIdAsync = () => new Promise(resolve => {
-			disposables.add(editorService.onDidActiveEditorChange(event => {
+			disposables.add(editorService.onDidActiveEditorChange(() => {
 				resolve(group.activeEditorPane?.getId());
 			}));
 		});
@@ -518,7 +518,7 @@ suite('EditorPane', () => {
 		assert.strictEqual(await getEditorPaneIdAsync(), 'trustRequiredTestEditor');
 
 		workspaceTrustService.setWorkspaceTrust(false);
-		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredEditor.ID);
+		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredPlaceholderEditor.ID);
 
 		dispose(disposables);
 	});

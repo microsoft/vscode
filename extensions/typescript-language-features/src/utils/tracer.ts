@@ -30,7 +30,7 @@ namespace Trace {
 }
 
 interface RequestExecutionMetadata {
-	readonly queuingStartTime: number
+	readonly queuingStartTime: number;
 }
 
 export default class Tracer {

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
 import { ITextModel } from 'vs/editor/common/model';
 import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length';
 import { SmallImmutableSet } from './smallImmutableSet';
@@ -124,7 +126,7 @@ export class PairAstNode extends BaseAstNode {
 	 * Avoid using this property, it allocates an array!
 	*/
 	public get children() {
-		const result = new Array<AstNode>();
+		const result: AstNode[] = [];
 		result.push(this.openingBracket);
 		if (this.child) {
 			result.push(this.child);
@@ -294,10 +296,19 @@ export abstract class ListAstNode extends BaseAstNode {
 			return false;
 		}
 
+		if (this.childrenLength === 0) {
+			// Don't reuse empty lists.
+			return false;
+		}
+
 		let lastChild: ListAstNode = this;
-		let lastLength: number;
-		while (lastChild.kind === AstNodeKind.List && (lastLength = lastChild.childrenLength) > 0) {
-			lastChild = lastChild.getChild(lastLength! - 1) as ListAstNode;
+		while (lastChild.kind === AstNodeKind.List) {
+			const lastLength = lastChild.childrenLength;
+			if (lastLength === 0) {
+				// Empty lists should never be contained in other lists.
+				throw new BugIndicatingError();
+			}
+			lastChild = lastChild.getChild(lastLength - 1) as ListAstNode;
 		}
 
 		return lastChild.canBeReused(openBracketIds);
@@ -323,7 +334,7 @@ export abstract class ListAstNode extends BaseAstNode {
 	}
 
 	public flattenLists(): ListAstNode {
-		const items = new Array<AstNode>();
+		const items: AstNode[] = [];
 		for (const c of this.children) {
 			const normalized = c.flattenLists();
 			if (normalized.kind === AstNodeKind.List) {
@@ -626,10 +637,10 @@ export class TextAstNode extends ImmutableLeafAstNode {
 export class BracketAstNode extends ImmutableLeafAstNode {
 	public static create(
 		length: Length,
-		languageId: string,
+		bracketInfo: BracketKind,
 		bracketIds: SmallImmutableSet<OpeningBracketId>
 	): BracketAstNode {
-		const node = new BracketAstNode(length, languageId, bracketIds);
+		const node = new BracketAstNode(length, bracketInfo, bracketIds);
 		return node;
 	}
 
@@ -643,7 +654,7 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 
 	private constructor(
 		length: Length,
-		public readonly languageId: string,
+		public readonly bracketInfo: BracketKind,
 		/**
 		 * In case of a opening bracket, this is the id of the opening bracket.
 		 * In case of a closing bracket, this contains the ids of all opening brackets it can close.
@@ -651,6 +662,14 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 		public readonly bracketIds: SmallImmutableSet<OpeningBracketId>
 	) {
 		super(length);
+	}
+
+	public get text() {
+		return this.bracketInfo.bracketText;
+	}
+
+	public get languageId() {
+		return this.bracketInfo.languageId;
 	}
 
 	public canBeReused(_openedBracketIds: SmallImmutableSet<OpeningBracketId>) {

@@ -31,6 +31,16 @@ export interface IRemoteAgentService {
 	 * Get the remote environment. Can return an error.
 	 */
 	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	/**
+	 * Get exit information for a remote extension host.
+	 */
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null>;
+
+	/**
+	 * Gets the round trip time from the remote extension host. Note that this
+	 * may be delayed if the extension host is busy.
+	 */
+	getRoundTripTime(): Promise<number | undefined>;
 
 	whenExtensionsReady(): Promise<void>;
 	/**
@@ -47,13 +57,20 @@ export interface IRemoteAgentService {
 	flushTelemetry(): Promise<void>;
 }
 
+export interface IExtensionHostExitInfo {
+	code: number;
+	signal: string;
+}
+
 export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
 
 	readonly onReconnecting: Event<void>;
 	readonly onDidStateChange: Event<PersistentConnectionEvent>;
 
+	dispose(): void;
 	getChannel<T extends IChannel>(channelName: string): T;
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
+	getInitialConnectionTimeMs(): Promise<number>;
 }

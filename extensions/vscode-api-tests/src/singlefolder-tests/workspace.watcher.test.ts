@@ -12,7 +12,7 @@ suite('vscode API - workspace-watcher', () => {
 
 	interface IWatchRequest {
 		uri: vscode.Uri;
-		options: { recursive: boolean; excludes: string[] }
+		options: { recursive: boolean; excludes: string[] };
 	}
 
 	class WatcherTestFs extends TestFS {

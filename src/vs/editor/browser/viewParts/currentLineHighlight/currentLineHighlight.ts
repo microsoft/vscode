@@ -8,11 +8,12 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import * as arrays from 'vs/base/common/arrays';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
@@ -208,7 +209,7 @@ registerThemingParticipant((theme, collector) => {
 		if (lineHighlightBorder) {
 			collector.addRule(`.monaco-editor .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
 			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
-			if (theme.type === 'hc') {
+			if (isHighContrast(theme.type)) {
 				collector.addRule(`.monaco-editor .view-overlays .current-line { border-width: 1px; }`);
 				collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }`);
 			}

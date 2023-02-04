@@ -14,7 +14,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 export function revealResourcesInOS(resources: URI[], nativeHostService: INativeHostService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
 		sequence(resources.map(r => async () => {
-			if (r.scheme === Schemas.file || r.scheme === Schemas.userData) {
+			if (r.scheme === Schemas.file || r.scheme === Schemas.vscodeUserData) {
 				nativeHostService.showItemInFolder(r.fsPath);
 			}
 		}));

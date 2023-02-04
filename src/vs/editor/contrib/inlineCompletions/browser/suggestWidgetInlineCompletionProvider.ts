@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -15,8 +14,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { minimizeInlineCompletion } from './inlineCompletionsModel';
-import { NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
+import { minimizeInlineCompletion, NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
 
 export interface SuggestWidgetState {
 	/**
@@ -39,16 +37,6 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 
 	public readonly onDidChange = this.onDidChangeEmitter.event;
-
-	// This delay fixes a suggest widget issue when typing "." immediately restarts the suggestion session.
-	private readonly setInactiveDelayed = this._register(new RunOnceScheduler(() => {
-		if (!this.isSuggestWidgetVisible) {
-			if (this._isActive) {
-				this._isActive = false;
-				this.onDidChangeEmitter.fire();
-			}
-		}
-	}, 100));
 
 	/**
 	 * Returns undefined if the suggest widget is not active.
@@ -101,8 +89,8 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 							}
 							const valid =
 								rangeStartsWith(normalizedItemToPreselect.range, normalizedSuggestItem.range) &&
-								normalizedItemToPreselect.text.startsWith(normalizedSuggestItem.text);
-							return { index, valid, prefixLength: normalizedSuggestItem.text.length, suggestItem };
+								normalizedItemToPreselect.insertText.startsWith(normalizedSuggestItem.insertText);
+							return { index, valid, prefixLength: normalizedSuggestItem.insertText.length, suggestItem };
 						})
 						.filter(item => item && item.valid);
 
@@ -127,8 +115,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 				}));
 				this._register(suggestController.widget.value.onDidHide(() => {
 					this.isSuggestWidgetVisible = false;
-					this.setInactiveDelayed.schedule();
-					this.update(this._isActive);
+					this.update(false);
 				}));
 				this._register(suggestController.widget.value.onDidFocus(() => {
 					this.isSuggestWidgetVisible = true;
@@ -183,16 +170,12 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 
 	public stopForceRenderingAbove(): void {
 		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			suggestController.stopForceRenderingAbove();
-		}
+		suggestController?.stopForceRenderingAbove();
 	}
 
 	public forceRenderingAbove(): void {
 		const suggestController = SuggestController.get(this.editor);
-		if (suggestController) {
-			suggestController.forceRenderingAbove();
-		}
+		suggestController?.forceRenderingAbove();
 	}
 }
 
@@ -221,14 +204,17 @@ function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInf
 function suggestionToSuggestItemInfo(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): SuggestItemInfo | undefined {
 	// additionalTextEdits might not be resolved here, this could be problematic.
 	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
-		// cannot represent additional text edits
+		// cannot represent additional text edits. TODO: Now we can.
 		return {
 			completionItemKind: item.completion.kind,
 			isSnippetText: false,
 			normalizedInlineCompletion: {
 				// Dummy element, so that space is reserved, but no text is shown
 				range: Range.fromPositions(position, position),
-				text: ''
+				insertText: '',
+				filterText: '',
+				snippetInfo: undefined,
+				additionalTextEdits: [],
 			},
 		};
 	}
@@ -245,7 +231,7 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 			return undefined;
 		}
 
-		SnippetSession.adjustWhitespace(model, position, snippet, true, true);
+		SnippetSession.adjustWhitespace(model, position, true, snippet);
 		insertText = snippet.toString();
 		isSnippetText = true;
 	}
@@ -255,11 +241,14 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 		isSnippetText,
 		completionItemKind: item.completion.kind,
 		normalizedInlineCompletion: {
-			text: insertText,
+			insertText: insertText,
+			filterText: insertText,
 			range: Range.fromPositions(
 				position.delta(0, -info.overwriteBefore),
 				position.delta(0, Math.max(info.overwriteAfter, 0))
 			),
+			snippetInfo: undefined,
+			additionalTextEdits: [],
 		}
 	};
 }

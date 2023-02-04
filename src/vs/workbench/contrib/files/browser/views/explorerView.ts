@@ -6,9 +6,9 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -31,8 +31,7 @@ import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigat
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { IMenuService, MenuId, IMenu, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
@@ -41,11 +40,8 @@ import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -56,15 +52,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
+import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
 
-interface IExplorerViewColors extends IColorMapping {
-	listDropBackground?: ColorValue | undefined;
-}
-
-interface IExplorerViewStyles {
-	listDropBackground?: Color;
-}
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
 	for (const folder of treeInput) {
@@ -76,17 +67,28 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 			}
 		}
 	}
+	return false;
+}
 
+/**
+ * Whether or not any of the nodes in the tree are expanded
+ */
+function hasExpandedNode(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
+	for (const folder of treeInput) {
+		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
+			return true;
+		}
+	}
 	return false;
 }
 
 const identityProvider = {
 	getId: (stat: ExplorerItem) => {
 		if (stat instanceof NewExplorerItem) {
-			return `new:${stat.resource}`;
+			return `new:${stat.getId()}`;
 		}
 
-		return stat.resource;
+		return stat.getId();
 	}
 };
 
@@ -95,6 +97,11 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 
 	let focusedStat: ExplorerItem | undefined;
 	focusedStat = focus.length ? focus[0] : undefined;
+
+	// If we are respecting multi-select and we have a multi-selection we ignore focus as we want to act on the selection
+	if (respectMultiSelection && selection.length > 1) {
+		focusedStat = undefined;
+	}
 
 	const compressedNavigationController = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
 	focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
@@ -153,17 +160,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private renderer!: FilesRenderer;
 
-	private styleElement!: HTMLStyleElement;
 	private treeContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private compressedFocusContext: IContextKey<boolean>;
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
 
+	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
+
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal: boolean | 'focusNoScroll' = false;
+	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 
 	constructor(
@@ -183,10 +191,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IDecorationsService private readonly decorationService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService themeService: IWorkbenchThemeService,
-		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
@@ -207,6 +213,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusContext = ExplorerCompressedFocusContext.bindTo(contextKeyService);
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
+		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
 
 		this.explorerService.registerView(this);
 	}
@@ -221,13 +228,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override set title(_: string) {
 		// noop
-	}
-
-	// Memoized locals
-	@memoize private get contributedContextMenu(): IMenu {
-		const contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, this.tree.contextKeyService);
-		this._register(contributedContextMenu);
-		return contributedContextMenu;
 	}
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
@@ -252,7 +252,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const title = workspace.folders.map(folder => folder.name).join();
 			titleElement.textContent = this.name;
 			titleElement.title = title;
-			titleElement.setAttribute('aria-label', nls.localize('explorerSection', "Explorer Section: {0}", this.name));
+			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
+			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
 
 		this._register(this.contextService.onDidChangeWorkspaceName(setHeader));
@@ -265,14 +266,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.tree.layout(height, width);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.container = container;
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
-
-		this.styleElement = DOM.createStyleSheet(this.treeContainer);
-		attachStyler<IExplorerViewColors>(this.themeService, { listDropBackground }, this.styleListDropBackground.bind(this));
 
 		this.createTree(this.treeContainer);
 
@@ -281,8 +279,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		this.onConfigurationUpdated(undefined);
 
 		// When the explorer viewer is loaded, listen to changes to the editor input
 		this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -290,12 +287,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 
 		// Also handle configuration updates
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
 				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
 				await this.setTreeInput();
+				// Update the collapse / expand  button state
+				this.updateAnyCollapsedContext();
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
 			}
@@ -321,6 +320,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	isItemVisible(item: ExplorerItem): boolean {
 		return this.filter.filter(item, TreeVisibility.Visible);
+	}
+
+	isItemCollapsed(item: ExplorerItem): boolean {
+		return this.tree.isCollapsed(item);
 	}
 
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
@@ -375,17 +378,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(explorerLabels);
 
 		const updateWidth = (stat: ExplorerItem) => this.tree.updateWidth(stat);
-		this.renderer = this.instantiationService.createInstance(FilesRenderer, explorerLabels, updateWidth);
+		this.renderer = this.instantiationService.createInstance(FilesRenderer, container, explorerLabels, updateWidth);
 		this._register(this.renderer);
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
-		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
-			this.instantiationService.createInstance(ExplorerDataSource), {
+			this.instantiationService.createInstance(ExplorerDataSource, this.filter), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
 			identityProvider,
@@ -408,10 +411,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			multipleSelectionSupport: true,
 			filter: this.filter,
 			sorter: this.instantiationService.createInstance(FileSorter),
-			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			dnd: this.instantiationService.createInstance(FileDragAndDrop, (item) => this.isItemCollapsed(item)),
 			collapseByDefault: (e) => {
 				if (e instanceof ExplorerItem) {
-					if (e.hasNests && getFileNestingSettings().expand) {
+					if (e.hasNests && getFileNestingSettings(e).expand) {
 						return false;
 					}
 				}
@@ -435,6 +438,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 		});
 		this._register(this.tree);
+		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
 
 		// Bind configuration
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
@@ -465,7 +469,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				try {
 					this.delegate.willOpenElement(e.browserEvent);
-					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, source: EditorOpenSource.USER } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				} finally {
 					this.delegate.didOpenElement();
 				}
@@ -475,7 +479,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidScroll(async e => {
-			let editable = this.explorerService.getEditable();
+			const editable = this.explorerService.getEditable();
 			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
@@ -485,11 +489,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			const element = e.node.element?.element;
 			if (element) {
 				const navigationController = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
-				if (navigationController) {
-					navigationController.updateCollapsed(e.node.collapsed);
-				}
+				navigationController?.updateCollapsed(e.node.collapsed);
 			}
+			// Update showing expand / collapse button
+			this.updateAnyCollapsedContext();
 		}));
+
+		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {
 			if (e.element === null) {
@@ -506,8 +512,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	// React on events
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
-		this.autoReveal = configuration?.explorer?.autoReveal;
+	private onConfigurationUpdated(event: IConfigurationChangeEvent | undefined): void {
+		if (!event || event.affectsConfiguration('explorer.autoReveal')) {
+			const configuration = this.configurationService.getValue<IFilesConfiguration>();
+			this.autoReveal = configuration?.explorer?.autoReveal;
+		}
 
 		// Push down config updates to components of viewer
 		if (event && (event.affectsConfiguration('explorer.decorations.colors') || event.affectsConfiguration('explorer.decorations.badges'))) {
@@ -533,8 +542,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
-		const disposables = new DisposableStore();
-		let stat = e.element;
+		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
+		const stat = e.element;
 		let anchor = e.anchor;
 
 		// Compressed folders
@@ -556,7 +568,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const selection = this.tree.getSelection();
 
-		const actions: IAction[] = [];
 		const roots = this.explorerService.roots; // If the click is outside of the elements pass the root resource if there is only one root. If there are multiple roots pass empty object.
 		let arg: URI | {};
 		if (stat instanceof ExplorerItem) {
@@ -565,17 +576,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		} else {
 			arg = roots.length === 1 ? roots[0].resource : {};
 		}
-		disposables.add(createAndFillInContextMenuActions(this.contributedContextMenu, { arg, shouldForwardArgs: true }, actions));
 
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.ExplorerContext,
+			menuActionOptions: { arg, shouldForwardArgs: true },
+			contextKeyService: this.tree.contextKeyService,
 			getAnchor: () => anchor,
-			getActions: () => actions,
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					this.tree.domFocus();
 				}
-
-				disposables.dispose();
 			},
 			getActionsContext: () => stat && selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)
@@ -623,23 +633,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		if (this.configurationService.getValue<IFilesConfiguration>()?.explorer?.experimental?.fileNesting?.enabled) {
-			return (async () => {
-				try {
-					await this.tree.updateChildren(toRefresh, recursive, false, {
-						diffIdentityProvider: identityProvider
-					});
-				} catch (e) {
-					this.notificationService.error('Internal error in file explorer. This may be due to experimental file nesting.');
-					console.error('Unepxected error', e, 'in refreshing explorer. This may be due to experimental file nesting.');
-					return;
-				}
-			})();
-		} else {
-			return this.tree.updateChildren(toRefresh, recursive, false, {
-				diffIdentityProvider: identityProvider
-			});
-		}
+		return this.tree.updateChildren(toRefresh, recursive, false, {
+			diffIdentityProvider: identityProvider
+		});
 	}
 
 	override getOptimalWidth(): number {
@@ -690,12 +686,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
 					await this.tree.expand(input[0]).catch(() => { });
 				}
-				if (Array.isArray(previousInput) && previousInput.length < input.length) {
+				if (Array.isArray(previousInput)) {
+					const previousRoots = new ResourceMap<true>();
+					previousInput.forEach(previousRoot => previousRoots.set(previousRoot.resource, true));
+
 					// Roots added to the explorer -> expand them.
-					await Promise.all(input.slice(previousInput.length).map(async item => {
-						try {
-							await this.tree.expand(item);
-						} catch (e) { }
+					await Promise.all(input.map(async item => {
+						if (!previousRoots.has(item.resource)) {
+							try {
+								await this.tree.expand(item);
+							} catch (e) { }
+						}
 					}));
 				}
 			}
@@ -717,7 +718,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
-		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
+		// do no retry more than once to prevent infinite loops in cases of inconsistent model
 		if (retry === 2) {
 			return;
 		}
@@ -736,7 +737,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
 
-			for (let child of item.children.values()) {
+			for (const child of item.children.values()) {
 				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
 					item = child;
 					break;
@@ -753,7 +754,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 
 			try {
-				if (reveal === true && this.tree.getRelativeTop(item) === null) {
+				// We must expand the nest to have it be populated in the tree
+				if (item.nestedParent) {
+					await this.tree.expand(item.nestedParent);
+				}
+
+				if ((reveal === true || reveal === 'force') && this.tree.getRelativeTop(item) === null) {
 					// Don't scroll to the item if it's already visible, or if set not to.
 					this.tree.reveal(item, 0.5);
 				}
@@ -770,12 +776,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
-		if (previousCut) {
-			previousCut.forEach(item => this.tree.rerender(item));
-		}
+		previousCut?.forEach(item => this.tree.rerender(item));
 		if (cut) {
 			stats.forEach(s => this.tree.rerender(s));
 		}
+	}
+
+	expandAll(): void {
+		if (this.explorerService.isEditable(undefined)) {
+			this.tree.domFocus();
+		}
+
+		this.tree.expandAll();
 	}
 
 	collapseAll(): void {
@@ -846,23 +858,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusLastContext.set(controller.index === controller.count - 1);
 	}
 
-	styleListDropBackground(styles: IExplorerViewStyles): void {
-		const content: string[] = [];
-
-		if (styles.listDropBackground) {
-			content.push(`.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target > .monaco-highlighted-label { background-color: ${styles.listDropBackground}; }`);
+	private updateAnyCollapsedContext(): void {
+		const treeInput = this.tree.getInput();
+		if (treeInput === undefined) {
+			return;
 		}
-
-		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.textContent) {
-			this.styleElement.textContent = newStyles;
-		}
+		const treeInputArray = Array.isArray(treeInput) ? treeInput : Array.from(treeInput.children.values());
+		// Has collapsible root when anything is expanded
+		this.viewHasSomeCollapsibleRootItem.set(hasExpandedNode(this.tree, treeInputArray));
 	}
 
 	override dispose(): void {
-		if (this.dragHandler) {
-			this.dragHandler.dispose();
-		}
+		this.dragHandler?.dispose();
 		super.dispose();
 	}
 }
@@ -884,7 +891,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFileFromExplorer',
-			title: nls.localize('createNewFile', "New File"),
+			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
 			precondition: ExplorerResourceNotReadonlyContext,
@@ -907,7 +914,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFolderFromExplorer',
-			title: nls.localize('createNewFolder', "New Folder"),
+			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
 			precondition: ExplorerResourceNotReadonlyContext,

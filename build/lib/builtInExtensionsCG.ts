@@ -27,7 +27,7 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 
 	const promises = [];
 	for (const fileName of contentFileNames) {
-		promises.push(new Promise<{ fileName: string, body: Buffer | undefined | null }>(resolve => {
+		promises.push(new Promise<{ fileName: string; body: Buffer | undefined | null }>(resolve => {
 			got(`${repositoryContentBaseUrl}/${fileName}`)
 				.then(response => {
 					resolve({ fileName, body: response.rawBody });

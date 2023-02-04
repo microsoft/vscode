@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -51,13 +51,43 @@ class WindowManager {
 	}
 }
 
+/**
+ * See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes
+ */
+class DevicePixelRatioMonitor extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	public readonly onDidChange = this._onDidChange.event;
+
+	private readonly _listener: () => void;
+	private _mediaQueryList: MediaQueryList | null;
+
+	constructor() {
+		super();
+
+		this._listener = () => this._handleChange(true);
+		this._mediaQueryList = null;
+		this._handleChange(false);
+	}
+
+	private _handleChange(fireEvent: boolean): void {
+		this._mediaQueryList?.removeEventListener('change', this._listener);
+
+		this._mediaQueryList = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+		this._mediaQueryList.addEventListener('change', this._listener);
+
+		if (fireEvent) {
+			this._onDidChange.fire();
+		}
+	}
+}
+
 class PixelRatioImpl extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<number>());
 	public readonly onDidChange = this._onDidChange.event;
 
 	private _value: number;
-	private _removeListener: () => void;
 
 	public get value(): number {
 		return this._value;
@@ -67,28 +97,12 @@ class PixelRatioImpl extends Disposable {
 		super();
 
 		this._value = this._getPixelRatio();
-		this._removeListener = this._installResolutionListener();
-	}
 
-	public override dispose() {
-		this._removeListener();
-		super.dispose();
-	}
-
-	private _installResolutionListener(): () => void {
-		// See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes
-		const mediaQueryList = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-		const listener = () => this._updateValue();
-		mediaQueryList.addEventListener('change', listener);
-		return () => {
-			mediaQueryList.removeEventListener('change', listener);
-		};
-	}
-
-	private _updateValue(): void {
-		this._value = this._getPixelRatio();
-		this._onDidChange.fire(this._value);
-		this._removeListener = this._installResolutionListener();
+		const dprMonitor = this._register(new DevicePixelRatioMonitor());
+		this._register(dprMonitor.onDidChange(() => {
+			this._value = this._getPixelRatio();
+			this._onDidChange.fire(this._value);
+		}));
 	}
 
 	private _getPixelRatio(): number {
@@ -108,7 +122,7 @@ class PixelRatioFacade {
 	private _pixelRatioMonitor: PixelRatioImpl | null = null;
 	private _getOrCreatePixelRatioMonitor(): PixelRatioImpl {
 		if (!this._pixelRatioMonitor) {
-			this._pixelRatioMonitor = new PixelRatioImpl();
+			this._pixelRatioMonitor = markAsSingleton(new PixelRatioImpl());
 		}
 		return this._pixelRatioMonitor;
 	}
@@ -126,6 +140,13 @@ class PixelRatioFacade {
 	public get onDidChange(): Event<number> {
 		return this._getOrCreatePixelRatioMonitor().onDidChange;
 	}
+}
+
+export function addMatchMediaChangeListener(query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+	if (typeof query === 'string') {
+		query = window.matchMedia(query);
+	}
+	query.addEventListener('change', callback);
 }
 
 /**
@@ -168,7 +189,31 @@ export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
 export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
-export const isEdgeLegacyWebView = (userAgent.indexOf('Edge/') >= 0) && (userAgent.indexOf('WebView/') >= 0);
 export const isElectron = (userAgent.indexOf('Electron/') >= 0);
 export const isAndroid = (userAgent.indexOf('Android') >= 0);
-export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+let standalone = false;
+if (window.matchMedia) {
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
+	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
+	standalone = standaloneMatchMedia.matches;
+	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
+		// entering fullscreen would change standaloneMatchMedia.matches to false
+		// if standalone is true (running as PWA) and entering fullscreen, skip this change
+		if (standalone && fullScreenMatchMedia.matches) {
+			return;
+		}
+		// otherwise update standalone (browser to PWA or PWA to browser)
+		standalone = matches;
+	});
+}
+export function isStandalone(): boolean {
+	return standalone;
+}
+
+// Visible means that the feature is enabled, not necessarily being rendered
+// e.g. visible is true even in fullscreen mode where the controls are hidden
+// See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
+export function isWCOEnabled(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
+}

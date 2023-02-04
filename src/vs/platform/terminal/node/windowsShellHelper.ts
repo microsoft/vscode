@@ -13,8 +13,8 @@ import type * as WindowsProcessTreeType from 'windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
-	readonly onShellTypeChanged: Event<TerminalShellType>;
-	getShellType(title: string): TerminalShellType;
+	readonly onShellTypeChanged: Event<TerminalShellType | undefined>;
+	getShellType(title: string): TerminalShellType | undefined;
 	getShellName(): Promise<string>;
 }
 
@@ -43,8 +43,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	get shellTitle(): string { return this._shellTitle; }
 	private readonly _onShellNameChanged = new Emitter<string>();
 	get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
-	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
-	get onShellTypeChanged(): Event<TerminalShellType> { return this._onShellTypeChanged.event; }
+	private readonly _onShellTypeChanged = new Emitter<TerminalShellType | undefined>();
+	get onShellTypeChanged(): Event<TerminalShellType | undefined> { return this._onShellTypeChanged.event; }
 
 	constructor(
 		private _rootProcessId: number
@@ -132,7 +132,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			windowsProcessTree = await import('windows-process-tree');
 		}
 		this._currentRequest = new Promise<string>(resolve => {
-			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
+			windowsProcessTree.getProcessTree(this._rootProcessId, tree => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;
 				resolve(name);
@@ -141,7 +141,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		return this._currentRequest;
 	}
 
-	getShellType(executable: string): TerminalShellType {
+	getShellType(executable: string): TerminalShellType | undefined {
 		switch (executable.toLowerCase()) {
 			case 'cmd.exe':
 				return WindowsShellType.CommandPrompt;

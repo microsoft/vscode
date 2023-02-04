@@ -26,6 +26,10 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 			capabilities |= EditorInputCapabilities.Untitled;
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 

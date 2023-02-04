@@ -235,14 +235,14 @@ suite('Resources', () => {
 	});
 
 	function assertEqualURI(actual: URI, expected: URI, message?: string, ignoreCase?: boolean) {
-		let util = ignoreCase ? extUriIgnorePathCase : extUri;
+		const util = ignoreCase ? extUriIgnorePathCase : extUri;
 		if (!util.isEqual(expected, actual)) {
 			assert.strictEqual(actual.toString(), expected.toString(), message);
 		}
 	}
 
 	function assertRelativePath(u1: URI, u2: URI, expectedPath: string | undefined, ignoreJoin?: boolean, ignoreCase?: boolean) {
-		let util = ignoreCase ? extUriIgnorePathCase : extUri;
+		const util = ignoreCase ? extUriIgnorePathCase : extUri;
 
 		assert.strictEqual(util.relativePath(u1, u2), expectedPath, `from ${u1.toString()} to ${u2.toString()}`);
 		if (expectedPath !== undefined && !ignoreJoin) {
@@ -350,7 +350,7 @@ suite('Resources', () => {
 
 	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean | undefined, expected: boolean) {
 
-		let util = ignoreCase ? extUriIgnorePathCase : extUri;
+		const util = ignoreCase ? extUriIgnorePathCase : extUri;
 
 		assert.strictEqual(util.isEqual(u1, u2), expected, `${u1.toString()}${expected ? '===' : '!=='}${u2.toString()}`);
 		assert.strictEqual(util.compare(u1, u2) === 0, expected);
@@ -363,16 +363,16 @@ suite('Resources', () => {
 
 
 	test('isEqual', () => {
-		let fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
-		let fileURI2 = isWindows ? URI.file('C:\\foo\\Bar') : URI.file('/foo/Bar');
+		const fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
+		const fileURI2 = isWindows ? URI.file('C:\\foo\\Bar') : URI.file('/foo/Bar');
 		assertIsEqual(fileURI, fileURI, true, true);
 		assertIsEqual(fileURI, fileURI, false, true);
 		assertIsEqual(fileURI, fileURI, undefined, true);
 		assertIsEqual(fileURI, fileURI2, true, true);
 		assertIsEqual(fileURI, fileURI2, false, false);
 
-		let fileURI3 = URI.parse('foo://server:453/foo/bar');
-		let fileURI4 = URI.parse('foo://server:453/foo/Bar');
+		const fileURI3 = URI.parse('foo://server:453/foo/bar');
+		const fileURI4 = URI.parse('foo://server:453/foo/Bar');
 		assertIsEqual(fileURI3, fileURI3, true, true);
 		assertIsEqual(fileURI3, fileURI3, false, true);
 		assertIsEqual(fileURI3, fileURI3, undefined, true);
@@ -387,8 +387,8 @@ suite('Resources', () => {
 		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo/'), true, false);
 		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo?'), true, true);
 
-		let fileURI5 = URI.parse('foo://server:453/foo/bar?q=1');
-		let fileURI6 = URI.parse('foo://server:453/foo/bar#xy');
+		const fileURI5 = URI.parse('foo://server:453/foo/bar?q=1');
+		const fileURI6 = URI.parse('foo://server:453/foo/bar#xy');
 
 		assertIsEqual(fileURI5, fileURI5, true, true);
 		assertIsEqual(fileURI5, fileURI3, true, false);
@@ -399,9 +399,9 @@ suite('Resources', () => {
 
 	test('isEqualOrParent', () => {
 
-		let fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
-		let fileURI2 = isWindows ? URI.file('c:\\foo') : URI.file('/foo');
-		let fileURI2b = isWindows ? URI.file('C:\\Foo\\') : URI.file('/Foo/');
+		const fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
+		const fileURI2 = isWindows ? URI.file('c:\\foo') : URI.file('/foo');
+		const fileURI2b = isWindows ? URI.file('C:\\Foo\\') : URI.file('/Foo/');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI, fileURI), true, '1');
 		assert.strictEqual(extUri.isEqualOrParent(fileURI, fileURI), true, '2');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI, fileURI2), true, '3');
@@ -412,9 +412,9 @@ suite('Resources', () => {
 		assert.strictEqual(extUri.isEqualOrParent(fileURI2, fileURI), false, '7');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI2b, fileURI2), true, '8');
 
-		let fileURI3 = URI.parse('foo://server:453/foo/bar/goo');
-		let fileURI4 = URI.parse('foo://server:453/foo/');
-		let fileURI5 = URI.parse('foo://server:453/foo');
+		const fileURI3 = URI.parse('foo://server:453/foo/bar/goo');
+		const fileURI4 = URI.parse('foo://server:453/foo/');
+		const fileURI5 = URI.parse('foo://server:453/foo');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI3, fileURI3, true), true, '11');
 		assert.strictEqual(extUri.isEqualOrParent(fileURI3, fileURI3), true, '12');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI3, fileURI4, true), true, '13');
@@ -422,8 +422,8 @@ suite('Resources', () => {
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI3, fileURI, true), false, '15');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI5, fileURI5, true), true, '16');
 
-		let fileURI6 = URI.parse('foo://server:453/foo?q=1');
-		let fileURI7 = URI.parse('foo://server:453/foo/bar?q=1');
+		const fileURI6 = URI.parse('foo://server:453/foo?q=1');
+		const fileURI7 = URI.parse('foo://server:453/foo/bar?q=1');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI6, fileURI5), false, '17');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI6, fileURI6), true, '18');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI6), true, '19');

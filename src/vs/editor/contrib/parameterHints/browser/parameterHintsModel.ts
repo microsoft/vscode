@@ -9,13 +9,14 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import * as modes from 'vs/editor/common/languages';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import * as languages from 'vs/editor/common/languages';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 
 export interface TriggerContext {
-	readonly triggerKind: modes.SignatureHelpTriggerKind;
+	readonly triggerKind: languages.SignatureHelpTriggerKind;
 	readonly triggerCharacter?: string;
 }
 
@@ -31,15 +32,15 @@ namespace ParameterHintState {
 	export class Pending {
 		readonly type = Type.Pending;
 		constructor(
-			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>,
-			readonly previouslyActiveHints: modes.SignatureHelp | undefined,
+			readonly request: CancelablePromise<languages.SignatureHelpResult | undefined | null>,
+			readonly previouslyActiveHints: languages.SignatureHelp | undefined,
 		) { }
 	}
 
 	export class Active {
 		readonly type = Type.Active;
 		constructor(
-			readonly hints: modes.SignatureHelp
+			readonly hints: languages.SignatureHelp
 		) { }
 	}
 
@@ -50,27 +51,32 @@ export class ParameterHintsModel extends Disposable {
 
 	private static readonly DEFAULT_DELAY = 120; // ms
 
-	private readonly _onChangedHints = this._register(new Emitter<modes.SignatureHelp | undefined>());
+	private readonly _onChangedHints = this._register(new Emitter<languages.SignatureHelp | undefined>());
 	public readonly onChangedHints = this._onChangedHints.event;
 
 	private readonly editor: ICodeEditor;
+	private readonly providers: LanguageFeatureRegistry<languages.SignatureHelpProvider>;
+
 	private triggerOnType = false;
 	private _state: ParameterHintState.State = ParameterHintState.Default;
 	private _pendingTriggers: TriggerContext[] = [];
-	private readonly _lastSignatureHelpResult = this._register(new MutableDisposable<modes.SignatureHelpResult>());
-	private triggerChars = new CharacterSet();
-	private retriggerChars = new CharacterSet();
+
+	private readonly _lastSignatureHelpResult = this._register(new MutableDisposable<languages.SignatureHelpResult>());
+	private readonly triggerChars = new CharacterSet();
+	private readonly retriggerChars = new CharacterSet();
 
 	private readonly throttledDelayer: Delayer<boolean>;
 	private triggerId = 0;
 
 	constructor(
 		editor: ICodeEditor,
+		providers: LanguageFeatureRegistry<languages.SignatureHelpProvider>,
 		delay: number = ParameterHintsModel.DEFAULT_DELAY
 	) {
 		super();
 
 		this.editor = editor;
+		this.providers = providers;
 
 		this.throttledDelayer = new Delayer(delay);
 
@@ -80,7 +86,7 @@ export class ParameterHintsModel extends Disposable {
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this._register(this.editor.onDidChangeModelContent(e => this.onModelContentChange()));
-		this._register(modes.SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
+		this._register(this.providers.onDidChange(this.onModelChanged, this));
 		this._register(this.editor.onDidType(text => this.onDidType(text)));
 
 		this.onEditorConfigurationChange();
@@ -107,7 +113,7 @@ export class ParameterHintsModel extends Disposable {
 
 	trigger(context: TriggerContext, delay?: number): void {
 		const model = this.editor.getModel();
-		if (!model || !modes.SignatureHelpProviderRegistry.has(model)) {
+		if (!model || !this.providers.has(model)) {
 			return;
 		}
 
@@ -194,7 +200,7 @@ export class ParameterHintsModel extends Disposable {
 		const position = this.editor.getPosition();
 
 		this.state = new ParameterHintState.Pending(
-			createCancelablePromise(token => provideSignatureHelp(model, position, triggerContext, token)),
+			createCancelablePromise(token => provideSignatureHelp(this.providers, model, position, triggerContext, token)),
 			activeSignatureHelp);
 
 		try {
@@ -227,7 +233,7 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	private getLastActiveHints(): modes.SignatureHelp | undefined {
+	private getLastActiveHints(): languages.SignatureHelp | undefined {
 		switch (this.state.type) {
 			case ParameterHintState.Type.Active: return this.state.hints;
 			case ParameterHintState.Type.Pending: return this.state.previouslyActiveHints;
@@ -244,25 +250,29 @@ export class ParameterHintsModel extends Disposable {
 	private onModelChanged(): void {
 		this.cancel();
 
-		// Update trigger characters
-		this.triggerChars = new CharacterSet();
-		this.retriggerChars = new CharacterSet();
+		this.triggerChars.clear();
+		this.retriggerChars.clear();
 
 		const model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		for (const support of modes.SignatureHelpProviderRegistry.ordered(model)) {
+		for (const support of this.providers.ordered(model)) {
 			for (const ch of support.signatureHelpTriggerCharacters || []) {
-				this.triggerChars.add(ch.charCodeAt(0));
+				if (ch.length) {
+					const charCode = ch.charCodeAt(0);
+					this.triggerChars.add(charCode);
 
-				// All trigger characters are also considered retrigger characters
-				this.retriggerChars.add(ch.charCodeAt(0));
+					// All trigger characters are also considered retrigger characters
+					this.retriggerChars.add(charCode);
+				}
 			}
 
 			for (const ch of support.signatureHelpRetriggerCharacters || []) {
-				this.retriggerChars.add(ch.charCodeAt(0));
+				if (ch.length) {
+					this.retriggerChars.add(ch.charCodeAt(0));
+				}
 			}
 		}
 	}
@@ -277,7 +287,7 @@ export class ParameterHintsModel extends Disposable {
 
 		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
-				triggerKind: modes.SignatureHelpTriggerKind.TriggerCharacter,
+				triggerKind: languages.SignatureHelpTriggerKind.TriggerCharacter,
 				triggerCharacter: text.charAt(lastCharIndex),
 			});
 		}
@@ -287,13 +297,13 @@ export class ParameterHintsModel extends Disposable {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered) {
-			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
+			this.trigger({ triggerKind: languages.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
 	private onModelContentChange(): void {
 		if (this.isTriggered) {
-			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
+			this.trigger({ triggerKind: languages.SignatureHelpTriggerKind.ContentChange });
 		}
 	}
 
@@ -313,15 +323,15 @@ export class ParameterHintsModel extends Disposable {
 
 function mergeTriggerContexts(previous: TriggerContext, current: TriggerContext) {
 	switch (current.triggerKind) {
-		case modes.SignatureHelpTriggerKind.Invoke:
+		case languages.SignatureHelpTriggerKind.Invoke:
 			// Invoke overrides previous triggers.
 			return current;
 
-		case modes.SignatureHelpTriggerKind.ContentChange:
+		case languages.SignatureHelpTriggerKind.ContentChange:
 			// Ignore content changes triggers
 			return previous;
 
-		case modes.SignatureHelpTriggerKind.TriggerCharacter:
+		case languages.SignatureHelpTriggerKind.TriggerCharacter:
 		default:
 			return current;
 	}

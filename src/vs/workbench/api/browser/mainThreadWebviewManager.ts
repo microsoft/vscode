@@ -10,12 +10,12 @@ import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebv
 import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
 import { MainThreadWebviewsViews } from 'vs/workbench/api/browser/mainThreadWebviewViews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { extHostCustomer } from '../common/extHostCustomers';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 
 @extHostCustomer
 export class MainThreadWebviewManager extends Disposable {
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();

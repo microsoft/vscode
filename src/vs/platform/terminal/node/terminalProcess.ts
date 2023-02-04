@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { promises as fs } from 'fs';
 import type * as pty from 'node-pty';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -14,9 +15,10 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
@@ -68,9 +70,19 @@ const enum Constants {
 }
 
 interface IWriteObject {
-	data: string,
-	isBinary: boolean
+	data: string;
+	isBinary: boolean;
 }
+
+const posixShellTypeMap = new Map<string, PosixShellType>([
+	['bash', PosixShellType.Bash],
+	['csh', PosixShellType.Csh],
+	['fish', PosixShellType.Fish],
+	['ksh', PosixShellType.Ksh],
+	['sh', PosixShellType.Sh],
+	['pwsh', PosixShellType.PowerShell],
+	['zsh', PosixShellType.Zsh]
+]);
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
@@ -84,7 +96,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		failedShellIntegrationActivation: false,
+		usedShellIntegrationInjection: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -108,7 +122,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
-	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
+	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle); }
+	get hasChildProcesses(): boolean { return this._childProcessMonitor?.hasChildProcesses || false; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -129,8 +144,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		 * environment used for `findExecutable`
 		 */
 		private readonly _executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
-		@ILogService private readonly _logService: ILogService
+		private readonly _options: ITerminalProcessOptions,
+		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 		let name: string;
@@ -144,12 +160,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
 			cwd,
 			// TODO: When node-pty is updated this cast can be removed
-			env: env as { [key: string]: string; },
+			env: env as { [key: string]: string },
 			cols,
 			rows,
 			useConpty,
@@ -184,8 +200,37 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
+		let injection: IShellIntegrationConfigInjection | undefined;
+		if (this._options.shellIntegration.enabled) {
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
+			if (injection) {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
+				if (injection.envMixin) {
+					for (const [key, value] of Object.entries(injection.envMixin)) {
+						this._ptyOptions.env ||= {};
+						this._ptyOptions.env[key] = value;
+					}
+				}
+				if (injection.filesToCopy) {
+					for (const f of injection.filesToCopy) {
+						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						try {
+							await fs.copyFile(f.source, f.dest);
+						} catch {
+							// Swallow error, this should only happen when multiple users are on the same
+							// machine. Since the shell integration scripts rarely change, plus the other user
+							// should be using the same version of the server in this case, assume the script is
+							// fine if copy fails and swallow the error.
+						}
+					}
+				}
+			} else {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
+			}
+		}
+
 		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -213,30 +258,38 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (!slc.executable) {
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
+
+		const cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd;
+		const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
+		const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
+		if (!executable) {
+			return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
+		}
+
 		try {
-			const result = await Promises.stat(slc.executable);
+			const result = await Promises.stat(executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file or a symlink", slc.executable) };
 			}
+			// Set the executable explicitly here so that node-pty doesn't need to search the
+			// $PATH too.
+			slc.executable = executable;
 		} catch (err) {
-			if (err?.code === 'ENOENT') {
-				// The executable isn't an absolute path, try find it on the PATH or CWD
-				let cwd = slc.cwd instanceof URI ? slc.cwd.path : slc.cwd!;
-				const envPaths: string[] | undefined = (slc.env && slc.env.PATH) ? slc.env.PATH.split(path.delimiter) : undefined;
-				const executable = await findExecutable(slc.executable!, cwd, envPaths, this._executableEnv);
-				if (!executable) {
-					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
-				}
-				// Set the executable explicitly here so that node-pty doesn't need to search the
-				// $PATH too.
-				slc.executable = executable;
+			if (err?.code === 'EACCES') {
+				// Swallow
+			} else {
+				throw err;
 			}
 		}
 		return undefined;
 	}
 
-	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
-		const args = shellLaunchConfig.args || [];
+	private async setupPtyProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		options: pty.IPtyForkOptions,
+		shellIntegrationInjection: IShellIntegrationConfigInjection | undefined
+	): Promise<void> {
+		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
@@ -256,6 +309,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 
 			// Refire the data event
+			this._logService.trace('IPty#onData', data);
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				this._queueProcessExit();
@@ -350,6 +404,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		this._currentTitle = ptyProcess.process;
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
+		// If fig is installed it may change the title of the process
+		const sanitizedTitle = this.currentTitle.replace(/ \(figterm\)$/g, '');
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: posixShellTypeMap.get(sanitizedTitle) });
 	}
 
 	shutdown(immediate: boolean): void {
@@ -444,6 +501,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
+		this._logService.trace('IPty#write', object.data);
 		if (object.isBinary) {
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
@@ -526,7 +584,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					} else {
@@ -565,8 +623,8 @@ class DelayedResizer extends Disposable {
 	cols: number | undefined;
 	private _timeout: NodeJS.Timeout;
 
-	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
-	get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
+	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }
 
 	constructor() {
 		super();

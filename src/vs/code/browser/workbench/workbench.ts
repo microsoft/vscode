@@ -13,10 +13,14 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, ICredentialsProvider, IURLCallbackProvider, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.main';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
+import { create } from 'vs/workbench/workbench.web.main';
 import { posix } from 'vs/base/common/path';
 import { ltrim } from 'vs/base/common/strings';
+import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
+import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 
 interface ICredential {
 	service: string;
@@ -31,7 +35,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	private readonly authService: string | undefined;
 
 	constructor() {
-		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
+		let authSessionInfo: { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean; readonly scopes: string[][] } | undefined;
 		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
@@ -151,7 +155,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		return this.doGetPassword(service);
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));
@@ -192,6 +196,10 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 	private checkCallbacksTimeout: unknown | undefined = undefined;
 	private onDidChangeLocalStorageDisposable: IDisposable | undefined;
 
+	constructor(private readonly _callbackRoute: string) {
+		super();
+	}
+
 	create(options: Partial<UriComponents> = {}): URI {
 		const id = ++LocalStorageURLCallbackProvider.REQUEST_ID;
 		const queryParams: string[] = [`vscode-reqid=${id}`];
@@ -215,7 +223,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			this.startListening();
 		}
 
-		return URI.parse(window.location.href).with({ path: '/callback', query: queryParams.join('&') });
+		return URI.parse(window.location.href).with({ path: this._callbackRoute, query: queryParams.join('&') });
 	}
 
 	private startListening(): void {
@@ -282,15 +290,13 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspaces.lastOpened';
-
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
 	private static QUERY_PARAM_FOLDER = 'folder';
 	private static QUERY_PARAM_WORKSPACE = 'workspace';
 
 	private static QUERY_PARAM_PAYLOAD = 'payload';
 
-	static create(config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents }) {
+	static create(config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents }) {
 		let foundWorkspace = false;
 		let workspace: IWorkspace;
 		let payload = Object.create(null);
@@ -343,34 +349,13 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		});
 
 		// If no workspace is provided through the URL, check for config
-		// attribute from server and fallback to last opened workspace
-		// from storage
+		// attribute from server
 		if (!foundWorkspace) {
 			if (config.folderUri) {
 				workspace = { folderUri: URI.revive(config.folderUri) };
 			} else if (config.workspaceUri) {
 				workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-			} else {
-				workspace = (() => {
-					const lastWorkspaceRaw = window.localStorage.getItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
-					if (lastWorkspaceRaw) {
-						try {
-							return parse(lastWorkspaceRaw); // use marshalling#parse() to revive potential URIs
-						} catch (error) {
-							// Ignore
-						}
-					}
-
-					return undefined;
-				})();
 			}
-		}
-
-		// Keep this as last opened workspace in storage
-		if (workspace) {
-			window.localStorage.setItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
-		} else {
-			window.localStorage.removeItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
 		}
 
 		return new WorkspaceProvider(workspace, payload, config);
@@ -385,7 +370,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	) {
 	}
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean> {
+	async open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean> {
 		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
 			return true; // return early if workspace and environment is not changing and we are reusing window
 		}
@@ -397,7 +382,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				return true;
 			} else {
 				let result;
-				if (isStandalone) {
+				if (isStandalone()) {
 					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
 					result = window.open(targetHref);
@@ -409,7 +394,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		return false;
 	}
 
-	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {
+	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): string | undefined {
 
 		// Empty
 		let targetHref: string | undefined = undefined;
@@ -515,7 +500,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
 	}
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
 
 	// Create workbench
 	create(document.body, {
@@ -524,7 +509,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 			enabled: config.settingsSyncOptions.enabled,
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
-		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
+		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),
 		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider() // with a remote, we don't use a local credentials provider
 	});
 })();

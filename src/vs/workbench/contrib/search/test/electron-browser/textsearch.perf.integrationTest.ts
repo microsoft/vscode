@@ -25,7 +25,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -33,7 +33,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -42,6 +42,7 @@ import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/br
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 // declare var __dirname: string;
 
@@ -89,7 +90,8 @@ suite.skip('TextSearch performance (integration)', () => {
 						undoRedoService,
 						new LanguageService(),
 						new TestLanguageConfigurationService(),
-						new LanguageFeatureDebounceService(logService)
+						new LanguageFeatureDebounceService(logService),
+						new LanguageFeaturesService()
 					),
 				],
 				[
@@ -204,7 +206,7 @@ class TestTelemetryService implements ITelemetryService {
 		return Promise.resolve();
 	}
 
-	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	public publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as any);
 	}
 
@@ -212,7 +214,7 @@ class TestTelemetryService implements ITelemetryService {
 		return this.publicLog(eventName, data);
 	}
 
-	public publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+	public publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as any);
 	}
 

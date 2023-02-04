@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, registerModelCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -17,13 +17,18 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/bracketSelections';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 
 class SelectionRanges {
 
@@ -33,7 +38,7 @@ class SelectionRanges {
 	) { }
 
 	mov(fwd: boolean): SelectionRanges {
-		let index = this.index + (fwd ? 1 : -1);
+		const index = this.index + (fwd ? 1 : -1);
 		if (index < 0 || index >= this.ranges.length) {
 			return this;
 		}
@@ -58,7 +63,10 @@ class SmartSelectController implements IEditorContribution {
 	private _selectionListener?: IDisposable;
 	private _ignoreSelection: boolean = false;
 
-	constructor(private readonly _editor: ICodeEditor) { }
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+	) { }
 
 	dispose(): void {
 		this._selectionListener?.dispose();
@@ -71,13 +79,10 @@ class SmartSelectController implements IEditorContribution {
 
 		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
-		if (!modes.SelectionRangeRegistry.has(model)) {
-			return;
-		}
 
 		if (!this._state) {
 
-			await provideSelectionRanges(model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
+			await provideSelectionRanges(this._languageFeaturesService.selectionRangeProvider, model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
@@ -135,7 +140,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = SmartSelectController.get(editor);
+		const controller = SmartSelectController.get(editor);
 		if (controller) {
 			await controller.run(this._forward);
 		}
@@ -197,28 +202,26 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController.ID, SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController, EditorContributionInstantiation.Lazy);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
-// word selection
-modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
-
 export interface SelectionRangesOptions {
-	selectLeadingAndTrailingWhitespace: boolean
+	selectLeadingAndTrailingWhitespace: boolean;
 }
 
-export async function provideSelectionRanges(model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
+export async function provideSelectionRanges(registry: LanguageFeatureRegistry<languages.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
-	const providers = modes.SelectionRangeRegistry.all(model);
+	const providers = registry.all(model)
+		.concat(new WordSelectionRangeProvider()); // ALWAYS have word based selection range
 
 	if (providers.length === 1) {
 		// add word selection and bracket selection when no provider exists
 		providers.unshift(new BracketSelectionRangeProvider());
 	}
 
-	let work: Promise<any>[] = [];
-	let allRawRanges: Range[][] = [];
+	const work: Promise<any>[] = [];
+	const allRawRanges: Range[][] = [];
 
 	for (const provider of providers) {
 
@@ -263,7 +266,7 @@ export async function provideSelectionRanges(model: ITextModel, positions: Posit
 
 		// remove ranges that don't contain the former range or that are equal to the
 		// former range
-		let oneRanges: Range[] = [];
+		const oneRanges: Range[] = [];
 		let last: Range | undefined;
 		for (const range of oneRawRanges) {
 			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
@@ -278,7 +281,7 @@ export async function provideSelectionRanges(model: ITextModel, positions: Posit
 
 		// add ranges that expand trivia at line starts and ends whenever a range
 		// wraps onto the a new line
-		let oneRangesWithTrivia: Range[] = [oneRanges[0]];
+		const oneRangesWithTrivia: Range[] = [oneRanges[0]];
 		for (let i = 1; i < oneRanges.length; i++) {
 			const prev = oneRanges[i - 1];
 			const cur = oneRanges[i];
@@ -300,7 +303,18 @@ export async function provideSelectionRanges(model: ITextModel, positions: Posit
 	});
 }
 
-registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
-	const [positions] = args;
-	return provideSelectionRanges(model, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+
+CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async function (accessor, ...args) {
+
+	const [resource, positions] = args;
+	assertType(URI.isUri(resource));
+
+	const registry = accessor.get(ILanguageFeaturesService).selectionRangeProvider;
+	const reference = await accessor.get(ITextModelService).createModelReference(resource);
+
+	try {
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+	} finally {
+		reference.dispose();
+	}
 });

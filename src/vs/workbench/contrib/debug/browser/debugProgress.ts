@@ -49,7 +49,7 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						delay: 500
 					}, progressStep => {
 						let total = 0;
-						const reportProgress = (progress: { message?: string, percentage?: number }) => {
+						const reportProgress = (progress: { message?: string; percentage?: number }) => {
 							let increment = undefined;
 							if (typeof progress.percentage === 'number') {
 								increment = progress.percentage - total;

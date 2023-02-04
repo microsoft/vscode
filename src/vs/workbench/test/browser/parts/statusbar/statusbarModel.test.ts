@@ -43,7 +43,7 @@ suite('Workbench status bar model', () => {
 
 		assert.ok(model.findEntry(container));
 
-		let didChangeEntryVisibility: { id: string, visible: boolean } = { id: '', visible: false };
+		let didChangeEntryVisibility: { id: string; visible: boolean } = { id: '', visible: false };
 		model.onDidChangeEntryVisibility(e => {
 			didChangeEntryVisibility = e;
 		});

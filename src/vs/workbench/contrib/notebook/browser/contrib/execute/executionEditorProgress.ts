@@ -19,7 +19,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 	) {
 		super();
 
-		this._register(_notebookEditor.onDidChangeVisibleRanges(() => this._update()));
+		this._register(_notebookEditor.onDidScroll(() => this._update()));
 
 		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
@@ -38,14 +38,16 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			return;
 		}
 
-		const executing = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._notebookEditor.textModel?.uri)
+		const executing = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
 		const executionIsVisible = (exe: INotebookCellExecution) => {
 			for (const range of this._notebookEditor.visibleRanges) {
-				range.end++;
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
-						return true;
+						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
+						if (this._notebookEditor.scrollTop < top + 30) {
+							return true;
+						}
 					}
 				}
 			}

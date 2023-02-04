@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EventType } from 'vs/base/browser/dom';
+import { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
 
 export class TerminalLinkQuickpick {
+
+	private readonly _onDidRequestMoreLinks = new Emitter<void>();
+	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 	constructor(
 		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) { }
@@ -20,29 +24,38 @@ export class TerminalLinkQuickpick {
 		const filePicks = links.fileLinks ? await this._generatePicks(links.fileLinks) : undefined;
 		const webPicks = links.webLinks ? await this._generatePicks(links.webLinks) : undefined;
 		const options = {
-			placeHolder: localize('terminal.integrated.openWebLink', "Select the link to open"),
-			canPickMany: false
+			placeHolder: localize('terminal.integrated.openDetectedLink', "Select the link to open"),
+			canPickMany: false,
+
 		};
 		const picks: LinkQuickPickItem[] = [];
 		if (webPicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.webLinks', "Web") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.urlLinks', "Url") });
 			picks.push(...webPicks);
 		}
 		if (filePicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.fileLinks', "File") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "Local File") });
 			picks.push(...filePicks);
 		}
 		if (wordPicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.wordLinks', "Word") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.searchLinks', "Workspace Search") });
 			picks.push(...wordPicks);
 		}
-
+		picks.push({ type: 'separator' });
+		if (!links.noMoreResults) {
+			const showMoreItem = { label: localize('terminal.integrated.showMoreLinks', "Show more links") };
+			picks.push(showMoreItem);
+		}
 		const pick = await this._quickInputService.pick(picks, options);
 		if (!pick) {
 			return;
 		}
 		const event = new TerminalLinkQuickPickEvent(EventType.CLICK);
-		pick.link.activate(event, pick.label);
+		if ('link' in pick) {
+			pick.link.activate(event, pick.label);
+		} else {
+			this._onDidRequestMoreLinks.fire();
+		}
 		return;
 	}
 
@@ -64,7 +77,7 @@ export class TerminalLinkQuickpick {
 }
 
 export interface ITerminalLinkQuickPickItem extends IQuickPickItem {
-	link: ILink
+	link: ILink;
 }
 
-type LinkQuickPickItem = ITerminalLinkQuickPickItem | IQuickPickSeparator;
+type LinkQuickPickItem = ITerminalLinkQuickPickItem | QuickPickItem;

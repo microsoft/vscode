@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 const cp = require('child_process');
-const path = require('path');
-const fs = require('fs');
 const { dirs } = require('./dirs');
+const { setupBuildYarnrc } = require('./setupBuildYarnrc');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
 /**
@@ -21,7 +20,7 @@ function yarnInstall(location, opts) {
 	const raw = process.env['npm_config_argv'] || '{}';
 	const argv = JSON.parse(raw);
 	const original = argv.original || [];
-	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile' || arg === '--check-files');
 	if (opts.ignoreEngines) {
 		args.push('--ignore-engines');
 		delete opts.ignoreEngines;
@@ -48,9 +47,9 @@ for (let dir of dirs) {
 		continue;
 	}
 
-	if (dir === 'build/lib/watch') {
-		// node modules for watching, specific to host node version, not electron
-		yarnInstallBuildDependencies();
+	if (dir === 'build') {
+		setupBuildYarnrc();
+		yarnInstall('build');
 		continue;
 	}
 
@@ -62,32 +61,16 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
 		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
 		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+
 		opts = { env };
 	} else if (/^extensions\//.test(dir)) {
 		opts = { ignoreEngines: true };
 	}
 
 	yarnInstall(dir, opts);
-}
-
-function yarnInstallBuildDependencies() {
-	// make sure we install the deps of build/lib/watch for the system installed
-	// node, since that is the driver of gulp
-	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
-	const yarnrcPath = path.join(watchPath, '.yarnrc');
-
-	const disturl = 'https://nodejs.org/download/release';
-	const target = process.versions.node;
-	const runtime = 'node';
-
-	const yarnrc = `disturl "${disturl}"
-target "${target}"
-runtime "${runtime}"`;
-
-	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
-	yarnInstall(watchPath);
 }
 
 cp.execSync('git config pull.rebase merges');

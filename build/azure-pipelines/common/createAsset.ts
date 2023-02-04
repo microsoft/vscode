@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
@@ -35,7 +33,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 	switch (os) {
 		case 'win32':
 			switch (product) {
-				case 'client':
+				case 'client': {
 					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
 					switch (type) {
 						case 'archive':
@@ -47,6 +45,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
+				}
 				case 'server':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
@@ -57,6 +56,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+				case 'cli':
+					return `cli-win32-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -66,6 +67,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `server-alpine-${arch}`;
 				case 'web':
 					return `server-alpine-${arch}-web`;
+				case 'cli':
+					return `cli-alpine-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -88,6 +91,8 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return `linux-deb-${arch}`;
 				case 'rpm-package':
 					return `linux-rpm-${arch}`;
+				case 'cli':
+					return `cli-linux-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -99,12 +104,17 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					}
 					return `darwin-${arch}`;
 				case 'server':
-					return 'server-darwin';
-				case 'web':
-					if (arch !== 'x64') {
-						throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
+					if (arch === 'x64') {
+						return 'server-darwin';
 					}
-					return 'server-darwin-web';
+					return `server-darwin-${arch}`;
+				case 'web':
+					if (arch === 'x64') {
+						return 'server-darwin-web';
+					}
+					return `server-darwin-${arch}-web`;
+				case 'cli':
+					return `cli-darwin-${arch}`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -153,7 +163,7 @@ async function main(): Promise<void> {
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
-	const commit = getEnv('BUILD_SOURCEVERSION');
+	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
 
 	console.log('Creating asset...');
 
@@ -176,19 +186,6 @@ async function main(): Promise<void> {
 	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
 	const containerClient = blobServiceClient.getContainerClient(quality);
 	const blobClient = containerClient.getBlockBlobClient(blobName);
-	const blobExists = await blobClient.exists();
-
-	if (blobExists) {
-		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-		return;
-	}
-
-	const mooncakeCredential = new ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_SECRET']!);
-	const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
-	const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
-	const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
-
-	console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
 
 	const blobOptions: BlockBlobParallelUploadOptions = {
 		blobHTTPHeaders: {
@@ -198,12 +195,45 @@ async function main(): Promise<void> {
 		}
 	};
 
-	await retry(() => Promise.all([
-		blobClient.uploadFile(filePath, blobOptions),
-		mooncakeBlobClient.uploadFile(filePath, blobOptions)
-	]));
+	const uploadPromises: Promise<void>[] = [];
+	if (await blobClient.exists()) {
+		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+	} else {
+		uploadPromises.push(retry(async () => {
+			await blobClient.uploadFile(filePath, blobOptions);
+			console.log('Blob successfully uploaded to Azure storage.');
+		}));
+	}
 
-	console.log('Blobs successfully uploaded.');
+	const shouldUploadToMooncake = /true/i.test(process.env['VSCODE_PUBLISH_TO_MOONCAKE'] ?? 'true');
+
+	if (shouldUploadToMooncake) {
+		const mooncakeCredential = new ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_SECRET']!);
+		const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
+		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
+
+		if (await mooncakeBlobClient.exists()) {
+			console.log(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		} else {
+			uploadPromises.push(retry(async () => {
+				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+				console.log('Blob successfully uploaded to Mooncake Azure storage.');
+			}));
+		}
+
+		if (uploadPromises.length) {
+			console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+		}
+	} else {
+		if (uploadPromises.length) {
+			console.log('Uploading blobs to Azure storage...');
+		}
+	}
+
+	await Promise.all(uploadPromises);
+
+	console.log(uploadPromises.length ? 'All blobs successfully uploaded.' : 'No blobs to upload.');
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;

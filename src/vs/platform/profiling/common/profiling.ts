@@ -37,18 +37,22 @@ export interface IV8InspectProfilingService {
 
 	_serviceBrand: undefined;
 
-	startProfiling(options: { port: number }): Promise<string>
+	startProfiling(options: { port: number }): Promise<string>;
 
-	stopProfiling(sessionId: string): Promise<IV8Profile>
+	stopProfiling(sessionId: string): Promise<IV8Profile>;
 }
 
 
 export namespace Utils {
 
+	export function isValidProfile(profile: IV8Profile): profile is Required<IV8Profile> {
+		return Boolean(profile.samples && profile.timeDeltas);
+	}
+
 	export function rewriteAbsolutePaths(profile: IV8Profile, replace: string = 'noAbsolutePaths') {
 		for (const node of profile.nodes) {
 			if (node.callFrame && node.callFrame.url) {
-				if (isAbsolute(node.callFrame.url) || /^\w[\w\d+.-]*:\/\/\//.test(node.callFrame.url)) {
+				if (isAbsolute(node.callFrame.url) || /^\w[\w\d+.-]*:\/\/\/?/.test(node.callFrame.url)) {
 					node.callFrame.url = join(replace, basename(node.callFrame.url));
 				}
 			}

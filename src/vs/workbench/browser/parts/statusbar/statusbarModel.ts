@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { isStatusbarEntryLocation, IStatusbarEntryLocation, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
@@ -32,34 +32,6 @@ export interface IStatusbarEntryPriority {
 	readonly secondary: number;
 }
 
-export interface IStatusbarEntryLocation {
-
-	/**
-	 * The identifier of another status bar entry to
-	 * position relative to.
-	 */
-	id: string;
-
-	/**
-	 * The alignment of the status bar entry relative
-	 * to the referenced entry.
-	 */
-	alignment: StatusbarAlignment;
-
-	/**
-	 * Whether to move the entry close to the location
-	 * so that it appears as if both this entry and
-	 * the location belong to each other.
-	 */
-	compact?: boolean;
-}
-
-export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
-	const candidate = thing as IStatusbarEntryLocation | undefined;
-
-	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
-}
-
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
 	readonly name: string;
@@ -74,7 +46,7 @@ export class StatusbarViewModel extends Disposable {
 
 	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
-	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
+	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string; visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
 	private _entries: IStatusbarViewModelEntry[] = []; // Intentionally not using a map here since multiple entries can have the same ID
@@ -92,10 +64,11 @@ export class StatusbarViewModel extends Disposable {
 
 		this.restoreState();
 		this.registerListeners();
+
 	}
 
 	private restoreState(): void {
-		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.PROFILE);
 		if (hiddenRaw) {
 			try {
 				const hiddenArray: string[] = JSON.parse(hiddenRaw);
@@ -111,7 +84,7 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
-		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
+		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.PROFILE) {
 
 			// Keep current hidden entries
 			const currentlyHidden = new Set(this.hidden);
@@ -300,9 +273,9 @@ export class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.PROFILE, StorageTarget.USER);
 		} else {
-			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.PROFILE);
 		}
 	}
 
@@ -425,13 +398,9 @@ export class StatusbarViewModel extends Disposable {
 		}
 
 		// Mark: first visible item
-		if (firstVisibleItem) {
-			firstVisibleItem.container.classList.add('first-visible-item');
-		}
+		firstVisibleItem?.container.classList.add('first-visible-item');
 
 		// Mark: last visible item
-		if (lastVisibleItem) {
-			lastVisibleItem.container.classList.add('last-visible-item');
-		}
+		lastVisibleItem?.container.classList.add('last-visible-item');
 	}
 }

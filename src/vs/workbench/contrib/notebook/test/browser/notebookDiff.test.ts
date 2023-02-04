@@ -5,13 +5,29 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { LcsDiff } from 'vs/base/common/diff/diff';
+import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { Mimes } from 'vs/base/common/mime';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { CellKind, CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
+import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+
+class CellSequence implements ISequence {
+
+	constructor(readonly textModel: INotebookTextModel) {
+	}
+
+	getElements(): string[] | number[] | Int32Array {
+		const hashValue = new Int32Array(this.textModel.cells.length);
+		for (let i = 0; i < this.textModel.cells.length; i++) {
+			hashValue[i] = this.textModel.cells[i].getHashValue();
+		}
+
+		return hashValue;
+	}
+}
+
 
 suite('NotebookCommon', () => {
 	const configurationService = new TestConfigurationService();
@@ -40,7 +56,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 		});
@@ -72,7 +88,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
@@ -103,7 +119,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 		});
@@ -141,7 +157,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 		});
@@ -162,7 +178,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 3);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
@@ -185,7 +201,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 3);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
@@ -213,7 +229,7 @@ suite('NotebookCommon', () => {
 					}],
 					quitEarly: false
 				}
-			});
+			}, undefined);
 
 			assert.strictEqual(diffResult.firstChangeIndex, 0);
 			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
@@ -258,7 +274,7 @@ suite('NotebookCommon', () => {
 					}],
 					quitEarly: false
 				}
-			});
+			}, undefined);
 
 			assert.strictEqual(diffResult.firstChangeIndex, 0);
 			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
@@ -266,6 +282,51 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[3].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[4].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
+		});
+	});
+
+	test('diff insert 3', async () => {
+
+		await withTestNotebookDiffModel([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], [
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var h = 8;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], async (model, accessor) => {
+			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
+				cellsDiff: {
+					changes: [{
+						originalStart: 4,
+						originalLength: 0,
+						modifiedStart: 4,
+						modifiedLength: 1
+					}],
+					quitEarly: false
+				}
+			}, undefined);
+
+			// assert.strictEqual(diffResult.firstChangeIndex, 4);
+			assert.strictEqual(diffResult.viewModels[0].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[1].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[3].type, 'unchanged');
+			assert.strictEqual(diffResult.viewModels[4].type, 'insert');
 			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
 			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
@@ -356,6 +417,43 @@ suite('NotebookCommon', () => {
 		});
 	});
 
+	test('LCS 3', async () => {
+		await withTestNotebookDiffModel([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], [
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 2;', 'javascript', CellKind.Code, [], {}],
+			['var c = 3;', 'javascript', CellKind.Code, [], {}],
+			['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			['var h = 8;', 'javascript', CellKind.Code, [], {}],
+			['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			['var f = 6;', 'javascript', CellKind.Code, [], {}],
+			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		], async (model) => {
+			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
+			const diffResult = diff.ComputeDiff(false);
+			NotebookTextDiffEditor.prettyChanges(model, diffResult);
+
+			assert.deepStrictEqual(diffResult.changes.map(change => ({
+				originalStart: change.originalStart,
+				originalLength: change.originalLength,
+				modifiedStart: change.modifiedStart,
+				modifiedLength: change.modifiedLength
+			})), [{
+				originalStart: 4,
+				originalLength: 0,
+				modifiedStart: 4,
+				modifiedLength: 1
+			}]);
+		});
+	});
+
 	test('diff output', async () => {
 		await withTestNotebookDiffModel([
 			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
@@ -369,12 +467,11 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].type, 'unchanged');
 			assert.strictEqual(diffViewModels.viewModels[0].checkIfOutputsModified(), false);
 			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
-			assert.deepStrictEqual(diffViewModels.viewModels[1].checkIfOutputsModified(), { reason: undefined });
 		});
 	});
 
@@ -391,7 +488,7 @@ suite('NotebookCommon', () => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
 			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
-			});
+			}, undefined);
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
 			assert.strictEqual(diffViewModels.viewModels[0].original!.textModel.equal(diffViewModels.viewModels[0].modified!.textModel), true);
 			assert.strictEqual(diffViewModels.viewModels[1].original!.textModel.equal(diffViewModels.viewModels[1].modified!.textModel), false);

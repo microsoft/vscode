@@ -63,7 +63,7 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 
 let mockPFS: Partial<typeof pfs>;
 
-export function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
+function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.TextSearchMatch {
 	return !!(<vscode.TextSearchMatch>data).preview;
 }
 
@@ -78,7 +78,7 @@ suite('ExtHostSearch', () => {
 		await rpcProtocol.sync();
 	}
 
-	async function runFileSearch(query: IFileQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats; }> {
+	async function runFileSearch(query: IFileQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
@@ -103,7 +103,7 @@ suite('ExtHostSearch', () => {
 		};
 	}
 
-	async function runTextSearch(query: ITextQuery): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats; }> {
+	async function runTextSearch(query: ITextQuery): Promise<{ results: IFileMatch[]; stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
 			const cancellation = new CancellationTokenSource();
@@ -711,9 +711,9 @@ suite('ExtHostSearch', () => {
 
 		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
-			for (let fileMatch of actual) {
+			for (const fileMatch of actual) {
 				// Make relative
-				for (let lineResult of fileMatch.results!) {
+				for (const lineResult of fileMatch.results!) {
 					if (resultIsMatch(lineResult)) {
 						actualTextSearchResults.push({
 							preview: {

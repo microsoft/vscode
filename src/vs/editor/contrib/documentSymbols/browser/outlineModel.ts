@@ -13,13 +13,15 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
+import { DocumentSymbol, DocumentSymbolProvider } from 'vs/editor/common/languages';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export abstract class TreeElement {
 
@@ -28,9 +30,7 @@ export abstract class TreeElement {
 	abstract parent: TreeElement | undefined;
 
 	remove(): void {
-		if (this.parent) {
-			this.parent.children.delete(this.id);
-		}
+		this.parent?.children.delete(this.id);
 	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
@@ -58,7 +58,7 @@ export abstract class TreeElement {
 		if (!id) {
 			return undefined;
 		}
-		let len = commonPrefixLength(id, element.id);
+		const len = commonPrefixLength(id, element.id);
 		if (len === id.length) {
 			return element;
 		}
@@ -66,7 +66,7 @@ export abstract class TreeElement {
 			return undefined;
 		}
 		for (const [, child] of element.children) {
-			let candidate = TreeElement.getElementById(id, child);
+			const candidate = TreeElement.getElementById(id, child);
 			if (candidate) {
 				return candidate;
 			}
@@ -98,7 +98,7 @@ export interface IOutlineMarker {
 export class OutlineElement extends TreeElement {
 
 	children = new Map<string, OutlineElement>();
-	marker: { count: number, topSev: MarkerSeverity } | undefined;
+	marker: { count: number; topSev: MarkerSeverity } | undefined;
 
 	constructor(
 		readonly id: string,
@@ -146,7 +146,7 @@ export class OutlineGroup extends TreeElement {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
-		let idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
+		const idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
 		let start: number;
 		if (idx < 0) {
 			start = ~idx;
@@ -157,13 +157,13 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IOutlineMarker[] = [];
+		const myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
-			let marker = markers[start];
+			const marker = markers[start];
 			myMarkers.push(marker);
 			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
@@ -192,15 +192,16 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	static create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+	static create(registry: LanguageFeatureRegistry<DocumentSymbolProvider>, textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		const cts = new CancellationTokenSource(token);
 		const result = new OutlineModel(textModel.uri);
-		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const provider = registry.ordered(textModel);
 		const promises = provider.map((provider, index) => {
 
-			let id = TreeElement.findId(`provider_${index}`, result);
-			let group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
+			const id = TreeElement.findId(`provider_${index}`, result);
+			const group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
+
 
 			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
 				for (const info of result || []) {
@@ -219,8 +220,8 @@ export class OutlineModel extends TreeElement {
 			});
 		});
 
-		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
-			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const listener = registry.onDidChange(() => {
+			const newProvider = registry.ordered(textModel);
 			if (!equals(newProvider, provider)) {
 				cts.cancel();
 			}
@@ -228,7 +229,7 @@ export class OutlineModel extends TreeElement {
 
 		return Promise.all(promises).then(() => {
 			if (cts.token.isCancellationRequested && !token.isCancellationRequested) {
-				return OutlineModel.create(textModel, token);
+				return OutlineModel.create(registry, textModel, token);
 			} else {
 				return result._compact();
 			}
@@ -238,8 +239,8 @@ export class OutlineModel extends TreeElement {
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
-		let id = TreeElement.findId(info, container);
-		let res = new OutlineElement(id, container, info);
+		const id = TreeElement.findId(info, container);
+		const res = new OutlineElement(id, container, info);
 		if (info.children) {
 			for (const childInfo of info.children) {
 				OutlineModel._makeOutlineElement(childInfo, res);
@@ -285,8 +286,8 @@ export class OutlineModel extends TreeElement {
 			this.children = this._groups;
 		} else {
 			// adopt all elements of the first group
-			let group = Iterable.first(this._groups.values())!;
-			for (let [, child] of group.children) {
+			const group = Iterable.first(this._groups.values())!;
+			for (const [, child] of group.children) {
 				child.parent = this;
 				this.children.set(child.id, child);
 			}
@@ -413,10 +414,11 @@ export class OutlineModelService implements IOutlineModelService {
 	private readonly _cache = new LRUCache<string, CacheEntry>(10, 0.7);
 
 	constructor(
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService debounces: ILanguageFeatureDebounceService,
 		@IModelService modelService: IModelService
 	) {
-		this._debounceInformation = debounces.for(DocumentSymbolProviderRegistry, 'DocumentSymbols', { min: 350 });
+		this._debounceInformation = debounces.for(_languageFeaturesService.documentSymbolProvider, 'DocumentSymbols', { min: 350 });
 
 		// don't cache outline models longer than their text model
 		this._disposables.add(modelService.onModelRemoved(textModel => {
@@ -430,17 +432,18 @@ export class OutlineModelService implements IOutlineModelService {
 
 	async getOrCreate(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
-		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
+		const registry = this._languageFeaturesService.documentSymbolProvider;
+		const provider = registry.ordered(textModel);
 
 		let data = this._cache.get(textModel.id);
 		if (!data || data.versionId !== textModel.getVersionId() || !equals(data.provider, provider)) {
-			let source = new CancellationTokenSource();
+			const source = new CancellationTokenSource();
 			data = {
 				versionId: textModel.getVersionId(),
 				provider,
 				promiseCnt: 0,
 				source,
-				promise: OutlineModel.create(textModel, source.token),
+				promise: OutlineModel.create(registry, textModel, source.token),
 				model: undefined,
 			};
 			this._cache.set(textModel.id, data);
@@ -482,4 +485,4 @@ export class OutlineModelService implements IOutlineModelService {
 	}
 }
 
-registerSingleton(IOutlineModelService, OutlineModelService, true);
+registerSingleton(IOutlineModelService, OutlineModelService, InstantiationType.Delayed);

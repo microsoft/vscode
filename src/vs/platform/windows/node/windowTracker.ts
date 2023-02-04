@@ -15,9 +15,9 @@ export class ActiveWindowManager extends Disposable {
 	private activeWindowId: number | undefined;
 
 	constructor({ onDidOpenWindow, onDidFocusWindow, getActiveWindowId }: {
-		onDidOpenWindow: Event<number>,
-		onDidFocusWindow: Event<number>,
-		getActiveWindowId(): Promise<number | undefined>
+		onDidOpenWindow: Event<number>;
+		onDidFocusWindow: Event<number>;
+		getActiveWindowId(): Promise<number | undefined>;
 	}) {
 		super();
 

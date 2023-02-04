@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcomeGettingStarted/common/media/example_markdown_media';
+import 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
 import 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -18,37 +18,37 @@ const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mo
 
 
 export type BuiltinGettingStartedStep = {
-	id: string
-	title: string,
-	description: string,
-	completionEvents?: string[]
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	completionEvents?: string[];
+	when?: string;
 	media:
-	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
-	| { type: 'svg', path: string, altText: string }
-	| { type: 'markdown', path: string },
+	| { type: 'image'; path: string | { hc: string; hcLight?: string; light: string; dark: string }; altText: string }
+	| { type: 'svg'; path: string; altText: string }
+	| { type: 'markdown'; path: string };
 };
 
 export type BuiltinGettingStartedCategory = {
-	id: string
-	title: string,
-	description: string,
-	isFeatured: boolean,
-	next?: string,
-	icon: ThemeIcon,
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	isFeatured: boolean;
+	next?: string;
+	icon: ThemeIcon;
+	when?: string;
 	content:
-	| { type: 'steps', steps: BuiltinGettingStartedStep[] }
+	| { type: 'steps'; steps: BuiltinGettingStartedStep[] };
 };
 
 export type BuiltinGettingStartedStartEntry = {
-	id: string
-	title: string,
-	description: string,
-	icon: ThemeIcon,
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	icon: ThemeIcon;
+	when?: string;
 	content:
-	| { type: 'startEntry', command: string }
+	| { type: 'startEntry'; command: string };
 };
 
 type GettingStartedWalkthroughContent = BuiltinGettingStartedCategory[];
@@ -58,7 +58,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'welcome.showNewFileEntries',
 		title: localize('gettingStarted.newFile.title', "New File..."),
-		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
+		description: localize('gettingStarted.newFile.description', "Open a new untitled text file, notebook, or custom editor."),
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
@@ -113,10 +113,10 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
-		when: 'isWeb && workbenchState == \'workspace\'',
+		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
 		content: {
 			type: 'startEntry',
-			command: 'command:workbench.action.addRootFolder',
+			command: 'command:workbench.action.files.openFolderViaWorkspace',
 		}
 	},
 	{
@@ -198,7 +198,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					media: { type: 'markdown', path: 'example_markdown_media', }
+					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
 					id: 'settingsSync',
@@ -267,8 +267,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code in the Web"),
-		description: localize('gettingStarted.setupWeb.description', "Discover the best customizations to make VS Code in the Web yours."),
+		title: localize('gettingStarted.setupWeb.title', "Get Started with VS Code for the Web"),
+		description: localize('gettingStarted.setupWeb.description', "Discover the best customizations to make VS Code for the Web yours."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: 'isWeb',
@@ -284,7 +284,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					media: { type: 'markdown', path: 'example_markdown_media', }
+					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
 					id: 'settingsSyncWeb',
@@ -305,7 +305,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'menuBarWeb',
 					title: localize('gettingStarted.menuBar.title', "Just the right amount of UI"),
-					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its apperance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
+					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its appearance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
 					when: 'isWeb',
 					media: {
 						type: 'svg', altText: 'Comparing menu dropdown with the visible menu bar.', path: 'menuBar.svg'
@@ -355,7 +355,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
-		isFeatured: true,
+		isFeatured: false,
 		next: 'Intermediate',
 		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {

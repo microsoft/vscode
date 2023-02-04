@@ -140,7 +140,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	 */
 	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
 
-	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
 		editor.setSelection(options.range);
 		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
 		if (!options.preserveFocus) {
@@ -176,7 +176,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 	private rangeHighlightDecorationId: IEditorLineDecoration | undefined = undefined;
 
-	protected addDecorations(editor: IEditor, range: IRange): void {
+	addDecorations(editor: IEditor, range: IRange): void {
 		editor.changeDecorations(changeAccessor => {
 
 			// Reset old decorations if any
@@ -220,7 +220,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		});
 	}
 
-	protected clearDecorations(editor: IEditor): void {
+	clearDecorations(editor: IEditor): void {
 		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
 		if (rangeHighlightDecorationId) {
 			editor.changeDecorations(changeAccessor => {

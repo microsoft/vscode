@@ -129,7 +129,6 @@ export const enum QueryType {
 
 /* __GDPR__FRAGMENT__
 	"IPatternInfo" : {
-		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -348,6 +347,11 @@ export class OneLineRange extends SearchRange {
 	}
 }
 
+export const enum ViewMode {
+	List = 'list',
+	Tree = 'tree'
+}
+
 export const enum SearchSortOrder {
 	Default = 'default',
 	FileNames = 'fileNames',
@@ -383,12 +387,17 @@ export interface ISearchConfigurationProperties {
 	searchOnTypeDebouncePeriod: number;
 	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
-		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
-		reusePriorSearchConfiguration: boolean,
-		defaultNumberOfContextLines: number | null,
+		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide';
+		reusePriorSearchConfiguration: boolean;
+		defaultNumberOfContextLines: number | null;
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;
+	decorations: {
+		colors: boolean;
+		badges: boolean;
+	};
+	defaultViewMode: ViewMode;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -531,7 +540,7 @@ export interface ISearchEngineSuccess {
 export interface ISerializedSearchError {
 	type: 'error';
 	error: {
-		message: string,
+		message: string;
 		stack: string;
 	};
 }
@@ -704,4 +713,42 @@ function hasSiblingClauses(pattern: glob.IExpression): boolean {
 	}
 
 	return false;
+}
+
+export function hasSiblingPromiseFn(siblingsFn?: () => Promise<string[]>) {
+	if (!siblingsFn) {
+		return undefined;
+	}
+
+	let siblings: Promise<Record<string, true>>;
+	return (name: string) => {
+		if (!siblings) {
+			siblings = (siblingsFn() || Promise.resolve([]))
+				.then(list => list ? listToMap(list) : {});
+		}
+		return siblings.then(map => !!map[name]);
+	};
+}
+
+export function hasSiblingFn(siblingsFn?: () => string[]) {
+	if (!siblingsFn) {
+		return undefined;
+	}
+
+	let siblings: Record<string, true>;
+	return (name: string) => {
+		if (!siblings) {
+			const list = siblingsFn();
+			siblings = list ? listToMap(list) : {};
+		}
+		return !!siblings[name];
+	};
+}
+
+function listToMap(list: string[]) {
+	const map: Record<string, true> = {};
+	for (const key of list) {
+		map[key] = true;
+	}
+	return map;
 }

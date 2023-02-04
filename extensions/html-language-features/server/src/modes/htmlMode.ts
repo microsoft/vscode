@@ -49,13 +49,16 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			} else {
 				formatSettings.contentUnformatted = 'script';
 			}
+			if (formatParams.insertFinalNewline) {
+				formatSettings.endWithNewline = true;
+			}
 			merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
 			return htmlLanguageService.getFoldingRanges(document);
 		},
-		async doAutoInsert(document: TextDocument, position: Position, kind: 'autoQuote' | 'autoClose',  settings = workspace.settings) {
+		async doAutoInsert(document: TextDocument, position: Position, kind: 'autoQuote' | 'autoClose', settings = workspace.settings) {
 			const offset = document.offsetAt(position);
 			const text = document.getText();
 			if (kind === 'autoQuote') {

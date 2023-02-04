@@ -10,7 +10,7 @@
     ],
     "instanceUrl": "https://msazure.visualstudio.com/defaultcollection",
     "projectName": "One",
-    "areaPath": "One\\VSCode\\Client",
+    "areaPath": "One\\VSCode\\Visual Studio Code Client",
     "iterationPath": "One",
     "notifyAlways": true,
     "tools": [

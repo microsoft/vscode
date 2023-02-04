@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -12,8 +11,9 @@ import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../t
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import { parseKindModifier } from '../utils/modifiers';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
@@ -22,7 +22,6 @@ import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 interface DotAccessorContext {
 	readonly range: vscode.Range;
@@ -37,12 +36,12 @@ interface CompletionContext {
 	readonly dotAccessorContext?: DotAccessorContext;
 
 	readonly enableCallCompletions: boolean;
-	readonly useCodeSnippetsOnMethodSuggest: boolean,
+	readonly useCodeSnippetsOnMethodSuggest: boolean;
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
 
-	readonly useFuzzyWordRangeLogic: boolean,
+	readonly useFuzzyWordRangeLogic: boolean;
 }
 
 type ResolvedCompletionItem = {
@@ -84,6 +83,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.label = { label: tsEntry.name, description: Previewer.plainWithLinks(sourceDisplay, client) };
 		}
 
+		if (tsEntry.labelDetails) {
+			this.label = { label: tsEntry.name, ...tsEntry.labelDetails };
+		}
+
 		this.preselect = tsEntry.isRecommended;
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
@@ -94,7 +97,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {
-			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
+			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.textLabel);
 			if (!this.range) {
 				const replacementRange = this.getFuzzyWordRange();
 				if (replacementRange) {
@@ -112,13 +115,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (tsEntry.kindModifiers) {
 			const kindModifiers = parseKindModifier(tsEntry.kindModifiers);
 			if (kindModifiers.has(PConst.KindModifiers.optional)) {
-				if (!this.insertText) {
-					this.insertText = this.textLabel;
-				}
+				this.insertText ??= this.textLabel;
+				this.filterText ??= this.textLabel;
 
-				if (!this.filterText) {
-					this.filterText = this.textLabel;
-				}
 				if (typeof this.label === 'string') {
 					this.label += '?';
 				} else {
@@ -133,18 +132,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 				this.kind = vscode.CompletionItemKind.Color;
 			}
 
-			if (tsEntry.kind === PConst.Kind.script) {
-				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-					if (kindModifiers.has(extModifier)) {
-						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
-							this.detail = tsEntry.name;
-						} else {
-							this.detail = tsEntry.name + extModifier;
-						}
-						break;
-					}
-				}
-			}
+			this.detail = getScriptKindDetails(tsEntry);
 		}
 
 		this.resolveRange();
@@ -183,7 +171,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		const requestToken = new vscode.CancellationTokenSource();
 
 		const promise = (async (): Promise<ResolvedCompletionItem | undefined> => {
-			const filepath = client.toOpenedFilePath(this.document);
+			const filepath = client.toOpenTsFilePath(this.document);
 			if (!filepath) {
 				return undefined;
 			}
@@ -205,10 +193,12 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 			const detail = response.body[0];
 
-			if (!this.detail && detail.displayParts.length) {
-				this.detail = Previewer.plainWithLinks(detail.displayParts, client);
+			const newItemDetails = this.getDetails(client, detail);
+			if (newItemDetails) {
+				this.detail = newItemDetails;
 			}
-			this.documentation = this.getDocumentation(client, detail, this);
+
+			this.documentation = this.getDocumentation(client, detail, this.document.uri);
 
 			const codeAction = this.getCodeActions(detail, filepath);
 			const commands: vscode.Command[] = [{
@@ -248,19 +238,33 @@ class MyCompletionItem extends vscode.CompletionItem {
 		return this._resolvedPromise.promise;
 	}
 
+	private getDetails(
+		client: ITypeScriptServiceClient,
+		detail: Proto.CompletionEntryDetails,
+	): string | undefined {
+		const parts: string[] = [];
+
+		if (detail.kind === PConst.Kind.script) {
+			// details were already added
+			return undefined;
+		}
+
+		for (const action of detail.codeActions ?? []) {
+			parts.push(action.description);
+		}
+
+		parts.push(Previewer.plainWithLinks(detail.displayParts, client));
+		return parts.join('\n\n');
+	}
+
 	private getDocumentation(
 		client: ITypeScriptServiceClient,
 		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem
+		baseUri: vscode.Uri,
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
-		if (detail.source) {
-			const importPath = `'${Previewer.plainWithLinks(detail.source, client)}'`;
-			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
-			item.detail = `${autoImportLabel}\n${item.detail}`;
-		}
 		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
-
+		documentation.baseUri = baseUri;
 		return documentation.value.length ? documentation : undefined;
 	}
 
@@ -298,7 +302,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private getCodeActions(
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
-	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
 		if (!detail.codeActions || !detail.codeActions.length) {
 			return {};
 		}
@@ -494,7 +498,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 
 	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
-		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
+		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
 			return undefined;
 		}
 
@@ -509,6 +513,24 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		return commitCharacters;
 	}
+}
+
+function getScriptKindDetails(tsEntry: Proto.CompletionEntry,): string | undefined {
+	if (!tsEntry.kindModifiers || tsEntry.kind !== PConst.Kind.script) {
+		return;
+	}
+
+	const kindModifiers = parseKindModifier(tsEntry.kindModifiers);
+	for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
+		if (kindModifiers.has(extModifier)) {
+			if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
+				return tsEntry.name;
+			} else {
+				return tsEntry.name + extModifier;
+			}
+		}
+	}
+	return undefined;
 }
 
 
@@ -526,6 +548,7 @@ class CompletionAcceptedCommand implements Command {
 		if (item instanceof MyCompletionItem) {
 			/* __GDPR__
 				"completions.accept" : {
+					"owner": "mjbvz",
 					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"isImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
@@ -597,7 +620,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 				description: '',
 				action,
 			})), {
-			placeHolder: localize('selectCodeAction', 'Select code action to apply')
+			placeHolder: vscode.l10n.t("Select code action to apply")
 		});
 
 		if (selection) {
@@ -643,7 +666,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly modeId: string,
+		private readonly language: LanguageDescription,
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
@@ -661,30 +684,43 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
 	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
+		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.enabled')) {
+			return undefined;
+		}
+
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
-				label: localize(
-					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
-					'Acquiring typings...'),
-				detail: localize(
-					{ key: 'acquiringTypingsDetail', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
-					'Acquiring typings definitions for IntelliSense.')
+				label: vscode.l10n.t({
+					message: "Acquiring typings...",
+					comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'],
+				}),
+				detail: vscode.l10n.t({
+					message: "Acquiring typings definitions for IntelliSense.",
+					comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'],
+				})
 			});
 		}
 
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
 
 		const line = document.lineAt(position.line);
-		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
+		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.language.id, document.uri);
 
 		if (!this.shouldTrigger(context, line, position, completionConfiguration)) {
 			return undefined;
 		}
 
-		const wordRange = document.getWordRangeAtPosition(position);
+		let wordRange = document.getWordRangeAtPosition(position);
+		if (wordRange && !wordRange.isEmpty) {
+			const secondCharPosition = wordRange.start.translate(0, 1);
+			const firstChar = document.getText(new vscode.Range(wordRange.start, secondCharPosition));
+			if (firstChar === '@') {
+				wordRange = wordRange.with(secondCharPosition);
+			}
+		}
 
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
@@ -781,9 +817,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		/* __GDPR__
 			"completions.execute" : {
+				"owner": "mjbvz",
 				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"flags": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -796,6 +834,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		this.telemetryReporter.logTelemetry('completions.execute', {
 			duration: String(duration),
 			type: response?.type ?? 'unknown',
+			flags: response?.type === 'response' && typeof response.body?.flags === 'number' ? String(response.body.flags) : undefined,
 			count: String(response?.type === 'response' && response.body ? response.body.entries.length : 0),
 			updateGraphDurationMs: response?.type === 'response' && typeof response.performanceData?.updateGraphDurationMs === 'number'
 				? String(response.performanceData.updateGraphDurationMs)
@@ -865,35 +904,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		position: vscode.Position,
 		configuration: CompletionConfiguration,
 	): boolean {
-		if (context.triggerCharacter && this.client.apiVersion.lt(API.v290)) {
-			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
-				// make sure we are in something that looks like the start of an import
-				const pre = line.text.slice(0, position.character);
-				if (!/\b(from|import)\s*["']$/.test(pre) && !/\b(import|require)\(['"]$/.test(pre)) {
-					return false;
-				}
-			}
-
-			if (context.triggerCharacter === '/') {
-				// make sure we are in something that looks like an import path
-				const pre = line.text.slice(0, position.character);
-				if (!/\b(from|import)\s*["'][^'"]*$/.test(pre) && !/\b(import|require)\(['"][^'"]*$/.test(pre)) {
-					return false;
-				}
-			}
-
-			if (context.triggerCharacter === '@') {
-				// make sure we are in something that looks like the start of a jsdoc comment
-				const pre = line.text.slice(0, position.character);
-				if (!/^\s*\*[ ]?@/.test(pre) && !/\/\*\*+[ ]?@/.test(pre)) {
-					return false;
-				}
-			}
-
-			if (context.triggerCharacter === '<') {
-				return false;
-			}
-		}
 		if (context.triggerCharacter === ' ') {
 			if (!configuration.importStatementSuggestions || this.client.apiVersion.lt(API.v430)) {
 				return false;
@@ -919,7 +929,7 @@ function shouldExcludeCompletionEntry(
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	typingsStatus: TypingsStatus,
 	fileConfigurationManager: FileConfigurationManager,
@@ -928,11 +938,10 @@ export function register(
 	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.enabled'),
 		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
+			new TypeScriptCompletionItemProvider(client, language, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
 			...TypeScriptCompletionItemProvider.triggerCharacters);
 	});
 }

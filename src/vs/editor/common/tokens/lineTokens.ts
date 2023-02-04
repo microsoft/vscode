@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, FontStyle, ILanguageIdCodec, ITokenPresentation, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
@@ -184,7 +185,7 @@ export class LineTokens implements IViewLineTokens {
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.
 	*/
-	public withInserted(insertTokens: { offset: number, text: string, tokenMetadata: number }[]): LineTokens {
+	public withInserted(insertTokens: { offset: number; text: string; tokenMetadata: number }[]): LineTokens {
 		if (insertTokens.length === 0) {
 			return this;
 		}

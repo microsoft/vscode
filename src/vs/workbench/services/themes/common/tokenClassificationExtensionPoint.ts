@@ -190,7 +190,7 @@ export class TokenClassificationExtensionPoints {
 						collector.error(nls.localize('invalid.semanticTokenScopes.scopes', "'configuration.semanticTokenScopes.scopes' must be defined as an object"));
 						continue;
 					}
-					for (let selectorString in contribution.scopes) {
+					for (const selectorString in contribution.scopes) {
 						const tmScopes = contribution.scopes[selectorString];
 						if (!Array.isArray(tmScopes) || tmScopes.some(l => typeof l !== 'string')) {
 							collector.error(nls.localize('invalid.semanticTokenScopes.scopes.value', "'configuration.semanticTokenScopes.scopes' values must be an array of strings"));
@@ -209,7 +209,7 @@ export class TokenClassificationExtensionPoints {
 			for (const extension of delta.removed) {
 				const extensionValue = <ITokenStyleDefaultExtensionPoint[]>extension.value;
 				for (const contribution of extensionValue) {
-					for (let selectorString in contribution.scopes) {
+					for (const selectorString in contribution.scopes) {
 						const tmScopes = contribution.scopes[selectorString];
 						try {
 							const selector = tokenClassificationRegistry.parseTokenSelector(selectorString, contribution.language);

@@ -59,7 +59,7 @@
 	font-size: 80%;
 }
 
-/* codicon colors */
-.codicon.codicon-extensions-pre-release {
-	color: var(--vscode-extensionIcon-preReleaseForeground);
+.extension-bookmark .recommendation {
+	border-top-color: var(--vscode-extensionButton-prominentBackground);
+	color: var(--vscode-extensionButton-prominentForeground);
 }

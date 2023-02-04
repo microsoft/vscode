@@ -12,7 +12,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -29,6 +29,8 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 suite('SuggestController', function () {
 
@@ -37,6 +39,8 @@ suite('SuggestController', function () {
 	let controller: SuggestController;
 	let editor: ITestCodeEditor;
 	let model: TextModel;
+	const languageFeaturesService = new LanguageFeaturesService();
+
 
 	teardown(function () {
 		disposables.clear();
@@ -45,6 +49,7 @@ suite('SuggestController', function () {
 	setup(function () {
 
 		const serviceCollection = new ServiceCollection(
+			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, new NullLogService()],
 			[IStorageService, new InMemoryStorageService()],
@@ -78,7 +83,7 @@ suite('SuggestController', function () {
 	});
 
 	test('postfix completion reports incorrect position #86984', async function () {
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -100,12 +105,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 11, 1, 11));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -114,7 +119,7 @@ suite('SuggestController', function () {
 
 	test('use additionalTextEdits sync when possible', async function () {
 
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -138,12 +143,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -155,7 +160,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -181,12 +186,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -207,7 +212,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -233,12 +238,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -263,7 +268,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -289,12 +294,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -312,7 +317,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -338,12 +343,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(2, 6, 2, 6));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(false, false);
 		await p2;
 
@@ -365,8 +370,8 @@ suite('SuggestController', function () {
 
 	test('resolve additionalTextEdits async when needed (cancel)', async function () {
 
-		let resolve: Function[] = [];
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		const resolve: Function[] = [];
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -396,12 +401,12 @@ suite('SuggestController', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
 		// trigger
-		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
 		controller.triggerSuggest();
 		await p1;
 
 		//
-		let p2 = Event.toPromise(controller.model.onDidCancel);
+		const p2 = Event.toPromise(controller.model.onDidCancel);
 		controller.acceptSelectedSuggestion(true, false);
 		await p2;
 
@@ -418,5 +423,145 @@ suite('SuggestController', function () {
 
 		// next suggestion used
 		assert.strictEqual(editor.getValue(), 'halloabc');
+	});
+
+	test('Completion edits are applied inconsistently when additionalTextEdits and textEdit start at the same offset #143888', async function () {
+
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'MyClassName',
+						insertText: 'MyClassName',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							range: Range.fromPositions(pos),
+							text: 'import "my_class.txt";\n'
+						}]
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		// trigger
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		//
+		const p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(true, false);
+		await p2;
+
+		// insertText happens sync!
+		assert.strictEqual(editor.getValue(), 'import "my_class.txt";\nMyClassName');
+
+	});
+
+	test('Pressing enter on autocomplete should always apply the selected dropdown completion, not a different, hidden one #161883', async function () {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+
+				const word = doc.getWordUntilPosition(pos);
+				const range = new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn);
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'filterBankSize',
+						insertText: 'filterBankSize',
+						sortText: 'a',
+						range
+					}, {
+						kind: CompletionItemKind.Text,
+						label: 'filter',
+						insertText: 'filter',
+						sortText: 'b',
+						range
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('filte');
+		editor.setSelection(new Selection(1, 6, 1, 6));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		const { completionModel } = await p1;
+		assert.strictEqual(completionModel.items.length, 2);
+
+		const [first, second] = completionModel.items;
+		assert.strictEqual(first.textLabel, 'filterBankSize');
+		assert.strictEqual(second.textLabel, 'filter');
+
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 6, 1, 6));
+		editor.trigger('keyboard', 'type', { text: 'r' }); // now filter "overtakes" filterBankSize because it is fully matched
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 7, 1, 7));
+
+		controller.acceptSelectedSuggestion(false, false);
+		assert.strictEqual(editor.getValue(), 'filter');
+	});
+
+	test('Fast autocomple typing selects the previous autocomplete suggestion, #71795', async function () {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+
+				const word = doc.getWordUntilPosition(pos);
+				const range = new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn);
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'false',
+						insertText: 'false',
+						range
+					}, {
+						kind: CompletionItemKind.Text,
+						label: 'float',
+						insertText: 'float',
+						range
+					}, {
+						kind: CompletionItemKind.Text,
+						label: 'for',
+						insertText: 'for',
+						range
+					}, {
+						kind: CompletionItemKind.Text,
+						label: 'foreach',
+						insertText: 'foreach',
+						range
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('f');
+		editor.setSelection(new Selection(1, 2, 1, 2));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		const { completionModel } = await p1;
+		assert.strictEqual(completionModel.items.length, 4);
+
+		const [first, second, third, fourth] = completionModel.items;
+		assert.strictEqual(first.textLabel, 'false');
+		assert.strictEqual(second.textLabel, 'float');
+		assert.strictEqual(third.textLabel, 'for');
+		assert.strictEqual(fourth.textLabel, 'foreach');
+
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 2, 1, 2));
+		editor.trigger('keyboard', 'type', { text: 'o' }); // filters`false` and `float`
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 3, 1, 3));
+
+		controller.acceptSelectedSuggestion(false, false);
+		assert.strictEqual(editor.getValue(), 'for');
 	});
 });

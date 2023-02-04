@@ -30,7 +30,8 @@
           ".har",
           ".jslintrc",
           ".jsonld",
-          ".geojson"
+          ".geojson",
+		  ".ipynb"
         ],
         "filenames": [
           "composer.lock",
@@ -60,7 +61,8 @@
         "filenames": [
           "babel.config.json",
           ".babelrc.json",
-          ".ember-cli"
+          ".ember-cli",
+          "typedoc.json"
         ],
         "configuration": "./language-configuration.json"
       }

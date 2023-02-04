@@ -5,7 +5,7 @@
 
 import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { LanguageId } from 'vs/editor/common/languages';
+import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IValidEmbeddedLanguagesMap, IValidTokenTypeMap, IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
@@ -15,8 +15,13 @@ import type { IRawTheme, IOnigLib } from 'vscode-textmate';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
 import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
+
+const textmateModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-textmate`;
+const textmateModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-textmate`;
+const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
+const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
@@ -25,6 +30,8 @@ export interface IValidGrammarDefinitionDTO {
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
+	balancedBracketSelectors: string[];
+	unbalancedBracketSelectors: string[];
 }
 
 export interface ICreateData {
@@ -127,7 +134,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 export class TextMateWorker {
 
 	private readonly _host: TextMateWorkerHost;
-	private readonly _models: { [uri: string]: TextMateWorkerModel; };
+	private readonly _models: { [uri: string]: TextMateWorkerModel };
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[];
 	private readonly _grammarFactory: Promise<TMGrammarFactory | null>;
 
@@ -143,21 +150,25 @@ export class TextMateWorker {
 				embeddedLanguages: def.embeddedLanguages,
 				tokenTypes: def.tokenTypes,
 				injectTo: def.injectTo,
+				balancedBracketSelectors: def.balancedBracketSelectors,
+				unbalancedBracketSelectors: def.unbalancedBracketSelectors,
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
 	}
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
-		require.config({
-			paths: {
-				'vscode-textmate': '../node_modules/vscode-textmate/release/main',
-				'vscode-oniguruma': '../node_modules/vscode-oniguruma/release/main',
-			}
-		});
-		const vscodeTextmate = await import('vscode-textmate');
-		const vscodeOniguruma = await import('vscode-oniguruma');
-		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
+		// TODO: asar support
+		const useAsar = false; // this._environmentService.isBuilt && !isWeb
+
+		const textmateLocation: AppResourcePath = useAsar ? textmateModuleLocation : textmateModuleLocationAsar;
+		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocation : onigurumaModuleLocationAsar;
+		const textmateMain: AppResourcePath = `${textmateLocation}/release/main.js`;
+		const onigurumaMain: AppResourcePath = `${onigurumaLocation}/release/main.js`;
+		const onigurumaWASM: AppResourcePath = `${onigurumaLocation}/release/onig.wasm`;
+		const vscodeTextmate = await import(FileAccess.asBrowserUri(textmateMain).toString(true));
+		const vscodeOniguruma = await import(FileAccess.asBrowserUri(onigurumaMain).toString(true));
+		const response = await fetch(FileAccess.asBrowserUri(onigurumaWASM).toString(true));
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.
 		// We therefore use the non-streaming compiler :(.
@@ -210,9 +221,7 @@ export class TextMateWorker {
 
 	public async acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {
 		const grammarFactory = await this._grammarFactory;
-		if (grammarFactory) {
-			grammarFactory.setTheme(theme, colorMap);
-		}
+		grammarFactory?.setTheme(theme, colorMap);
 	}
 
 	public _setTokens(resource: URI, versionId: number, tokens: Uint8Array): void {

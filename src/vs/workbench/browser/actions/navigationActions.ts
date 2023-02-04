@@ -9,7 +9,8 @@ import { Action } from 'vs/base/common/actions';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -35,6 +36,7 @@ abstract class BaseNavigationAction extends Action {
 		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
+		const isAuxiliaryBarFocus = this.layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
 
 		let neighborPart: Parts | undefined;
 		if (isEditorFocus) {
@@ -54,6 +56,10 @@ abstract class BaseNavigationAction extends Action {
 			neighborPart = this.layoutService.getVisibleNeighborPart(Parts.SIDEBAR_PART, this.direction);
 		}
 
+		if (isAuxiliaryBarFocus) {
+			neighborPart = neighborPart = this.layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
+		}
+
 		if (neighborPart === Parts.EDITOR_PART) {
 			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction))) {
 				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
@@ -62,6 +68,8 @@ abstract class BaseNavigationAction extends Action {
 			this.navigateToSidebar();
 		} else if (neighborPart === Parts.PANEL_PART) {
 			this.navigateToPanel();
+		} else if (neighborPart === Parts.AUXILIARYBAR_PART) {
+			this.navigateToAuxiliaryBar();
 		}
 	}
 
@@ -98,6 +106,26 @@ abstract class BaseNavigationAction extends Action {
 
 		const viewlet = await this.paneCompositeService.openPaneComposite(activeViewletId, ViewContainerLocation.Sidebar, true);
 		return !!viewlet;
+	}
+
+	private async navigateToAuxiliaryBar(): Promise<IComposite | boolean> {
+		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return false;
+		}
+
+		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		if (!activePanel) {
+			return false;
+		}
+
+		const activePanelId = activePanel.getId();
+
+		const res = await this.paneCompositeService.openPaneComposite(activePanelId, ViewContainerLocation.AuxiliaryBar, true);
+		if (!res) {
+			return false;
+		}
+
+		return res;
 	}
 
 	private navigateAcrossEditorGroup(direction: GroupDirection): boolean {
@@ -285,9 +313,9 @@ export class FocusPreviousPart extends Action {
 
 const actionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', CATEGORIES.View.value);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', CATEGORIES.View.value);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', CATEGORIES.View.value);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', CATEGORIES.View.value);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', CATEGORIES.View.value);
-actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', CATEGORIES.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', Categories.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', Categories.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', Categories.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', Categories.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', Categories.View.value);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', Categories.View.value);

@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
+import { FileStorage } from 'vs/platform/state/node/stateService';
 
 flakySuite('StateMainService', () => {
 
@@ -138,7 +138,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), logService, fileService);
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');

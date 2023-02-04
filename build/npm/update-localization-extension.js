@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
 let i18n = require("../lib/i18n");
@@ -69,7 +68,7 @@ function update(options) {
 		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
 		let translationPaths = [];
 		gulp.src(path.join(location, '**', languageId, '*.xlf'), { silent: false })
-			.pipe(i18n.prepareI18nPackFiles(i18n.externalExtensionsWithTranslations, translationPaths, languageId === 'ps'))
+			.pipe(i18n.prepareI18nPackFiles(translationPaths))
 			.on('error', (error) => {
 				console.log(`Error occurred while importing translations:`);
 				translationPaths = undefined;

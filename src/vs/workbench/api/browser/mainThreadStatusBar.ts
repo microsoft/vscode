@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadStatusBarShape, MainContext } from '../common/extHost.protocol';
+import { ThemeColor } from 'vs/base/common/themables';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
-	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
+	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
 
 	constructor(
 		_extHostContext: IExtHostContext,

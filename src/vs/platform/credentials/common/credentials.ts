@@ -13,12 +13,12 @@ export interface ICredentialsProvider {
 	setPassword(service: string, account: string, password: string): Promise<void>;
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+	findCredentials(service: string): Promise<Array<{ account: string; password: string }>>;
 	clear?(): Promise<void>;
 }
 
 export interface ICredentialsChangeEvent {
-	service: string
+	service: string;
 	account: string;
 }
 
@@ -70,8 +70,8 @@ export class InMemoryCredentialsProvider implements ICredentialsProvider {
 		return JSON.stringify(this.secretVault[service]) ?? null;
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
-		const credentials: { account: string, password: string }[] = [];
+	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
+		const credentials: { account: string; password: string }[] = [];
 		for (const account of Object.keys(this.secretVault[service] || {})) {
 			credentials.push({ account, password: this.secretVault[service]![account] });
 		}

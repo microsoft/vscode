@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
+function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
 	return (target: any, key: string, descriptor: any) => {
 		let fnKey: string | null = null;
 		let fn: Function | null = null;

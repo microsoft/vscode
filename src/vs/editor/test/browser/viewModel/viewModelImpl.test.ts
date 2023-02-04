@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
 import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/viewModel/viewEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { ViewEvent } from 'vs/editor/common/viewEvents';
 import { Position } from 'vs/editor/common/core/position';
 
 suite('ViewModel', () => {
@@ -63,7 +63,7 @@ suite('ViewModel', () => {
 				text: '\ninsert3'
 			}], () => ([]));
 
-			let viewLineCount: number[] = [];
+			const viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
 			viewModel.addViewEventHandler(new class extends ViewEventHandler {
@@ -114,7 +114,7 @@ suite('ViewModel', () => {
 
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
-			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
+			const actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
 			assert.deepStrictEqual(actual, expected);
 		});
 	}
@@ -259,7 +259,7 @@ suite('ViewModel', () => {
 	test('issue #22688 - always use CRLF for clipboard on Windows', () => {
 		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
 			model.setEOL(EndOfLineSequence.LF);
-			let actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
+			const actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
 			assert.deepStrictEqual(actual, 'line2\r\nline3\r\nline4\r\n');
 		});
 	});

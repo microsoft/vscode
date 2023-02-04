@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadStorageShape, MainContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IExtensionIdWithVersion, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -30,9 +30,12 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
 		this._storageListener = this._storageService.onDidChangeValue(e => {
-			const shared = e.scope === StorageScope.GLOBAL;
+			const shared = e.scope === StorageScope.PROFILE;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
-				this._proxy.$acceptValue(shared, e.key, this._extensionStorageService.getExtensionState(e.key, shared));
+				const rawState = this._extensionStorageService.getExtensionStateRaw(e.key, shared);
+				if (typeof rawState === 'string') {
+					this._proxy.$acceptValue(shared, e.key, rawState);
+				}
 			}
 		});
 	}
@@ -41,14 +44,14 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		this._storageListener.dispose();
 	}
 
-	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<object | undefined> {
+	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<string | undefined> {
 
 		await this.checkAndMigrateExtensionStorage(extensionId, shared);
 
 		if (shared) {
 			this._sharedStorageKeysToWatch.set(extensionId, true);
 		}
-		return this._extensionStorageService.getExtensionState(extensionId, shared);
+		return this._extensionStorageService.getExtensionStateRaw(extensionId, shared);
 	}
 
 	async $setValue(shared: boolean, key: string, value: object): Promise<void> {

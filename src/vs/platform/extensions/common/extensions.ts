@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -16,8 +18,8 @@ export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
 	command: string;
-	title: string;
-	category?: string;
+	title: string | ILocalizedString;
+	category?: string | ILocalizedString;
 }
 
 export interface IConfigurationProperty {
@@ -27,10 +29,10 @@ export interface IConfigurationProperty {
 }
 
 export interface IConfiguration {
-	id?: string,
-	order?: number,
-	title?: string,
-	properties: { [key: string]: IConfigurationProperty; };
+	id?: string;
+	order?: number;
+	title?: string;
+	properties: { [key: string]: IConfigurationProperty };
 }
 
 export interface IDebugger {
@@ -91,10 +93,10 @@ export interface IView {
 export interface IColor {
 	id: string;
 	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
+	defaults: { light: string; dark: string; highContrast: string };
 }
 
-export interface IWebviewEditor {
+interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
 	readonly selector: readonly {
@@ -123,9 +125,9 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never, svg?: never }
-	| { markdown: string, image?: never, svg?: never }
-	| { svg: string, altText: string, markdown?: never, image?: never }
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
+	| { markdown: string; image?: never; svg?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -133,8 +135,9 @@ export interface IWalkthroughStep {
 }
 
 export interface IWalkthrough {
-	readonly id: string,
+	readonly id: string;
 	readonly title: string;
+	readonly icon?: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
 	readonly featuredFor: string[] | undefined;
@@ -209,10 +212,10 @@ export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace',
 
 export type LimitedWorkspaceSupportType = 'limited';
 export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
+export type ExtensionUntrustedWorkspaceSupport = { supported: true } | { supported: false; description: string } | { supported: LimitedWorkspaceSupportType; description: string; restrictedConfigurations?: string[] };
 
 export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
+export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true } | { supported: false | LimitedWorkspaceSupportType; description: string };
 
 export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
 	if (typeof supportType === 'object' && supportType !== null) {
@@ -223,13 +226,6 @@ export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWo
 	return undefined;
 }
 
-
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
-}
 
 export interface IExtensionIdentifier {
 	id: string;
@@ -257,34 +253,62 @@ export const EXTENSION_CATEGORIES = [
 	'Other',
 ];
 
-export interface IExtensionManifest {
-	readonly name: string;
-	readonly displayName?: string;
-	readonly publisher: string;
-	readonly version: string;
-	readonly engines: { readonly vscode: string };
-	readonly description?: string;
-	readonly main?: string;
-	readonly browser?: string;
-	readonly icon?: string;
-	readonly categories?: string[];
-	readonly keywords?: string[];
-	readonly activationEvents?: string[];
-	readonly extensionDependencies?: string[];
-	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind | ExtensionKind[];
-	readonly contributes?: IExtensionContributions;
-	readonly repository?: { url: string; };
-	readonly bugs?: { url: string; };
-	readonly enabledApiProposals?: readonly string[];
-	readonly api?: string;
-	readonly scripts?: { [key: string]: string; };
-	readonly capabilities?: IExtensionCapabilities;
+export interface IRelaxedExtensionManifest {
+	name: string;
+	displayName?: string;
+	publisher: string;
+	version: string;
+	engines: { readonly vscode: string };
+	description?: string;
+	main?: string;
+	browser?: string;
+	preview?: boolean;
+	// For now this only supports pointing to l10n bundle files
+	// but it will be used for package.l10n.json files in the future
+	l10n?: string;
+	icon?: string;
+	categories?: string[];
+	keywords?: string[];
+	activationEvents?: string[];
+	extensionDependencies?: string[];
+	extensionPack?: string[];
+	extensionKind?: ExtensionKind | ExtensionKind[];
+	contributes?: IExtensionContributions;
+	repository?: { url: string };
+	bugs?: { url: string };
+	enabledApiProposals?: readonly string[];
+	api?: string;
+	scripts?: { [key: string]: string };
+	capabilities?: IExtensionCapabilities;
 }
+
+export type IExtensionManifest = Readonly<IRelaxedExtensionManifest>;
 
 export const enum ExtensionType {
 	System,
 	User
+}
+
+export const enum TargetPlatform {
+	WIN32_X64 = 'win32-x64',
+	WIN32_IA32 = 'win32-ia32',
+	WIN32_ARM64 = 'win32-arm64',
+
+	LINUX_X64 = 'linux-x64',
+	LINUX_ARM64 = 'linux-arm64',
+	LINUX_ARMHF = 'linux-armhf',
+
+	ALPINE_X64 = 'alpine-x64',
+	ALPINE_ARM64 = 'alpine-arm64',
+
+	DARWIN_X64 = 'darwin-x64',
+	DARWIN_ARM64 = 'darwin-arm64',
+
+	WEB = 'web',
+
+	UNIVERSAL = 'universal',
+	UNKNOWN = 'unknown',
+	UNDEFINED = 'undefined',
 }
 
 export interface IExtension {
@@ -293,8 +317,12 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
+	readonly targetPlatform: TargetPlatform;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isValid: boolean;
+	readonly validations: readonly [Severity, string][];
+	readonly browserNlsBundleUris?: { [language: string]: URI };
 }
 
 /**
@@ -332,8 +360,8 @@ export class ExtensionIdentifier {
 		if (typeof a === 'string' || typeof b === 'string') {
 			// At least one of the arguments is an extension id in string form,
 			// so we have to use the string comparison which ignores case.
-			let aValue = (typeof a === 'string' ? a : a.value);
-			let bValue = (typeof b === 'string' ? b : b.value);
+			const aValue = (typeof a === 'string' ? a : a.value);
+			const bValue = (typeof b === 'string' ? b : b.value);
 			return strings.equalsIgnoreCase(aValue, bValue);
 		}
 
@@ -352,13 +380,22 @@ export class ExtensionIdentifier {
 	}
 }
 
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly isBuiltin: boolean;
-	readonly isUserBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
+export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
+	id?: string;
+	identifier: ExtensionIdentifier;
+	uuid?: string;
+	targetPlatform: TargetPlatform;
+	isBuiltin: boolean;
+	isUserBuiltin: boolean;
+	isUnderDevelopment: boolean;
+	extensionLocation: URI;
+	browserNlsBundleUris?: { [language: string]: URI };
+}
+
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
+
+export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
+	return isLanguagePackExtension(manifest);
 }
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {

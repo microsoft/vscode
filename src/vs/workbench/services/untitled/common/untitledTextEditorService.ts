@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -56,7 +56,7 @@ export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INe
 	 * Note: currently it is not possible to specify the `scheme` to use. The
 	 * untitled editor will saved to the default local or remote resource.
 	 */
-	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
+	associatedResource?: { authority: string; path: string; query: string; fragment: string };
 }
 
 type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;
@@ -261,4 +261,4 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	}
 }
 
-registerSingleton(IUntitledTextEditorService, UntitledTextEditorService, true);
+registerSingleton(IUntitledTextEditorService, UntitledTextEditorService, InstantiationType.Delayed);

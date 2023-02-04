@@ -49,14 +49,14 @@ export class ExtHostMessageService {
 			checkProposedApiEnabled(extension, 'resolvers');
 		}
 
-		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
+		const commands: { title: string; isCloseAffordance: boolean; handle: number }[] = [];
 
 		for (let handle = 0; handle < items.length; handle++) {
 			const command = items[handle];
 			if (typeof command === 'string') {
 				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {
-				let { title, isCloseAffordance } = command;
+				const { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
 			} else {
 				this._logService.warn('Invalid message item:', command);

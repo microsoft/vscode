@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
+import { hash, StringSHA1 } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -14,28 +14,28 @@ import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, compressOutputItemStreams, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, isTextStreamMime, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
+	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
 	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
-	onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
+	readonly onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	readonly onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
-	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
 
 	private readonly _onDidChangeInternalMetadata = this._register(new Emitter<CellInternalMetadataChangedEvent>());
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
+	readonly onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
 
 	private readonly _onDidChangeLanguage = this._register(new Emitter<string>());
-	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+	readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
 	private _outputs: NotebookCellOutputTextModel[];
 
@@ -143,6 +143,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this._textBuffer;
 	}
 
+	private _textBufferHash: string | null = null;
 	private _hash: number | null = null;
 
 	private _versionId: number = 1;
@@ -193,7 +194,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	constructor(
 		readonly uri: URI,
 		public readonly handle: number,
-		private _source: string,
+		private readonly _source: string,
 		private _language: string,
 		private _mime: string | undefined,
 		public readonly cellKind: CellKind,
@@ -224,12 +225,27 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 
+	getTextBufferHash() {
+		if (this._textBufferHash !== null) {
+			return this._textBufferHash;
+		}
+
+		const shaComputer = new StringSHA1();
+		const snapshot = this.textBuffer.createSnapshot(false);
+		let text: string | null;
+		while ((text = snapshot.read())) {
+			shaComputer.update(text);
+		}
+		this._textBufferHash = shaComputer.digest();
+		return this._textBufferHash;
+	}
+
 	getHashValue(): number {
 		if (this._hash !== null) {
 			return this._hash;
 		}
 
-		this._hash = hash([hash(this.language), hash(this.getValue()), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
+		this._hash = hash([hash(this.language), this.getTextBufferHash(), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
 			outputs: op.outputs.map(output => ({
 				mime: output.mime,
 				data: Array.from(output.data.buffer)
@@ -240,7 +256,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		const filteredMetadata: { [key: string]: any; } = {};
+		const filteredMetadata: { [key: string]: any } = {};
 		const transientCellMetadata = this.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);
@@ -264,8 +280,64 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
-		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
-		this._onDidChangeOutputs.fire(splice);
+		if (splice.deleteCount > 0 && splice.newOutputs.length > 0) {
+			const commonLen = Math.min(splice.deleteCount, splice.newOutputs.length);
+			// update
+			for (let i = 0; i < commonLen; i++) {
+				const currentOutput = this.outputs[splice.start + i];
+				const newOutput = splice.newOutputs[i];
+
+				this.replaceOutput(currentOutput.outputId, newOutput);
+			}
+
+			this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
+			this._onDidChangeOutputs.fire({ start: splice.start + commonLen, deleteCount: splice.deleteCount - commonLen, newOutputs: splice.newOutputs.slice(commonLen) });
+		} else {
+			this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+			this._onDidChangeOutputs.fire(splice);
+		}
+	}
+
+	private _optimizeOutputItems(output: ICellOutput) {
+		if (output.outputs.length > 1 && output.outputs.every(item => isTextStreamMime(item.mime))) {
+			// Look for the mimes in the items, and keep track of their order.
+			// Merge the streams into one output item, per mime type.
+			const mimeOutputs = new Map<string, Uint8Array[]>();
+			const mimeTypes: string[] = [];
+			output.outputs.forEach(item => {
+				let items: Uint8Array[];
+				if (mimeOutputs.has(item.mime)) {
+					items = mimeOutputs.get(item.mime)!;
+				} else {
+					items = [];
+					mimeOutputs.set(item.mime, items);
+					mimeTypes.push(item.mime);
+				}
+				items.push(item.data.buffer);
+			});
+			output.outputs.length = 0;
+			mimeTypes.forEach(mime => {
+				const compressed = compressOutputItemStreams(mimeOutputs.get(mime)!);
+				output.outputs.push({
+					mime,
+					data: compressed
+				});
+			});
+		}
+	}
+
+	replaceOutput(outputId: string, newOutputItem: ICellOutput) {
+		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return false;
+		}
+
+		const output = this.outputs[outputIndex];
+		output.replaceData(newOutputItem);
+		this._optimizeOutputItems(output);
+		this._onDidChangeOutputItems.fire();
+		return true;
 	}
 
 	changeOutputItems(outputId: string, append: boolean, items: IOutputItemDto[]): boolean {
@@ -279,9 +351,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		if (append) {
 			output.appendData(items);
 		} else {
-			output.replaceData(items);
+			output.replaceData({ outputId: outputId, outputs: items, metadata: output.metadata });
 		}
 
+		this._optimizeOutputItems(output);
 		this._onDidChangeOutputItems.fire();
 		return true;
 	}
@@ -333,6 +406,45 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this.getHashValue() === b.getHashValue();
 	}
 
+	/**
+	 * Only compares
+	 * - language
+	 * - mime
+	 * - cellKind
+	 * - internal metadata
+	 * - source
+	 */
+	fastEqual(b: ICellDto2): boolean {
+		if (this.language !== b.language) {
+			return false;
+		}
+
+		if (this.mime !== b.mime) {
+			return false;
+		}
+
+		if (this.cellKind !== b.cellKind) {
+			return false;
+		}
+
+		if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
+			|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
+			|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
+			|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
+			|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
+			return false;
+		}
+
+		// Once we attach the cell text buffer to an editor, the source of truth is the text buffer instead of the original source
+		if (this._textBuffer && this.getValue() !== b.source) {
+			return false;
+		} else if (this._source !== b.source) {
+			return false;
+		}
+
+		return true;
+	}
+
 	override dispose() {
 		dispose(this._outputs);
 		// Manually release reference to previous text buffer to avoid large leaks
@@ -354,8 +466,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 			outputs: output.outputs,
 			/* paste should generate new outputId */ outputId: UUID.generateUuid()
 		})),
-		metadata: { ...cell.metadata },
-		// Don't include internalMetadata, ie execution state, this is not to be shared
+		metadata: {}
 	};
 }
 

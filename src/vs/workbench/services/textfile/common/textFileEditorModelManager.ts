@@ -171,13 +171,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; languageId?: string; encoding?: string; }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; languageId?: string; encoding?: string; }[] = [];
+			const modelsToRestore: { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
@@ -485,7 +485,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(model)));
 		modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(model)));
 		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
-		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model, reason })));
+		modelListeners.add(model.onDidSave(e => this._onDidSave.fire({ model, ...e })));
 		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
 
@@ -493,7 +493,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToModelListeners.set(model.resource, modelListeners);
 	}
 
-	protected add(resource: URI, model: TextFileEditorModel): void {
+	add(resource: URI, model: TextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel.get(resource);
 		if (knownModel === model) {
 			return; // already cached
@@ -501,16 +501,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// dispose any previously stored dispose listener for this resource
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			disposeListener.dispose();
-		}
+		disposeListener?.dispose();
 
 		// store in cache but remove when model gets disposed
 		this.mapResourceToModel.set(resource, model);
 		this.mapResourceToDisposeListener.set(resource, model.onWillDispose(() => this.remove(resource)));
 	}
 
-	protected remove(resource: URI): void {
+	remove(resource: URI): void {
 		const removed = this.mapResourceToModel.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -538,7 +536,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 

@@ -11,9 +11,16 @@ import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensio
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { IExtensionHostExitInfo } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Mutable } from 'vs/base/common/types';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;
+}
+
+export interface IGetExtensionHostExitInfoArguments {
+	remoteAuthority: string;
+	reconnectionToken: string;
 }
 
 export interface IScanExtensionsArguments {
@@ -40,6 +47,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
 	workspaceStorageHome: UriComponents;
+	localHistoryHome: UriComponents;
 	userHome: UriComponents;
 	os: platform.OperatingSystem;
 	arch: string;
@@ -66,12 +74,21 @@ export class RemoteExtensionEnvironmentChannelClient {
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
+			localHistoryHome: URI.revive(data.localHistoryHome),
 			userHome: URI.revive(data.userHome),
 			os: data.os,
 			arch: data.arch,
 			marks: data.marks,
 			useHostProxy: data.useHostProxy
 		};
+	}
+
+	static async getExtensionHostExitInfo(channel: IChannel, remoteAuthority: string, reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		const args: IGetExtensionHostExitInfoArguments = {
+			remoteAuthority,
+			reconnectionToken
+		};
+		return channel.call<IExtensionHostExitInfo | null>('getExtensionHostExitInfo', args);
 	}
 
 	static async whenExtensionsReady(channel: IChannel): Promise<void> {
@@ -102,7 +119,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
 		if (extension) {
-			(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+			(<Mutable<IExtensionDescription>>extension).extensionLocation = URI.revive(extension.extensionLocation);
 		}
 		return extension;
 	}
@@ -121,5 +138,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 
 	static flushTelemetry(channel: IChannel): Promise<void> {
 		return channel.call<void>('flushTelemetry');
+	}
+
+	static async ping(channel: IChannel): Promise<void> {
+		await channel.call<void>('ping');
 	}
 }

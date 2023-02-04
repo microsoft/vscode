@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { DeclarationProviderRegistry, DefinitionProviderRegistry, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/languages';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { DeclarationProvider, DefinitionProvider, ImplementationProvider, LocationLink, ProviderResult, ReferenceProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
 
-function getLocationLinks<T>(
+async function getLocationLinks<T>(
 	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
@@ -28,45 +30,36 @@ function getLocationLinks<T>(
 		});
 	});
 
-	return Promise.all(promises).then(values => {
-		const result: LocationLink[] = [];
-		for (let value of values) {
-			if (Array.isArray(value)) {
-				result.push(...value);
-			} else if (value) {
-				result.push(value);
-			}
-		}
-		return result;
-	});
+	const values = await Promise.all(promises);
+	return coalesce(values.flat());
 }
 
-export function getDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, DefinitionProviderRegistry, (provider, model, position) => {
+export function getDefinitionsAtPosition(registry: LanguageFeatureRegistry<DefinitionProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, (provider, model, position) => {
 		return provider.provideDefinition(model, position, token);
 	});
 }
 
-export function getDeclarationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, DeclarationProviderRegistry, (provider, model, position) => {
+export function getDeclarationsAtPosition(registry: LanguageFeatureRegistry<DeclarationProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, (provider, model, position) => {
 		return provider.provideDeclaration(model, position, token);
 	});
 }
 
-export function getImplementationsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, ImplementationProviderRegistry, (provider, model, position) => {
+export function getImplementationsAtPosition(registry: LanguageFeatureRegistry<ImplementationProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, (provider, model, position) => {
 		return provider.provideImplementation(model, position, token);
 	});
 }
 
-export function getTypeDefinitionsAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, TypeDefinitionProviderRegistry, (provider, model, position) => {
+export function getTypeDefinitionsAtPosition(registry: LanguageFeatureRegistry<TypeDefinitionProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, (provider, model, position) => {
 		return provider.provideTypeDefinition(model, position, token);
 	});
 }
 
-export function getReferencesAtPosition(model: ITextModel, position: Position, compact: boolean, token: CancellationToken): Promise<LocationLink[]> {
-	return getLocationLinks(model, position, ReferenceProviderRegistry, async (provider, model, position) => {
+export function getReferencesAtPosition(registry: LanguageFeatureRegistry<ReferenceProvider>, model: ITextModel, position: Position, compact: boolean, token: CancellationToken): Promise<LocationLink[]> {
+	return getLocationLinks(model, position, registry, async (provider, model, position) => {
 		const result = await provider.provideReferences(model, position, { includeDeclaration: true }, token);
 		if (!compact || !result || result.length !== 2) {
 			return result;
@@ -89,8 +82,32 @@ async function _sortedAndDeduped(callback: () => Promise<LocationLink[]>): Promi
 	return modelLinks;
 }
 
-registerModelAndPositionCommand('_executeDefinitionProvider', (model, position) => _sortedAndDeduped(() => getDefinitionsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeDeclarationProvider', (model, position) => _sortedAndDeduped(() => getDeclarationsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeImplementationProvider', (model, position) => _sortedAndDeduped(() => getImplementationsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeTypeDefinitionProvider', (model, position) => _sortedAndDeduped(() => getTypeDefinitionsAtPosition(model, position, CancellationToken.None)));
-registerModelAndPositionCommand('_executeReferenceProvider', (model, position) => _sortedAndDeduped(() => getReferencesAtPosition(model, position, false, CancellationToken.None)));
+registerModelAndPositionCommand('_executeDefinitionProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, position, CancellationToken.None);
+	return _sortedAndDeduped(() => promise);
+});
+
+registerModelAndPositionCommand('_executeTypeDefinitionProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getTypeDefinitionsAtPosition(languageFeaturesService.typeDefinitionProvider, model, position, CancellationToken.None);
+	return _sortedAndDeduped(() => promise);
+});
+
+registerModelAndPositionCommand('_executeDeclarationProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getDeclarationsAtPosition(languageFeaturesService.declarationProvider, model, position, CancellationToken.None);
+	return _sortedAndDeduped(() => promise);
+});
+
+registerModelAndPositionCommand('_executeReferenceProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getReferencesAtPosition(languageFeaturesService.referenceProvider, model, position, false, CancellationToken.None);
+	return _sortedAndDeduped(() => promise);
+});
+
+registerModelAndPositionCommand('_executeImplementationProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	const promise = getImplementationsAtPosition(languageFeaturesService.implementationProvider, model, position, CancellationToken.None);
+	return _sortedAndDeduped(() => promise);
+});

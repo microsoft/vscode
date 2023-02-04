@@ -23,7 +23,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.findController';
+	static id: string = 'workbench.notebook.foldingController';
 
 	private _foldingModel: FoldingModel | null = null;
 	private readonly _localStore = this._register(new DisposableStore());
@@ -204,7 +204,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: { index: number; levels: number; direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -274,7 +274,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: { index: number; levels: number; direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);

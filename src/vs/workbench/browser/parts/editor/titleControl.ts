@@ -9,12 +9,11 @@ import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -22,23 +21,23 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -67,23 +66,39 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	override run(action: IAction): Promise<void> {
-		return super.run(action, this.context);
+	override run(action: IAction, context?: { preserveFocus?: boolean }): Promise<void> {
+
+		// Even though we have a fixed context for editor commands,
+		// allow to preserve the context that is given to us in case
+		// it applies.
+
+		let mergedContext = this.context;
+		if (context?.preserveFocus) {
+			mergedContext = {
+				...this.context,
+				preserveFocus: true
+			};
+		}
+
+		return super.run(action, mergedContext);
 	}
 }
 
 export abstract class TitleControl extends Themable {
 
-	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
 	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
 
-	private editorActionsToolbar: ToolBar | undefined;
+	private editorActionsToolbar: WorkbenchToolBar | undefined;
 
 	private resourceContext: ResourceContextKey;
 
 	private editorPinnedContext: IContextKey<boolean>;
+	private editorIsFirstContext: IContextKey<boolean>;
+	private editorIsLastContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
 
 	private editorCanSplitInGroupContext: IContextKey<boolean>;
@@ -93,7 +108,6 @@ export abstract class TitleControl extends Themable {
 
 	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
-	private contextMenu: IMenu;
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
@@ -104,7 +118,6 @@ export abstract class TitleControl extends Themable {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
@@ -117,6 +130,8 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 
 		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
+		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(contextKeyService);
+		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(contextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
 		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(contextKeyService);
@@ -124,7 +139,6 @@ export abstract class TitleControl extends Themable {
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
 
-		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 		this.renderDropdownAsChildElement = false;
 
 		this.create(parent);
@@ -151,7 +165,11 @@ export abstract class TitleControl extends Themable {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
 
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
+				// ignore if the scheme of the breadcrumbs resource is not affected
+				return;
+			}
 			if (this.breadcrumbsControl?.update()) {
 				this.handleBreadcrumbsEnablementChange();
 			}
@@ -164,14 +182,18 @@ export abstract class TitleControl extends Themable {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
 
 		// Toolbar Widget
-		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
+
+		this.editorActionsToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-			renderDropdownAsChildElement: this.renderDropdownAsChildElement
+			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
+			telemetrySource: 'editorPart',
+			resetMenu: MenuId.EditorTitle,
+			maxNumberOfItems: 9
 		}));
 
 		// Context
@@ -184,9 +206,6 @@ export abstract class TitleControl extends Themable {
 			if (e.error && !isCancellationError(e.error)) {
 				this.notificationService.error(e.error);
 			}
-
-			// Log in telemetry
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
 		}));
 	}
 
@@ -224,13 +243,17 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+			const activeEditor = this.group.activeEditor;
 
-			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
-			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
-			this.editorCanSplitInGroupContext.set(this.group.activeEditor ? this.group.activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(this.group.activeEditor?.typeId === SideBySideEditorInput.ID);
+			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
+			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
+			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+
+			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
 			this.groupLockedContext.set(this.group.isLocked);
 		});
@@ -238,7 +261,7 @@ export abstract class TitleControl extends Themable {
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
-			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
+			const scopedContextKeyService = this.getEditorPaneAwareContextKeyService();
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
@@ -247,17 +270,20 @@ export abstract class TitleControl extends Themable {
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
+			createAndFillInActionBarActions(
 				titleBarMenu,
 				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
 				{ primary, secondary },
 				'navigation',
-				9,
 				shouldInlineGroup
-			));
+			);
 		}
 
 		return { primary, secondary };
+	}
+
+	private getEditorPaneAwareContextKeyService(): IContextKeyService {
+		return this.group.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 	}
 
 	protected clearEditorActionsToolbar(): void {
@@ -303,7 +329,7 @@ export abstract class TitleControl extends Themable {
 					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
 				}
 
-				applyDragImage(e, label, 'monaco-editor-group-drag-image');
+				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 			}
 		}));
 
@@ -330,6 +356,10 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
+		const currentEditorIsFirstContext = !!this.editorIsFirstContext.get();
+		this.editorIsFirstContext.set(this.group.isFirst(editor));
+		const currentEditorIsLastContext = !!this.editorIsLastContext.get();
+		this.editorIsLastContext.set(this.group.isLast(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
 		this.editorStickyContext.set(this.group.isSticky(editor));
 		const currentGroupLockedContext = !!this.groupLockedContext.get();
@@ -340,20 +370,18 @@ export abstract class TitleControl extends Themable {
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number; } = node;
+		let anchor: HTMLElement | { x: number; y: number } = node;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
 			anchor = { x: event.posx, y: event.posy };
 		}
 
-		// Fill in contributed actions
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
-
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => actions,
+			menuId: MenuId.EditorTitleContext,
+			menuActionOptions: { shouldForwardArgs: true, arg: this.resourceContext.get() },
+			contextKeyService: this.contextKeyService,
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
 			getKeyBinding: action => this.getKeybinding(action),
 			onHide: () => {
@@ -361,6 +389,8 @@ export abstract class TitleControl extends Themable {
 				// restore previous contexts
 				this.resourceContext.set(currentResourceContext || null);
 				this.editorPinnedContext.set(currentPinnedContext);
+				this.editorIsFirstContext.set(currentEditorIsFirstContext);
+				this.editorIsLastContext.set(currentEditorIsLastContext);
 				this.editorStickyContext.set(currentStickyContext);
 				this.groupLockedContext.set(currentGroupLockedContext);
 				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
@@ -368,15 +398,12 @@ export abstract class TitleControl extends Themable {
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
-
-				// Cleanup
-				dispose(actionsDisposable);
 			}
 		});
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		return this.keybindingService.lookupKeybinding(action.id);
+		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
 	}
 
 	protected getKeybindingLabel(action: IAction): string | undefined {
@@ -420,16 +447,3 @@ export abstract class TitleControl extends Themable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Drag Feedback
-	const dragImageBackground = theme.getColor(listActiveSelectionBackground);
-	const dragImageForeground = theme.getColor(listActiveSelectionForeground);
-	collector.addRule(`
-		.monaco-editor-group-drag-image {
-			background: ${dragImageBackground};
-			color: ${dragImageForeground};
-		}
-	`);
-});

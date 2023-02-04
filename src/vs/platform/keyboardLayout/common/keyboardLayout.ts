@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 
 export const IKeyboardLayoutService = createDecorator<IKeyboardLayoutService>('keyboardLayoutService');
@@ -80,7 +79,7 @@ export interface IKeyboardLayoutService {
 	getRawKeyboardMapping(): IKeyboardMapping | null;
 	getCurrentKeyboardLayout(): IKeyboardLayoutInfo | null;
 	getAllKeyboardLayouts(): IKeyboardLayoutInfo[];
-	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper;
+	getKeyboardMapper(): IKeyboardMapper;
 	validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void;
 }
 
@@ -108,14 +107,14 @@ export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeybo
 	return false;
 }
 
-export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
+export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string; description: string } {
 	if (!layout) {
 		return { label: '', description: '' };
 	}
 
 	if ((<IWindowsKeyboardLayoutInfo>layout).name) {
 		// windows
-		let windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
+		const windowsLayout = <IWindowsKeyboardLayoutInfo>layout;
 		return {
 			label: windowsLayout.text,
 			description: ''
@@ -123,7 +122,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 	}
 
 	if ((<IMacKeyboardLayoutInfo>layout).id) {
-		let macLayout = <IMacKeyboardLayoutInfo>layout;
+		const macLayout = <IMacKeyboardLayoutInfo>layout;
 		if (macLayout.localizedName) {
 			return {
 				label: macLayout.localizedName,
@@ -150,7 +149,7 @@ export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | nul
 		};
 	}
 
-	let linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
+	const linuxLayout = <ILinuxKeyboardLayoutInfo>layout;
 
 	return {
 		label: linuxLayout.layout,

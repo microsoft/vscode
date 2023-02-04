@@ -17,8 +17,8 @@ import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -249,6 +249,23 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
 	}
 
+	private _enabled: boolean = true;
+
+	get enabled(): boolean {
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		enabled = !!enabled;
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+		this.#proxy.$setInputBoxEnablement(this._sourceControlHandle, enabled);
+	}
+
 	private _visible: boolean = true;
 
 	get visible(): boolean {
@@ -362,7 +379,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
 
-		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
+		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource; handle: number }>>(diff => {
 			const toInsert = diff.toInsert.map(r => {
 				const handle = this._resourceHandlePool++;
 				this._resourceStatesMap.set(handle, r);
@@ -520,7 +537,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const internal = actionButton !== undefined ?
 			{
 				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
-				description: actionButton.description
+				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
+					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
+				}),
+				description: actionButton.description,
+				enabled: actionButton.enabled
 			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}
@@ -721,8 +742,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
-		type TEvent = { extensionId: string; };
-		type TMeta = { extensionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
+		type TEvent = { extensionId: string };
+		type TMeta = {
+			owner: 'joaomoreno';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension contributing to the Source Control API.' };
+			comment: 'This is used to know what extensions contribute to the Source Control API.';
+		};
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,
 		});

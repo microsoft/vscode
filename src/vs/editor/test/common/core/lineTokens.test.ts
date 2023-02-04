@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/languages';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LineTokens', () => {
@@ -16,7 +16,7 @@ suite('LineTokens', () => {
 	}
 
 	function createLineTokens(text: string, tokens: ILineToken[]): LineTokens {
-		let binTokens = new Uint32Array(tokens.length << 1);
+		const binTokens = new Uint32Array(tokens.length << 1);
 
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			binTokens[(i << 1)] = (i + 1 < len ? tokens[i + 1].startIndex : text.length);
@@ -57,7 +57,7 @@ suite('LineTokens', () => {
 
 	test('withInserted 1', () => {
 		const lineTokens = createTestLineTokens();
-		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
 
 		const lineTokens2 = lineTokens.withInserted([
 			{ offset: 0, text: '1', tokenMetadata: 0, },
@@ -65,12 +65,12 @@ suite('LineTokens', () => {
 			{ offset: 9, text: '3', tokenMetadata: 0, },
 		]);
 
-		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)Hello (16384)2(0)wor(32768)3(0)ld, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)Hello (32768)2(0)wor(65536)3(0)ld, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
 	});
 
 	test('withInserted (tokens at the same position)', () => {
 		const lineTokens = createTestLineTokens();
-		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
 
 		const lineTokens2 = lineTokens.withInserted([
 			{ offset: 0, text: '1', tokenMetadata: 0, },
@@ -78,19 +78,19 @@ suite('LineTokens', () => {
 			{ offset: 0, text: '3', tokenMetadata: 0, },
 		]);
 
-		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)2(0)3(0)Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)2(0)3(0)Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
 	});
 
 	test('withInserted (tokens at the end)', () => {
 		const lineTokens = createTestLineTokens();
-		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)day(114688)');
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
 
 		const lineTokens2 = lineTokens.withInserted([
 			{ offset: 'Hello world, this is a lovely day'.length - 1, text: '1', tokenMetadata: 0, },
 			{ offset: 'Hello world, this is a lovely day'.length, text: '2', tokenMetadata: 0, },
 		]);
 
-		assert.strictEqual(renderLineTokens(lineTokens2), 'Hello (16384)world, (32768)this (49152)is (65536)a (81920)lovely (98304)da(114688)1(0)y(114688)2(0)');
+		assert.strictEqual(renderLineTokens(lineTokens2), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)da(229376)1(0)y(229376)2(0)');
 	});
 
 	test('basics', () => {
@@ -162,7 +162,7 @@ suite('LineTokens', () => {
 	}
 
 	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
-		let actual: ITestViewLineToken[] = [];
+		const actual: ITestViewLineToken[] = [];
 		for (let i = 0, len = _actual.getCount(); i < len; i++) {
 			actual[i] = {
 				endIndex: _actual.getEndOffset(i),

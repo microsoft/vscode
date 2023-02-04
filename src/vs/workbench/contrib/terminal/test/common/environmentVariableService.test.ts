@@ -6,7 +6,7 @@
 import { deepStrictEqual } from 'assert';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/platform/terminal/common/environmentVariable';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -87,7 +87,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			]);
 		});
 
-		test('should correctly apply the environment values from multiple extension contributions in the correct order', () => {
+		test('should correctly apply the environment values from multiple extension contributions in the correct order', async () => {
 			const collection1 = new Map<string, IEnvironmentVariableMutator>();
 			const collection2 = new Map<string, IEnvironmentVariableMutator>();
 			const collection3 = new Map<string, IEnvironmentVariableMutator>();
@@ -109,7 +109,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 			// Verify the entries get applied to the environment as expected
 			const env: IProcessEnvironment = { A: 'foo' };
-			environmentVariableService.mergedCollection.applyToProcessEnvironment(env);
+			await environmentVariableService.mergedCollection.applyToProcessEnvironment(env);
 			deepStrictEqual(env, { A: 'a2:a3:a1' });
 		});
 	});

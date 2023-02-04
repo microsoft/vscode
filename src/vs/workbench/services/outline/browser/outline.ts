@@ -69,7 +69,7 @@ export interface IOutlineListConfig<E> {
 }
 
 export interface OutlineChangeEvent {
-	affectOnlyActiveElement?: true
+	affectOnlyActiveElement?: true;
 }
 
 export interface IOutline<E> {
@@ -92,7 +92,13 @@ export interface IOutline<E> {
 
 export const enum OutlineConfigKeys {
 	'icons' = 'outline.icons',
+	'collapseItems' = 'outline.collapseItems',
 	'problemsEnabled' = 'outline.problems.enabled',
 	'problemsColors' = 'outline.problems.colors',
 	'problemsBadges' = 'outline.problems.badges'
+}
+
+export const enum OutlineConfigCollapseItemsValues {
+	Collapsed = 'alwaysCollapse',
+	Expanded = 'alwaysExpand'
 }

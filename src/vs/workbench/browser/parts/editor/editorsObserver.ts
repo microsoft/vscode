@@ -339,12 +339,28 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private async doEnsureOpenedEditorsLimit(limit: number, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
-		if (limit >= mostRecentEditors.length) {
+
+		// Check for `excludeDirty` setting and apply it by excluding
+		// any recent editor that is dirty from the opened editors limit
+		let mostRecentEditorsCountingForLimit: IEditorIdentifier[];
+		if (this.editorGroupsService.partOptions.limit?.excludeDirty) {
+			mostRecentEditorsCountingForLimit = mostRecentEditors.filter(({ editor }) => {
+				if (editor.isDirty() && !editor.isSaving()) {
+					return false;
+				}
+
+				return true;
+			});
+		} else {
+			mostRecentEditorsCountingForLimit = mostRecentEditors;
+		}
+
+		if (limit >= mostRecentEditorsCountingForLimit.length) {
 			return; // only if opened editors exceed setting and is valid and enabled
 		}
 
 		// Extract least recently used editors that can be closed
-		const leastRecentlyClosableEditors = mostRecentEditors.reverse().filter(({ editor, groupId }) => {
+		const leastRecentlyClosableEditors = mostRecentEditorsCountingForLimit.reverse().filter(({ editor, groupId }) => {
 			if (editor.isDirty() && !editor.isSaving()) {
 				return false; // not dirty editors (unless in the process of saving)
 			}
@@ -361,7 +377,7 @@ export class EditorsObserver extends Disposable {
 		});
 
 		// Close editors until we reached the limit again
-		let editorsToCloseCount = mostRecentEditors.length - limit;
+		let editorsToCloseCount = mostRecentEditorsCountingForLimit.length - limit;
 		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);

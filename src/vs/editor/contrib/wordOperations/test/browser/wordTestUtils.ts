@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Position } from 'vs/editor/common/core/position';
-import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 export function deserializePipePositions(text: string): [string, Position[]] {
 	let resultText = '';
 	let lineNumber = 1;
 	let charIndex = 0;
-	let positions: Position[] = [];
+	const positions: Position[] = [];
 	for (let i = 0, len = text.length; i < len; i++) {
 		const chr = text.charAt(i);
 		if (chr === '\n') {
@@ -58,9 +58,9 @@ export function serializePipePositions(text: string, positions: Position[]): str
 	return resultText;
 }
 
-export function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: ITestCodeEditor) => void, record: (editor: ITestCodeEditor) => Position, stopCondition: (editor: ITestCodeEditor) => boolean): Position[] {
-	let actualStops: Position[] = [];
-	withTestCodeEditor(text, {}, (editor) => {
+export function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: ITestCodeEditor) => void, record: (editor: ITestCodeEditor) => Position, stopCondition: (editor: ITestCodeEditor) => boolean, options: TestCodeEditorInstantiationOptions = {}): Position[] {
+	const actualStops: Position[] = [];
+	withTestCodeEditor(text, options, (editor) => {
 		editor.setPosition(initialPosition);
 		while (true) {
 			action(editor);

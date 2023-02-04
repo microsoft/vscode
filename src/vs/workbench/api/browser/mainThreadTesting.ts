@@ -7,32 +7,17 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ExtHostContext, ExtHostTestingShape, IExtHostContext, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
-
-const reviveDiff = (diff: TestsDiff) => {
-	for (const entry of diff) {
-		if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
-			const item = entry[1];
-			if (item.item?.uri) {
-				item.item.uri = URI.revive(item.item.uri);
-			}
-			if (item.item?.range) {
-				item.item.range = Range.lift(item.item.range);
-			}
-		}
-	}
-};
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
@@ -42,7 +27,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		instance: IMainThreadTestController;
 		label: MutableObservableValue<string>;
 		canRefresh: MutableObservableValue<boolean>;
-		disposable: IDisposable
+		disposable: IDisposable;
 	}>();
 
 	constructor(
@@ -54,18 +39,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
 
-		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
-		if (prevResults.length) {
-			this.proxy.$publishTestResults(prevResults);
-		}
-
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
 			this.proxy.$cancelExtensionTestRun(runId);
 		}));
 
 		this._register(resultService.onResultsChanged(evt => {
 			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
-			const serialized = results?.toJSON();
+			const serialized = results?.toJSONWithMessages();
 			if (serialized) {
 				this.proxy.$publishTestResults([serialized]);
 			}
@@ -99,15 +79,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem[]): void {
-		for (const test of tests) {
-			test.uri = URI.revive(test.uri);
-			if (test.range) {
-				test.range = Range.lift(test.range);
-			}
-		}
-
-		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId, tests));
+	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void {
+		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId, tests.map(ITestItem.deserialize)));
 	}
 
 	/**
@@ -178,16 +151,11 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: SerializedTestMessage[]): void {
+	public $appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: ITestMessage.Serialized[]): void {
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
 			for (const message of messages) {
-				if (message.location) {
-					message.location.uri = URI.revive(message.location.uri);
-					message.location.range = Range.lift(message.location.range);
-				}
-
-				r.appendMessage(testId, taskId, message as ITestMessage);
+				r.appendMessage(testId, taskId, ITestMessage.deserialize(message));
 			}
 		}
 	}
@@ -203,9 +171,11 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			id: controllerId,
 			label,
 			canRefresh,
+			syncTests: () => this.proxy.$syncTests(),
 			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
-			runTests: (req, token) => this.proxy.$runControllerTests(req, token),
+			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
+			startContinuousRun: (reqs, token) => this.proxy.$startContinuousRun(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
 
@@ -250,7 +220,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $subscribeToDiffs(): void {
-		this.proxy.$acceptDiff(this.testService.collection.getReviverDiff());
+		this.proxy.$acceptDiff(this.testService.collection.getReviverDiff().map(TestsDiffOp.serialize));
 		this.diffListener.value = this.testService.onDidProcessDiff(this.proxy.$acceptDiff, this.proxy);
 	}
 
@@ -264,9 +234,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $publishDiff(controllerId: string, diff: TestsDiff): void {
-		reviveDiff(diff);
-		this.testService.publishDiff(controllerId, diff);
+	public $publishDiff(controllerId: string, diff: TestsDiffOp.Serialized[]): void {
+		this.testService.publishDiff(controllerId, diff.map(TestsDiffOp.deserialize));
 	}
 
 	public async $runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string> {

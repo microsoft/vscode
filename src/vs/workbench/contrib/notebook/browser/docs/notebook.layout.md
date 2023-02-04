@@ -8,7 +8,6 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
 - [Optimizations](#optimizations)
 	- [Avoid flickering on resize of cells above current viewport](#avoid-flickering-on-resize-of-cells-above-current-viewport)
 	- [Executing code cell followed by markdown cells](#executing-code-cell-followed-by-markdown-cells)
-		- [What's the catch](#whats-the-catch)
 	- [Re-executing code cell followed by markdown cells](#re-executing-code-cell-followed-by-markdown-cells)
 	- [Scrolling](#scrolling)
 
@@ -20,7 +19,7 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
 The notebook model resolution consists of two main parts
 
 * Resolving the raw data (bytes) of the resource from file service. This part is backed by the `WorkingCopyService` and it will resolve the data and broadcast updates when the resource is updated on file system.
-* Requesting the contributed notebook serializer to serialize/deserize the raw bytes for the resource. We will find the best matched notebook serializer (by user's editor type configuration and serializer's selector defintion) and convert the raw bytes from/to `NotebookTextModel`.
+* Requesting the contributed notebook serializer to serialize/deserize the raw bytes for the resource. We will find the best matched notebook serializer (by user's editor type configuration and serializer's selector definition) and convert the raw bytes from/to `NotebookTextModel`.
 
 `NotebookTextModel` is the only source of truth for the notebook document once the resource is opened in the workspace. The source text of each individual cell in the notebook is backed by a piece tree text buffer. When the notebook is opened in the editor group, we will request the `TextModelResolverService` for the monaco `TextModel` reference for each cell. The `TextModel` will use the piece tree text buffer from the cell as the backing store so whenever the `TextModel` gets updated, the cells in `NotebookTextModel` are always up to date.``
 
@@ -41,38 +40,11 @@ The catch here is if we happen to perform any DOM read operation between DOM wri
 
 * Creation. `CellPart` is usually created on cell template
 * Attach cell. When a cell is being rendered, we would attach the cell with all `CellPart`s by invoking `CellPart#renderCell`.
+  * A subclass of `CellPart` should implement `CellPart#didRenderCell` to customize this phase
 * Read DOM dimensions. All DOM read operation should be performed in this phase to prepare for the layout update. `CellPart#prepareLayout` will invoked.
 * Update DOM positions. Once the list view finish reading DOM dimensions of all `CellPart`s, it will ask each `CellPart` to update its internal DOM nodes' positions, by invoking `CellPart#updateLayoutNow`.
 
 When we introduce new UI elements to notebook cell, we would make it a `CellPart` and ensure that we batch the DOM read and write operations in the right phases.
-
-```ts
-export abstract class CellPart extends Disposable {
-	constructor() {
-		super();
-	}
-
-	/**
-	 * Update the DOM for the cell `element`
-	 */
-	abstract renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void;
-
-	/**
-	 * Perform DOM read operations to prepare for the list/cell layout update.
-	 */
-	abstract prepareLayout(): void;
-
-	/**
-	 * Update DOM per cell layout info change
-	 */
-	abstract updateLayoutNow(element: ICellViewModel): void;
-
-	/**
-	 * Update per cell state change
-	 */
-	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
-}
-```
 
 ![render viewport](./viewport-rendering.drawio.svg)
 
@@ -163,10 +135,6 @@ Code cell outputs and markdown cells are both rendered in the underlying webview
 
 Whether users would see flickering or overlap of outputs, monaco editor and markdown cells depends on the latency between 3.2 and 3.3.
 
-### What's the catch
-
-Setting `overflow: hidden` turns out to be imperfect. When we replace outputs (or just in place rerender), due to the existence of `overflow: hidden`, the whole output container will be invisible for a super short period (as height changes to zero and we have a `max-height = 0`) and then show up again. This will cause unexpected flash https://github.com/microsoft/vscode/issues/132143#issuecomment-958495698. You won't see this without `overflow: hidden` as the browser is smart enough to know how to replace the old with the new DOM node without noticeable delay.
-
 
 ## Re-executing code cell followed by markdown cells
 
@@ -203,6 +171,6 @@ If the new output is rendered within 200ms, users won't see the UI movement.
 
 ## Scrolling
 
-Code cell outputs and markdown cells are rendered in the webview, which are async in nature. In order to have the cell outputs and markdown previews rendered when users scroll to them, we send rendering requests of cells in the next viewport when it's idle. Thus scrolling downwards is smoother.
+Code cell outputs and markdown cells are rendered in the webview, which are async in nature. In order to have the cell outputs and markdown previews rendered when users scroll to them, we send rendering requests of cells in the next and previous viewport when it's idle. Thus scrolling is smoother.
 
-However, we **don't** warmup the previous viewport as the cell height change of previous viewport might trigger the flickering of markdown cells in current viewport. Before we optimize this, do not do any warmup of cells before current viewport.
+We also warm up all rendered markdown in the document, from top to bottom, when the browser is idle. We don't warm up outputs like this, since they can be more expensive to render than markdown. But outputs do get rendered when the user starts a search in outputs.

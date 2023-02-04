@@ -14,6 +14,9 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -26,14 +29,25 @@ export interface IWorkbench {
 	commands: {
 
 		/**
-		* Allows to execute any command if known with the provided arguments.
-		*
-		* @param command Identifier of the command to execute.
-		* @param rest Parameters passed to the command function.
-		* @return A promise that resolves to the returned value of the given command.
-		*/
+		 * Allows to execute any command if known with the provided arguments.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param rest Parameters passed to the command function.
+		 * @return A promise that resolves to the returned value of the given command.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
+	};
+
+	logger: {
+
+		/**
+		 * Logging for embedder.
+		 *
+		 * @param level The log level of the message to be printed.
+		 * @param message Message to be printed.
+		 */
+		log(level: LogLevel, message: string): void;
+	};
 
 	env: {
 
@@ -41,7 +55,7 @@ export interface IWorkbench {
 		 * @returns the scheme to use for opening the associated desktop
 		 * experience via protocol handler.
 		 */
-		readonly uriScheme: string;
+		getUriScheme(): Promise<string>;
 
 		/**
 		 * Retrieve performance marks that have been collected during startup. This function
@@ -61,7 +75,35 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-	}
+	};
+
+	window: {
+
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected.
+		 *
+		 * @param task A callback returning a promise.
+		 * @return A promise that resolves to the returned value of the given task result.
+		 */
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
+		): Promise<R>;
+	};
+
+	workspace: {
+
+		/**
+		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
+		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
+		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
+		 */
+		openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel>;
+	};
 
 	/**
 	 * Triggers shutdown of the workbench programmatically. After this method is
@@ -90,7 +132,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * The connection token to send to the server.
 	 */
-	readonly connectionToken?: string;
+	readonly connectionToken?: string | Promise<string>;
 
 	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
@@ -105,6 +147,8 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * A provider for resource URIs.
+	 *
+	 * *Note*: This will only be invoked after the `connectionToken` is resolved.
 	 */
 	readonly resourceUriProvider?: IResourceUriProvider;
 
@@ -122,13 +166,12 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
+	 * The identifier of an edit session associated with the current workspace.
 	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
+	readonly editSessionId?: string;
 
 	//#endregion
 
@@ -171,6 +214,11 @@ export interface IWorkbenchConstructionOptions {
 	readonly additionalTrustedDomains?: string[];
 
 	/**
+	 * Enable workspace trust feature for the current window
+	 */
+	readonly enableWorkspaceTrust?: boolean;
+
+	/**
 	 * Urls that will be opened externally that are allowed access
 	 * to the opener window. This is primarily used to allow
 	 * `window.close()` to be called from the newly opened window.
@@ -196,7 +244,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened
+	 * (unless `force` is specified). This includes visibility of views and
+	 * editors including editor grid layout.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -204,6 +254,15 @@ export interface IWorkbenchConstructionOptions {
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
 	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+	//#region Profile options
+
+	/**
+	 * URI of the profile to preview.
+	 */
+	readonly profileToPreview?: UriComponents;
 
 	//#endregion
 
@@ -282,7 +341,7 @@ export interface IResourceUriProvider {
  */
 export type ExtensionId = string;
 
-export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean, migrateStorageFrom?: ExtensionId };
+export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -328,7 +387,7 @@ export interface ITunnelFactory {
 
 export interface ITunnelOptions {
 
-	remoteAddress: { port: number, host: string };
+	remoteAddress: { port: number; host: string };
 
 	/**
 	 * The desired local port. If this port can't be used, then another will be chosen.
@@ -336,11 +395,6 @@ export interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 
@@ -357,17 +411,12 @@ export interface TunnelCreationOptions {
 
 export interface ITunnel {
 
-	remoteAddress: { port: number, host: string };
+	remoteAddress: { port: number; host: string };
 
 	/**
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 
@@ -399,20 +448,20 @@ export interface ICommand {
 	 * An identifier for the command. Commands can be executed from extensions
 	 * using the `vscode.commands.executeCommand` API using that command ID.
 	 */
-	id: string,
+	id: string;
 
 	/**
 	 * The optional label of the command. If provided, the command will appear
 	 * in the command palette.
 	 */
-	label?: string,
+	label?: string;
 
 	/**
 	 * The optional menus to append this command to. Only valid if `label` is
 	 * provided as well.
 	 * @default Menu.CommandPalette
 	 */
-	menu?: Menu | Menu[],
+	menu?: Menu | Menu[];
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -512,7 +561,8 @@ export interface IWindowIndicator {
 export enum ColorScheme {
 	DARK = 'dark',
 	LIGHT = 'light',
-	HIGH_CONTRAST = 'hc'
+	HIGH_CONTRAST_LIGHT = 'hcLight',
+	HIGH_CONTRAST_DARK = 'hcDark'
 }
 
 export interface IInitialColorTheme {
@@ -529,37 +579,66 @@ export interface IInitialColorTheme {
 }
 
 export interface IDefaultView {
+
+	/**
+	 * The identifier of the view to show by default.
+	 */
 	readonly id: string;
 }
 
-export interface IPosition {
-	readonly line: number;
-	readonly column: number;
-}
-
-export interface IRange {
-
-	/**
-	 * The start position. It is before or equal to end position.
-	 */
-	readonly start: IPosition;
-
-	/**
-	 * The end position. It is after or equal to start position.
-	 */
-	readonly end: IPosition;
-}
-
 export interface IDefaultEditor {
+
+	/**
+	 * The location of the editor in the editor grid layout.
+	 * Editors are layed out in editor groups and the view
+	 * column is counted from top left to bottom right in
+	 * the order of appearance beginning with `1`.
+	 *
+	 * If not provided, the editor will open in the active
+	 * group.
+	 */
+	readonly viewColumn?: number;
+
+	/**
+	 * The resource of the editor to open.
+	 */
 	readonly uri: UriComponents;
-	readonly selection?: IRange;
+
+	/**
+	 * Optional extra options like which editor
+	 * to use or which text to select.
+	 */
+	readonly options?: ITextEditorOptions;
+
+	/**
+	 * Will not open an untitled editor in case
+	 * the resource does not exist.
+	 */
 	readonly openOnlyIfExists?: boolean;
-	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
+
+	/**
+	 * A list of views to show by default.
+	 */
 	readonly views?: IDefaultView[];
+
+	/**
+	 * A list of editors to show by default.
+	 */
 	readonly editors?: IDefaultEditor[];
+
+	/**
+	 * The layout to use for the workbench.
+	 */
+	readonly layout?: {
+
+		/**
+		 * The layout of the editor area.
+		 */
+		readonly editors?: EditorGroupLayout;
+	};
 
 	/**
 	 * Forces this layout to be applied even if this isn't
@@ -607,6 +686,11 @@ export interface IDevelopmentOptions {
 	readonly logLevel?: LogLevel;
 
 	/**
+	 * Extension log level.
+	 */
+	readonly extensionLogLevel?: [string, LogLevel][];
+
+	/**
 	 * Location of a module containing extension tests to run once the workbench is open.
 	 */
 	readonly extensionTestsPath?: UriComponents;
@@ -621,4 +705,3 @@ export interface IDevelopmentOptions {
 	 */
 	readonly enableSmokeTestDriver?: boolean;
 }
-

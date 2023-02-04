@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewDescriptorService, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
@@ -19,8 +19,9 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IDebugService, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -36,6 +37,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
+		@IDebugService private readonly debugService: IDebugService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -149,6 +151,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Viewlets / Panels
 		addPaneComposites(ViewContainerLocation.Sidebar, localize('views', "Side Bar"));
 		addPaneComposites(ViewContainerLocation.Panel, localize('panels', "Panel"));
+		addPaneComposites(ViewContainerLocation.AuxiliaryBar, localize('secondary side bar', "Secondary Side Bar"));
 
 		const addPaneCompositeViews = (location: ViewContainerLocation) => {
 			const paneComposites = this.paneCompositeService.getPaneComposites(location);
@@ -163,6 +166,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Side Bar / Panel Views
 		addPaneCompositeViews(ViewContainerLocation.Sidebar);
 		addPaneCompositeViews(ViewContainerLocation.Panel);
+		addPaneCompositeViews(ViewContainerLocation.AuxiliaryBar);
 
 		// Terminals
 		this.terminalGroupService.groups.forEach((group, groupIndex) => {
@@ -179,12 +183,28 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			});
 		});
 
+		// Debug Consoles
+		this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl()).forEach((session, _) => {
+			const label = session.name;
+			viewEntries.push({
+				label,
+				containerLabel: localize('debugConsoles', "Debug Console"),
+				accept: async () => {
+					await this.debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
+
+					if (!this.viewsService.isViewVisible(REPL_VIEW_ID)) {
+						await this.viewsService.openView(REPL_VIEW_ID, true);
+					}
+				}
+			});
+
+		});
+
 		// Output Channels
 		const channels = this.outputService.getChannelDescriptors();
 		for (const channel of channels) {
-			const label = channel.log ? localize('logChannel', "Log ({0})", channel.label) : channel.label;
 			viewEntries.push({
-				label,
+				label: channel.label,
 				containerLabel: localize('channels', "Output"),
 				accept: () => this.outputService.showChannel(channel.id)
 			});
@@ -214,7 +234,7 @@ export class OpenViewPickerAction extends Action2 {
 		super({
 			id: OpenViewPickerAction.ID,
 			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true
 		});
 	}
@@ -237,8 +257,8 @@ export class QuickAccessViewPickerAction extends Action2 {
 		super({
 			id: QuickAccessViewPickerAction.ID,
 			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: CATEGORIES.View,
-			f1: true,
+			category: Categories.View,
+			f1: false, // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: undefined,

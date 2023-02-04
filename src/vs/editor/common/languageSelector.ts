@@ -11,6 +11,7 @@ export interface LanguageFilter {
 	readonly language?: string;
 	readonly scheme?: string;
 	readonly pattern?: string | IRelativePattern;
+	readonly notebookType?: string;
 	/**
 	 * This provider is implemented in the UI thread.
 	 */
@@ -20,13 +21,13 @@ export interface LanguageFilter {
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
 
-export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
+export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean, candidateNotebookUri: URI | undefined, candidateNotebookType: string | undefined): number {
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value
 		let ret = 0;
 		for (const filter of selector) {
-			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized);
+			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType);
 			if (value === 10) {
 				return value; // already at the highest
 			}
@@ -55,10 +56,16 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 
 	} else if (selector) {
 		// filter -> select accordingly, use defaults for scheme
-		const { language, pattern, scheme, hasAccessToAllModels } = selector as LanguageFilter; // TODO: microsoft/TypeScript#42768
+		const { language, pattern, scheme, hasAccessToAllModels, notebookType } = selector as LanguageFilter; // TODO: microsoft/TypeScript#42768
 
 		if (!candidateIsSynchronized && !hasAccessToAllModels) {
 			return 0;
+		}
+
+		// selector targets a notebook -> use the notebook uri instead
+		// of the "normal" document uri.
+		if (notebookType && candidateNotebookUri) {
+			candidateUri = candidateNotebookUri;
 		}
 
 		let ret = 0;
@@ -77,6 +84,16 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 			if (language === candidateLanguage) {
 				ret = 10;
 			} else if (language === '*') {
+				ret = Math.max(ret, 5);
+			} else {
+				return 0;
+			}
+		}
+
+		if (notebookType) {
+			if (notebookType === candidateNotebookType) {
+				ret = 10;
+			} else if (notebookType === '*' && candidateNotebookType !== undefined) {
 				ret = Math.max(ret, 5);
 			} else {
 				return 0;

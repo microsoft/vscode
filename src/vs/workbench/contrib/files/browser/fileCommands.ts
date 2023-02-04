@@ -7,17 +7,17 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspace/common/workspace';
 import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
@@ -35,7 +35,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -43,54 +42,14 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isCancellationError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-
-// Commands
-
-export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
-export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
-export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
-export const OPEN_WITH_EXPLORER_COMMAND_ID = 'explorer.openWith';
-export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
-
-export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
-export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
-export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
-export const COPY_PATH_COMMAND_ID = 'copyFilePath';
-export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
-
-export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
-export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
-export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
-export const SAVE_FILE_LABEL = nls.localize('save', "Save");
-export const SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID = 'workbench.action.files.saveWithoutFormatting';
-export const SAVE_FILE_WITHOUT_FORMATTING_LABEL = nls.localize('saveWithoutFormatting', "Save without Formatting");
-
-export const SAVE_ALL_COMMAND_ID = 'saveAll';
-export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
-
-export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
-
-export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
-
-export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
-export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
-export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
-export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
-
-export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
-export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
-
-export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
-export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
-export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
-export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
-export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
-export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -145,7 +104,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					return item;
 				}
 
-				return await fileService.resolve(resource);
+				return await fileService.stat(resource);
 			}));
 			const files = items.filter(i => !i.isDirectory);
 			const editors = files.map(f => ({
@@ -290,6 +249,11 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 	}
 }
 
+const copyPathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+};
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: EditorContextKeys.focus.toNegated(),
@@ -298,11 +262,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
-	}
+	handler: copyPathCommandHandler
 });
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC),
+	win: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC
+	},
+	id: COPY_PATH_COMMAND_ID,
+	handler: copyPathCommandHandler
+});
+
+const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+};
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -312,10 +289,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC)
 	},
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
-	}
+	handler: copyRelativePathCommandHandler
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyC),
+	win: {
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC)
+	},
+	id: COPY_RELATIVE_PATH_COMMAND_ID,
+	handler: copyRelativePathCommandHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -346,7 +331,7 @@ CommandsRegistry.registerCommand({
 			const explorerView = viewlet.getExplorerView();
 			if (explorerView) {
 				explorerView.setExpanded(true);
-				await explorerService.select(uri, true);
+				await explorerService.select(uri, 'force');
 				explorerView.focus();
 			}
 		} else {
@@ -366,7 +351,7 @@ CommandsRegistry.registerCommand({
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK } });
+			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
 		}
 
 		return undefined;
@@ -578,6 +563,12 @@ CommandsRegistry.registerCommand({
 			workspace.folders.some(folder => uriIdentityService.extUri.isEqual(folder.uri, resource)) // Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
 		);
 
+		if (resources.length === 0) {
+			const commandService = accessor.get(ICommandService);
+			// Show a picker for the user to choose which folder to remove
+			return commandService.executeCommand(RemoveRootFolderAction.ID);
+		}
+
 		return workspaceEditingService.removeFolders(resources);
 	}
 });
@@ -671,21 +662,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		args: [
 			{
 				isOptional: true,
-				name: 'viewType',
-				description: 'The editor view type',
+				name: 'New Untitled Text File args',
+				description: 'The editor view type, language ID, or resource path if known',
 				schema: {
 					'type': 'object',
-					'required': ['viewType'],
 					'properties': {
 						'viewType': {
 							'type': 'string'
-						}
+						},
+						'languageId': {
+							'type': 'string'
+						},
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, args?: { viewType: string; }) => {
+	handler: async (accessor, args?: { languageId?: string; viewType?: string }) => {
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({
@@ -693,7 +686,37 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			options: {
 				override: args?.viewType,
 				pinned: true
-			}
+			},
+			languageId: args?.languageId,
+		});
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: NEW_FILE_COMMAND_ID,
+	handler: async (accessor, args?: { languageId?: string; viewType?: string; fileName?: string }) => {
+		const editorService = accessor.get(IEditorService);
+		const dialogService = accessor.get(IFileDialogService);
+		const fileService = accessor.get(IFileService);
+
+		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
+		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName ?? 'Untitled.txt');
+
+		const saveUri = await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
+
+		if (!saveUri) {
+			return;
+		}
+
+		await fileService.createFile(saveUri, undefined, { overwrite: true });
+
+		await editorService.openEditor({
+			resource: saveUri,
+			options: {
+				override: args?.viewType,
+				pinned: true
+			},
+			languageId: args?.languageId,
 		});
 	}
 });

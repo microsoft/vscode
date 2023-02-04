@@ -12,7 +12,8 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { createQueuedSender, removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { createQueuedSender } from 'vs/base/node/processes';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 /**
@@ -25,9 +26,7 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 		super({
 			send: r => {
 				try {
-					if (process.send) {
-						process.send((<Buffer>r.buffer).toString('base64'));
-					}
+					process.send?.((<Buffer>r.buffer).toString('base64'));
 				} catch (e) { /* not much to do */ }
 			},
 			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))
@@ -90,7 +89,7 @@ export class Client implements IChannelClient, IDisposable {
 	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
-	private readonly _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	private readonly _onDidProcessExit = new Emitter<{ code: number; signal: string }>();
 	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	constructor(private modulePath: string, private options: IIPCOptions) {
@@ -152,14 +151,14 @@ export class Client implements IChannelClient, IDisposable {
 
 		let listener: IDisposable;
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				const channel = this.getCachedChannel(channelName);
 				const event: Event<T> = channel.listen(name, arg);
 
 				listener = event(emitter.fire, emitter);
 				this.activeRequests.add(listener);
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this.activeRequests.delete(listener);
 				listener.dispose();
 
@@ -242,9 +241,7 @@ export class Client implements IChannelClient, IDisposable {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
 				}
 
-				if (this.disposeDelayer) {
-					this.disposeDelayer.cancel();
-				}
+				this.disposeDelayer?.cancel();
 				this.disposeClient();
 				this._onDidProcessExit.fire({ code, signal });
 			});
@@ -277,10 +274,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	dispose() {
 		this._onDidProcessExit.dispose();
-		if (this.disposeDelayer) {
-			this.disposeDelayer.cancel();
-			this.disposeDelayer = undefined;
-		}
+		this.disposeDelayer?.cancel();
+		this.disposeDelayer = undefined;
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
@@ -25,6 +27,13 @@ interface IWatchRequest {
 	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
+
+	/**
+	 * An optional set of glob patterns or paths to include for
+	 * watching. If not provided, all paths are considered for
+	 * events.
+	 */
+	includes?: Array<string | IRelativePattern>;
 }
 
 export interface INonRecursiveWatchRequest extends IWatchRequest {
@@ -143,8 +152,8 @@ export abstract class AbstractWatcherClient extends Disposable {
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private options: {
-			type: string,
-			restartOnError: boolean
+			type: string;
+			restartOnError: boolean;
 		}
 	) {
 		super();
@@ -270,6 +279,31 @@ export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
 	}
 
 	return coalescer.coalesce();
+}
+
+export function normalizeWatcherPattern(path: string, pattern: string | IRelativePattern): string | IRelativePattern {
+
+	// Patterns are always matched on the full absolute path
+	// of the event. As such, if the pattern is not absolute
+	// and is a string and does not start with a leading
+	// `**`, we have to convert it to a relative pattern with
+	// the given `base`
+
+	if (typeof pattern === 'string' && !pattern.startsWith(GLOBSTAR) && !isAbsolute(pattern)) {
+		return { base: path, pattern };
+	}
+
+	return pattern;
+}
+
+export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
+	const parsedPatterns: ParsedPattern[] = [];
+
+	for (const pattern of patterns) {
+		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern)));
+	}
+
+	return parsedPatterns;
 }
 
 class EventCoalescer {

@@ -20,10 +20,22 @@
         "path": "./themes/dark_plus.json"
       },
       {
+        "id": "Default Dark+ Experimental",
+        "label": "%darkPlusExperimentalColorThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/dark_plus_experimental.json"
+      },
+      {
         "id": "Default Light+",
         "label": "%lightPlusColorThemeLabel%",
         "uiTheme": "vs",
         "path": "./themes/light_plus.json"
+      },
+      {
+        "id": "Default Light+ Experimental",
+        "label": "%lightPlusExperimentalColorThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/light_plus_experimental.json"
       },
       {
         "id": "Visual Studio Dark",
@@ -42,6 +54,12 @@
         "label": "%hcColorThemeLabel%",
         "uiTheme": "hc-black",
         "path": "./themes/hc_black.json"
+      },
+      {
+        "id": "Default High Contrast Light",
+        "label": "%lightHcColorThemeLabel%",
+        "uiTheme": "hc-light",
+        "path": "./themes/hc_light.json"
       }
     ],
     "iconThemes": [

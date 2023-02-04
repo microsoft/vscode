@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -18,7 +19,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
@@ -45,7 +46,7 @@ CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accesso
 });
 
 interface ManageExtensionsArgs {
-	list?: { showVersions?: boolean, category?: string; };
+	list?: { showVersions?: boolean; category?: string };
 	install?: (string | URI)[];
 	uninstall?: string[];
 	force?: boolean;
@@ -60,13 +61,13 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		return;
 	}
 
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionCLIManagementService);
+	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionManagementCLI);
 
 	const lines: string[] = [];
 	const output = { log: lines.push.bind(lines), error: lines.push.bind(lines) };
 
 	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, output);
+		await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined, output);
 	} else {
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
@@ -78,7 +79,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		}
 		if (Array.isArray(args.uninstall) && args.uninstall.length) {
 			try {
-				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, output);
+				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined, output);
 			} catch (e) {
 				lines.push(e.message);
 			}
@@ -87,7 +88,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	return lines.join('\n');
 });
 
-class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService {
+class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
 
 	private _location: string | undefined;
 
@@ -111,7 +112,9 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 	}
 
 	protected override validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
-		if (!this._extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
+		if (!this._extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)
+			// Web extensions installed on remote can be run in web worker extension host
+			&& !(isWeb && this._extensionManifestPropertiesService.canExecuteOnWeb(manifest))) {
 			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;
 		}

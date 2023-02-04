@@ -22,6 +22,7 @@ export interface ITextCellEditingDelegate {
 export class MoveCellEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
 	label: string = 'Move Cell';
+	code: string = 'undoredo.notebooks.moveCell';
 
 	constructor(
 		public resource: URI,
@@ -54,6 +55,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 export class SpliceCellsEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
 	label: string = 'Insert Cell';
+	code: string = 'undoredo.notebooks.insertCell';
 	constructor(
 		public resource: URI,
 		private diffs: [number, NotebookCellTextModel[], NotebookCellTextModel[]][],
@@ -87,6 +89,7 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 export class CellMetadataEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
 	label: string = 'Update Cell Metadata';
+	code: string = 'undoredo.notebooks.updateCellMetadata';
 	constructor(
 		public resource: URI,
 		readonly index: number,

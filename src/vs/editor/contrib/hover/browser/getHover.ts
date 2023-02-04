@@ -9,14 +9,16 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProvider, HoverProviderRegistry } from 'vs/editor/common/languages';
+import { Hover, HoverProvider } from 'vs/editor/common/languages';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class HoverProviderResult {
 	constructor(
 		public readonly provider: HoverProvider,
 		public readonly hover: Hover,
 		public readonly ordinal: number
-	) {}
+	) { }
 }
 
 async function executeProvider(provider: HoverProvider, ordinal: number, model: ITextModel, position: Position, token: CancellationToken): Promise<HoverProviderResult | undefined> {
@@ -31,17 +33,20 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 	return undefined;
 }
 
-export function getHover(model: ITextModel, position: Position, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
-	const providers = HoverProviderRegistry.ordered(model);
+export function getHover(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): AsyncIterableObject<HoverProviderResult> {
+	const providers = registry.ordered(model);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
 	return AsyncIterableObject.fromPromises(promises).coalesce();
 }
 
-export function getHoverPromise(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
-	return getHover(model, position, token).map(item => item.hover).toPromise();
+export function getHoverPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
+	return getHover(registry, model, position, token).map(item => item.hover).toPromise();
 }
 
-registerModelAndPositionCommand('_executeHoverProvider', (model, position) => getHoverPromise(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeHoverProvider', (accessor, model, position) => {
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+	return getHoverPromise(languageFeaturesService.hoverProvider, model, position, CancellationToken.None);
+});
 
 function isValid(result: Hover) {
 	const hasRange = (typeof result.range !== 'undefined');

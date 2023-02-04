@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -29,9 +30,10 @@ import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { WorkbenchStateContext, RemoteNameContext } from 'vs/workbench/common/contextkeys';
-import { IsIOSContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { WorkbenchStateContext, RemoteNameContext, OpenFolderWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -64,10 +66,12 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 
 	private registerViews(): void {
+		mark('code/willRegisterExplorerViews');
+
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
-		let viewDescriptorsToRegister: IViewDescriptor[] = [];
-		let viewDescriptorsToDeregister: IViewDescriptor[] = [];
+		const viewDescriptorsToRegister: IViewDescriptor[] = [];
+		const viewDescriptorsToDeregister: IViewDescriptor[] = [];
 
 		const openEditorsViewDescriptor = this.createOpenEditorsViewDescriptor();
 		if (!viewDescriptors.some(v => v.id === openEditorsViewDescriptor.id)) {
@@ -101,6 +105,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		if (viewDescriptorsToDeregister.length) {
 			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
+
+		mark('code/didRegisterExplorerViews');
 	}
 
 	private createOpenEditorsViewDescriptor(): IViewDescriptor {
@@ -223,9 +229,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 					}
 
 					const openEditorsView = this.getOpenEditorsView();
-					if (openEditorsView) {
-						openEditorsView.setStructuralRefreshDelay(0);
-					}
+					openEditorsView?.setStructuralRefreshDelay(0);
 				}
 			});
 		}
@@ -273,43 +277,94 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		title: localize('explore', "Explorer"),
+		title: { value: localize('explore', "Explorer"), original: 'Explorer' },
 		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
 	},
 }, ViewContainerLocation.Sidebar, { isDefault: true });
 
+const openFolder = localize('openFolder', "Open Folder");
+const addAFolder = localize('addAFolder', "add a folder");
+const openRecent = localize('openRecent', "Open Recent");
+
+const addRootFolderButton = `[${openFolder}](command:${AddRootFolderAction.ID})`;
+const addAFolderButton = `[${addAFolder}](command:${AddRootFolderAction.ID})`;
+const openFolderButton = `[${openFolder}](command:${(isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID})`;
+const openFolderViaWorkspaceButton = `[${openFolder}](command:${OpenFolderViaWorkspaceAction.ID})`;
+const openRecentButton = `[${openRecent}](command:${OpenRecentAction.ID})`;
+
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"You have not yet added a folder to the workspace.\n[Open Folder](command:{0})", AddRootFolderAction.ID),
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()),
+		"You have not yet added a folder to the workspace.\n{0}", addRootFolderButton),
+	when: ContextKeyExpr.and(
+		// inside a .code-workspace
+		WorkbenchStateContext.isEqualTo('workspace'),
+		// unless we cannot enter or open workspaces (e.g. web serverless)
+		OpenFolderWorkspaceSupportContext
+	),
 	group: ViewContentGroups.Open,
 	order: 1
 });
 
-const commandId = (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID;
+viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
+	content: localize({ key: 'noFolderHelpWeb', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"You have not yet opened a folder.\n{0}\n{1}", openFolderViaWorkspaceButton, openRecentButton),
+	when: ContextKeyExpr.and(
+		// inside a .code-workspace
+		WorkbenchStateContext.isEqualTo('workspace'),
+		// we cannot enter workspaces (e.g. web serverless)
+		OpenFolderWorkspaceSupportContext.toNegated()
+	),
+	group: ViewContentGroups.Open,
+	order: 1
+});
+
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'remoteNoFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"Connected to remote.\n[Open Folder](command:{0})", commandId),
-	when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.notEqualsTo(''), IsWebContext.toNegated()),
+		"Connected to remote.\n{0}", openFolderButton),
+	when: ContextKeyExpr.and(
+		// not inside a .code-workspace
+		WorkbenchStateContext.notEqualsTo('workspace'),
+		// connected to a remote
+		RemoteNameContext.notEqualsTo(''),
+		// but not in web
+		IsWebContext.toNegated()),
 	group: ViewContentGroups.Open,
 	order: 1
 });
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noFolderButEditorsHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"You have not yet opened a folder.\n[Open Folder](command:{0})\nOpening a folder will close all currently open editors. To keep them open, [add a folder](command:{1}) instead.", commandId, AddRootFolderAction.ID),
-	when: ContextKeyExpr.and(ContextKeyExpr.has('editorIsOpen'), ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))),
+		"You have not yet opened a folder.\n{0}\nOpening a folder will close all currently open editors. To keep them open, {1} instead.", openFolderButton, addAFolderButton),
+	when: ContextKeyExpr.and(
+		// editors are opened
+		ContextKeyExpr.has('editorIsOpen'),
+		ContextKeyExpr.or(
+			// not inside a .code-workspace and local
+			ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')),
+			// not inside a .code-workspace and web
+			ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext)
+		)
+	),
 	group: ViewContentGroups.Open,
 	order: 1
 });
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"You have not yet opened a folder.\n[Open Folder](command:{0})", commandId),
-	when: ContextKeyExpr.and(ContextKeyExpr.has('editorIsOpen')?.negate(), ContextKeyExpr.or(ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')), ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext))),
+		"You have not yet opened a folder.\n{0}", openFolderButton),
+	when: ContextKeyExpr.and(
+		// no editor is open
+		ContextKeyExpr.has('editorIsOpen')?.negate(),
+		ContextKeyExpr.or(
+			// not inside a .code-workspace and local
+			ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), RemoteNameContext.isEqualTo('')),
+			// not inside a .code-workspace and web
+			ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), IsWebContext)
+		)
+	),
 	group: ViewContentGroups.Open,
 	order: 1
 });

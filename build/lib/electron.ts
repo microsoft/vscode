@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
 import * as _ from 'underscore';
 import * as util from './util';
+import { getVersion } from './getVersion';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
-	name: string,
-	role: string,
-	ostypes: string[],
-	extensions: string[],
-	iconFile: string,
+	name: string;
+	role: string;
+	ostypes: string[];
+	extensions: string[];
+	iconFile: string;
+	utis?: string[];
 };
 
 function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
@@ -27,7 +27,7 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
@@ -50,7 +50,7 @@ const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSyn
  * If you call `darwinBundleDocumentType(..., 'bat', 'Windows command script')`, the file type is `"Windows command script"`,
  * and the `'bat'` darwin icon is used.
  */
-function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuffix?: string | DarwinDocumentSuffix): DarwinDocumentType {
+function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuffix?: string | DarwinDocumentSuffix, utis?: string[]): DarwinDocumentType {
 	// If given a suffix, generate a name from it. If not given anything, default to 'document'
 	if (isDocumentSuffix(nameOrSuffix) || !nameOrSuffix) {
 		nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix ?? 'document');
@@ -60,8 +60,9 @@ function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuff
 		name: nameOrSuffix,
 		role: 'Editor',
 		ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
-		extensions: extensions,
-		iconFile: 'resources/darwin/' + icon + '.icns'
+		extensions,
+		iconFile: 'resources/darwin/' + icon + '.icns',
+		utis
 	};
 }
 
@@ -80,11 +81,11 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	return Object.keys(types).map((name: string): DarwinDocumentType => {
 		const extensions = types[name];
 		return {
-			name: name,
+			name,
 			role: 'Editor',
 			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 			extensions: Array.isArray(extensions) ? extensions : [extensions],
-			iconFile: 'resources/darwin/' + icon + '.icns',
+			iconFile: 'resources/darwin/' + icon + '.icns'
 		} as DarwinDocumentType;
 	});
 }
@@ -167,12 +168,15 @@ export const config = {
 			'F# script': ['fsx', 'fsscript'],
 			'SVG document': ['svg', 'svgz'],
 			'TOML document': 'toml',
+			'Swift source code': 'swift',
 		}, 'default'),
 		// Default icon with default name
 		darwinBundleDocumentType([
 			'containerfile', 'ctp', 'dot', 'edn', 'handlebars', 'hbs', 'ml', 'mli',
 			'pl', 'pl6', 'pm', 'pm6', 'pod', 'pp', 'properties', 'psgi', 'rt', 't'
-		], 'default', product.nameLong + ' document')
+		], 'default', product.nameLong + ' document'),
+		// Folder support ()
+		darwinBundleDocumentType([], 'default', 'Folder', ['public.folder'])
 	],
 	darwinBundleURLTypes: [{
 		role: 'Viewer',

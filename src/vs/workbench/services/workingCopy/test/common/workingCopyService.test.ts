@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopySaveEvent, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('WorkingCopyService', () => {
 
@@ -19,6 +19,9 @@ suite('WorkingCopyService', () => {
 
 		const onDidChangeContent: IWorkingCopy[] = [];
 		service.onDidChangeContent(copy => onDidChangeContent.push(copy));
+
+		const onDidSave: IWorkingCopySaveEvent[] = [];
+		service.onDidSave(copy => onDidSave.push(copy));
 
 		const onDidRegister: IWorkingCopy[] = [];
 		service.onDidRegister(copy => onDidRegister.push(copy));
@@ -36,6 +39,7 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.has(resource1), false);
 		assert.strictEqual(service.has({ resource: resource1, typeId: 'testWorkingCopyType' }), false);
 		assert.strictEqual(service.get({ resource: resource1, typeId: 'testWorkingCopyType' }), undefined);
+		assert.strictEqual(service.getAll(resource1), undefined);
 		const copy1 = new TestWorkingCopy(resource1);
 		const unregister1 = service.registerWorkingCopy(copy1);
 
@@ -50,7 +54,12 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.get(copy1), copy1);
 		assert.strictEqual(service.hasDirty, false);
 
+		const copies = service.getAll(copy1.resource);
+		assert.strictEqual(copies?.length, 1);
+		assert.strictEqual(copies[0], copy1);
+
 		copy1.setDirty(true);
+		copy1.save();
 
 		assert.strictEqual(copy1.isDirty(), true);
 		assert.strictEqual(service.dirtyCount, 1);
@@ -62,6 +71,8 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.hasDirty, true);
 		assert.strictEqual(onDidChangeDirty.length, 1);
 		assert.strictEqual(onDidChangeDirty[0], copy1);
+		assert.strictEqual(onDidSave.length, 1);
+		assert.strictEqual(onDidSave[0].workingCopy, copy1);
 
 		copy1.setContent('foo');
 
@@ -141,6 +152,12 @@ suite('WorkingCopyService', () => {
 		const typeId3 = 'testWorkingCopyTypeId3';
 		const copy3 = new TestWorkingCopy(resource, false, typeId3);
 		const dispose3 = service.registerWorkingCopy(copy3);
+
+		const copies = service.getAll(resource);
+		assert.strictEqual(copies?.length, 3);
+		assert.strictEqual(copies[0], copy1);
+		assert.strictEqual(copies[1], copy2);
+		assert.strictEqual(copies[2], copy3);
 
 		assert.strictEqual(service.dirtyCount, 0);
 		assert.strictEqual(service.isDirty(resource), false);

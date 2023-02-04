@@ -30,7 +30,9 @@ export namespace ServerResponse {
 
 	export const NoContent = { type: 'noContent' } as const;
 
-	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
+	export const NoServer = { type: 'noServer' } as const;
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent | typeof NoServer;
 }
 
 interface StandardTsServerRequests {
@@ -70,6 +72,8 @@ interface StandardTsServerRequests {
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
 	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
+	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
+	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -125,19 +129,11 @@ export class ClientCapabilities {
 }
 
 export interface ITypeScriptServiceClient {
-	/**
-	 * Convert a resource (VS Code) to a normalized path (TypeScript).
-	 *
-	 * Does not try handling case insensitivity.
-	 */
-	normalizedPath(resource: vscode.Uri): string | undefined;
 
 	/**
-	 * Map a resource to a normalized path
-	 *
-	 * This will attempt to handle case insensitivity.
+	 * Convert a (VS Code) resource to a path that TypeScript server understands.
 	 */
-	toPath(resource: vscode.Uri): string | undefined;
+	toTsFilePath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Convert a path to a resource.
@@ -149,8 +145,8 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenedFilePath(document: vscode.TextDocument, options?: {
-		suppressAlertOnFailure?: boolean
+	toOpenTsFilePath(document: vscode.TextDocument, options?: {
+		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 
 	/**
@@ -160,7 +156,7 @@ export interface ITypeScriptServiceClient {
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
-	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion, usedApiVersion: API }>;
+	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;
 	readonly onDidBeginInstallTypings: vscode.Event<Proto.BeginInstallTypesEventBody>;
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { diffMaps, diffSets } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 interface INotebookAndEditorDelta {
@@ -73,20 +73,20 @@ class NotebookAndEditorState {
 @extHostCustomer
 export class MainThreadNotebooksAndEditors {
 
-	private readonly _onDidAddNotebooks = new Emitter<NotebookTextModel[]>();
-	private readonly _onDidRemoveNotebooks = new Emitter<URI[]>();
-	private readonly _onDidAddEditors = new Emitter<IActiveNotebookEditor[]>();
-	private readonly _onDidRemoveEditors = new Emitter<string[]>();
+	// private readonly _onDidAddNotebooks = new Emitter<NotebookTextModel[]>();
+	// private readonly _onDidRemoveNotebooks = new Emitter<URI[]>();
+	// private readonly _onDidAddEditors = new Emitter<IActiveNotebookEditor[]>();
+	// private readonly _onDidRemoveEditors = new Emitter<string[]>();
 
-	readonly onDidAddNotebooks: Event<NotebookTextModel[]> = this._onDidAddNotebooks.event;
-	readonly onDidRemoveNotebooks: Event<URI[]> = this._onDidRemoveNotebooks.event;
-	readonly onDidAddEditors: Event<IActiveNotebookEditor[]> = this._onDidAddEditors.event;
-	readonly onDidRemoveEditors: Event<string[]> = this._onDidRemoveEditors.event;
+	// readonly onDidAddNotebooks: Event<NotebookTextModel[]> = this._onDidAddNotebooks.event;
+	// readonly onDidRemoveNotebooks: Event<URI[]> = this._onDidRemoveNotebooks.event;
+	// readonly onDidAddEditors: Event<IActiveNotebookEditor[]> = this._onDidAddEditors.event;
+	// readonly onDidRemoveEditors: Event<string[]> = this._onDidRemoveEditors.event;
 
 	private readonly _proxy: Pick<ExtHostNotebookShape, '$acceptDocumentAndEditorsDelta'>;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _editorListeners = new Map<string, IDisposable>();
+	private readonly _editorListeners = new DisposableMap<string>();
 
 	private _currentState?: NotebookAndEditorState;
 
@@ -100,11 +100,12 @@ export class MainThreadNotebooksAndEditors {
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 
-		this._mainThreadNotebooks = instantiationService.createInstance(MainThreadNotebookDocuments, extHostContext, this);
-		this._mainThreadEditors = instantiationService.createInstance(MainThreadNotebookEditors, extHostContext, this);
+		this._mainThreadNotebooks = instantiationService.createInstance(MainThreadNotebookDocuments, extHostContext);
+		this._mainThreadEditors = instantiationService.createInstance(MainThreadNotebookEditors, extHostContext);
 
 		extHostContext.set(MainContext.MainThreadNotebookDocuments, this._mainThreadNotebooks);
 		extHostContext.set(MainContext.MainThreadNotebookEditors, this._mainThreadEditors);
@@ -121,11 +122,8 @@ export class MainThreadNotebooksAndEditors {
 	dispose() {
 		this._mainThreadNotebooks.dispose();
 		this._mainThreadEditors.dispose();
-		this._onDidAddEditors.dispose();
-		this._onDidRemoveEditors.dispose();
-		this._onDidAddNotebooks.dispose();
-		this._onDidRemoveNotebooks.dispose();
 		this._disposables.dispose();
+		this._editorListeners.dispose();
 	}
 
 	private _handleEditorAdd(editor: INotebookEditor): void {
@@ -137,8 +135,7 @@ export class MainThreadNotebooksAndEditors {
 	}
 
 	private _handleEditorRemove(editor: INotebookEditor): void {
-		this._editorListeners.get(editor.getId())?.dispose();
-		this._editorListeners.delete(editor.getId());
+		this._editorListeners.deleteAndDispose(editor.getId());
 		this._updateState();
 	}
 
@@ -161,6 +158,7 @@ export class MainThreadNotebooksAndEditors {
 			activeEditor = focusedEditor.getId();
 		}
 		if (activeEditor && !editors.has(activeEditor)) {
+			this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, editors.keys());
 			activeEditor = null;
 		}
 
@@ -194,10 +192,10 @@ export class MainThreadNotebooksAndEditors {
 		this._proxy.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers(dto));
 
 		// handle internally
-		this._onDidRemoveEditors.fire(delta.removedEditors);
-		this._onDidRemoveNotebooks.fire(delta.removedDocuments);
-		this._onDidAddNotebooks.fire(delta.addedDocuments);
-		this._onDidAddEditors.fire(delta.addedEditors);
+		this._mainThreadEditors.handleEditorsRemoved(delta.removedEditors);
+		this._mainThreadNotebooks.handleNotebooksRemoved(delta.removedDocuments);
+		this._mainThreadNotebooks.handleNotebooksAdded(delta.addedDocuments);
+		this._mainThreadEditors.handleEditorsAdded(delta.addedEditors);
 	}
 
 	private static _isDeltaEmpty(delta: INotebookAndEditorDelta): boolean {

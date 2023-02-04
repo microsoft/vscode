@@ -6,7 +6,8 @@
   "license": "MIT",
   "enableProposedApi": true,
   "enabledApiProposals": [
-    "resolvers"
+    "resolvers",
+	"tunnels"
   ],
   "private": true,
   "engines": {
@@ -32,7 +33,7 @@
   ],
   "main": "./out/extension",
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "capabilities": {
     "untrustedWorkspaces": {

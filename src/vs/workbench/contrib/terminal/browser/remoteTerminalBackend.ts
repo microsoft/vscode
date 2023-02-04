@@ -14,7 +14,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ISerializedCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -50,8 +51,10 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	private readonly _onRestoreCommands = this._register(new Emitter<{ id: number; commands: ISerializedCommand[] }>());
+	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
 		readonly remoteAuthority: string | undefined,
@@ -70,7 +73,12 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		super(_remoteTerminalChannel, logService, notificationService, _historyService, configurationResolverService, workspaceContextService);
 
 		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-		this._remoteTerminalChannel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+		this._remoteTerminalChannel.onProcessReplay(e => {
+			this._ptys.get(e.id)?.handleReplay(e.event);
+			if (e.event.commands.commands.length > 0) {
+				this._onRestoreCommands.fire({ id: e.id, commands: e.event.commands.commands });
+			}
+		});
 		this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 		this._remoteTerminalChannel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 		this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
@@ -85,6 +93,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 
 		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 		this._remoteTerminalChannel.onExecuteCommand(async e => {
+			// Ensure this request for for this window
+			const pty = this._ptys.get(e.persistentProcessId);
+			if (!pty) {
+				return;
+			}
 			const reqId = e.reqId;
 			const commandId = e.commandId;
 			if (!allowedCommands.includes(commandId)) {
@@ -159,7 +172,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		rows: number,
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment, // TODO: This is ignored
-		windowsEnableConpty: boolean, // TODO: This is ignored
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
@@ -197,7 +210,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			args: shellLaunchConfig.args,
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env,
-			useShellEnvironment: shellLaunchConfig.useShellEnvironment
+			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
+			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+			type: shellLaunchConfig.type,
+			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
@@ -205,6 +221,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			shellLaunchConfigDto,
 			configuration,
 			activeWorkspaceRootUri,
+			options,
 			shouldPersist,
 			cols,
 			rows,
@@ -225,6 +242,20 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			const pty = new RemotePty(id, true, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 			this._ptys.set(id, pty);
 			return pty;
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
+	}
+
+	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot create remote terminal when there is no remote!`);
+		}
+
+		try {
+			const newId = await this._remoteTerminalChannel.getRevivedPtyNewId(id) ?? id;
+			return await this.attachToProcess(newId);
 		} catch (e) {
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}
@@ -258,8 +289,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		await this._remoteTerminalChannel?.updateTitle(id, title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateIcon(id, userInitiated, icon, color);
 	}
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
@@ -283,12 +314,12 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return resolverResult.options?.extensionHostEnv as any;
 	}
 
-	async getWslPath(original: string): Promise<string> {
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env?.os !== OperatingSystem.Windows) {
 			return original;
 		}
-		return this._remoteTerminalChannel?.getWslPath(original) || original;
+		return this._remoteTerminalChannel?.getWslPath(original, direction) || original;
 	}
 
 	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {

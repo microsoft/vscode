@@ -8,8 +8,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ICommandOptions, registerEditorAction, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorState } from 'vs/editor/common/cursor/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorState } from 'vs/editor/common/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { DeleteWordContext, WordNavigationType, WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
 import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -369,7 +369,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 
 export class DeleteWordLeftCommand extends DeleteWordCommand {
 	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordLeft(ctx, wordNavigationType);
+		const r = WordOperations.deleteWordLeft(ctx, wordNavigationType);
 		if (r) {
 			return r;
 		}
@@ -379,7 +379,7 @@ export class DeleteWordLeftCommand extends DeleteWordCommand {
 
 export class DeleteWordRightCommand extends DeleteWordCommand {
 	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordRight(ctx, wordNavigationType);
+		const r = WordOperations.deleteWordRight(ctx, wordNavigationType);
 		if (r) {
 			return r;
 		}

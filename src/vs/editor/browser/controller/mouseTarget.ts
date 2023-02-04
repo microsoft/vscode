@@ -14,12 +14,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel } from 'vs/editor/common/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 
 const enum HitTestResultType {
 	Unknown,
@@ -99,8 +99,8 @@ export class MouseTarget {
 	public static createOverlayWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
 		return { type: MouseTargetType.OVERLAY_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
-	public static createOutsideEditor(mouseColumn: number, position: Position): IMouseTargetOutsideEditor {
-		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position) };
+	public static createOutsideEditor(mouseColumn: number, position: Position, outsidePosition: 'above' | 'below' | 'left' | 'right', outsideDistance: number): IMouseTargetOutsideEditor {
+		return { type: MouseTargetType.OUTSIDE_EDITOR, element: null, mouseColumn, position, range: this._deduceRage(position), outsidePosition, outsideDistance };
 	}
 
 	private static _typeToString(type: MouseTargetType): string {
@@ -216,7 +216,7 @@ class ElementPath {
 
 export class HitTestContext {
 
-	public readonly model: IViewModel;
+	public readonly viewModel: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
 	public readonly lineHeight: number;
@@ -228,7 +228,7 @@ export class HitTestContext {
 	private readonly _viewHelper: IPointerHandlerHelper;
 
 	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastRenderData: PointerHandlerLastRenderData) {
-		this.model = context.model;
+		this.viewModel = context.viewModel;
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
@@ -250,7 +250,7 @@ export class HitTestContext {
 
 		if (viewZoneWhitespace) {
 			const viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2;
-			const lineCount = context.model.getLineCount();
+			const lineCount = context.viewModel.getLineCount();
 			let positionBefore: Position | null = null;
 			let position: Position | null;
 			let positionAfter: Position | null = null;
@@ -261,7 +261,7 @@ export class HitTestContext {
 			}
 			if (viewZoneWhitespace.afterLineNumber > 0) {
 				// There are more lines above this view zone
-				positionBefore = new Position(viewZoneWhitespace.afterLineNumber, context.model.getLineMaxColumn(viewZoneWhitespace.afterLineNumber));
+				positionBefore = new Position(viewZoneWhitespace.afterLineNumber, context.viewModel.getLineMaxColumn(viewZoneWhitespace.afterLineNumber));
 			}
 
 			if (positionAfter === null) {
@@ -285,11 +285,11 @@ export class HitTestContext {
 		return null;
 	}
 
-	public getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorRange; isAfterLines: boolean; } {
+	public getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorRange; isAfterLines: boolean } {
 		if (this._context.viewLayout.isAfterLines(mouseVerticalOffset)) {
 			// Below the last line
-			const lineNumber = this._context.model.getLineCount();
-			const maxLineColumn = this._context.model.getLineMaxColumn(lineNumber);
+			const lineNumber = this._context.viewModel.getLineCount();
+			const maxLineColumn = this._context.viewModel.getLineMaxColumn(lineNumber);
 			return {
 				range: new EditorRange(lineNumber, maxLineColumn, lineNumber, maxLineColumn),
 				isAfterLines: true
@@ -297,7 +297,7 @@ export class HitTestContext {
 		}
 
 		const lineNumber = this._context.viewLayout.getLineNumberAtVerticalOffset(mouseVerticalOffset);
-		const maxLineColumn = this._context.model.getLineMaxColumn(lineNumber);
+		const maxLineColumn = this._context.viewModel.getLineMaxColumn(lineNumber);
 		return {
 			range: new EditorRange(lineNumber, 1, lineNumber, maxLineColumn),
 			isAfterLines: false
@@ -410,9 +410,9 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	private _getMouseColumn(position: Position | null = null): number {
-		if (position && position.column < this._ctx.model.getLineMaxColumn(position.lineNumber)) {
+		if (position && position.column < this._ctx.viewModel.getLineMaxColumn(position.lineNumber)) {
 			// Most likely, the line contains foreign decorations...
-			return CursorColumns.visibleColumnFromColumn(this._ctx.model.getLineContent(position.lineNumber), position.column, this._ctx.model.getTextModelOptions().tabSize) + 1;
+			return CursorColumns.visibleColumnFromColumn(this._ctx.viewModel.getLineContent(position.lineNumber), position.column, this._ctx.viewModel.model.getOptions().tabSize) + 1;
 		}
 		return this.mouseColumn;
 	}
@@ -495,6 +495,16 @@ export class MouseTargetFactory {
 		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
+
+			if (r.type === MouseTargetType.CONTENT_TEXT) {
+				// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
+				if (ctx.stickyTabStops && r.position !== null) {
+					const position = MouseTargetFactory._snapToSoftTabBoundary(r.position, ctx.viewModel);
+					const range = EditorRange.fromPositions(position, position).plusRange(r.range);
+					return request.fulfillContentText(position, range, r.detail);
+				}
+			}
+
 			// console.log(MouseTarget.toString(r));
 			return r;
 		} catch (err) {
@@ -683,8 +693,8 @@ export class MouseTargetFactory {
 		// Check if it is below any lines and any view zones
 		if (ctx.isAfterLines(request.mouseVerticalOffset) || ctx.isInBottomPadding(request.mouseVerticalOffset)) {
 			// This most likely indicates it happened after the last view-line
-			const lineCount = ctx.model.getLineCount();
-			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
+			const lineCount = ctx.viewModel.getLineCount();
+			const maxLineColumn = ctx.viewModel.getLineMaxColumn(lineCount);
 			return request.fulfillContentEmpty(new Position(lineCount, maxLineColumn), EMPTY_CONTENT_AFTER_LINES);
 		}
 
@@ -693,7 +703,7 @@ export class MouseTargetFactory {
 			// See https://github.com/microsoft/vscode/issues/46942
 			if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-				if (ctx.model.getLineLength(lineNumber) === 0) {
+				if (ctx.viewModel.getLineLength(lineNumber) === 0) {
 					const lineWidth = ctx.getLineWidth(lineNumber);
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 					return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
@@ -702,7 +712,7 @@ export class MouseTargetFactory {
 				const lineWidth = ctx.getLineWidth(lineNumber);
 				if (request.mouseContentHorizontalOffset >= lineWidth) {
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-					const pos = new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber));
+					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 					return request.fulfillContentEmpty(pos, detail);
 				}
 			}
@@ -723,7 +733,7 @@ export class MouseTargetFactory {
 	private static _hitTestMinimap(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
 		if (ElementPath.isChildOfMinimap(request.targetPath)) {
 			const possibleLineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-			const maxColumn = ctx.model.getLineMaxColumn(possibleLineNumber);
+			const maxColumn = ctx.viewModel.getLineMaxColumn(possibleLineNumber);
 			return request.fulfillScrollbar(new Position(possibleLineNumber, maxColumn));
 		}
 		return null;
@@ -735,7 +745,7 @@ export class MouseTargetFactory {
 				const className = request.target.className;
 				if (className && /\b(slider|scrollbar)\b/.test(className)) {
 					const possibleLineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-					const maxColumn = ctx.model.getLineMaxColumn(possibleLineNumber);
+					const maxColumn = ctx.viewModel.getLineMaxColumn(possibleLineNumber);
 					return request.fulfillScrollbar(new Position(possibleLineNumber, maxColumn));
 				}
 			}
@@ -748,7 +758,7 @@ export class MouseTargetFactory {
 		// Is it a child of the scrollable element?
 		if (ElementPath.isChildOfScrollableElement(request.targetPath)) {
 			const possibleLineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-			const maxColumn = ctx.model.getLineMaxColumn(possibleLineNumber);
+			const maxColumn = ctx.viewModel.getLineMaxColumn(possibleLineNumber);
 			return request.fulfillScrollbar(new Position(possibleLineNumber, maxColumn));
 		}
 
@@ -789,12 +799,12 @@ export class MouseTargetFactory {
 
 		const columnHorizontalOffset = visibleRange.left;
 
-		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
+		if (Math.abs(request.mouseContentHorizontalOffset - columnHorizontalOffset) < 1) {
 			return request.fulfillContentText(pos, null, { mightBeForeignElement: !!injectedText, injectedText });
 		}
 
 		// Let's define a, b, c and check if the offset is in between them...
-		interface OffsetColumn { offset: number; column: number; }
+		interface OffsetColumn { offset: number; column: number }
 
 		const points: OffsetColumn[] = [];
 		points.push({ offset: visibleRange.left, column: column });
@@ -804,7 +814,7 @@ export class MouseTargetFactory {
 				points.push({ offset: visibleRange.left, column: column - 1 });
 			}
 		}
-		const lineMaxColumn = ctx.model.getLineMaxColumn(lineNumber);
+		const lineMaxColumn = ctx.viewModel.getLineMaxColumn(lineNumber);
 		if (column < lineMaxColumn) {
 			const visibleRange = ctx.visibleRangeForPosition(lineNumber, column + 1);
 			if (visibleRange) {
@@ -818,15 +828,32 @@ export class MouseTargetFactory {
 		const spanNodeClientRect = spanNode.getBoundingClientRect();
 		const mouseIsOverSpanNode = (spanNodeClientRect.left <= mouseCoordinates.clientX && mouseCoordinates.clientX <= spanNodeClientRect.right);
 
+		let rng: EditorRange | null = null;
+
 		for (let i = 1; i < points.length; i++) {
 			const prev = points[i - 1];
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
-				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
-				return request.fulfillContentText(pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+				rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
+
+				// See https://github.com/microsoft/vscode/issues/152819
+				// Due to the use of zwj, the browser's hit test result is skewed towards the left
+				// Here we try to correct that if the mouse horizontal offset is closer to the right than the left
+
+				const prevDelta = Math.abs(prev.offset - request.mouseContentHorizontalOffset);
+				const nextDelta = Math.abs(curr.offset - request.mouseContentHorizontalOffset);
+
+				pos = (
+					prevDelta < nextDelta
+						? new Position(lineNumber, prev.column)
+						: new Position(lineNumber, curr.column)
+				);
+
+				break;
 			}
 		}
-		return request.fulfillContentText(pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+
+		return request.fulfillContentText(pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 	}
 
 	/**
@@ -837,22 +864,31 @@ export class MouseTargetFactory {
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
 		const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-		const lineVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
-		const lineCenteredVerticalOffset = lineVerticalOffset + Math.floor(ctx.lineHeight / 2);
-		let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
+		const lineStartVerticalOffset = ctx.getVerticalOffsetForLineNumber(lineNumber);
+		const lineEndVerticalOffset = lineStartVerticalOffset + ctx.lineHeight;
 
-		if (adjustedPageY <= request.editorPos.y) {
-			adjustedPageY = request.editorPos.y + 1;
-		}
-		if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
-			adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
-		}
+		const isBelowLastLine = (
+			lineNumber === ctx.viewModel.getLineCount()
+			&& request.mouseVerticalOffset > lineEndVerticalOffset
+		);
 
-		const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+		if (!isBelowLastLine) {
+			const lineCenteredVerticalOffset = Math.floor((lineStartVerticalOffset + lineEndVerticalOffset) / 2);
+			let adjustedPageY = request.pos.y + (lineCenteredVerticalOffset - request.mouseVerticalOffset);
 
-		const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
-		if (r.type === HitTestResultType.Content) {
-			return r;
+			if (adjustedPageY <= request.editorPos.y) {
+				adjustedPageY = request.editorPos.y + 1;
+			}
+			if (adjustedPageY >= request.editorPos.y + request.editorPos.height) {
+				adjustedPageY = request.editorPos.y + request.editorPos.height - 1;
+			}
+
+			const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
+
+			const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
+			if (r.type === HitTestResultType.Content) {
+				return r;
+			}
 		}
 
 		// Also try to hit test without the adjustment (for the edge cases that we are near the top or bottom)
@@ -911,7 +947,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
-		const hitResult: { offsetNode: Node; offset: number; } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
+		const hitResult: { offsetNode: Node; offset: number } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
 			// offsetNode is expected to be the token text
@@ -952,7 +988,7 @@ export class MouseTargetFactory {
 
 	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
 		const lineContent = viewModel.getLineContent(position.lineNumber);
-		const { tabSize } = viewModel.getTextModelOptions();
+		const { tabSize } = viewModel.model.getOptions();
 		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - 1, tabSize, Direction.Nearest);
 		if (newPosition !== -1) {
 			return new Position(position.lineNumber, newPosition + 1);
@@ -969,22 +1005,18 @@ export class MouseTargetFactory {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
 		}
 		if (result.type === HitTestResultType.Content) {
-			const injectedText = ctx.model.getInjectedTextAt(result.position);
+			const injectedText = ctx.viewModel.getInjectedTextAt(result.position);
 
-			const normalizedPosition = ctx.model.normalizePosition(result.position, PositionAffinity.None);
+			const normalizedPosition = ctx.viewModel.normalizePosition(result.position, PositionAffinity.None);
 			if (injectedText || !normalizedPosition.equals(result.position)) {
 				result = new ContentHitTestResult(normalizedPosition, result.spanNode, injectedText);
 			}
-		}
-		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
-			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.model), result.spanNode, result.injectedText);
 		}
 		return result;
 	}
 }
 
-export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
+function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
 	const range = document.createRange();
 
 	// Get the element under the point
@@ -1052,7 +1084,7 @@ class CharWidthReader {
 		return CharWidthReader._INSTANCE;
 	}
 
-	private readonly _cache: { [cacheKey: string]: number; };
+	private readonly _cache: { [cacheKey: string]: number };
 	private readonly _canvas: HTMLCanvasElement;
 
 	private constructor() {

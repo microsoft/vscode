@@ -13,7 +13,7 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -21,6 +21,7 @@ import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
+import { IExpression } from 'vs/base/common/glob';
 
 /**
  * Explorer viewlet id.
@@ -56,6 +57,8 @@ export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explor
 export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedFirstFocus', "True when the focus is inside a compact item's first part in the EXPLORER view.") });
 export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedLastFocus', "True when the focus is inside a compact item's last part in the EXPLORER view.") });
 
+export const ViewHasSomeCollapsibleRootItemContext = new RawContextKey<boolean>('viewHasSomeCollapsibleItem', false, { type: 'boolean', description: localize('viewHasSomeCollapsibleItem', "True when a workspace in the EXPLORER view has some collapsible root child.") });
+
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 
@@ -86,6 +89,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 		};
 		autoReveal: boolean | 'focusNoScroll';
+		autoRevealExclude: IExpression;
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		enableUndo: boolean;
@@ -97,14 +101,13 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			colors: boolean;
 			badges: boolean;
 		};
-		incrementalNaming: 'simple' | 'smart';
-		experimental: {
-			fileNesting: {
-				enabled: boolean;
-				expand: boolean;
-				patterns: { [parent: string]: string }
-			}
-		}
+		incrementalNaming: 'simple' | 'smart' | 'disabled';
+		excludeGitIgnore: boolean;
+		fileNesting: {
+			enabled: boolean;
+			expand: boolean;
+			patterns: { [parent: string]: string };
+		};
 	};
 	editor: IEditorOptions;
 }
@@ -252,7 +255,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	isPreview(): boolean {
-		return this._group.previewEditor === this.editor;
+		return !this._group.isPinned(this.editor);
 	}
 
 	isSticky(): boolean {

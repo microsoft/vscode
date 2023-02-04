@@ -6,11 +6,11 @@
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IHoverPart {
 	/**
@@ -26,6 +26,11 @@ export interface IHoverPart {
 	 * even in the case of multiple hover parts.
 	 */
 	readonly forceShowAtRange?: boolean;
+
+	/**
+	 * If true, the hover item should appear before content
+	 */
+	readonly isBeforeContent?: boolean;
 	/**
 	 * Is this hover part still valid for this new anchor?
 	 */
@@ -41,7 +46,9 @@ export class HoverRangeAnchor {
 	public readonly type = HoverAnchorType.Range;
 	constructor(
 		public readonly priority: number,
-		public readonly range: Range
+		public readonly range: Range,
+		public readonly initialMousePosX: number | undefined,
+		public readonly initialMousePosY: number | undefined,
 	) {
 	}
 	public equals(other: HoverAnchor) {
@@ -57,7 +64,10 @@ export class HoverForeignElementAnchor {
 	constructor(
 		public readonly priority: number,
 		public readonly owner: IEditorHoverParticipant,
-		public readonly range: Range
+		public readonly range: Range,
+		public readonly initialMousePosX: number | undefined,
+		public readonly initialMousePosY: number | undefined,
+		public readonly supportsMarkerHover: boolean | undefined
 	) {
 	}
 	public equals(other: HoverAnchor) {
@@ -71,12 +81,16 @@ export class HoverForeignElementAnchor {
 export type HoverAnchor = HoverRangeAnchor | HoverForeignElementAnchor;
 
 export interface IEditorHoverStatusBar {
-	addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction;
+	addAction(actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }): IEditorHoverAction;
 	append(element: HTMLElement): HTMLElement;
 }
 
 export interface IEditorHoverAction {
 	setEnabled(enabled: boolean): void;
+}
+
+export interface IEditorHoverColorPickerWidget {
+	layout(): void;
 }
 
 export interface IEditorHoverRenderContext {
@@ -91,7 +105,7 @@ export interface IEditorHoverRenderContext {
 	/**
 	 * Set if the hover will render a color picker widget.
 	 */
-	setColorPicker(widget: ColorPickerWidget): void;
+	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
@@ -103,9 +117,26 @@ export interface IEditorHoverRenderContext {
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
+	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }
+
+export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
+
+export const HoverParticipantRegistry = (new class HoverParticipantRegistry {
+
+	_participants: IEditorHoverParticipantCtor[] = [];
+
+	public register<Services extends BrandedService[]>(ctor: { new(editor: ICodeEditor, ...services: Services): IEditorHoverParticipant }): void {
+		this._participants.push(ctor as IEditorHoverParticipantCtor);
+	}
+
+	public getAll(): IEditorHoverParticipantCtor[] {
+		return this._participants;
+	}
+
+}());

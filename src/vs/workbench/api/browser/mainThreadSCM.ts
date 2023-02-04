@@ -5,16 +5,17 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -89,14 +90,14 @@ class MainThreadSCMResource implements ISCMResource {
 	}
 }
 
-class MainThreadSCMProvider implements ISCMProvider {
+class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	private static ID_HANDLE = 0;
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
 	get id(): string { return this._id; }
 
 	readonly groups = new Sequence<MainThreadSCMResourceGroup>();
-	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
+	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup } = Object.create(null);
 
 	// get groups(): ISequence<ISCMResourceGroup> {
 	// 	return {
@@ -127,18 +128,21 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
 
-	private readonly _onDidChangeStatusBarCommands = new Emitter<Command[]>();
-	get onDidChangeStatusBarCommands(): Event<Command[]> { return this._onDidChangeStatusBarCommands.event; }
+	private readonly _onDidChangeStatusBarCommands = new Emitter<readonly Command[]>();
+	get onDidChangeStatusBarCommands(): Event<readonly Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _quickDiff: IDisposable | undefined;
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
 		private readonly _contextValue: string,
 		private readonly _label: string,
-		private readonly _rootUri: URI | undefined
+		private readonly _rootUri: URI | undefined,
+		private readonly _quickDiffService: IQuickDiffService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
@@ -151,6 +155,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.statusBarCommands !== 'undefined') {
 			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
+		}
+
+		if (features.hasQuickDiffProvider && !this._quickDiff) {
+			this._quickDiff = this._quickDiffService.addQuickDiffProvider(this);
+		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {
+			this._quickDiff.dispose();
+			this._quickDiff = undefined;
 		}
 	}
 
@@ -284,23 +295,24 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISCMService private readonly scmService: ISCMService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
 
 	dispose(): void {
-		this._repositories.forEach(r => r.dispose());
+		dispose(this._repositories.values());
 		this._repositories.clear();
 
-		this._repositoryDisposables.forEach(d => d.dispose());
+		dispose(this._repositoryDisposables.values());
 		this._repositoryDisposables.clear();
 
 		this._disposables.dispose();
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, this.quickDiffService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
@@ -419,6 +431,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.placeholder = placeholder;
+	}
+
+	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void {
+		const repository = this._repositories.get(sourceControlHandle);
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.enabled = enabled;
 	}
 
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {

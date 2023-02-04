@@ -13,17 +13,15 @@ import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/ed
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, PositionAffinity } from 'vs/editor/common/model';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { IModelDeltaDecoration, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
+import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -73,12 +71,15 @@ export class GhostTextWidget extends Disposable {
 		return (this.additionalLinesWidget.viewZoneId === viewZoneId);
 	}
 
+	private readonly replacementDecoration = this._register(new DisposableDecorations(this.editor));
+
 	private update(): void {
 		const ghostText = this.model.ghostText;
 
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
+			this.replacementDecoration.clear();
 			return;
 		}
 
@@ -103,8 +104,26 @@ export class GhostTextWidget extends Disposable {
 			}
 		}
 
+		if (ghostText instanceof GhostTextReplacement) {
+			this.replacementDecoration.setDecorations([
+				{
+					range: new Range(
+						ghostText.lineNumber,
+						ghostText.columnStart,
+						ghostText.lineNumber,
+						ghostText.columnStart + ghostText.length
+					),
+					options: {
+						inlineClassName: 'inline-completion-text-to-replace',
+						description: 'GhostTextReplacement'
+					}
+				},
+			]);
+		} else {
+			this.replacementDecoration.setDecorations([]);
+		}
+
 		const textBufferLine = this.editor.getModel().getLineContent(ghostText.lineNumber);
-		this.editor.getModel().getLineTokens(ghostText.lineNumber);
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
@@ -138,7 +157,7 @@ export class GhostTextWidget extends Disposable {
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
 
-		if (ghostText.parts.some(p => p.lines.length < 0)) {
+		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
 				new Position(ghostText.lineNumber, this.editor.getModel()!.getLineMaxColumn(ghostText.lineNumber)),
@@ -183,6 +202,28 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
+class DisposableDecorations {
+	private decorationIds: string[] = [];
+
+	constructor(private readonly editor: ICodeEditor) {
+	}
+
+	public setDecorations(decorations: IModelDeltaDecoration[]): void {
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, decorations);
+		});
+	}
+
+	public clear(): void {
+		this.setDecorations([]);
+	}
+
+	public dispose(): void {
+		this.clear();
+	}
+}
+
 interface HiddenText {
 	column: number;
 	length: number;
@@ -196,7 +237,6 @@ interface InsertedInlineText {
 
 class DecorationsWidget implements IDisposable {
 	private decorationIds: string[] = [];
-	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		private readonly editor: ICodeEditor
@@ -205,17 +245,16 @@ class DecorationsWidget implements IDisposable {
 
 	public dispose(): void {
 		this.clear();
-		this.disposableStore.dispose();
 	}
 
 	public clear(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.disposableStore.clear();
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
+		});
 	}
 
 	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
-		this.disposableStore.clear();
-
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
@@ -227,21 +266,24 @@ class DecorationsWidget implements IDisposable {
 				range: Range.fromPositions(new Position(lineNumber, hiddenText.column), new Position(lineNumber, hiddenText.column + hiddenText.length)),
 				options: {
 					inlineClassName: 'ghost-text-hidden',
-					description: 'ghost-text-hidden'
+					description: 'ghost-text-hidden',
 				}
 			});
 		}
 
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-			return ({
-				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: {
-					description: 'ghost-text',
-					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' },
-					showIfCollapsed: true,
-				}
-			});
-		}).concat(hiddenTextDecorations));
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
+				return ({
+					range: Range.fromPositions(new Position(lineNumber, p.column)),
+					options: {
+						description: 'ghost-text',
+						after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
+						showIfCollapsed: true,
+					}
+				});
+			}).concat(hiddenTextDecorations));
+		});
 	}
 }
 
@@ -312,16 +354,16 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const fontInfo = opts.get(EditorOption.fontInfo);
 	const lineHeight = opts.get(EditorOption.lineHeight);
 
-	const sb = createStringBuilder(10000);
-	sb.appendASCIIString('<div class="suggest-preview-text">');
+	const sb = new StringBuilder(10000);
+	sb.appendString('<div class="suggest-preview-text">');
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const lineData = lines[i];
 		const line = lineData.content;
-		sb.appendASCIIString('<div class="view-line');
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(i * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
+		sb.appendString('<div class="view-line');
+		sb.appendString('" style="top:');
+		sb.appendString(String(i * lineHeight));
+		sb.appendString('px;width:1000000px;">');
 
 		const isBasicASCII = strings.isBasicASCII(line);
 		const containsRTL = strings.containsRTL(line);
@@ -349,9 +391,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			null
 		), sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendString('</div>');
 	}
-	sb.appendASCIIString('</div>');
+	sb.appendString('</div>');
 
 	applyFontInfo(domNode, fontInfo);
 	const html = sb.build();
@@ -393,26 +435,3 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const foreground = theme.getColor(ghostTextForeground);
-	if (foreground) {
-		// `!important` ensures that other decorations don't cause a style conflict (#132017).
-		collector.addRule(`.monaco-editor .ghost-text-decoration { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { color: ${foreground.toString()} !important; }`);
-	}
-
-	const background = theme.getColor(ghostTextBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .ghost-text-decoration { background-color: ${background.toString()}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { background-color: ${background.toString()}; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { background-color: ${background.toString()}; }`);
-	}
-
-	const border = theme.getColor(ghostTextBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { border: 1px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration { border: 1px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { border: 1px solid ${border}; }`);
-	}
-});

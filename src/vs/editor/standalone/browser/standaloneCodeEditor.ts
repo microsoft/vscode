@@ -13,13 +13,12 @@ import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/edit
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -31,12 +30,13 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /**
  * Description of an action contribution
@@ -132,7 +132,7 @@ export interface IGlobalEditorOptions {
 	 */
 	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
 	stablePeek?: boolean;
@@ -143,7 +143,7 @@ export interface IGlobalEditorOptions {
 	maxTokenizationLineLength?: number;
 	/**
 	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -176,7 +176,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	language?: string;
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -207,7 +207,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -223,13 +223,13 @@ export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorCon
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
 	getOriginalEditor(): IStandaloneCodeEditor;
@@ -273,11 +273,12 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
 		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
-		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -299,7 +300,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		return commandId;
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
@@ -371,9 +372,9 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 
 		// Store it under the original id, such that trigger with the original id will work
-		this._actions[id] = internalAction;
+		this._actions.set(id, internalAction);
 		toDispose.add(toDisposable(() => {
-			delete this._actions[id];
+			this._actions.delete(id);
 		}));
 
 		return toDispose;
@@ -415,6 +416,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
@@ -427,7 +429,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
@@ -487,14 +489,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -506,7 +507,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
@@ -545,7 +546,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this.getModifiedEditor().createContextKey(key, defaultValue);
 	}
 

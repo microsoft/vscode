@@ -33,7 +33,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 		return toDisposable(() => remove());
 	}
 
-	participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
 		return this.progressService.withProgress({

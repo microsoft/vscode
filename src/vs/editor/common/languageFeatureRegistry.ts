@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/languageSelector';
+import { URI } from 'vs/base/common/uri';
 
 interface Entry<T> {
 	selector: LanguageSelector;
@@ -25,15 +26,40 @@ function isExclusive(selector: LanguageSelector): boolean {
 	}
 }
 
+export interface NotebookInfo {
+	readonly uri: URI;
+	readonly type: string;
+}
+
+export interface NotebookInfoResolver {
+	(uri: URI): NotebookInfo | undefined;
+}
+
+class MatchCandidate {
+	constructor(
+		readonly uri: URI,
+		readonly languageId: string,
+		readonly notebookUri: URI | undefined,
+		readonly notebookType: string | undefined
+	) { }
+
+	equals(other: MatchCandidate): boolean {
+		return this.notebookType === other.notebookType
+			&& this.languageId === other.languageId
+			&& this.uri.toString() === other.uri.toString()
+			&& this.notebookUri?.toString() === other.notebookUri?.toString();
+	}
+}
+
 export class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
 	private readonly _entries: Entry<T>[] = [];
-	private readonly _onDidChange = new Emitter<number>();
 
-	get onDidChange(): Event<number> {
-		return this._onDidChange.event;
-	}
+	private readonly _onDidChange = new Emitter<number>();
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(private readonly _notebookInfoResolver?: NotebookInfoResolver) { }
 
 	register(selector: LanguageSelector, provider: T): IDisposable {
 
@@ -74,7 +100,7 @@ export class LanguageFeatureRegistry<T> {
 		const result: T[] = [];
 
 		// from registry
-		for (let entry of this._entries) {
+		for (const entry of this._entries) {
 			if (entry._score > 0) {
 				result.push(entry.provider);
 			}
@@ -109,10 +135,6 @@ export class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: ITextModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model) {
-			return;
-		}
-
 		this._updateScores(model);
 
 		for (const entry of this._entries) {
@@ -122,32 +144,32 @@ export class LanguageFeatureRegistry<T> {
 		}
 	}
 
-	private _lastCandidate: { uri: string; language: string; } | undefined;
+	private _lastCandidate: MatchCandidate | undefined;
 
 	private _updateScores(model: ITextModel): void {
 
-		const candidate = {
-			uri: model.uri.toString(),
-			language: model.getLanguageId()
-		};
+		const notebookInfo = this._notebookInfoResolver?.(model.uri);
 
-		if (this._lastCandidate
-			&& this._lastCandidate.language === candidate.language
-			&& this._lastCandidate.uri === candidate.uri) {
+		// use the uri (scheme, pattern) of the notebook info iff we have one
+		// otherwise it's the model's/document's uri
+		const candidate = notebookInfo
+			? new MatchCandidate(model.uri, model.getLanguageId(), notebookInfo.uri, notebookInfo.type)
+			: new MatchCandidate(model.uri, model.getLanguageId(), undefined, undefined);
 
+		if (this._lastCandidate?.equals(candidate)) {
 			// nothing has changed
 			return;
 		}
 
 		this._lastCandidate = candidate;
 
-		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.uri, model.getLanguageId(), shouldSynchronizeModel(model));
+		for (const entry of this._entries) {
+			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookUri, candidate.notebookType);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites
 				// any other selector
-				for (let entry of this._entries) {
+				for (const entry of this._entries) {
 					entry._score = 0;
 				}
 				entry._score = 1000;

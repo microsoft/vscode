@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItem, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions, TransferQuickPickItemOrSeparator } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItem, MainContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions, TransferQuickPickItemOrSeparator } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -14,7 +14,7 @@ interface QuickInputSession {
 	handlesToItems: Map<number, TransferQuickPickItem>;
 }
 
-function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined; }) {
+function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined }) {
 	iconPath.dark = URI.revive(iconPath.dark);
 	if (iconPath.light) {
 		iconPath.light = URI.revive(iconPath.light);

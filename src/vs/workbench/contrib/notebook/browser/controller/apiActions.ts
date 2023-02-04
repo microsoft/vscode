@@ -10,11 +10,11 @@ import { isDocumentExcludePattern, TransientCellMetadata, TransientDocumentMetad
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
-CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
+CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor): {
 	viewType: string;
 	displayName: string;
-	options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
+	options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata };
+	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern })[];
 }[] => {
 	const notebookService = accessor.get<INotebookService>(INotebookService);
 	const contentProviders = notebookService.getContributedNotebookTypes();
@@ -36,7 +36,7 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 			}
 
 			return null;
-		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
+		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern })[];
 
 		return {
 			viewType: provider.id,

@@ -12,10 +12,11 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext, EditorTheme } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
+import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
 
 class Settings {
 
@@ -29,8 +30,8 @@ class Settings {
 	public readonly hideCursor: boolean;
 	public readonly cursorColor: string | null;
 
-	public readonly themeType: 'light' | 'dark' | 'hc';
-	public readonly backgroundColor: string | null;
+	public readonly themeType: 'light' | 'dark' | 'hcLight' | 'hcDark';
+	public readonly backgroundColor: Color | null;
 
 	public readonly top: number;
 	public readonly right: number;
@@ -61,14 +62,15 @@ class Settings {
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
-		const backgroundColor = minimapEnabled
-			? theme.getColor(editorOverviewRulerBackground) || TokenizationRegistry.getDefaultBackground()
-			: null;
+		const themeColor = theme.getColor(editorOverviewRulerBackground);
+		const defaultBackground = TokenizationRegistry.getDefaultBackground();
 
-		if (backgroundColor === null || minimapSide === 'left') {
-			this.backgroundColor = null;
+		if (themeColor) {
+			this.backgroundColor = themeColor;
+		} else if (minimapEnabled && minimapSide === 'right') {
+			this.backgroundColor = defaultBackground;
 		} else {
-			this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);
+			this.backgroundColor = null;
 		}
 
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -188,7 +190,7 @@ class Settings {
 			&& this.hideCursor === other.hideCursor
 			&& this.cursorColor === other.cursorColor
 			&& this.themeType === other.themeType
-			&& this.backgroundColor === other.backgroundColor
+			&& Color.equals(this.backgroundColor, other.backgroundColor)
 			&& this.top === other.top
 			&& this.right === other.right
 			&& this.domWidth === other.domWidth
@@ -295,8 +297,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		// invalidate color cache
-		this._context.model.invalidateOverviewRulerColorCache();
 		return this._updateSettings(false);
 	}
 
@@ -315,9 +315,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _render(): void {
+		const backgroundColor = this._settings.backgroundColor;
 		if (this._settings.overviewRulerLanes === 0) {
 			// overview ruler is off
-			this._domNode.setBackgroundColor(this._settings.backgroundColor ? this._settings.backgroundColor : '');
+			this._domNode.setBackgroundColor(backgroundColor ? Color.Format.CSS.formatHexA(backgroundColor) : '');
 			this._domNode.setDisplay('none');
 			return;
 		}
@@ -328,17 +329,27 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const viewLayout = this._context.viewLayout;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
+		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
 
 		const canvasCtx = this._domNode.domNode.getContext('2d')!;
-		if (this._settings.backgroundColor === null) {
-			canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+		if (backgroundColor) {
+			if (backgroundColor.isOpaque()) {
+				// We have a background color which is opaque, we can just paint the entire surface with it
+				canvasCtx.fillStyle = Color.Format.CSS.formatHexA(backgroundColor);
+				canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+			} else {
+				// We have a background color which is transparent, we need to first clear the surface and
+				// then fill it
+				canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+				canvasCtx.fillStyle = Color.Format.CSS.formatHexA(backgroundColor);
+				canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+			}
 		} else {
-			canvasCtx.fillStyle = this._settings.backgroundColor;
-			canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+			// We don't have a background color
+			canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 		}
 
 		const x = this._settings.x;

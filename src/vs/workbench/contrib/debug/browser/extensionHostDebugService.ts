@@ -9,12 +9,11 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { ExtensionHostDebugBroadcastChannel, ExtensionHostDebugChannelClient } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { hasWorkspaceFileExtension, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -79,9 +78,9 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			const workspaceId = toWorkspaceIdentifier(contextService.getWorkspace());
 			if (isSingleFolderWorkspaceIdentifier(workspaceId) || isWorkspaceIdentifier(workspaceId)) {
 				const serializedWorkspace = isSingleFolderWorkspaceIdentifier(workspaceId) ? { folderUri: workspaceId.uri.toJSON() } : { workspaceUri: workspaceId.configPath.toJSON() };
-				storageService.store(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, JSON.stringify(serializedWorkspace), StorageScope.GLOBAL, StorageTarget.USER);
+				storageService.store(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, JSON.stringify(serializedWorkspace), StorageScope.PROFILE, StorageTarget.USER);
 			} else {
-				storageService.remove(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, StorageScope.GLOBAL);
+				storageService.remove(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, StorageScope.PROFILE);
 			}
 		}
 	}
@@ -126,10 +125,10 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 
 		const extensionTestsPath = this.findArgument('extensionTestsPath', args);
 		if (!debugWorkspace && !extensionTestsPath) {
-			const lastExtensionDevelopmentWorkspace = this.storageService.get(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, StorageScope.GLOBAL);
+			const lastExtensionDevelopmentWorkspace = this.storageService.get(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, StorageScope.PROFILE);
 			if (lastExtensionDevelopmentWorkspace) {
 				try {
-					const serializedWorkspace: { workspaceUri?: UriComponents, folderUri?: UriComponents } = JSON.parse(lastExtensionDevelopmentWorkspace);
+					const serializedWorkspace: { workspaceUri?: UriComponents; folderUri?: UriComponents } = JSON.parse(lastExtensionDevelopmentWorkspace);
 					if (serializedWorkspace.workspaceUri) {
 						debugWorkspace = { workspaceUri: URI.revive(serializedWorkspace.workspaceUri) };
 					} else if (serializedWorkspace.folderUri) {
@@ -173,4 +172,4 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	}
 }
 
-registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, true);
+registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, InstantiationType.Delayed);

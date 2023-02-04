@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -15,23 +15,30 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible")),
+	Visible: historyNavigationVisible,
+	HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
 	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
-	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
+	MakesTextEdit: new RawContextKey<boolean>('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
-	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
+	HasInsertAndReplaceRange: new RawContextKey<boolean>('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
 	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined, { type: 'string', description: localize('suggestionInsertMode', "Whether the default behaviour is to insert or replace") }),
-	CanResolve: new RawContextKey('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
+	CanResolve: new RawContextKey<boolean>('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
 };
 
 export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
@@ -62,15 +69,18 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
+	// instrumentation
+	readonly extensionId?: ExtensionIdentifier;
+
 	// resolving
 	private _isResolved?: boolean;
 	private _resolveCache?: Promise<void>;
 
 	constructor(
 		readonly position: IPosition,
-		readonly completion: modes.CompletionItem,
-		readonly container: modes.CompletionList,
-		readonly provider: modes.CompletionItemProvider,
+		readonly completion: languages.CompletionItem,
+		readonly container: languages.CompletionList,
+		readonly provider: languages.CompletionItemProvider,
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
@@ -84,6 +94,8 @@ export class CompletionItem {
 
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
+
+		this.extensionId = completion.extensionId;
 
 		// normalize ranges
 		if (Range.isIRange(completion.range)) {
@@ -153,19 +165,20 @@ export class CompletionOptions {
 
 	constructor(
 		readonly snippetSortOrder = SnippetSortOrder.Bottom,
-		readonly kindFilter = new Set<modes.CompletionItemKind>(),
-		readonly providerFilter = new Set<modes.CompletionItemProvider>(),
+		readonly kindFilter = new Set<languages.CompletionItemKind>(),
+		readonly providerFilter = new Set<languages.CompletionItemProvider>(),
+		readonly providerItemsToReuse: ReadonlyMap<languages.CompletionItemProvider, CompletionItem[]> = new Map<languages.CompletionItemProvider, CompletionItem[]>(),
 		readonly showDeprecated = true
 	) { }
 }
 
-let _snippetSuggestSupport: modes.CompletionItemProvider;
+let _snippetSuggestSupport: languages.CompletionItemProvider;
 
-export function getSnippetSuggestSupport(): modes.CompletionItemProvider {
+export function getSnippetSuggestSupport(): languages.CompletionItemProvider {
 	return _snippetSuggestSupport;
 }
 
-export function setSnippetSuggestSupport(support: modes.CompletionItemProvider): modes.CompletionItemProvider {
+export function setSnippetSuggestSupport(support: languages.CompletionItemProvider): languages.CompletionItemProvider {
 	const old = _snippetSuggestSupport;
 	_snippetSuggestSupport = support;
 	return old;
@@ -192,10 +205,11 @@ export class CompletionItemModel {
 }
 
 export async function provideSuggestionItems(
+	registry: LanguageFeatureRegistry<languages.CompletionItemProvider>,
 	model: ITextModel,
 	position: Position,
 	options: CompletionOptions = CompletionOptions.default,
-	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke },
+	context: languages.CompletionContext = { triggerKind: languages.CompletionTriggerKind.Invoke },
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItemModel> {
 
@@ -211,15 +225,15 @@ export async function provideSuggestionItems(
 	const durations: CompletionDurationEntry[] = [];
 	let needsClipboard = false;
 
-	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined, sw: StopWatch): boolean => {
+	const onCompletionList = (provider: languages.CompletionItemProvider, container: languages.CompletionList | null | undefined, sw: StopWatch): boolean => {
 		let didAddResult = false;
 		if (!container) {
 			return didAddResult;
 		}
-		for (let suggestion of container.suggestions) {
+		for (const suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
 				// skip if not showing deprecated suggestions
-				if (!options.showDeprecated && suggestion?.tags?.includes(modes.CompletionItemTag.Deprecated)) {
+				if (!options.showDeprecated && suggestion?.tags?.includes(languages.CompletionItemTag.Deprecated)) {
 					continue;
 				}
 				// fill in default range when missing
@@ -230,7 +244,7 @@ export async function provideSuggestionItems(
 				if (!suggestion.sortText) {
 					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label;
 				}
-				if (!needsClipboard && suggestion.insertTextRules && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
+				if (!needsClipboard && suggestion.insertTextRules && suggestion.insertTextRules & languages.CompletionItemInsertTextRule.InsertAsSnippet) {
 					needsClipboard = SnippetParser.guessNeedsClipboard(suggestion.insertText);
 				}
 				result.push(new CompletionItem(position, suggestion, container, provider));
@@ -241,7 +255,7 @@ export async function provideSuggestionItems(
 			disposables.add(container);
 		}
 		durations.push({
-			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
+			providerName: provider._debugDisplayName ?? 'unknown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
 		});
 		return didAddResult;
 	};
@@ -249,7 +263,13 @@ export async function provideSuggestionItems(
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
 	// do so - no snippet filter, no special-providers-only request
 	const snippetCompletions = (async () => {
-		if (!_snippetSuggestSupport || options.kindFilter.has(modes.CompletionItemKind.Snippet)) {
+		if (!_snippetSuggestSupport || options.kindFilter.has(languages.CompletionItemKind.Snippet)) {
+			return;
+		}
+		// we have items from a previous session that we can reuse
+		const reuseItems = options.providerItemsToReuse.get(_snippetSuggestSupport);
+		if (reuseItems) {
+			reuseItems.forEach(item => result.push(item));
 			return;
 		}
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
@@ -263,11 +283,19 @@ export async function provideSuggestionItems(
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	// get provider groups, always add snippet suggestion provider
-	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
+	for (const providerGroup of registry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
+			// we have items from a previous session that we can reuse
+			if (options.providerItemsToReuse.has(provider)) {
+				const items = options.providerItemsToReuse.get(provider)!;
+				items.forEach(item => result.push(item));
+				didAddResult = didAddResult || items.length > 0;
+				return;
+			}
+			// check if this provider is filtered out
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
 				return;
 			}
@@ -289,7 +317,7 @@ export async function provideSuggestionItems(
 
 	if (token.isCancellationRequested) {
 		disposables.dispose();
-		return Promise.reject<any>(canceled());
+		return Promise.reject<any>(new CancellationError());
 	}
 
 	return new CompletionItemModel(
@@ -311,9 +339,9 @@ function defaultComparator(a: CompletionItem, b: CompletionItem): number {
 		}
 	}
 	// check with 'label'
-	if (a.completion.label < b.completion.label) {
+	if (a.textLabel < b.textLabel) {
 		return -1;
-	} else if (a.completion.label > b.completion.label) {
+	} else if (a.textLabel > b.textLabel) {
 		return 1;
 	}
 	// check with 'type'
@@ -322,9 +350,9 @@ function defaultComparator(a: CompletionItem, b: CompletionItem): number {
 
 function snippetUpComparator(a: CompletionItem, b: CompletionItem): number {
 	if (a.completion.kind !== b.completion.kind) {
-		if (a.completion.kind === modes.CompletionItemKind.Snippet) {
+		if (a.completion.kind === languages.CompletionItemKind.Snippet) {
 			return -1;
-		} else if (b.completion.kind === modes.CompletionItemKind.Snippet) {
+		} else if (b.completion.kind === languages.CompletionItemKind.Snippet) {
 			return 1;
 		}
 	}
@@ -333,16 +361,16 @@ function snippetUpComparator(a: CompletionItem, b: CompletionItem): number {
 
 function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
 	if (a.completion.kind !== b.completion.kind) {
-		if (a.completion.kind === modes.CompletionItemKind.Snippet) {
+		if (a.completion.kind === languages.CompletionItemKind.Snippet) {
 			return 1;
-		} else if (b.completion.kind === modes.CompletionItemKind.Snippet) {
+		} else if (b.completion.kind === languages.CompletionItemKind.Snippet) {
 			return -1;
 		}
 	}
 	return defaultComparator(a, b);
 }
 
-interface Comparator<T> { (a: T, b: T): number; }
+interface Comparator<T> { (a: T, b: T): number }
 const _snippetComparators = new Map<SnippetSortOrder, Comparator<CompletionItem>>();
 _snippetComparators.set(SnippetSortOrder.Top, snippetUpComparator);
 _snippetComparators.set(SnippetSortOrder.Bottom, snippetDownComparator);
@@ -359,16 +387,17 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
 	assertType(typeof maxItemsToResolve === 'number' || !maxItemsToResolve);
 
+	const { completionProvider } = accessor.get(ILanguageFeaturesService);
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
 
-		const result: modes.CompletionList = {
+		const result: languages.CompletionList = {
 			incomplete: false,
 			suggestions: []
 		};
 
 		const resolving: Promise<any>[] = [];
-		const completions = await provideSuggestionItems(ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke });
+		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter: triggerCharacter ?? undefined, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
 		for (const item of completions.items) {
 			if (resolving.length < (maxItemsToResolve ?? 0)) {
 				resolving.push(item.resolve(CancellationToken.None));
@@ -391,28 +420,13 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 });
 
 interface SuggestController extends IEditorContribution {
-	triggerSuggest(onlyFrom?: Set<modes.CompletionItemProvider>): void;
+	triggerSuggest(onlyFrom?: Set<languages.CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void;
 }
 
-const _provider = new class implements modes.CompletionItemProvider {
-
-	onlyOnceSuggestions: modes.CompletionItem[] = [];
-
-	provideCompletionItems(): modes.CompletionList {
-		let suggestions = this.onlyOnceSuggestions.slice(0);
-		let result = { suggestions };
-		this.onlyOnceSuggestions.length = 0;
-		return result;
-	}
-};
-
-modes.CompletionProviderRegistry.register('*', _provider);
-
-export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
-	setTimeout(() => {
-		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
-	}, 0);
+export function showSimpleSuggestions(editor: ICodeEditor, provider: languages.CompletionItemProvider) {
+	editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
+		new Set<languages.CompletionItemProvider>().add(provider), undefined, true
+	);
 }
 
 export interface ISuggestItemPreselector {
@@ -426,4 +440,24 @@ export interface ISuggestItemPreselector {
 	 * When -1 is returned, item preselectors with lower priority are asked.
 	*/
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number | -1;
+}
+
+
+export abstract class QuickSuggestionsOptions {
+
+	static isAllOff(config: InternalQuickSuggestionsOptions): boolean {
+		return config.other === 'off' && config.comments === 'off' && config.strings === 'off';
+	}
+
+	static isAllOn(config: InternalQuickSuggestionsOptions): boolean {
+		return config.other === 'on' && config.comments === 'on' && config.strings === 'on';
+	}
+
+	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: StandardTokenType): QuickSuggestionsValue {
+		switch (tokenType) {
+			case StandardTokenType.Comment: return config.comments;
+			case StandardTokenType.String: return config.strings;
+			default: return config.other;
+		}
+	}
 }

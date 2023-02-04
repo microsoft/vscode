@@ -10,7 +10,7 @@ import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory }
 import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
-export class PieceTreeTextBufferFactory implements ITextBufferFactory {
+class PieceTreeTextBufferFactory implements ITextBufferFactory {
 
 	constructor(
 		private readonly _chunks: StringBuffer[],
@@ -39,7 +39,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		return '\n';
 	}
 
-	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; } {
+	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable } {
 		const eol = this._getEOL(defaultEOL);
 		const chunks = this._chunks;
 

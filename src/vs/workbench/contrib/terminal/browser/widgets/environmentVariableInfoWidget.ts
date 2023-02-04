@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWidget {
 	readonly id = 'env-var-info';
@@ -59,7 +59,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 				}
 			});
 		});
-		this.onnonbubblingmouseout(this._domNode, () => {
+		this.onmouseleave(this._domNode, () => {
 			scheduler.cancel();
 			this._mouseMoveListener?.dispose();
 		});

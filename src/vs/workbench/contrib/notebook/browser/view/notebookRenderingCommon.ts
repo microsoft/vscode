@@ -6,7 +6,7 @@
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
@@ -14,19 +14,16 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
-import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
-import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
-import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
-import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
-import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
+import { IWorkbenchListOptionsUpdate } from 'vs/platform/list/browser/listService';
+import { CellRevealRangeType, CellRevealSyncType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
+
 export interface INotebookCellList {
 	isDisposed: boolean;
+	inRenderingTransaction: boolean;
 	viewModel: NotebookViewModel | null;
 	webviewElement: FastDomNode<HTMLElement> | null;
 	readonly contextKeyService: IContextKeyService;
@@ -44,6 +41,7 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
+	scrollableElement: HTMLElement;
 	readonly onDidRemoveOutputs: Event<readonly ICellOutputViewModel[]>;
 	readonly onDidHideOutputs: Event<readonly ICellOutputViewModel[]>;
 	readonly onDidRemoveCellsFromView: Event<readonly ICellViewModel[]>;
@@ -58,86 +56,58 @@ export interface INotebookCellList {
 	getViewIndex2(modelIndex: number): number | undefined;
 	getModelIndex(cell: CellViewModel): number | undefined;
 	getModelIndex2(viewIndex: number): number | undefined;
-	getVisibleRangesPlusViewportBelow(): ICellRange[];
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
-	revealElementsInView(range: ICellRange): void;
-	isScrolledToBottom(): boolean;
+	revealCellsInView(range: ICellRange): void;
 	scrollToBottom(): void;
-	revealElementInView(element: ICellViewModel): void;
-	revealElementInViewAtTop(element: ICellViewModel): void;
-	revealElementInCenterIfOutsideViewport(element: ICellViewModel): void;
-	revealElementInCenter(element: ICellViewModel): void;
-	revealElementInCenterIfOutsideViewportAsync(element: ICellViewModel): Promise<void>;
-	revealElementLineInViewAsync(element: ICellViewModel, line: number): Promise<void>;
-	revealElementLineInCenterAsync(element: ICellViewModel, line: number): Promise<void>;
-	revealElementLineInCenterIfOutsideViewportAsync(element: ICellViewModel, line: number): Promise<void>;
-	revealElementRangeInViewAsync(element: ICellViewModel, range: Range): Promise<void>;
-	revealElementRangeInCenterAsync(element: ICellViewModel, range: Range): Promise<void>;
-	revealElementRangeInCenterIfOutsideViewportAsync(element: ICellViewModel, range: Range): Promise<void>;
-	revealElementOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
+	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
+	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
+	revealCellRangeAsync(cell: ICellViewModel, range: Range, revealType: CellRevealRangeType): Promise<void>;
+	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
 	getAbsoluteTopOfElement(element: ICellViewModel): number;
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
-	updateElementHeight2(element: ICellViewModel, size: number): void;
+	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
 	focusContainer(): void;
-	setCellSelection(element: ICellViewModel, range: Range): void;
+	setCellEditorSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;
-	updateOptions(options: IListOptions<ICellViewModel>): void;
+	getScrollHeight(): number;
+	updateOptions(options: IWorkbenchListOptionsUpdate): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
 }
 
 export interface BaseCellRenderTemplate {
-	rootContainer: HTMLElement;
-	editorPart: HTMLElement;
-	cellInputCollapsedContainer: HTMLElement;
-	instantiationService: IInstantiationService;
-	container: HTMLElement;
-	cellContainer: HTMLElement;
-	decorationContainer: HTMLElement;
-	betweenCellToolbar: BetweenCellToolbar;
-	titleToolbar: CellTitleToolbarPart;
-	focusIndicator: CellFocusIndicator;
+	readonly rootContainer: HTMLElement;
+	readonly editorPart: HTMLElement;
+	readonly cellInputCollapsedContainer: HTMLElement;
+	readonly instantiationService: IInstantiationService;
+	readonly container: HTMLElement;
+	readonly cellContainer: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;
-	statusBar: CellEditorStatusBar;
+	cellParts: CellPartsCollection;
 	toJSON: () => object;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editorContainer: HTMLElement;
-	foldingIndicator: HTMLElement;
-	foldedCellHint: FoldedCellHint;
+	readonly editorContainer: HTMLElement;
+	readonly foldingIndicator: HTMLElement;
 	currentEditor?: ICodeEditor;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	runToolbar: RunToolbar;
 	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;
 	outputShowMoreContainer: FastDomNode<HTMLElement>;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
-	progressBar: CellProgressBar;
-	cellExecution: CellExecutionPart;
-}
-
-export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {
-	return !!(templateData as CodeCellRenderTemplate).runToolbar;
-}
-
-/**
- * Notebook Editor Delegate for output rendering
- */
-export interface INotebookDelegateForOutput {
-	readonly creationOptions: INotebookEditorCreationOptions;
-	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 }

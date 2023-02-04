@@ -28,7 +28,12 @@ exports.initialize = function (loaderConfig) {
 		} catch (err) {
 			// missing source map...
 		}
-		return instrumenter.instrumentSync(contents, source, map);
+		try {
+			return instrumenter.instrumentSync(contents, source, map);
+		} catch (e) {
+			console.error(`Error instrumenting ${source}: ${e}`);
+			throw e;
+		}
 	};
 };
 
@@ -37,7 +42,7 @@ exports.createReport = function (isSingle) {
 	const coverageMap = iLibCoverage.createCoverageMap(global.__coverage__);
 	return mapStore.transformCoverage(coverageMap).then((transformed) => {
 		// Paths come out all broken
-		let newData = Object.create(null);
+		const newData = Object.create(null);
 		Object.keys(transformed.data).forEach((file) => {
 			const entry = transformed.data[file];
 			const fixedPath = fixPath(entry.path);
@@ -52,7 +57,7 @@ exports.createReport = function (isSingle) {
 		});
 		const tree = context.getTree('flat');
 
-		let reports = [];
+		const reports = [];
 		if (isSingle) {
 			reports.push(iReports.create('lcovonly'));
 		} else {

@@ -159,7 +159,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const compressedNode = this.nodes.get(element);
 
 		if (!compressedNode) {
-			throw new Error('Unknown compressed tree node');
+			throw new TreeError(this.user, 'Unknown compressed tree node');
 		}
 
 		const node = this.model.getNode(compressedNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
@@ -388,7 +388,7 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 	return {
 		...options,
 		identityProvider: options.identityProvider && {
-			getId(node: ICompressedTreeNode<T>): { toString(): string; } {
+			getId(node: ICompressedTreeNode<T>): { toString(): string } {
 				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
 			}
 		},

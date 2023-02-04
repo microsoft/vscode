@@ -11,7 +11,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
-let textMateScopes = [
+const textMateScopes = [
 	'comment',
 	'comment.block',
 	'comment.block.documentation',
@@ -115,7 +115,6 @@ let textMateScopes = [
 ];
 
 export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
-export const textmateColorSettingsSchemaId = `${textmateColorsSchemaId}#/definitions/settings`;
 export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#/definitions/colorGroup`;
 
 const textmateColorSchema: IJSONSchema = {
@@ -212,7 +211,7 @@ const textmateColorSchema: IJSONSchema = {
 			}
 		},
 		required: [
-			'settings', 'scope'
+			'settings'
 		],
 		additionalProperties: false
 	}
@@ -256,7 +255,7 @@ const colorThemeSchema: IJSONSchema = {
 
 
 export function registerColorThemeSchemas() {
-	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(colorThemeSchemaId, colorThemeSchema);
 	schemaRegistry.registerSchema(textmateColorsSchemaId, textmateColorSchema);
 }

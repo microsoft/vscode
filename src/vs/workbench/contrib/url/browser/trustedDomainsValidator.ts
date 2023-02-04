@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme, OpenOptions } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -19,15 +19,11 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IdleValue } from 'vs/base/common/async';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-type TrustedDomainsDialogActionClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-};
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 
@@ -49,7 +45,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
-		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+		this._openerService.registerValidator({ shouldOpen: (uri, options) => this.validateLink(uri, options) });
 
 		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
 			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
@@ -68,27 +64,30 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		});
 	}
 
-	async validateLink(resource: URI | string): Promise<boolean> {
+	async validateLink(resource: URI | string, openOptions?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(resource, Schemas.http) && !matchesScheme(resource, Schemas.https)) {
 			return true;
 		}
 
-		if (this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
+		if (openOptions?.fromWorkspace && this._workspaceTrustService.isWorkspaceTrusted() && !this._configurationService.getValue('workbench.trustedDomains.promptInTrustedWorkspace')) {
 			return true;
 		}
 
 		const originalResource = resource;
+		let resourceUri: URI;
 		if (typeof resource === 'string') {
-			resource = URI.parse(resource);
+			resourceUri = URI.parse(resource);
+		} else {
+			resourceUri = resource;
 		}
-		const { scheme, authority, path, query, fragment } = resource;
+		const { scheme, authority, path, query, fragment } = resourceUri;
 
 		const domainToOpen = `${scheme}://${authority}`;
 		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
 		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
-		if (isURLDomainTrusted(resource, allTrustedDomains)) {
+		if (isURLDomainTrusted(resourceUri, allTrustedDomains)) {
 			return true;
 		} else {
 			let formattedLink = `${scheme}://${authority}${path}`;
@@ -107,74 +106,56 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				formattedLink += linkTail.charAt(0) + '...' + linkTail.substring(linkTail.length - linkTailLengthToKeep + 1);
 			}
 
-			const { choice } = await this._dialogService.show(
-				Severity.Info,
-				localize(
+			const { result } = await this._dialogService.prompt<boolean>({
+				type: Severity.Info,
+				message: localize(
 					'openExternalLinkAt',
 					'Do you want {0} to open the external website?',
 					this._productService.nameShort
 				),
-				[
-					localize('open', 'Open'),
-					localize('copy', 'Copy'),
-					localize('cancel', 'Cancel'),
-					localize('configureTrustedDomains', 'Configure Trusted Domains')
+				detail: typeof originalResource === 'string' ? originalResource : formattedLink,
+				buttons: [
+					{
+						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, '&&Open'),
+						run: () => true
+					},
+					{
+						label: localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, '&&Copy'),
+						run: () => {
+							this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resourceUri.toString(true));
+							return false;
+						}
+					},
+					{
+						label: localize({ key: 'configureTrustedDomains', comment: ['&& denotes a mnemonic'] }, 'Configure &&Trusted Domains'),
+						run: async () => {
+							const pickedDomains = await configureOpenerTrustedDomainsHandler(
+								trustedDomains,
+								domainToOpen,
+								resourceUri,
+								this._quickInputService,
+								this._storageService,
+								this._editorService,
+								this._telemetryService,
+							);
+							// Trust all domains
+							if (pickedDomains.indexOf('*') !== -1) {
+								return true;
+							}
+							// Trust current domain
+							if (isURLDomainTrusted(resourceUri, pickedDomains)) {
+								return true;
+							}
+							return false;
+						}
+					}
 				],
-				{
-					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
-					cancelId: 2
+				cancelButton: {
+					run: () => false
 				}
-			);
+			});
 
-			// Open Link
-			if (choice === 0) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'open' }
-				);
-				return true;
-			}
-			// Copy Link
-			else if (choice === 1) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'copy' }
-				);
-				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
-			}
-			// Configure Trusted Domains
-			else if (choice === 3) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'configure' }
-				);
-
-				const pickedDomains = await configureOpenerTrustedDomainsHandler(
-					trustedDomains,
-					domainToOpen,
-					resource,
-					this._quickInputService,
-					this._storageService,
-					this._editorService,
-					this._telemetryService,
-				);
-				// Trust all domains
-				if (pickedDomains.indexOf('*') !== -1) {
-					return true;
-				}
-				// Trust current domain
-				if (isURLDomainTrusted(resource, pickedDomains)) {
-					return true;
-				}
-				return false;
-			}
-
-			this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-				'trustedDomains.dialogAction',
-				{ action: 'cancel' }
-			);
-
-			return false;
+			return result;
 		}
 	}
 }
@@ -222,7 +203,7 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 			return true;
 		}
 
-		if (testUrlMatchesGlob(url.toString(), trustedDomains[i])) {
+		if (testUrlMatchesGlob(url, trustedDomains[i])) {
 			return true;
 		}
 	}

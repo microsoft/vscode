@@ -14,8 +14,8 @@ import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions, selectionFragment } from 'vs/platform/opener/common/opener';
+import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
@@ -25,15 +25,25 @@ class CommandOpener implements IOpener {
 		if (!matchesScheme(target, Schemas.command)) {
 			return false;
 		}
+
 		if (!options?.allowCommands) {
 			// silently ignore commands when command-links are disabled, also
-			// surpress other openers by returning TRUE
+			// suppress other openers by returning TRUE
 			return true;
 		}
-		// run command or bail out if command isn't known
+
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
+
+		if (Array.isArray(options.allowCommands)) {
+			// Only allow specific commands
+			if (!options.allowCommands.includes(target.path)) {
+				// Suppress other openers by returning TRUE
+				return true;
+			}
+		}
+
 		// execute as command
 		let args: any = [];
 		try {
@@ -62,10 +72,8 @@ class EditorOpener implements IOpener {
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
-		const selection: { startLineNumber: number; startColumn: number; } | undefined = selectionFragment(target);
-		if (selection) {
-			target = target.with({ fragment: '' });
-		}
+		const { selection, uri } = extractSelection(target);
+		target = uri;
 
 		if (target.scheme === Schemas.file) {
 			target = normalizePath(target); // workaround for non-normalized paths (https://github.com/microsoft/vscode/issues/12954)
@@ -76,7 +84,7 @@ class EditorOpener implements IOpener {
 				resource: target,
 				options: {
 					selection,
-					context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API,
+					source: options?.fromUserGesture ? EditorOpenSource.USER : EditorOpenSource.API,
 					...options?.editorOptions
 				}
 			},
@@ -165,7 +173,7 @@ export class OpenerService implements IOpenerService {
 		// validate against the original URI that this URI resolves to, if one exists
 		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
 		for (const validator of this._validators) {
-			if (!(await validator.shouldOpen(validationTarget))) {
+			if (!(await validator.shouldOpen(validationTarget, options))) {
 				return false;
 			}
 		}
@@ -216,8 +224,8 @@ export class OpenerService implements IOpenerService {
 			// open the url-string AS IS
 			href = resource;
 		} else {
-			// open URI via "new URL(...).href encoding"
-			href = new URL(externalUri.toString(true)).href;
+			// open URI using the toString(noEncode)+encodeURI-trick
+			href = encodeURI(externalUri.toString(true));
 		}
 
 		if (options?.allowContributedOpeners) {

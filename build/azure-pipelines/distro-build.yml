@@ -4,20 +4,18 @@ pool:
 trigger:
   branches:
     include: ["main", "release/*"]
-pr:
-  branches:
-    include: ["main", "release/*"]
+pr: none
 
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
+      KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
   - script: |

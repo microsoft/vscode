@@ -16,7 +16,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class WalkThroughModel extends EditorModel {
+class WalkThroughModel extends EditorModel {
 
 	constructor(
 		private mainRef: string,
@@ -86,7 +86,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.telemetryFrom;
 	}
 
-	override getTelemetryDescriptor(): { [key: string]: unknown; } {
+	override getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
 		/* __GDPR__FRAGMENT__

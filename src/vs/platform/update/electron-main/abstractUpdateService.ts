@@ -6,7 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { getMigratedSettingValue, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -19,7 +19,9 @@ export function createUpdateURL(platform: string, quality: string, productServic
 }
 
 export type UpdateNotAvailableClassification = {
-	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	owner: 'joaomoreno';
+	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user has manually checked for updates, or this was an automatic check.' };
+	comment: 'This is used to understand how often VS Code pings the update server for an update and there\'s none available.';
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {
@@ -57,7 +59,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	initialize(): void {
+	async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
@@ -72,7 +74,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateMode = this.getUpdateMode();
+		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
@@ -102,10 +104,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 		}
-	}
-
-	private getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
-		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
@@ -184,15 +182,29 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	async isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return undefined;
-		} else if (this.getUpdateMode() === 'none') {
+		}
+
+		const mode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
+
+		if (mode === 'none') {
 			return false;
 		}
 
-		const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+		try {
+			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			// The update server replies with 204 (No Content) when no
+			// update is available - that's all we want to know.
+			return context.res.statusCode === 204;
 
-		// The update server replies with 204 (No Content) when no
-		// update is available - that's all we want to know.
-		return context.res.statusCode === 204;
+		} catch (error) {
+			this.logService.error('update#isLatestVersion(): failed to check for updates');
+			this.logService.error(error);
+			return undefined;
+		}
+	}
+
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
+		// noop
 	}
 
 	protected getUpdateType(): UpdateType {

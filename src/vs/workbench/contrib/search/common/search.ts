@@ -75,7 +75,7 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 			if (!value) {
 				return;
 			}
-			for (let symbol of value) {
+			for (const symbol of value) {
 				all.push(new WorkspaceSymbolItem(symbol, provider));
 			}
 		} catch (err) {
@@ -124,8 +124,8 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 		includeSymbols: boolean;
 		includeHistory: boolean;
 		history: {
-			filterSortOrder: 'default' | 'recency'
-		}
+			filterSortOrder: 'default' | 'recency';
+		};
 	};
 }
 

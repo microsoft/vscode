@@ -5,7 +5,7 @@
 
 import 'vs/css!./standaloneQuickInput';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -20,7 +20,7 @@ import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quicki
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
-export class EditorScopedQuickInputService extends QuickInputService {
+class EditorScopedQuickInputService extends QuickInputService {
 
 	private host: IQuickInputControllerHost | undefined = undefined;
 
@@ -44,7 +44,8 @@ export class EditorScopedQuickInputService extends QuickInputService {
 				get container() { return widget.getDomNode(); },
 				get dimension() { return editor.getLayoutInfo(); },
 				get onDidLayout() { return editor.onDidLayoutChange; },
-				focus: () => editor.focus()
+				focus: () => editor.focus(),
+				offset: { top: 0, quickPickTop: 0 }
 			};
 		} else {
 			this.host = undefined;
@@ -183,4 +184,4 @@ export class QuickInputEditorWidget implements IOverlayWidget {
 	}
 }
 
-registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution);
+registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution, EditorContributionInstantiation.Lazy);

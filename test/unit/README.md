@@ -27,11 +27,11 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
 ## Run (with node)
 
-    yarn run mocha --ui tdd --run src/vs/editor/test/browser/controller/cursor.test.ts
+    yarn test-node --run src/vs/editor/test/browser/controller/cursor.test.ts
 
 ## Coverage
 
-The following command will create a `coverage` folder at the root of the workspace:
+The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:
 
 **OS X and Linux**
 

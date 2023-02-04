@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { once } from 'vs/base/common/functional';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { once } from 'vs/base/common/functional';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
 
-export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
-export const twistiePixels = 20;
+const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 const booleanRegex = /^(true|false)$/i;
 const stringRegex = /^(['"]).*\1$/;
 const $ = dom.$;
@@ -40,6 +41,7 @@ export interface IVariableTemplateData {
 	name: HTMLElement;
 	value: HTMLElement;
 	label: HighlightedLabel;
+	lazyButton: HTMLElement;
 }
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
@@ -60,21 +62,23 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 		if (value !== Expression.DEFAULT_VALUE) {
 			container.classList.add('error');
 		}
-	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
-		expressionOrValue.valueChanged = false;
-	}
+	} else {
+		if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
+			// value changed color has priority over other colors.
+			container.className = 'value changed';
+			expressionOrValue.valueChanged = false;
+		}
 
-	if (options.colorize && typeof expressionOrValue !== 'string') {
-		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
-			container.classList.add(expressionOrValue.type);
-		} else if (!isNaN(+value)) {
-			container.classList.add('number');
-		} else if (booleanRegex.test(value)) {
-			container.classList.add('boolean');
-		} else if (stringRegex.test(value)) {
-			container.classList.add('string');
+		if (options.colorize && typeof expressionOrValue !== 'string') {
+			if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+				container.classList.add(expressionOrValue.type);
+			} else if (!isNaN(+value)) {
+				container.classList.add('number');
+			} else if (booleanRegex.test(value)) {
+				container.classList.add('boolean');
+			} else if (stringRegex.test(value)) {
+				container.classList.add('string');
+			}
 		}
 	}
 
@@ -88,7 +92,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	if (options.linkDetector) {
 		container.textContent = '';
 		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
-		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined));
+		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined, true));
 	} else {
 		container.textContent = value;
 	}
@@ -110,6 +114,7 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		data.label.set(':');
 	}
 
+	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -134,15 +139,17 @@ export interface IExpressionTemplateData {
 	inputBoxContainer: HTMLElement;
 	actionBar?: ActionBar;
 	elementDisposable: IDisposable[];
+	templateDisposable: IDisposable;
 	label: HighlightedLabel;
+	lazyButton: HTMLElement;
+	currentElement: IExpression | undefined;
 }
 
-export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, FuzzyScore, IExpressionTemplateData> {
+export abstract class AbstractExpressionsRenderer<T = IExpression> implements ITreeRenderer<T, FuzzyScore, IExpressionTemplateData> {
 
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	abstract get templateId(): string;
@@ -150,23 +157,39 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
+		const lazyButton = dom.append(expression, $('span.lazy-button'));
+		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
+		lazyButton.title = localize('debug.lazyButton.tooltip', "Click to expand");
 		const value = dom.append(expression, $('span.value'));
+
 		const label = new HighlightedLabel(name);
 
 		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
 
+		const templateDisposable = new DisposableStore();
+
 		let actionBar: ActionBar | undefined;
 		if (this.renderActionBar) {
 			dom.append(expression, $('.span.actionbar-spacer'));
-			actionBar = new ActionBar(expression);
+			actionBar = templateDisposable.add(new ActionBar(expression));
 		}
 
-		return { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: [] };
+		const template: IExpressionTemplateData = { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: [], templateDisposable, lazyButton, currentElement: undefined };
+
+		templateDisposable.add(dom.addDisposableListener(lazyButton, dom.EventType.CLICK, () => {
+			if (template.currentElement) {
+				this.debugService.getViewModel().evaluateLazyExpression(template.currentElement);
+			}
+		}));
+
+		return template;
 	}
 
-	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
-		const { element } = node;
-		this.renderExpression(element, data, createMatches(node.filterData));
+	public abstract renderElement(node: ITreeNode<T, FuzzyScore>, index: number, data: IExpressionTemplateData): void;
+
+	protected renderExpressionElement(element: IExpression, node: ITreeNode<T, FuzzyScore>, data: IExpressionTemplateData): void {
+		data.currentElement = element;
+		this.renderExpression(node.element, data, createMatches(node.filterData));
 		if (data.actionBar) {
 			this.renderActionBar!(data.actionBar, element, data);
 		}
@@ -183,17 +206,17 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		nameElement.style.display = 'none';
 		valueElement.style.display = 'none';
 		inputBoxContainer.style.display = 'initial';
+		dom.clearNode(inputBoxContainer);
 
-		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
+		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, { ...options, inputBoxStyles: defaultInputBoxStyles });
 
 		inputBox.value = options.initialValue;
 		inputBox.focus();
 		inputBox.select();
 
 		const done = once((success: boolean, finishEditing: boolean) => {
-			nameElement.style.display = 'initial';
-			valueElement.style.display = 'initial';
+			nameElement.style.display = '';
+			valueElement.style.display = '';
 			inputBoxContainer.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -222,8 +245,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 				// Do not expand / collapse selected elements
 				e.preventDefault();
 				e.stopPropagation();
-			}),
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -231,18 +253,18 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		});
 	}
 
-	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
+	protected abstract renderExpression(expression: T, data: IExpressionTemplateData, highlights: IHighlight[]): void;
 	protected abstract getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions | undefined;
 
 	protected renderActionBar?(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData): void;
 
-	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
+	disposeElement(node: ITreeNode<T, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
 		dispose(templateData.elementDisposable);
 		templateData.elementDisposable = [];
 	}
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {
 		dispose(templateData.elementDisposable);
-		templateData.actionBar?.dispose();
+		templateData.templateDisposable.dispose();
 	}
 }

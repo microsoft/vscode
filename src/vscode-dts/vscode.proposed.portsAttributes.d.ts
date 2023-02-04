@@ -57,6 +57,6 @@ declare module 'vscode' {
 		 * The `portRange` is start inclusive and end exclusive.
 		 * @param provider The PortAttributesProvider
 		 */
-		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: PortAttributesProvider): Disposable;
+		export function registerPortAttributesProvider(portSelector: { pid?: number; portRange?: [number, number]; commandMatcher?: RegExp }, provider: PortAttributesProvider): Disposable;
 	}
 }

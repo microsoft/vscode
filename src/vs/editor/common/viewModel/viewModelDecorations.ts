@@ -9,9 +9,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IDecorationsViewportData {
 	/**
@@ -32,10 +32,11 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
-	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
+	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
+	private _cachedOnlyMinimapDecorations: boolean | null = null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
@@ -96,21 +97,27 @@ export class ViewModelDecorations implements IDisposable {
 		return r;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range, onlyMinimapDecorations: boolean = false): IDecorationsViewportData {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
+		cacheIsValid = cacheIsValid && (this._cachedOnlyMinimapDecorations === onlyMinimapDecorations);
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(viewRange);
+			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, onlyMinimapDecorations);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
+			this._cachedOnlyMinimapDecorations = onlyMinimapDecorations;
 		}
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options));
+	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false): InlineDecoration[] {
+		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
+		return this._getDecorationsInRange(range, onlyMinimapDecorations).inlineDecorations[0];
+	}
 
-		const startLineNumber = viewportRange.startLineNumber;
-		const endLineNumber = viewportRange.endLineNumber;
+	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean): IDecorationsViewportData {
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations);
+		const startLineNumber = viewRange.startLineNumber;
+		const endLineNumber = viewRange.endLineNumber;
 
 		const decorationsInViewport: ViewModelDecoration[] = [];
 		let decorationsInViewportLen = 0;
@@ -204,7 +211,7 @@ export function isModelDecorationInString(model: ITextModel, decoration: IModelD
  */
 function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
 	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-		const lineTokens = model.getLineTokens(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		const isFirstLine = lineNumber === range.startLineNumber;
 		const isEndLine = lineNumber === range.endLineNumber;
 

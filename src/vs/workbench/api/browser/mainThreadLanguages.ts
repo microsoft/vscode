@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
-import { MainThreadLanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {
@@ -21,7 +21,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: ExtHostLanguagesShape;
 
-	private readonly _status = new Map<number, IDisposable>();
+	private readonly _status = new DisposableMap<number>();
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -40,11 +40,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	dispose(): void {
 		this._disposables.dispose();
-
-		for (const status of this._status.values()) {
-			status.dispose();
-		}
-		this._status.clear();
+		this._status.dispose();
 	}
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
@@ -62,14 +58,14 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		}
 	}
 
-	async $tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType, range: IRange }> {
+	async $tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }> {
 		const uri = URI.revive(resource);
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return undefined;
 		}
-		model.tokenizeIfCheap(position.lineNumber);
-		const tokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const tokens = model.tokenization.getLineTokens(position.lineNumber);
 		const idx = tokens.findTokenIndexAtOffset(position.column - 1);
 		return {
 			type: tokens.getStandardTokenType(idx),

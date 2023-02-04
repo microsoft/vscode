@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 
@@ -16,46 +17,48 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
  * to set up the terminal but don't need to be tracked in the long term (where TerminalService would
  * be more relevant).
  */
-export class TerminalMainContribution implements IWorkbenchContribution {
+export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILabelService labelService: ILabelService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService terminalGroupService: ITerminalGroupService
 	) {
+		super();
+
 		// Register terminal editors
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
-				id: TerminalEditor.ID,
+				id: terminalEditorId,
 				label: terminalStrings.terminal,
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				canHandleDiff: false,
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
-			({ resource, options }) => {
-				let instance = terminalService.getInstanceFromResource(resource);
-				if (instance) {
-					const sourceGroup = terminalGroupService.getGroupForInstance(instance);
-					if (sourceGroup) {
-						sourceGroup.removeInstance(instance);
+			{
+				createEditorInput: ({ resource, options }) => {
+					const instance = terminalService.getInstanceFromResource(resource);
+					if (instance) {
+						const sourceGroup = terminalGroupService.getGroupForInstance(instance);
+						sourceGroup?.removeInstance(instance);
 					}
+					const resolvedResource = terminalEditorService.resolveResource(instance || resource);
+					const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
+					return {
+						editor,
+						options: {
+							...options,
+							pinned: true,
+							forceReload: true,
+							override: terminalEditorId
+						}
+					};
 				}
-				const resolvedResource = terminalEditorService.resolveResource(instance || resource);
-				const editor = terminalEditorService.getInputFromResource(resolvedResource) || { editor: resolvedResource };
-				return {
-					editor,
-					options: {
-						...options,
-						pinned: true,
-						forceReload: true,
-						override: TerminalEditor.ID
-					}
-				};
 			}
 		);
 
@@ -68,4 +71,5 @@ export class TerminalMainContribution implements IWorkbenchContribution {
 			}
 		});
 	}
+
 }

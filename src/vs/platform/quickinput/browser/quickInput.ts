@@ -6,6 +6,7 @@
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { IQuickInputOptions, IQuickInputStyles, QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -15,8 +16,8 @@ import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/l
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { computeStyles } from 'vs/platform/theme/common/styler';
+import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { activeContrastBorder, asCssVariable, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 
 export interface IQuickInputControllerHost extends ILayoutService { }
@@ -27,8 +28,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	get backButton(): IQuickInputButton { return this.controller.backButton; }
 
-	get onShow() { return this.controller.onShow; }
-	get onHide() { return this.controller.onHide; }
+	private readonly _onShow = this._register(new Emitter<void>());
+	readonly onShow = this._onShow.event;
+
+	private readonly _onHide = this._register(new Emitter<void>());
+	readonly onHide = this._onHide.event;
 
 	private _controller: QuickInputController | undefined;
 	private get controller(): QuickInputController {
@@ -38,6 +42,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 		return this._controller;
 	}
+
+	private get hasController() { return !!this._controller; }
 
 	private _quickAccess: IQuickAccessController | undefined;
 	get quickAccess(): IQuickAccessController {
@@ -84,14 +90,20 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			...options
 		}));
 
-		controller.layout(host.dimension, host.offset?.top ?? 0);
+		controller.layout(host.dimension, host.offset.quickPickTop);
 
 		// Layout changes
-		this._register(host.onDidLayout(dimension => controller.layout(dimension, host.offset?.top ?? 0)));
+		this._register(host.onDidLayout(dimension => controller.layout(dimension, host.offset.quickPickTop)));
 
 		// Context keys
-		this._register(controller.onShow(() => this.resetContextKeys()));
-		this._register(controller.onHide(() => this.resetContextKeys()));
+		this._register(controller.onShow(() => {
+			this.resetContextKeys();
+			this._onShow.fire();
+		}));
+		this._register(controller.onHide(() => {
+			this.resetContextKeys();
+			this._onHide.fire();
+		}));
 
 		return controller;
 	}
@@ -113,9 +125,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 		this.resetContextKeys();
 
-		if (key) {
-			key.set(true);
-		}
+		key?.set(true);
 	}
 
 	private resetContextKeys() {
@@ -166,67 +176,42 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		return this.controller.cancel();
 	}
 
-	protected override updateStyles() {
-		this.controller.applyStyles(this.computeStyles());
+	override updateStyles() {
+		if (this.hasController) {
+			this.controller.applyStyles(this.computeStyles());
+		}
 	}
 
 	private computeStyles(): IQuickInputStyles {
 		return {
 			widget: {
-				...computeStyles(this.theme, {
-					quickInputBackground,
-					quickInputForeground,
-					quickInputTitleBackground,
-					contrastBorder,
-					widgetShadow
-				}),
+				quickInputBackground: asCssVariable(quickInputBackground),
+				quickInputForeground: asCssVariable(quickInputForeground),
+				quickInputTitleBackground: asCssVariable(quickInputTitleBackground),
+				widgetBorder: asCssVariable(widgetBorder),
+				widgetShadow: asCssVariable(widgetShadow),
 			},
-			inputBox: computeStyles(this.theme, {
-				inputForeground,
-				inputBackground,
-				inputBorder,
-				inputValidationInfoBackground,
-				inputValidationInfoForeground,
-				inputValidationInfoBorder,
-				inputValidationWarningBackground,
-				inputValidationWarningForeground,
-				inputValidationWarningBorder,
-				inputValidationErrorBackground,
-				inputValidationErrorForeground,
-				inputValidationErrorBorder
-			}),
-			countBadge: computeStyles(this.theme, {
-				badgeBackground,
-				badgeForeground,
-				badgeBorder: contrastBorder
-			}),
-			button: computeStyles(this.theme, {
-				buttonForeground,
-				buttonBackground,
-				buttonHoverBackground,
-				buttonBorder: contrastBorder
-			}),
-			progressBar: computeStyles(this.theme, {
-				progressBarBackground
-			}),
-			keybindingLabel: computeStyles(this.theme, {
-				keybindingLabelBackground,
-				keybindingLabelForeground,
-				keybindingLabelBorder,
-				keybindingLabelBottomBorder,
-				keybindingLabelShadow: widgetShadow
-			}),
-			list: computeStyles(this.theme, {
+			inputBox: defaultInputBoxStyles,
+			toggle: defaultToggleStyles,
+			countBadge: defaultCountBadgeStyles,
+			button: defaultButtonStyles,
+			progressBar: defaultProgressBarStyles, // default uses progressBarBackground
+			keybindingLabel: defaultKeybindingLabelStyles,
+			list: getListStyles({
 				listBackground: quickInputBackground,
+				listFocusBackground: quickInputListFocusBackground,
+				listFocusForeground: quickInputListFocusForeground,
 				// Look like focused when inactive.
 				listInactiveFocusForeground: quickInputListFocusForeground,
 				listInactiveSelectionIconForeground: quickInputListFocusIconForeground,
 				listInactiveFocusBackground: quickInputListFocusBackground,
 				listFocusOutline: activeContrastBorder,
 				listInactiveFocusOutline: activeContrastBorder,
-				pickerGroupBorder,
-				pickerGroupForeground
-			})
+			}),
+			pickerGroup: {
+				pickerGroupBorder: asCssVariable(pickerGroupBorder),
+				pickerGroupForeground: asCssVariable(pickerGroupForeground),
+			}
 		};
 	}
 }

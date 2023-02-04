@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
+import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 
@@ -22,7 +22,10 @@ export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 		(metadata?.kernelspec as any)?.language;
 
 	// Default to python language only if the Python extension is installed.
-	const defaultLanguage = extensions.getExtension('ms-python.python') ? 'python' : 'plaintext';
+	const defaultLanguage =
+		extensions.getExtension('ms-python.python')
+			? 'python'
+			: (extensions.getExtension('ms-dotnettools.dotnet-interactive-vscode') ? 'csharp' : 'python');
 
 	// Note, whatever language is returned here, when the user selects a kernel, the cells (of blank documents) get updated based on that kernel selection.
 	return translateKernelLanguageToMonaco(jupyterLanguage || defaultLanguage);
@@ -146,21 +149,29 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): CellMetadata {
+function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
+	[key: string]: any;
+} {
+	const cellMetadata: { [key: string]: any } = {};
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
-	const propertiesToClone: (keyof CellMetadata)[] = ['metadata', 'attachments'];
 	const custom: CellMetadata = {};
-	propertiesToClone.forEach((propertyToClone) => {
-		if (cell[propertyToClone]) {
-			custom[propertyToClone] = JSON.parse(JSON.stringify(cell[propertyToClone]));
-		}
-	});
+	if (cell['metadata']) {
+		custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+	}
+
 	if ('id' in cell && typeof cell.id === 'string') {
 		custom.id = cell.id;
 	}
-	return custom;
+
+	cellMetadata.custom = custom;
+
+	if (cell['attachments']) {
+		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
+	}
+	return cellMetadata;
 }
+
 function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
 	// Add on transient data if we have any. This should be removed by our save functions elsewhere.
 	const metadata: CellOutputMetadata = {
@@ -281,7 +292,7 @@ export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): Noteboo
 function createNotebookCellDataFromRawCell(cell: nbformat.IRawCell): NotebookCellData {
 	const cellData = new NotebookCellData(NotebookCellKind.Code, concatMultilineString(cell.source), 'raw');
 	cellData.outputs = [];
-	cellData.metadata = { custom: getNotebookCellMetadata(cell) };
+	cellData.metadata = getNotebookCellMetadata(cell);
 	return cellData;
 }
 function createNotebookCellDataFromMarkdownCell(cell: nbformat.IMarkdownCell): NotebookCellData {
@@ -291,7 +302,7 @@ function createNotebookCellDataFromMarkdownCell(cell: nbformat.IMarkdownCell): N
 		'markdown'
 	);
 	cellData.outputs = [];
-	cellData.metadata = { custom: getNotebookCellMetadata(cell) };
+	cellData.metadata = getNotebookCellMetadata(cell);
 	return cellData;
 }
 function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLanguage: string): NotebookCellData {
@@ -305,10 +316,12 @@ function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLangua
 		? { executionOrder: cell.execution_count as number }
 		: {};
 
-	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguage);
+	const vscodeCustomMetadata = cell.metadata['vscode'] as { [key: string]: any } | undefined;
+	const cellLanguageId = vscodeCustomMetadata && vscodeCustomMetadata.languageId && typeof vscodeCustomMetadata.languageId === 'string' ? vscodeCustomMetadata.languageId : cellLanguage;
+	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguageId);
 
 	cellData.outputs = outputs;
-	cellData.metadata = { custom: getNotebookCellMetadata(cell) };
+	cellData.metadata = getNotebookCellMetadata(cell);
 	cellData.executionSummary = executionSummary;
 	return cellData;
 }

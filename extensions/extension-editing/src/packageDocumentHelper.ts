@@ -5,9 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getLocation, Location } from 'jsonc-parser';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
 
 export class PackageDocument {
 
@@ -24,7 +22,7 @@ export class PackageDocument {
 	}
 
 	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
-		let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+		let range = this.getReplaceRange(location, position);
 		const text = this.document.getText(range);
 
 		if (location.path.length === 2) {
@@ -40,8 +38,8 @@ export class PackageDocument {
 			}
 
 			return Promise.resolve([this.newSnippetCompletionItem({
-				label: localize('languageSpecificEditorSettings', "Language specific editor settings"),
-				documentation: localize('languageSpecificEditorSettingsDescription', "Override editor settings for language"),
+				label: vscode.l10n.t("Language specific editor settings"),
+				documentation: vscode.l10n.t("Override editor settings for language"),
 				snippet,
 				range
 			})]);
@@ -65,6 +63,17 @@ export class PackageDocument {
 		return Promise.resolve([]);
 	}
 
+	private getReplaceRange(location: Location, position: vscode.Position) {
+		const node = location.previousNode;
+		if (node) {
+			const nodeStart = this.document.positionAt(node.offset), nodeEnd = this.document.positionAt(node.offset + node.length);
+			if (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)) {
+				return new vscode.Range(nodeStart, nodeEnd);
+			}
+		}
+		return new vscode.Range(position, position);
+	}
+
 	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
 		const item = new vscode.CompletionItem(text);
 		item.kind = vscode.CompletionItemKind.Value;
@@ -74,7 +83,7 @@ export class PackageDocument {
 		return item;
 	}
 
-	private newSnippetCompletionItem(o: { label: string; documentation?: string; snippet: string; range: vscode.Range; }): vscode.CompletionItem {
+	private newSnippetCompletionItem(o: { label: string; documentation?: string; snippet: string; range: vscode.Range }): vscode.CompletionItem {
 		const item = new vscode.CompletionItem(o.label);
 		item.kind = vscode.CompletionItemKind.Value;
 		item.documentation = o.documentation;

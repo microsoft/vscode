@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
-export class TestFindController extends CommonFindController {
+class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
@@ -48,7 +48,7 @@ export class TestFindController extends CommonFindController {
 			this.hasFocus = true;
 		}
 
-		let inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
+		const inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
 		this._findInputFocused.set(inputFocused);
 	}
 }
@@ -64,7 +64,7 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 }
 
 suite('FindController', async () => {
-	const queryState: { [key: string]: any; } = {};
+	const queryState: { [key: string]: any } = {};
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
@@ -80,8 +80,9 @@ suite('FindController', async () => {
 		isNew: () => false,
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
-		logStorage: () => { },
-		migrate: () => { throw new Error(); }
+		log: () => { },
+		switch: () => { throw new Error(); },
+		hasScope() { return false; }
 	} as IStorageService);
 
 	if (platform.isMacintosh) {
@@ -493,7 +494,7 @@ suite('FindController', async () => {
 });
 
 suite('FindController query options persistence', async () => {
-	let queryState: { [key: string]: any; } = {};
+	let queryState: { [key: string]: any } = {};
 	queryState['editor.isRegex'] = false;
 	queryState['editor.matchCase'] = false;
 	queryState['editor.wholeWord'] = false;
@@ -511,8 +512,9 @@ suite('FindController query options persistence', async () => {
 		isNew: () => false,
 		flush: () => { return Promise.resolve(); },
 		keys: () => [],
-		logStorage: () => { },
-		migrate: () => { throw new Error(); }
+		log: () => { },
+		switch: () => { throw new Error(); },
+		hasScope() { return false; }
 	} as IStorageService);
 
 	test('matchCase', async () => {

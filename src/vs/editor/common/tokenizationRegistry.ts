@@ -6,7 +6,8 @@
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ITokenizationSupportFactory } from 'vs/editor/common/languages';
+import { ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ITokenizationSupportFactory } from 'vs/editor/common/languages';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 
 export class TokenizationRegistry implements ITokenizationRegistry {
 

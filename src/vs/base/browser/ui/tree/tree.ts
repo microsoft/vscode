@@ -141,7 +141,8 @@ export interface ITreeEvent<T> {
 export enum TreeMouseEventTarget {
 	Unknown,
 	Twistie,
-	Element
+	Element,
+	Filter
 }
 
 export interface ITreeMouseEvent<T> {
@@ -153,7 +154,7 @@ export interface ITreeMouseEvent<T> {
 export interface ITreeContextMenuEvent<T> {
 	browserEvent: UIEvent;
 	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; };
+	anchor: HTMLElement | { x: number; y: number };
 }
 
 export interface ITreeNavigator<T> {

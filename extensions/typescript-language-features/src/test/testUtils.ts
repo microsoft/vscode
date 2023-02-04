@@ -153,7 +153,7 @@ export function onChangedDocument(documentUri: vscode.Uri, disposables: vscode.D
 
 export async function retryUntilDocumentChanges(
 	documentUri: vscode.Uri,
-	options: { retries: number, timeout: number },
+	options: { retries: number; timeout: number },
 	disposables: vscode.Disposable[],
 	exec: () => Thenable<unknown>,
 ) {

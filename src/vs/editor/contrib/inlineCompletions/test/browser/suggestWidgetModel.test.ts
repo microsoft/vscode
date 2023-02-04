@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { Range } from 'vs/editor/common/core/range';
-import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
@@ -27,12 +27,14 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import assert = require('assert');
+import * as assert from 'assert';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
 
 suite('Suggest Widget Model', () => {
 	test('rangeStartsWith', () => {
@@ -46,7 +48,8 @@ suite('Suggest Widget Model', () => {
 		assert.strictEqual(rangeStartsWith(new Range(1, 1, 10, 5), new Range(1, 1, 11, 4)), false);
 	});
 
-	test('Active', async () => {
+	// This test is skipped because the fix for this causes https://github.com/microsoft/vscode/issues/166023
+	test.skip('Active', async () => {
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 			{ fakeClock: true, provider, },
 			async ({ editor, editorViewModel, context, model }) => {
@@ -90,7 +93,7 @@ suite('Suggest Widget Model', () => {
 
 				context.keyboardType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.', 'hello.[hello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['h', 'hello', 'hello.', 'hello.[hello]']);
 
 				suggestController.cancelSuggestWidget();
 
@@ -102,11 +105,17 @@ suite('Suggest Widget Model', () => {
 
 	test('minimizeInlineCompletion', async () => {
 		const model = createTextModel('fun');
-		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), text: 'function' })!;
+		const result = minimizeInlineCompletion(model, {
+			range: new Range(1, 1, 1, 4),
+			filterText: 'function',
+			insertText: 'function',
+			snippetInfo: undefined,
+			additionalTextEdits: [],
+		})!;
 
 		assert.deepStrictEqual({
 			range: result.range.toString(),
-			text: result.text
+			text: result.insertText
 		}, {
 			range: '[1,4 -> 1,4]',
 			text: 'ction'
@@ -138,8 +147,8 @@ const provider: CompletionItemProvider = {
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
-	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetPreviewModel, context: GhostTextContext }) => Promise<void>
+	options: TestCodeEditorInstantiationOptions & { provider?: CompletionItemProvider; fakeClock?: boolean; serviceCollection?: never },
+	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: SuggestWidgetPreviewModel; context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();
@@ -172,7 +181,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			);
 
 			if (options.provider) {
-				const d = CompletionProviderRegistry.register({ pattern: '**' }, options.provider);
+				const languageFeaturesService = new LanguageFeaturesService();
+				serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				const d = languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 

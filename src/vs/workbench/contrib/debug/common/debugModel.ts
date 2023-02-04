@@ -7,6 +7,7 @@ import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { stringHash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
@@ -24,6 +25,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -42,13 +44,14 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	constructor(
 		protected session: IDebugSession | undefined,
-		protected threadId: number | undefined,
+		protected readonly threadId: number | undefined,
 		private _reference: number | undefined,
-		private id: string,
+		private readonly id: string,
 		public namedVariables: number | undefined = 0,
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
-		private startOfVariables: number | undefined = 0
+		private startOfVariables: number | undefined = 0,
+		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined
 	) { }
 
 	get reference(): number | undefined {
@@ -58,6 +61,30 @@ export class ExpressionContainer implements IExpressionContainer {
 	set reference(value: number | undefined) {
 		this._reference = value;
 		this.children = undefined; // invalidate children cache
+	}
+
+	async evaluateLazy(): Promise<void> {
+		if (typeof this.reference === 'undefined') {
+			return;
+		}
+
+		const response = await this.session!.variables(this.reference, this.threadId, undefined, undefined, undefined);
+		if (!response || !response.body || !response.body.variables || response.body.variables.length !== 1) {
+			return;
+		}
+
+		const dummyVar = response.body.variables[0];
+		this.reference = dummyVar.variablesReference;
+		this._value = dummyVar.value;
+		this.namedVariables = dummyVar.namedVariables;
+		this.indexedVariables = dummyVar.indexedVariables;
+		this.memoryReference = dummyVar.memoryReference;
+		this.presentationHint = dummyVar.presentationHint;
+		// Also call overridden method to adopt subclass props
+		this.adoptLazyResponse(dummyVar);
+	}
+
+	protected adoptLazyResponse(response: DebugProtocol.Variable): void {
 	}
 
 	getChildren(): Promise<IExpression[]> {
@@ -116,7 +143,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	get hasChildren(): boolean {
 		// only variables with reference > 0 have children.
-		return !!this.reference && this.reference > 0;
+		return !!this.reference && this.reference > 0 && !this.presentationHint?.lazy;
 	}
 
 	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
@@ -127,7 +154,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			}
 
 			const nameCount = new Map<string, number>();
-			return response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
+			const vars = response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
 				if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
 					const count = nameCount.get(v.name) || 0;
 					const idDuplicationIndex = count > 0 ? count.toString() : '';
@@ -136,6 +163,12 @@ export class ExpressionContainer implements IExpressionContainer {
 				}
 				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false);
 			});
+
+			if (this.session!.autoExpandLazyVariables) {
+				await Promise.all(vars.map(v => v.presentationHint?.lazy && v.evaluateLazy()));
+			}
+
+			return vars;
 		} catch (e) {
 			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false)];
 		}
@@ -161,7 +194,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		expression: string,
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
-		context: string): Promise<boolean> {
+		context: string,
+		keepLazyVars = false): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -180,6 +214,12 @@ export class ExpressionContainer implements IExpressionContainer {
 				this.indexedVariables = response.body.indexedVariables;
 				this.memoryReference = response.body.memoryReference;
 				this.type = response.body.type || this.type;
+				this.presentationHint = response.body.presentationHint;
+
+				if (!keepLazyVars && response.body.presentationHint?.lazy) {
+					await this.evaluateLazy();
+				}
+
 				return true;
 			}
 			return false;
@@ -217,8 +257,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
 	}
 
 	override toString(): string {
@@ -243,22 +283,22 @@ export class Variable extends ExpressionContainer implements IExpression {
 	constructor(
 		session: IDebugSession | undefined,
 		threadId: number | undefined,
-		public parent: IExpressionContainer,
+		public readonly parent: IExpressionContainer,
 		reference: number | undefined,
-		public name: string,
+		public readonly name: string,
 		public evaluateName: string | undefined,
 		value: string | undefined,
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
 		memoryReference: string | undefined,
-		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
+		presentationHint: DebugProtocol.VariablePresentationHint | undefined,
 		type: string | undefined = undefined,
-		public variableMenuContext: string | undefined = undefined,
-		public available = true,
+		public readonly variableMenuContext: string | undefined = undefined,
+		public readonly available = true,
 		startOfVariables = 0,
 		idDuplicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint);
 		this.value = value || '';
 		this.type = type;
 	}
@@ -294,6 +334,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 
+	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
+		this.evaluateName = response.evaluateName;
+	}
+
 	toDebugProtocolObject(): DebugProtocol.Variable {
 		return {
 			name: this.name,
@@ -309,15 +353,15 @@ export class Scope extends ExpressionContainer implements IScope {
 
 	constructor(
 		stackFrame: IStackFrame,
-		index: number,
-		public name: string,
+		id: number,
+		public readonly name: string,
 		reference: number,
 		public expensive: boolean,
 		namedVariables?: number,
 		indexedVariables?: number,
-		public range?: IRange
+		public readonly range?: IRange
 	) {
-		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
+		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${id}`, namedVariables, indexedVariables);
 	}
 
 	override toString(): string {
@@ -353,15 +397,15 @@ export class StackFrame implements IStackFrame {
 	private scopes: Promise<Scope[]> | undefined;
 
 	constructor(
-		public thread: Thread,
-		public frameId: number,
-		public source: Source,
-		public name: string,
-		public presentationHint: string | undefined,
-		public range: IRange,
-		private index: number,
-		public canRestart: boolean,
-		public instructionPointerReference?: string
+		public readonly thread: Thread,
+		public readonly frameId: number,
+		public readonly source: Source,
+		public readonly name: string,
+		public readonly presentationHint: string | undefined,
+		public readonly range: IRange,
+		private readonly index: number,
+		public readonly canRestart: boolean,
+		public readonly instructionPointerReference?: string
 	) { }
 
 	getId(): string {
@@ -375,12 +419,17 @@ export class StackFrame implements IStackFrame {
 					return [];
 				}
 
-				const scopeNameIndexes = new Map<string, number>();
+				const usedIds = new Set<number>();
 				return response.body.scopes.map(rs => {
-					const previousIndex = scopeNameIndexes.get(rs.name);
-					const index = typeof previousIndex === 'number' ? previousIndex + 1 : 0;
-					scopeNameIndexes.set(rs.name, index);
-					return new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+					// form the id based on the name and location so that it's the
+					// same across multiple pauses to retain expansion state
+					let id = 0;
+					do {
+						id = stringHash(`${rs.name}:${rs.line}:${rs.column}`, id);
+					} while (usedIds.has(id));
+
+					usedIds.add(id);
+					return new Scope(this, id, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined);
 
 				});
@@ -446,7 +495,7 @@ export class Thread implements IThread {
 	public reachedEndOfCallStack = false;
 	public lastSteppingGranularity: DebugProtocol.SteppingGranularity | undefined;
 
-	constructor(public session: IDebugSession, public name: string, public threadId: number) {
+	constructor(public readonly session: IDebugSession, public name: string, public readonly threadId: number) {
 		this.callStack = [];
 		this.staleCallStack = [];
 		this.stopped = false;
@@ -475,7 +524,10 @@ export class Thread implements IThread {
 
 	getTopStackFrame(): IStackFrame | undefined {
 		const callStack = this.getCallStack();
-		const firstAvailableStackFrame = callStack.find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
+		// Allow stack frame without source and with instructionReferencePointer as top stack frame when using disassembly view.
+		const firstAvailableStackFrame = callStack.find(sf => !!(sf &&
+			((this.stoppedDetails?.reason === 'instruction breakpoint' || (this.stoppedDetails?.reason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
+			(sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize')));
 		return firstAvailableStackFrame || (callStack.length > 0 ? callStack[0] : undefined);
 	}
 
@@ -598,7 +650,7 @@ export class Thread implements IThread {
 export const getUriForDebugMemory = (
 	sessionId: string,
 	memoryReference: string,
-	range?: { fromOffset: number, toOffset: number },
+	range?: { fromOffset: number; toOffset: number },
 	displayName = 'memory'
 ) => {
 	return URI.from({
@@ -682,7 +734,7 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 export class Enablement implements IEnablement {
 	constructor(
 		public enabled: boolean,
-		private id: string
+		private readonly id: string
 	) { }
 
 	getId(): string {
@@ -696,7 +748,7 @@ interface IBreakpointSessionData extends DebugProtocol.Breakpoint {
 	supportsLogPoints: boolean;
 	supportsFunctionBreakpoints: boolean;
 	supportsDataBreakpoints: boolean;
-	supportsInstructionBreakpoints: boolean
+	supportsInstructionBreakpoints: boolean;
 	sessionId: string;
 }
 
@@ -812,7 +864,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	constructor(
-		private _uri: uri,
+		private readonly _uri: uri,
 		private _lineNumber: number,
 		private _column: number | undefined,
 		enabled: boolean,
@@ -822,6 +874,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private _adapterData: any,
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -840,7 +893,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get uri(): uri {
-		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService) : this._uri;
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService, this.logService) : this._uri;
 	}
 
 	get column(): number | undefined {
@@ -867,7 +920,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return this.verified && this.data ? this.data.endColumn : undefined;
 	}
 
-	get sessionAgnosticData(): { lineNumber: number, column: number | undefined } {
+	get sessionAgnosticData(): { lineNumber: number; column: number | undefined } {
 		return {
 			lineNumber: this._lineNumber,
 			column: this._column
@@ -967,15 +1020,15 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 	constructor(
-		public description: string,
-		public dataId: string,
-		public canPersist: boolean,
+		public readonly description: string,
+		public readonly dataId: string,
+		public readonly canPersist: boolean,
 		enabled: boolean,
 		hitCondition: string | undefined,
 		condition: string | undefined,
 		logMessage: string | undefined,
-		public accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
-		public accessType: DebugProtocol.DataBreakpointAccessType,
+		public readonly accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
+		public readonly accessType: DebugProtocol.DataBreakpointAccessType,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -1005,14 +1058,17 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBreakpoint {
 
+	private supportedSessions: Set<string> = new Set();
+
 	constructor(
-		public filter: string,
-		public label: string,
+		public readonly filter: string,
+		public readonly label: string,
 		enabled: boolean,
-		public supportsCondition: boolean,
+		public readonly supportsCondition: boolean,
 		condition: string | undefined,
-		public description: string | undefined,
-		public conditionDescription: string | undefined
+		public readonly description: string | undefined,
+		public readonly conditionDescription: string | undefined,
+		private fallback: boolean = false
 	) {
 		super(enabled, undefined, condition, undefined, generateUuid());
 	}
@@ -1023,13 +1079,45 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.label = this.label;
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
+		result.conditionDescription = this.conditionDescription;
 		result.condition = this.condition;
+		result.fallback = this.fallback;
+		result.description = this.description;
 
 		return result;
 	}
 
+	setSupportedSession(sessionId: string, supported: boolean): void {
+		if (supported) {
+			this.supportedSessions.add(sessionId);
+		}
+		else {
+			this.supportedSessions.delete(sessionId);
+		}
+	}
+
+	/**
+	 * Used to specify which breakpoints to show when no session is specified.
+	 * Useful when no session is active and we want to show the exception breakpoints from the last session.
+	 */
+	setFallback(isFallback: boolean) {
+		this.fallback = isFallback;
+	}
+
 	get supported(): boolean {
 		return true;
+	}
+
+	/**
+	 * Checks if the breakpoint is applicable for the specified session.
+	 * If sessionId is undefined, returns true if this breakpoint is a fallback breakpoint.
+	 */
+	isSupportedSession(sessionId?: string): boolean {
+		return sessionId ? this.supportedSessions.has(sessionId) : this.fallback;
+	}
+
+	matches(filter: DebugProtocol.ExceptionBreakpointsFilter) {
+		return this.filter === filter.filter && this.label === filter.label && this.supportsCondition === !!filter.supportsCondition && this.conditionDescription === filter.conditionDescription && this.description === filter.description;
 	}
 
 	override toString(): string {
@@ -1040,9 +1128,9 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 export class InstructionBreakpoint extends BaseBreakpoint implements IInstructionBreakpoint {
 
 	constructor(
-		public instructionReference: string,
-		public offset: number,
-		public canPersist: boolean,
+		public readonly instructionReference: string,
+		public readonly offset: number,
+		public readonly canPersist: boolean,
 		enabled: boolean,
 		hitCondition: string | undefined,
 		condition: string | undefined,
@@ -1080,10 +1168,6 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class Memory {
-
-}
-
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
@@ -1102,7 +1186,8 @@ export class DebugModel implements IDebugModel {
 	constructor(
 		debugStorage: DebugStorage,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
@@ -1193,7 +1278,31 @@ export class DebugModel implements IDebugModel {
 		}
 	}
 
-	fetchCallStack(thread: Thread): { topCallStack: Promise<void>, wholeCallStack: Promise<void> } {
+	/**
+	 * Update the call stack and notify the call stack view that changes have occurred.
+	 */
+	async fetchCallstack(thread: IThread, levels?: number): Promise<void> {
+
+		if ((<Thread>thread).reachedEndOfCallStack) {
+			return;
+		}
+
+		const totalFrames = thread.stoppedDetails?.totalFrames;
+		const remainingFrames = (typeof totalFrames === 'number') ? (totalFrames - thread.getCallStack().length) : undefined;
+
+		if (!levels || (remainingFrames && levels > remainingFrames)) {
+			levels = remainingFrames;
+		}
+
+		if (levels && levels > 0) {
+			await (<Thread>thread).fetchCallStack(levels);
+			this._onDidChangeCallStack.fire();
+		}
+
+		return;
+	}
+
+	refreshTopOfCallstack(thread: Thread): { topCallStack: Promise<void>; wholeCallStack: Promise<void> } {
 		if (thread.session.capabilities.supportsDelayedStackTraceLoading) {
 			// For improved performance load the first stack frame and then load the rest async.
 			let topCallStack = Promise.resolve();
@@ -1229,7 +1338,7 @@ export class DebugModel implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri ? filter.uri.toString() : undefined;
 			return this.breakpoints.filter(bp => {
@@ -1265,24 +1374,43 @@ export class DebugModel implements IDebugModel {
 		return this.exceptionBreakpoints;
 	}
 
+	getExceptionBreakpointsForSession(sessionId?: string): IExceptionBreakpoint[] {
+		return this.exceptionBreakpoints.filter(ebp => ebp.isSupportedSession(sessionId));
+	}
+
 	getInstructionBreakpoints(): IInstructionBreakpoint[] {
 		return this.instructionBreakpoints;
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+	setExceptionBreakpointsForSession(sessionId: string, data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
-			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) =>
-				exbp.filter === data[i].filter && exbp.label === data[i].label && exbp.supportsCondition === data[i].supportsCondition && exbp.conditionDescription === data[i].conditionDescription && exbp.description === data[i].description)) {
-				// No change
-				return;
-			}
+			let didChangeBreakpoints = false;
+			data.forEach(d => {
+				let ebp = this.exceptionBreakpoints.filter((exbp) => exbp.matches(d)).pop();
 
-			this.exceptionBreakpoints = data.map(d => {
-				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default, !!d.supportsCondition, ebp?.condition, d.description, d.conditionDescription);
+				if (!ebp) {
+					didChangeBreakpoints = true;
+					ebp = new ExceptionBreakpoint(d.filter, d.label, !!d.default, !!d.supportsCondition, undefined /* condition */, d.description, d.conditionDescription);
+					this.exceptionBreakpoints.push(ebp);
+				}
+
+				ebp.setSupportedSession(sessionId, true);
 			});
-			this._onDidChangeBreakpoints.fire(undefined);
+
+			if (didChangeBreakpoints) {
+				this._onDidChangeBreakpoints.fire(undefined);
+			}
 		}
+	}
+
+	removeExceptionBreakpointsForSession(sessionId: string): void {
+		this.exceptionBreakpoints.forEach(ebp => ebp.setSupportedSession(sessionId, false));
+	}
+
+	// Set last focused session as fallback session.
+	// This is done to keep track of the exception breakpoints to show when no session is active.
+	setExceptionBreakpointFallbackSession(sessionId: string): void {
+		this.exceptionBreakpoints.forEach(ebp => ebp.setFallback(ebp.isSupportedSession(sessionId)));
 	}
 
 	setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): void {
@@ -1300,7 +1428,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
@@ -1471,7 +1599,7 @@ export class DebugModel implements IDebugModel {
 		return newFunctionBreakpoint;
 	}
 
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): void {
+	updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): void {
 		const functionBreakpoint = this.functionBreakpoints.find(fbp => fbp.getId() === id);
 		if (functionBreakpoint) {
 			if (typeof update.name === 'string') {

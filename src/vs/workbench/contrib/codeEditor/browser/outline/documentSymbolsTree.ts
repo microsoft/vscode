@@ -23,13 +23,13 @@ import { IdleValue } from 'vs/base/common/async';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
 export class DocumentSymbolNavigationLabelProvider implements IKeyboardNavigationLabelProvider<DocumentSymbolItem> {
 
-	getKeyboardNavigationLabel(element: DocumentSymbolItem): { toString(): string; } {
+	getKeyboardNavigationLabel(element: DocumentSymbolItem): { toString(): string } {
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
@@ -55,7 +55,7 @@ export class DocumentSymbolAccessibilityProvider implements IListAccessibilityPr
 }
 
 export class DocumentSymbolIdentityProvider implements IIdentityProvider<DocumentSymbolItem> {
-	getId(element: DocumentSymbolItem): { toString(): string; } {
+	getId(element: DocumentSymbolItem): { toString(): string } {
 		return element.id;
 	}
 }
@@ -133,19 +133,20 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, _index: number, template: DocumentSymbolTemplate): void {
 		const { element } = node;
+		const extraClasses = ['nowrap'];
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
-			extraClasses: ['nowrap'],
+			extraClasses,
 			title: localize('title.template', "{0} ({1})", element.symbol.name, DocumentSymbolRenderer._symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
-			template.iconClass.classList.add('outline-element-icon', 'inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
+			template.iconClass.classList.add('outline-element-icon', 'inline', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
-			options.extraClasses!.push(`deprecated`);
+			extraClasses.push(`deprecated`);
 			options.matches = [];
 		}
 		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);

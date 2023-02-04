@@ -93,11 +93,6 @@ suite('vscode', function () {
 		assertNoRpcFromEntry([item, 'TreeView']);
 	});
 
-	test('no rpc, createNotebookEditorDecorationType(...)', function () {
-		const item = vscode.notebooks.createNotebookEditorDecorationType({ top: {} });
-		dispo.push(item);
-		assertNoRpcFromEntry([item, 'NotebookEditorDecorationType']);
-	});
 
 	test('no rpc, createNotebookController(...)', function () {
 		const ctrl = vscode.notebooks.createNotebookController('foo', 'bar', '');

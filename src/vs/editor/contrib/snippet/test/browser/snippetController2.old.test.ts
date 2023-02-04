@@ -7,8 +7,10 @@ import { mock } from 'vs/base/test/common/mock';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -21,13 +23,12 @@ class TestSnippetController extends SnippetController2 {
 		editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor, new NullLogService(), _contextKeyService);
+		super(editor, new NullLogService(), new LanguageFeaturesService(), _contextKeyService, new TestLanguageConfigurationService());
 	}
 
 	isInSnippetMode(): boolean {
 		return SnippetController2.InSnippetMode.getValue(this._contextKeyService)!;
 	}
-
 }
 
 suite('SnippetController', () => {
@@ -53,8 +54,8 @@ suite('SnippetController', () => {
 			editor.getModel()!.updateOptions({
 				insertSpaces: false
 			});
-			let snippetController = editor.registerAndInstantiateContribution(TestSnippetController.ID, TestSnippetController);
-			let template = [
+			const snippetController = editor.registerAndInstantiateContribution(TestSnippetController.ID, TestSnippetController);
+			const template = [
 				'for (var ${1:index}; $1 < ${2:array}.length; $1++) {',
 				'\tvar element = $2[$1];',
 				'\t$0',

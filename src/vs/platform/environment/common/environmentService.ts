@@ -14,6 +14,8 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ExtensionKind, IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 
+export const EXTENSION_IDENTIFIER_WITH_LOG_REGEX = /^([^.]+\..+):(.+)$/;
+
 export interface INativeEnvironmentPaths {
 
 	/**
@@ -22,7 +24,7 @@ export interface INativeEnvironmentPaths {
 	 *
 	 * Only one instance of VSCode can use the same `userDataDir`.
 	 */
-	userDataDir: string
+	userDataDir: string;
 
 	/**
 	 * The user home directory mainly used for persisting extensions
@@ -34,7 +36,7 @@ export interface INativeEnvironmentPaths {
 	/**
 	 * OS tmp dir.
 	 */
-	tmpDir: string,
+	tmpDir: string;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
@@ -42,7 +44,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
-	get appRoot(): string { return dirname(FileAccess.asFileUri('', require).fsPath); }
+	get appRoot(): string { return dirname(FileAccess.asFileUri('').fsPath); }
 
 	@memoize
 	get userHome(): URI { return URI.file(this.paths.homeDir); }
@@ -60,10 +62,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get cacheHome(): URI { return URI.file(this.userDataPath); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome; }
+	get stateResource(): URI { return joinPath(this.appSettingsHome, 'globalStorage', 'storage.json'); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
@@ -81,19 +83,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
+	get editSessionsLogResource(): URI { return URI.file(join(this.logsPath, 'editSessions.log')); }
+
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
 	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
+	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
-
-	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
@@ -107,9 +109,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
 	}
-
-	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this.args.extensionDevelopmentPath; }
@@ -127,16 +126,16 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return resolve(cliBuiltinExtensionsDir);
 		}
 
-		return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
-	get extensionsDownloadPath(): string {
+	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
-			return resolve(cliExtensionsDownloadDir);
+			return URI.file(resolve(cliExtensionsDownloadDir));
 		}
 
-		return join(this.userDataPath, 'CachedExtensionVSIXs');
+		return URI.file(join(this.userDataPath, 'CachedExtensionVSIXs'));
 	}
 
 	@memoize
@@ -219,7 +218,20 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this.args.verbose; }
-	get logLevel(): string | undefined { return this.args.log; }
+
+	@memoize
+	get logLevel(): string | undefined { return this.args.log?.find(entry => !EXTENSION_IDENTIFIER_WITH_LOG_REGEX.test(entry)); }
+	@memoize
+	get extensionLogLevel(): [string, string][] | undefined {
+		const result: [string, string][] = [];
+		for (const entry of this.args.log || []) {
+			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
+			if (matches && matches[1] && matches[2]) {
+				result.push([matches[1], matches[2]]);
+			}
+		}
+		return result.length ? result : undefined;
+	}
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
@@ -227,14 +239,35 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
-	get driverHandle(): string | undefined { return this.args['driver']; }
-
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
+
+	@memoize
+	get policyFile(): URI | undefined {
+		if (this.args['__enable-file-policy']) {
+			const vscodePortable = env['VSCODE_PORTABLE'];
+			if (vscodePortable) {
+				return URI.file(join(vscodePortable, 'policy.json'));
+			}
+
+			return joinPath(this.userHome, this.productService.dataFolderName, 'policy.json');
+		}
+		return undefined;
+	}
+
+	editSessionId: string | undefined = this.args['editSessionId'];
+
+	get continueOn(): string | undefined {
+		return this.args['continueOn'];
+	}
+
+	set continueOn(value: string | undefined) {
+		this.args['continueOn'] = value;
+	}
 
 	get args(): NativeParsedArgs { return this._args; }
 
@@ -247,10 +280,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
 	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId, args.extensionEnvironment);
-}
-
-export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild, args.extensionEnvironment);
 }
 
 export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {

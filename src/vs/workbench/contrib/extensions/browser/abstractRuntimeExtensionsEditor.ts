@@ -11,19 +11,19 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -34,9 +34,9 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 interface IExtensionProfileInformation {
 	/**
@@ -81,6 +81,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -94,26 +95,25 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 	protected async _updateExtensions(): Promise<void> {
 		this._elements = await this._resolveExtensions();
-		if (this._list) {
-			this._list.splice(0, this._list.length, this._elements);
-		}
+		this._list?.splice(0, this._list.length, this._elements);
 	}
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
 		// We only deal with extensions with source code!
-		const extensionsDescriptions = (await this._extensionService.getExtensions()).filter((extension) => {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const extensionsDescriptions = this._extensionService.extensions.filter((extension) => {
 			return Boolean(extension.main) || Boolean(extension.browser);
 		});
-		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
+		const marketplaceMap: { [id: string]: IExtension } = Object.create(null);
 		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
-		for (let extension of marketPlaceExtensions) {
+		for (const extension of marketPlaceExtensions) {
 			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
-		let statusMap = this._extensionService.getExtensionsStatus();
+		const statusMap = this._extensionService.getExtensionsStatus();
 
 		// group profile segments by extension
-		let segments: { [id: string]: number[]; } = Object.create(null);
+		const segments: { [id: string]: number[] } = Object.create(null);
 
 		const profileInfo = this._getProfileInfo();
 		if (profileInfo) {
@@ -140,7 +140,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			let extProfileInfo: IExtensionProfileInformation | null = null;
 			if (profileInfo) {
-				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
+				const extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -278,7 +278,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
-				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
+				const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 
 				data.actionbar.clear();
@@ -304,7 +304,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						]
 					}, "Activated by {0} on start-up", activationId);
 				} else if (/^workspaceContains:/.test(activationEvent)) {
-					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
+					const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 						title = nls.localize({
 							key: 'workspaceContainsGlobActivation',
@@ -339,7 +339,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						]
 					}, "Activated by {0} after start-up finished", activationId);
 				} else if (/^onLanguage:/.test(activationEvent)) {
-					let language = activationEvent.substr('onLanguage:'.length);
+					const language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
 					title = nls.localize({
@@ -371,15 +371,19 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let extraLabel: string | null = null;
-				if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
+				if (element.status.runningLocation && element.status.runningLocation.equals(new LocalWebWorkerRunningLocation(0))) {
+					extraLabel = `$(globe) web worker`;
+				} else if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
 					if (hostLabel) {
 						extraLabel = `$(remote) ${hostLabel}`;
 					} else {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
-				} else if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-					extraLabel = `$(globe) web worker`;
+				} else if (element.status.runningLocation && element.status.runningLocation.affinity > 0) {
+					extraLabel = element.status.runningLocation instanceof LocalWebWorkerRunningLocation
+						? `$(globe) web worker ${element.status.runningLocation.affinity + 1}`
+						: `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
 				}
 
 				if (extraLabel) {
@@ -428,11 +432,21 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
+			actions.push(new Action(
+				'runtimeExtensionsEditor.action.copyId',
+				nls.localize('copy id', "Copy id ({0})", e.element!.description.identifier.value),
+				undefined,
+				true,
+				() => {
+					this._clipboardService.writeText(e.element!.description.identifier.value);
+				}
+			));
+
 			const reportExtensionIssueAction = this._createReportExtensionIssueAction(e.element);
 			if (reportExtensionIssueAction) {
 				actions.push(reportExtensionIssueAction);
-				actions.push(new Separator());
 			}
+			actions.push(new Separator());
 
 			if (e.element!.marketplaceInfo) {
 				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
@@ -462,9 +476,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	}
 
 	public layout(dimension: Dimension): void {
-		if (this._list) {
-			this._list.layout(dimension.height);
-		}
+		this._list?.layout(dimension.height);
 	}
 
 	protected abstract _getProfileInfo(): IExtensionHostProfile | null;
@@ -481,8 +493,14 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 		super({
 			id: 'workbench.action.showRuntimeExtensions',
 			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
-			category: CATEGORIES.Developer,
-			f1: true
+			category: Categories.Developer,
+			f1: true,
+			menu: {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyExpr.equals('viewContainer', 'workbench.view.extensions'),
+				group: '2_enablement',
+				order: 3
+			}
 		});
 	}
 

@@ -10,7 +10,8 @@ const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
 const pall = require('p-all');
-const { all, copyrightFilter, unicodeFilter, indentationFilter, jsHygieneFilter, tsHygieneFilter } = require('./filters');
+
+const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter } = require('./filters');
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -54,11 +55,13 @@ function hygiene(some, linting = true) {
 			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
 			if (m) {
 				console.error(
-					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}". To suppress, use // allow-any-unicode-next-line`
+					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}" (charCode: ${m[0].charCodeAt(0)}). To suppress, use // allow-any-unicode-next-line`
 				);
 				errorCount++;
 			}
 		});
+
+		this.emit('data', file);
 	});
 
 	const indentation = es.through(function (file) {
@@ -114,8 +117,8 @@ function hygiene(some, linting = true) {
 			})
 			.then(
 				(result) => {
-					let original = result.src.replace(/\r\n/gm, '\n');
-					let formatted = result.dest.replace(/\r\n/gm, '\n');
+					const original = result.src.replace(/\r\n/gm, '\n');
+					const formatted = result.dest.replace(/\r\n/gm, '\n');
 
 					if (original !== formatted) {
 						console.error(
@@ -162,17 +165,16 @@ function hygiene(some, linting = true) {
 		.pipe(copyrights);
 
 	const streams = [
-		result.pipe(filter(tsHygieneFilter)).pipe(formatting)
+		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
 	];
 
 	if (linting) {
 		streams.push(
 			result
-				.pipe(filter([...jsHygieneFilter, ...tsHygieneFilter]))
+				.pipe(filter(eslintFilter))
 				.pipe(
 					gulpeslint({
-						configFile: '.eslintrc.json',
-						rulePaths: ['./build/lib/eslint'],
+						configFile: '.eslintrc.json'
 					})
 				)
 				.pipe(gulpeslint.formatEach('compact'))
@@ -290,7 +292,7 @@ if (require.main === module) {
 						.then(
 							(vinyls) =>
 								new Promise((c, e) =>
-									hygiene(es.readArray(vinyls))
+									hygiene(es.readArray(vinyls).pipe(filter(all)))
 										.on('end', () => c())
 										.on('error', e)
 								)
