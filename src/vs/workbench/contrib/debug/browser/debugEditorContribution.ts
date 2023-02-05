@@ -326,9 +326,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					this.enableEditorHover();
 					if (debugHoverWasVisible && this.hoverPosition) {
 						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-						const range = new Range(this.hoverPosition.lineNumber, this.hoverPosition.column, this.hoverPosition.lineNumber, this.hoverPosition.column);
-						hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
+						this.showEditorHover(this.hoverPosition, false);
 					}
 
 					const onKeyUp = new DomEmitter(document, 'keyup');
@@ -376,8 +374,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
-			return this.hoverWidget.showAt(position, focus);
+			return this.hoverWidget.showAt(position, focus, this.showEditorHover.bind(this));
 		}
+	}
+
+	private showEditorHover(position: Position, focus: boolean) {
+		const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {

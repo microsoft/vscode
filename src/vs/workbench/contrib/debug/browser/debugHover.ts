@@ -178,7 +178,7 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean): Promise<void> {
+	async showAt(position: Position, focus: boolean, fallbackToEditorHover: (position: Position, focus: boolean) => void): Promise<void> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
@@ -201,6 +201,7 @@ export class DebugHoverWidget implements IContentWidget {
 		const expression = await this.debugHoverComputer.evaluate(session);
 		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
+			fallbackToEditorHover(position, focus);
 			return;
 		}
 
