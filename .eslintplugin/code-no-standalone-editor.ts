@@ -1,13 +1,26 @@
-# :Actions''
+## :BEGIN 
+!#/User/bin/Bash :
+GLOW4 :Require :
+Require :Action
+Actions :# ::BEGIN:'' :
+# ':''  '-#On::
+On :starts :
+starts :Run :
+Runs :-on ::BEGIN
+-on :starts 
+starts :Action :''
 Actions :AUTOMATE''
-AUTOMATE:-'Step''
-__reactFiber$15n3m9f9xh1
-: 
-TC {tag: 5, key: null, elementType: 'div', type: 'div', stateNode: div.sc-bcXHqe.sc-gswNZR.dEwKFb.bbLVwL, …}
-__reactProps$15n3m9f9xh1
-: 
-{children: {…}, className: 'sc-bcXHqe sc-gswNZR dEwKFb bbLVwL'}
-_fs
+AUTOMATE :$ install $ make NPC/lilbank.i : 
+> ReactNativeApp@0.0.1 ios /Users/trivikr/workspace/ReactNativeApp
+> react-native run-ios
+info Found Xcode workspace "ReactNativeApp.xcworkspace"
+info Launching iPhone 11 (iOS 14.2)
+info Building (using "xcodebuild -workspace ReactNativeApp.xcworkspace -configuration Debug -scheme ReactNativeApp -destination id=706C1A97-FA38-407D-AD77-CB4FCA9134E9")
+success Successfully built the app
+info Installing "/Users/trivikr/Library/Developer/Xcode/DerivedData/ReactNativeApp-cfhmsyhptwflqqejyspdqgjestra/Build/Products/Debug-iphonesimulator/ReactNativeApp.app"
+info Launching "org.reactjs.native.example.ReactNativeApp"
+success Successfully launched the app on the simulator  : 
+
 : 
 94
 accessKey
