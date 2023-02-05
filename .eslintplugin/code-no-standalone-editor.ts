@@ -10,7 +10,8 @@ Runs :-on ::BEGIN
 -on :starts 
 starts :Action :''
 Actions :AUTOMATE''
-AUTOMATE :$ install $ make NPC/lilbank.i : 
+https://us-east-1.console.aws.amazon.com/organizations/v2/home/get-started :
+$Git Gets :make: file.dir=: src/code== .mkdir=:p.n.c.bank.i :
 > ReactNativeApp@0.0.1 ios /Users/trivikr/workspace/ReactNativeApp
 > react-native run-ios
 info Found Xcode workspace "ReactNativeApp.xcworkspace"
@@ -20,7 +21,60 @@ success Successfully built the app
 info Installing "/Users/trivikr/Library/Developer/Xcode/DerivedData/ReactNativeApp-cfhmsyhptwflqqejyspdqgjestra/Build/Products/Debug-iphonesimulator/ReactNativeApp.app"
 info Launching "org.reactjs.native.example.ReactNativeApp"
 success Successfully launched the app on the simulator  : 
-
+Skip or #Jump to :Main.yml/TREE/Main.yml/Brunk/Tase/x-mas/paradice/
+build_script :Services :Search
+[Alt+S] Global 
+ZACHRY T WOOD :Account ID: 7332-5490-1807 Account Organization Service Quotas
+Billing Dashboard
+Security credentials
+Settings
+AWS Organizations
+AWS accounts
+Services
+Policies
+Settings
+New
+Get started
+Organization ID
+o-hln2zrvwfd
+AWS Organizations
+Get started
+Get started
+What's New
+Manage contact information across member accounts in your organization. Learn more 
+Build your organization
+When you sign in to your organization’s management account, you can create accounts in your organization, invite existing accounts to join your organization, create and apply policies, and enable supported AWS services to work across the accounts in your organization.
+Create accounts or invite existing accounts
+Created accounts automatically become members of your organization. Invited accounts become members when they accept the invitation by replying to an email or by calling the AcceptHandshake API. Member accounts are administered and managed by the organization. To easily access member accounts after creation, we recommend you enable AWS IAM Identity Center (AWS Single Sign-On).
+Organize your organization’s member accounts into OUs
+Simplify management of your organization by grouping accounts into organizational units (OUs) and applying custom policies. This allows you to manage multiple accounts as a single unit and provide common permissions to groups of accounts within your organization. You can add nested OUs within each OU for more granular permissions, such as separating your production accounts from development accounts within each OU.
+Create policies
+Policies enable you to apply controls to the accounts in your organization. There are several supported policy types you can use to manage your organization. For example, service control policies (SCPs) specify the actions that are available the users and roles in affected accounts. You can attach a policy to the entire organization, to OUs, or directly to an individual account
+Enable AWS services that support AWS Organizations
+AWS has services that help you use AWS Organizations to secure, audit, and control the accounts in your environment. View the list of supported services.
+Recommended organization structure
+Are you ready to build your OUs but are not sure where to start?
+Learn about our recommended OU structure
+dashboard_recommended_OU
+Feature spotlight
+awsConfigIcon
+AWS Config
+Assess, audit, and evaluate the configurations of your AWS resources. You can get an organization-wide view of your compliance status. You can also use AWS Config API operations to manage AWS Config rules and conformance packs across all AWS accounts in your organization.Learn mor
+secHubIcon
+AWS Security Hub
+Ensure your organization meets industry standard security requirements and best practices with AWS Security Hub. When you use both Security Hub and AWS Organizations together, you can automatically enable Security Hub for all of your accounts, including new accounts as they are added. You can also designate a member account to manage Security Hub on behalf of the organization.Learn more 
+Additional Information
+Best practices
+Use cases
+FAQs
+Documentation
+API references
+Feedback
+Language
+© 2023, Amazon Web Services, Inc. or its affiliates.
+Privacy
+Terms
+Cookie preferences
 : 
 94
 accessKey
