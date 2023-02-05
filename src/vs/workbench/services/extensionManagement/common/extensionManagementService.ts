@@ -537,5 +537,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return server.extensionManagementService.getMetadata(extension);
 	}
 
+	async cleanUp(): Promise<void> {
+		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
+	}
+
 	registerParticipant() { throw new Error('Not Supported'); }
 }
