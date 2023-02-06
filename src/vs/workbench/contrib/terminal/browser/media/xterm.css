@@ -221,6 +221,10 @@
 	overflow-x: hidden;
 }
 
+.xterm-accessibility-buffer div {
+	white-space: pre-wrap;
+}
+
 .xterm .xterm-accessibility-buffer:focus-within {
 	opacity: 1;
 	z-index: 33;
