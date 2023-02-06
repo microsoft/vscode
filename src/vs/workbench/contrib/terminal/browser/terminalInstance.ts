@@ -1120,11 +1120,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const noContentLabel = nls.localize('terminal.integrated.noContent', "No terminal content available for this session.");
 			noContent.ariaLabel = noContentLabel;
 			noContent.textContent = noContentLabel;
-			this.xterm.raw.setAccessibilityBufferElements([noContent]);
+			const fragment = document.createDocumentFragment();
+			fragment.appendChild(noContent);
+			this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => fragment }));
 			this._accessibilityBuffer.focus();
 			return;
 		}
-		const shellIntegrationNodes = [];
+		const shellIntegrationFragment = document.createDocumentFragment();
 		let header;
 		for (const command of commands) {
 			header = document.createElement('h2');
@@ -1135,13 +1137,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// without this, the text area gets focused when keyboard shortcuts are used
 			output.tabIndex = -1;
 			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
-			shellIntegrationNodes.push(header, output);
+			shellIntegrationFragment.appendChild(header);
+			shellIntegrationFragment.appendChild(output);
 		}
 		if (header) {
 			// focus the cursor line's header
 			header.tabIndex = 0;
 		}
-		this.xterm.raw.setAccessibilityBufferElements(shellIntegrationNodes);
+		this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => shellIntegrationFragment }));
 		this._accessibilityBuffer.focus();
 	}
 
