@@ -97,6 +97,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
+			if (looksLikeLibDtsPath(path)) { // We don't support watching lib files on web since they are readonly
+				return { close() { } };
+			}
+
 			logVerbose('fs.watchFile', { path });
 
 			watchFiles.set(path, { path, callback, pollingInterval, options });
@@ -390,7 +394,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
 	function toResource(filepath: string): URI {
-		if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
+		if (looksLikeLibDtsPath(filepath)) {
 			return URI.from({
 				scheme: extensionUri.scheme,
 				authority: extensionUri.authority,
@@ -425,6 +429,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 		return uri;
 	}
+}
+
+function looksLikeLibDtsPath(filepath: string) {
+	return filepath.startsWith('/lib.') && filepath.endsWith('.d.ts');
 }
 
 function filePathToResourceUri(filepath: string): URI | undefined {
