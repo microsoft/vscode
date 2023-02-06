@@ -795,24 +795,32 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	}
 
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
-		if (!workspace.workspaceFolders || workspace.workspaceFolders.length === 0) {
+		const workspaceFolders = (workspace.workspaceFolders || [])
+			.filter(folder => folder.uri.scheme === 'file');
+
+		if (workspaceFolders.length === 0) {
 			return true;
 		}
 
-		const result = await Promise.all(workspace.workspaceFolders.map(async folder => {
+		const result = await Promise.all(workspaceFolders.map(async folder => {
 			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
-			return pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath);
+			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
 		}));
 
 		return !result.some(r => r);
 	}
 
-	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string> {
+	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
 		let result = this._workspaceFolders.get(workspaceFolder.uri.fsPath);
 
 		if (!result) {
-			result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
-			this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			try {
+				result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
+				this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			} catch (err) {
+				// noop - Workspace folder does not exist
+				this.logger.trace(`Failed to resolve workspace folder: "${workspaceFolder.uri.fsPath}". ${err}`);
+			}
 		}
 
 		return result;
