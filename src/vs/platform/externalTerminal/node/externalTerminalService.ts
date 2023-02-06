@@ -12,6 +12,7 @@ import * as pfs from 'vs/base/node/pfs';
 import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalMainService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
@@ -31,6 +32,10 @@ abstract class ExternalTerminalService {
 export class WindowsExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
 	private static readonly CMD = 'cmd.exe';
 	private static _DEFAULT_TERMINAL_WINDOWS: string;
+
+	constructor(@ILogService private readonly _logService: ILogService) {
+		super();
+	}
 
 	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
 		return this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
@@ -105,7 +110,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				spawnExec = WindowsExternalTerminalService.CMD;
 				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
 			}
-
+			this._logService.info('externalTerminal spawm', { spawnExec, cmdArgs, options });
 			const cmd = cp.spawn(spawnExec, cmdArgs, options);
 
 			cmd.on('error', err => {
@@ -219,6 +224,10 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
+	constructor(@ILogService private readonly _logService: ILogService) {
+		super();
+	}
+
 	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
 		return this.spawnTerminal(cp, configuration, cwd);
 	}
@@ -247,6 +256,8 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 						exec = 'cmd.exe';
 						termArgs.push('/c', 'start', 'cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
 					}
+					const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
+					termArgs.push(command);
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
 						termArgs.push('-x');
@@ -255,11 +266,10 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 					}
 					termArgs.push('bash');
 					termArgs.push('-c');
+
+					const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
+					termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 				}
-
-				const bashCommand = `${quote(args)}; echo; read -p "${LinuxExternalTerminalService.WAIT_MESSAGE}" -n1;`;
-				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
-
 
 				// merge environment variables into a copy of the process.env
 				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
@@ -273,6 +283,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				};
 
 				let stderr = '';
+				this._logService.info('externalTerminal spawm', { exec, termArgs, options });
 				const cmd = cp.spawn(exec, termArgs, options);
 				cmd.on('error', err => {
 					reject(improveError(err));
