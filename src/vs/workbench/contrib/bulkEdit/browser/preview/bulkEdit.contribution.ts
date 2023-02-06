@@ -119,18 +119,14 @@ class BulkEditPreviewContribution {
 
 		// check for active preview session and let the user decide
 		if (view.hasInput()) {
-			const choice = await this._dialogService.show(
-				Severity.Info,
-				localize('overlap', "Another refactoring is being previewed."),
-				[localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue"), localize('cancel', "Cancel")],
-				{
-					detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
-					cancelId: 1
-				}
-			);
+			const { confirmed } = await this._dialogService.confirm({
+				type: Severity.Info,
+				message: localize('overlap', "Another refactoring is being previewed."),
+				detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring."),
+				primaryButton: localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+			});
 
-			if (choice.choice === 1) {
-				// this refactoring is being cancelled
+			if (!confirmed) {
 				return [];
 			}
 		}

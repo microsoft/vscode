@@ -222,8 +222,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsMainService));
 		socketServer.registerChannel('credentials', credentialsChannel);
 
-		// clean up deprecated extensions
-		extensionManagementService.removeUninstalledExtensions();
+		// clean up extensions folder
+		extensionManagementService.cleanUp();
 
 		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 

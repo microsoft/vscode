@@ -869,7 +869,7 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv], false));
 
 		// Dialogs
-		const dialogMainService = new DialogMainService(this.logService);
+		const dialogMainService = new DialogMainService(this.logService, this.productService);
 		services.set(IDialogMainService, dialogMainService);
 
 		// Launch
@@ -924,7 +924,7 @@ export class CodeApplication extends Disposable {
 		services.set(IBackupMainService, backupMainService);
 
 		// Workspaces
-		const workspacesManagementMainService = new WorkspacesManagementMainService(this.environmentMainService, this.logService, this.userDataProfilesMainService, backupMainService, dialogMainService, this.productService);
+		const workspacesManagementMainService = new WorkspacesManagementMainService(this.environmentMainService, this.logService, this.userDataProfilesMainService, backupMainService, dialogMainService);
 		services.set(IWorkspacesManagementMainService, workspacesManagementMainService);
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService, undefined, false /* proxied to other processes */));
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService, undefined, false));
@@ -1238,19 +1238,17 @@ export class CodeApplication extends Disposable {
 		this._register(sharedProcess.onDidError(({ type, details }) => {
 
 			// Logging
-			let message: string;
 			switch (type) {
-				case WindowError.UNRESPONSIVE:
-					message = 'SharedProcess: detected unresponsive window';
-					break;
 				case WindowError.PROCESS_GONE:
-					message = `SharedProcess: renderer process gone (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					this.logService.error(`SharedProcess: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+					break;
+				case WindowError.UNRESPONSIVE:
+					this.logService.error('SharedProcess: detected unresponsive');
 					break;
 				case WindowError.LOAD:
-					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					this.logService.error(`SharedProcess: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 					break;
 			}
-			onUnexpectedError(new Error(message));
 
 			// Telemetry
 			type SharedProcessErrorClassification = {

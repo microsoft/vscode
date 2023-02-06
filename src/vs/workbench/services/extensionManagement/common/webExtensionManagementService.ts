@@ -162,6 +162,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	download(): Promise<URI> { throw new Error('unsupported'); }
 	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
+	async cleanUp(): Promise<void> { }
+
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = e.previous.extensionsResource;
 		const currentProfileLocation = e.profile.extensionsResource;

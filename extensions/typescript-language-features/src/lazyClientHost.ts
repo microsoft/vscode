@@ -73,9 +73,7 @@ export function lazilyActivateClient(
 				// Force activation
 				void lazyClientHost.value;
 
-				disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
-					return lazyClientHost.value.serviceClient.toPath(resource);
-				}));
+				disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker));
 			});
 
 			return true;

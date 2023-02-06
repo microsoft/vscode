@@ -70,6 +70,7 @@ export type JSONSchemaSettings = {
 	fileMatch?: string[];
 	url?: string;
 	schema?: any;
+	folderUri?: string;
 };
 
 export namespace SettingIds {
@@ -472,6 +473,8 @@ function getSettings(): Settings {
 	jsonFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' }).get(SettingIds.foldingMaximumRegions));
 	jsoncFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' }).get(SettingIds.foldingMaximumRegions));
 
+	const schemas: JSONSchemaSettings[] = [];
+
 	const settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
@@ -481,85 +484,34 @@ function getSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
-			schemas: [],
+			schemas,
 			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
 			jsonFoldingLimit: jsonFoldingLimit + 1,
 			jsoncFoldingLimit: jsoncFoldingLimit + 1
 		}
 	};
-	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri, isMultiRoot?: boolean) => {
 
-		let fileMatchPrefix = undefined;
-		if (folderUri && isMultiRoot) {
-			fileMatchPrefix = folderUri.toString();
-			if (fileMatchPrefix[fileMatchPrefix.length - 1] === '/') {
-				fileMatchPrefix = fileMatchPrefix.substr(0, fileMatchPrefix.length - 1);
-			}
-		}
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri) => {
 		for (const setting of schemaSettings) {
 			const url = getSchemaId(setting, folderUri);
-			if (!url) {
-				continue;
-			}
-			let schemaSetting = schemaSettingsById[url];
-			if (!schemaSetting) {
-				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
-				settings.json!.schemas!.push(schemaSetting);
-			}
-			const fileMatches = setting.fileMatch;
-			if (Array.isArray(fileMatches)) {
-				const resultingFileMatches = schemaSetting.fileMatch || [];
-				schemaSetting.fileMatch = resultingFileMatches;
-				const addMatch = (pattern: string) => { //  filter duplicates
-					if (resultingFileMatches.indexOf(pattern) === -1) {
-						resultingFileMatches.push(pattern);
-					}
-				};
-				for (const fileMatch of fileMatches) {
-					if (fileMatchPrefix) {
-						if (fileMatch[0] === '/') {
-							addMatch(fileMatchPrefix + fileMatch);
-							addMatch(fileMatchPrefix + '/*' + fileMatch);
-						} else {
-							addMatch(fileMatchPrefix + '/' + fileMatch);
-							addMatch(fileMatchPrefix + '/*/' + fileMatch);
-						}
-					} else {
-						addMatch(fileMatch);
-					}
-				}
-			}
-			if (setting.schema && !schemaSetting.schema) {
-				schemaSetting.schema = setting.schema;
+			if (url) {
+				const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
+				schemas.push(schemaSetting);
 			}
 		}
 	};
 
-	const folders = workspace.workspaceFolders;
-
-	// merge global and folder settings. Qualify all file matches with the folder path.
 	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
 	if (Array.isArray(globalSettings)) {
-		if (!folders) {
-			collectSchemaSettings(globalSettings);
-		}
+		collectSchemaSettings(globalSettings);
 	}
+	const folders = workspace.workspaceFolders;
 	if (folders) {
-		const isMultiRoot = folders.length > 1;
 		for (const folder of folders) {
-			const folderUri = folder.uri;
-
-			const schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-
-			const folderSchemas = schemaConfigInfo!.workspaceFolderValue;
-			if (Array.isArray(folderSchemas)) {
-				collectSchemaSettings(folderSchemas, folderUri, isMultiRoot);
+			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
+			if (schemaConfigInfo && Array.isArray(schemaConfigInfo.workspaceFolderValue)) {
+				collectSchemaSettings(schemaConfigInfo.workspaceFolderValue, folder.uri);
 			}
-			if (Array.isArray(globalSettings)) {
-				collectSchemaSettings(globalSettings, folderUri, isMultiRoot);
-			}
-
 		}
 	}
 	return settings;
@@ -572,7 +524,7 @@ function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | unde
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
 	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.joinPath(folderUri, url).toString();
+		url = Uri.joinPath(folderUri, url).toString(false);
 	}
 	return url;
 }

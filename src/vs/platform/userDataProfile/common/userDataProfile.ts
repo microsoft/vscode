@@ -232,12 +232,16 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!this._profilesObject) {
 			const profiles = [];
 			if (this.enabled) {
-				for (const storedProfile of this.getStoredProfiles()) {
-					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
-						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
-						continue;
+				try {
+					for (const storedProfile of this.getStoredProfiles()) {
+						if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
+							this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
+							continue;
+						}
+						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
 					}
-					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, { shortName: storedProfile.shortName, useDefaultFlags: storedProfile.useDefaultFlags }));
+				} catch (error) {
+					this.logService.error(error);
 				}
 			}
 			const workspaces = new ResourceMap<IUserDataProfile>();
@@ -245,23 +249,27 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			const defaultProfile = this.createDefaultProfile();
 			profiles.unshift({ ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true });
 			if (profiles.length) {
-				const profileAssociaitions = this.getStoredProfileAssociations();
-				if (profileAssociaitions.workspaces) {
-					for (const [workspacePath, profileId] of Object.entries(profileAssociaitions.workspaces)) {
-						const workspace = URI.parse(workspacePath);
-						const profile = profiles.find(p => p.id === profileId);
-						if (profile) {
-							workspaces.set(workspace, profile);
+				try {
+					const profileAssociaitions = this.getStoredProfileAssociations();
+					if (profileAssociaitions.workspaces) {
+						for (const [workspacePath, profileId] of Object.entries(profileAssociaitions.workspaces)) {
+							const workspace = URI.parse(workspacePath);
+							const profile = profiles.find(p => p.id === profileId);
+							if (profile) {
+								workspaces.set(workspace, profile);
+							}
 						}
 					}
-				}
-				if (profileAssociaitions.emptyWindows) {
-					for (const [windowId, profileId] of Object.entries(profileAssociaitions.emptyWindows)) {
-						const profile = profiles.find(p => p.id === profileId);
-						if (profile) {
-							emptyWindows.set(windowId, profile);
+					if (profileAssociaitions.emptyWindows) {
+						for (const [windowId, profileId] of Object.entries(profileAssociaitions.emptyWindows)) {
+							const profile = profiles.find(p => p.id === profileId);
+							if (profile) {
+								emptyWindows.set(windowId, profile);
+							}
 						}
 					}
+				} catch (error) {
+					this.logService.error(error);
 				}
 			}
 			this._profilesObject = { profiles, workspaces, emptyWindows };

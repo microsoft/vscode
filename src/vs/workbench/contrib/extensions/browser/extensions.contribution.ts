@@ -592,7 +592,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (outdated.length) {
 					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
 				} else {
-					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."));
+					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
 			}
 		});

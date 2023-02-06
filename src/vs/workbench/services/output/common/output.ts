@@ -44,17 +44,13 @@ export const LOG_MODE_ID = 'log';
  */
 export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
-export const OUTPUT_SERVICE_ID = 'outputService';
-
-export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
-
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
 export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
 
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
 
-export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
+export const IOutputService = createDecorator<IOutputService>('outputService');
 
 /**
  * The output service to manage output from the various processes running.

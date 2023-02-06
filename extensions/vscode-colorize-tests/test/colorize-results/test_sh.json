@@ -70,7 +70,21 @@
 		}
 	},
 	{
-		"c": " \"",
+		"c": " ",
+		"t": "source.shell meta.scope.if-block.shell meta.scope.logical-expression.shell",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_plus_experimental": "default: #FFFFFFD3",
+			"hc_light": "default: #292929",
+			"light_plus_experimental": "default: #000000E4"
+		}
+	},
+	{
+		"c": "\"",
 		"t": "source.shell meta.scope.if-block.shell meta.scope.logical-expression.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -154,7 +168,21 @@
 		}
 	},
 	{
-		"c": " \"",
+		"c": " ",
+		"t": "source.shell meta.scope.if-block.shell meta.scope.logical-expression.shell",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_plus_experimental": "default: #FFFFFFD3",
+			"hc_light": "default: #292929",
+			"light_plus_experimental": "default: #000000E4"
+		}
+	},
+	{
+		"c": "\"",
 		"t": "source.shell meta.scope.if-block.shell meta.scope.logical-expression.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -2604,7 +2632,21 @@
 		}
 	},
 	{
-		"c": " \"",
+		"c": " ",
+		"t": "source.shell meta.function.shell meta.function.body.shell meta.scope.if-block.shell meta.scope.logical-expression.shell",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_plus_experimental": "default: #FFFFFFD3",
+			"hc_light": "default: #292929",
+			"light_plus_experimental": "default: #000000E4"
+		}
+	},
+	{
+		"c": "\"",
 		"t": "source.shell meta.function.shell meta.function.body.shell meta.scope.if-block.shell meta.scope.logical-expression.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -2688,7 +2730,21 @@
 		}
 	},
 	{
-		"c": " \"",
+		"c": " ",
+		"t": "source.shell meta.function.shell meta.function.body.shell meta.scope.if-block.shell meta.scope.logical-expression.shell",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_plus_experimental": "default: #FFFFFFD3",
+			"hc_light": "default: #292929",
+			"light_plus_experimental": "default: #000000E4"
+		}
+	},
+	{
+		"c": "\"",
 		"t": "source.shell meta.function.shell meta.function.body.shell meta.scope.if-block.shell meta.scope.logical-expression.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
