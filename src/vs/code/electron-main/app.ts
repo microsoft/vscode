@@ -1238,19 +1238,17 @@ export class CodeApplication extends Disposable {
 		this._register(sharedProcess.onDidError(({ type, details }) => {
 
 			// Logging
-			let message: string;
 			switch (type) {
-				case WindowError.UNRESPONSIVE:
-					message = 'SharedProcess: detected unresponsive window';
-					break;
 				case WindowError.PROCESS_GONE:
-					message = `SharedProcess: renderer process gone (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					this.logService.error(`SharedProcess: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+					break;
+				case WindowError.UNRESPONSIVE:
+					this.logService.error('SharedProcess: detected unresponsive');
 					break;
 				case WindowError.LOAD:
-					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					this.logService.error(`SharedProcess: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 					break;
 			}
-			onUnexpectedError(new Error(message));
 
 			// Telemetry
 			type SharedProcessErrorClassification = {

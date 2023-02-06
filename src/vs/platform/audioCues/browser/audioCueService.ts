@@ -48,7 +48,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	public async playAudioCues(cues: AudioCue[]): Promise<void> {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
 		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
+		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
 	private getVolumeInPercent(): number {

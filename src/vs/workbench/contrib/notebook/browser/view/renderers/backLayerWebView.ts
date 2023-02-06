@@ -54,7 +54,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
-const LineQueryRegex = /line=(\d+)/;
+const LineQueryRegex = /line=(\d+)$/;
 
 
 export interface ICachedInset<K extends ICommonCellInfo> {
@@ -744,8 +744,11 @@ var requirejs = (function() {
 						return;
 					}
 
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell)) {
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
+					} else if (matchesScheme(data.href, Schemas.vscodeNotebookCell)) {
+						const uri = URI.parse(data.href);
+						this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						this._handleResourceOpening(data.href);
 					} else {
@@ -874,6 +877,31 @@ var requirejs = (function() {
 				}
 			}
 		}));
+	}
+
+	private _handleNotebookCellResource(uri: URI) {
+		const lineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				const lineNumber = parsedLineNumber + 1;
+				const fragment = uri.fragment.substring(0, lineMatch.index);
+
+				// open the uri with selection
+				const editorOptions: ITextEditorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
+				};
+				this.openerService.open(uri.with({ fragment }), {
+					fromUserGesture: true,
+					fromWorkspace: true,
+					editorOptions: editorOptions
+				});
+				return;
+			}
+		}
+
+		this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		return uri;
 	}
 
 	private _handleResourceOpening(href: string) {
