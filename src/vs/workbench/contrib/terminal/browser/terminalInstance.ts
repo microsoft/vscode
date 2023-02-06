@@ -1122,12 +1122,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let header;
 		for (const command of commands) {
 			header = document.createElement('h2');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			header.tabIndex = -1;
 			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
-			const output = document.createElement('p');
+			const output = document.createElement('div');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			output.tabIndex = -1;
 			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
 			shellIntegrationNodes.push(header, output);
 		}
 		if (header) {
+			// focus the cursor line's header
 			header.tabIndex = 0;
 		}
 		this.xterm.raw.setAccessibilityBufferElements(shellIntegrationNodes);
