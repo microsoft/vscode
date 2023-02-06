@@ -92,11 +92,10 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	}
 
 	renderTemplate(container: HTMLElement) {
-		const data = <IResourceTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
-		data.resourceLabel = this.labels.create(labelContainer);
+		const resourceLabel = this.labels.create(labelContainer);
 
-		return data;
+		return { resourceLabel };
 	}
 
 	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
@@ -118,11 +117,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	) { }
 
 	renderTemplate(container: HTMLElement) {
-		const data = <ICommentThreadTemplateData>Object.create(null);
 
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
-		data.threadMetadata = {
+		const threadMetadata = {
 			icon: dom.append(metadataContainer, dom.$('.icon')),
 			userNames: dom.append(metadataContainer, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
@@ -130,10 +128,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentPreview: dom.append(metadataContainer, dom.$('.text')),
 			range: dom.append(metadataContainer, dom.$('.range'))
 		};
-		data.threadMetadata.separator.innerText = '\u00b7';
+		threadMetadata.separator.innerText = '\u00b7';
 
 		const snippetContainer = dom.append(threadContainer, dom.$('.comment-snippet-container'));
-		data.repliesMetadata = {
+		const repliesMetadata = {
 			container: snippetContainer,
 			icon: dom.append(snippetContainer, dom.$('.icon')),
 			count: dom.append(snippetContainer, dom.$('.count')),
@@ -141,11 +139,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			separator: dom.append(snippetContainer, dom.$('.separator')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
 		};
-		data.repliesMetadata.separator.innerText = '\u00b7';
-		data.repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
-		data.disposables = [data.threadMetadata.timestamp, data.repliesMetadata.timestamp];
+		repliesMetadata.separator.innerText = '\u00b7';
+		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
+		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
 
-		return data;
+		return { threadMetadata, repliesMetadata, disposables };
 	}
 
 	private getCountString(commentCount: number): string {

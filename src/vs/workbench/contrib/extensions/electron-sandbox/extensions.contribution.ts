@@ -19,12 +19,11 @@ import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
+import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { Codicon } from 'vs/base/common/codicons';
-import { RemoteExtensionsInitializerContribution } from 'vs/workbench/contrib/extensions/electron-sandbox/remoteExtensionsInit';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionProfileService';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsAutoProfiler';
@@ -63,13 +62,13 @@ class ExtensionsContributions implements IWorkbenchContribution {
 	) {
 		sharedProcessService.registerChannel('extensionRecommendationNotification', new ExtensionRecommendationNotificationServiceChannel(extensionRecommendationNotificationService));
 		registerAction2(OpenExtensionsFolderAction);
+		registerAction2(CleanUpExtensionsFolderAction);
 	}
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsContributions, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(RemoteExtensionsInitializerContribution, LifecyclePhase.Restored);
 // Register Commands
 
 CommandsRegistry.registerCommand(DebugExtensionHostAction.ID, (accessor: ServicesAccessor) => {

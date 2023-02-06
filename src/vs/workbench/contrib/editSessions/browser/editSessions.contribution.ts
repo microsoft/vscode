@@ -45,7 +45,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
-import { isNative } from 'vs/base/common/platform';
+import { isNative, isWeb } from 'vs/base/common/platform';
 import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
@@ -221,7 +221,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown') {
+		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
 			const cancellationTokenSource = new CancellationTokenSource();
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
@@ -491,22 +491,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 			if (conflictingChanges.length > 0) {
-				const yes = localize('resume edit session yes', 'Yes');
-				const cancel = localize('resume edit session cancel', 'Cancel');
 				// Allow to show edit sessions
 
-				const result = await this.dialogService.show(
-					Severity.Warning,
-					conflictingChanges.length > 1 ?
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Warning,
+					message: conflictingChanges.length > 1 ?
 						localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
 						localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
-					[cancel, yes],
-					{
-						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
-						cancelId: 0
-					});
+					detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined
+				});
 
-				if (result.choice === 0) {
+				if (!confirmed) {
 					return;
 				}
 			}
@@ -1043,7 +1038,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': 'off',
-			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
+			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace. This setting has no effect in the web."),
 		},
 		'workbench.cloudChanges.autoResume': {
 			enum: ['onReload', 'off'],

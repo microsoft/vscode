@@ -5,23 +5,22 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { Command } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
-import { Command } from 'vs/editor/common/languages';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -38,8 +37,25 @@ export class InlineCompletionsHover implements IHoverPart {
 		);
 	}
 
-	public getInlineCompletionsCount(): Promise<number> {
-		return this.controller.getInlineCompletionsCount();
+	public requestExplicitContext(): void {
+		this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.ensureUpdateWithExplicitContext();
+	}
+
+	public getInlineCompletionsCount(): number | undefined {
+		const session = this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value;
+		if (!session?.hasBeenTriggeredExplicitly) {
+			return undefined;
+		}
+		return session?.getInlineCompletionsCountSync();
+	}
+
+	public getInlineCompletionIndex(): number | undefined {
+		return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.currentlySelectedIndex;
+	}
+
+	public onDidChange(handler: () => void): IDisposable {
+		const d = this.controller.activeModel?.activeInlineCompletionsModel?.onDidChange(handler);
+		return d || Disposable.None;
 	}
 
 	public get commands(): Command[] {
@@ -53,12 +69,11 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 	}
 
@@ -67,35 +82,36 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		if (!controller) {
 			return null;
 		}
-		if (this._editor.getOption(EditorOption.inlineSuggest).useExperimentalHints) {
-			return null;
-		}
 
 		const target = mouseEvent.target;
 		if (target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
 			// handle the case where the mouse is over the view zone
 			const viewZoneData = target.detail;
 			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
-				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(this._editor.getModel()!.validatePosition(viewZoneData.positionBefore || viewZoneData.position)), mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(this._editor.getModel()!.validatePosition(viewZoneData.positionBefore || viewZoneData.position)), mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_EMPTY) {
 			// handle the case where the mouse is over the empty portion of a line following ghost text
 			if (controller.shouldShowHoverAt(target.range)) {
-				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			// handle the case where the mouse is directly over ghost text
 			const mightBeForeignElement = target.detail.mightBeForeignElement;
 			if (mightBeForeignElement && controller.shouldShowHoverAt(target.range)) {
-				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy);
+				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
 		return null;
 	}
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
+		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always') {
+			return [];
+		}
+
 		const controller = GhostTextController.get(this._editor);
 		if (controller && controller.shouldShowHoverAt(anchor.range)) {
 			return [new InlineCompletionsHover(this, anchor.range, controller)];
@@ -107,61 +123,24 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const disposableStore = new DisposableStore();
 		const part = hoverParts[0];
 
+		this._telemetryService.publicLog2<{}, {
+			owner: 'hediet';
+			comment: 'This event tracks whenever an inline completion hover is shown.';
+		}>('inlineCompletionHover.shown');
+
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
-		// TODO@hediet: deprecate MenuId.InlineCompletionsActions
-		const menu = disposableStore.add(this._menuService.createMenu(
-			MenuId.InlineCompletionsActions,
-			this._contextKeyService
-		));
+		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor, false);
+		context.fragment.appendChild(w.getDomNode());
 
-		const previousAction = context.statusBar.addAction({
-			label: nls.localize('showNextInlineSuggestion', "Next"),
-			commandId: ShowNextInlineSuggestionAction.ID,
-			run: () => this._commandService.executeCommand(ShowNextInlineSuggestionAction.ID)
-		});
-		const nextAction = context.statusBar.addAction({
-			label: nls.localize('showPreviousInlineSuggestion', "Previous"),
-			commandId: ShowPreviousInlineSuggestionAction.ID,
-			run: () => this._commandService.executeCommand(ShowPreviousInlineSuggestionAction.ID)
-		});
-		context.statusBar.addAction({
-			label: nls.localize('acceptInlineSuggestion', "Accept"),
-			commandId: inlineSuggestCommitId,
-			run: () => this._commandService.executeCommand(inlineSuggestCommitId)
-		});
+		w.update(null, part.getInlineCompletionIndex() || 0, part.getInlineCompletionsCount(), part.commands);
+		part.requestExplicitContext();
 
-		const actions = [previousAction, nextAction];
-		for (const action of actions) {
-			action.setEnabled(false);
-		}
-		part.getInlineCompletionsCount().then(count => {
-			for (const action of actions) {
-				action.setEnabled(count > 1);
-			}
-		});
-
-		for (const command of part.commands) {
-			context.statusBar.addAction({
-				label: command.title,
-				commandId: command.id,
-				run: () => this._commandService.executeCommand(command.id, ...(command.arguments || []))
-			});
-		}
-
-		for (const [_, group] of menu.getActions()) {
-			for (const action of group) {
-				if (action instanceof MenuItemAction) {
-					context.statusBar.addAction({
-						label: action.label,
-						commandId: action.item.id,
-						run: () => this._commandService.executeCommand(action.item.id)
-					});
-				}
-			}
-		}
+		disposableStore.add(part.onDidChange(() => {
+			w.update(null, part.getInlineCompletionIndex() || 0, part.getInlineCompletionsCount(), part.commands);
+		}));
 
 		return disposableStore;
 	}

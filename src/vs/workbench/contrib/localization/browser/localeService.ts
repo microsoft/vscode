@@ -20,7 +20,7 @@ export class WebLocaleService implements ILocaleService {
 		@IProductService private readonly productService: IProductService
 	) { }
 
-	async setLocale(languagePackItem: ILanguagePackItem): Promise<void> {
+	async setLocale(languagePackItem: ILanguagePackItem, _skipDialog = false): Promise<void> {
 		const locale = languagePackItem.id;
 		if (locale === Language.value() || (!locale && Language.value() === navigator.language)) {
 			return;

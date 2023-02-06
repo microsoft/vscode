@@ -280,7 +280,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		let canCollapseFileMatchLevel = false;
 		let canCollapseFirstLevel = false;
 
-		if (node instanceof FolderMatchWorkspaceRoot) {
+		if (node instanceof FolderMatchWorkspaceRoot || searchView.isTreeLayoutViewVisible) {
 			while (node = navigator.next()) {
 				if (node instanceof Match) {
 					canCollapseFileMatchLevel = true;
@@ -290,7 +290,9 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					let nodeToTest = node;
 
 					if (node instanceof FolderMatch) {
-						nodeToTest = node.compressionStartParent ?? node;
+						const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
+						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
 					}
 
 					const immediateParent = nodeToTest.parent();
@@ -317,7 +319,9 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					let nodeToTest = node;
 
 					if (node instanceof FolderMatch) {
-						nodeToTest = node.compressionStartParent ?? node;
+						const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
+						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
 					}
 					const immediateParent = nodeToTest.parent();
 

@@ -337,7 +337,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
 			createTelemetryLogger(sender: vscode.TelemetrySender): vscode.TelemetryLogger {
-				checkProposedApiEnabled(extension, 'telemetryLogger');
 				ExtHostTelemetryLogger.validateSender(sender);
 				return extHostTelemetry.instantiateLogger(extension, sender);
 			},
@@ -550,6 +549,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerInlineCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
 				if (provider.handleDidShowCompletionItem) {
+					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				}
+				if (provider.handleDidPartiallyAcceptCompletionItem) {
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider);

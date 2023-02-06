@@ -10,7 +10,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import Severity from 'vs/base/common/severity';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -19,6 +18,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -56,7 +56,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
 
 		// Ask subclass for all command picks
 		const allCommandPicks = await this.getCommandPicks(token);
@@ -180,7 +180,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 					// Telementry
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 						id: commandPick.commandId,
-						from: 'quick open'
+						from: runOptions?.from ?? 'quick open'
 					});
 
 					// Run
@@ -188,7 +188,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 						await this.commandService.executeCommand(commandPick.commandId);
 					} catch (error) {
 						if (!isCancellationError(error)) {
-							this.dialogService.show(Severity.Error, localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
+							this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
 						}
 					}
 				}

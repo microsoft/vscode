@@ -64,7 +64,7 @@ impl PreReqChecker {
 		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
 				Platform::LinuxX64
-			} else if cfg!(target_arch = "armhf") {
+			} else if cfg!(target_arch = "arm") {
 				Platform::LinuxARM32
 			} else {
 				Platform::LinuxARM64
@@ -105,7 +105,7 @@ impl PreReqChecker {
 
 #[allow(dead_code)]
 async fn check_musl_interpreter() -> Result<(), String> {
-	const MUSL_PATH: &str = if cfg!(target_platform = "aarch64") {
+	const MUSL_PATH: &str = if cfg!(target_arch = "aarch64") {
 		"/lib/ld-musl-aarch64.so.1"
 	} else {
 		"/lib/ld-musl-x86_64.so.1"

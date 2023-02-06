@@ -9,7 +9,6 @@ import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 
 import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join, resolve } from 'vs/base/common/path';
@@ -289,16 +288,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			const { response } = await this.showMessageBox(windowId, {
-				title: this.productService.nameLong,
 				type: 'info',
 				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
 				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				noLink: true,
-				defaultId: 0,
-				cancelId: 1
+					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					localize('cancel', "Cancel")
+				]
 			});
 
 			if (response === 0 /* OK */) {
@@ -321,16 +316,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			switch (error.code) {
 				case 'EACCES': {
 					const { response } = await this.showMessageBox(windowId, {
-						title: this.productService.nameLong,
 						type: 'info',
 						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-							mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-						],
-						noLink: true,
-						defaultId: 0,
-						cancelId: 1
+							localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+							localize('cancel', "Cancel")
+						]
 					});
 
 					if (response === 0 /* OK */) {

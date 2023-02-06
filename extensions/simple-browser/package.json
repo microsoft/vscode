@@ -3,7 +3,6 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "enabledApiProposals": [
-    "telemetryLogger",
     "externalUriOpener"
   ],
   "version": "1.0.0",
@@ -24,7 +23,6 @@
     "workspace"
   ],
   "activationEvents": [
-    "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
     "onOpenExternalUri:https",

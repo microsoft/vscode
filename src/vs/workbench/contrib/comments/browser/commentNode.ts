@@ -41,6 +41,9 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
+import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { DomEmitter } from 'vs/base/browser/event';
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -64,6 +67,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
 	private _commentMenus: CommentMenus;
+
+	private _scrollable!: Scrollable;
+	private _scrollableElement!: SmoothScrollableElement;
 
 	protected actionRunner?: IActionRunner;
 	protected toolbar: ToolBar | undefined;
@@ -111,8 +117,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
 		this.createHeader(this._commentDetailsContainer);
+		this._body = document.createElement(`div`);
+		this._body.classList.add('comment-body', MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
 
-		this._body = dom.append(this._commentDetailsContainer, dom.$(`div.comment-body.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
+		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length && this.comment.commentReactions.filter(reaction => !!reaction.count).length) {
@@ -127,7 +135,37 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CONTEXT_MENU, e => {
 			return this.onContextMenu(e);
 		}));
+	}
 
+	private createScroll(container: HTMLElement, body: HTMLElement) {
+		this._scrollable = new Scrollable({
+			forceIntegerValues: true,
+			smoothScrollDuration: 125,
+			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb)
+		});
+		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
+			alwaysConsumeMouseWheel: true,
+			horizontal: ScrollbarVisibility.Visible,
+			vertical: ScrollbarVisibility.Hidden
+		}, this._scrollable));
+
+		this._register(this._scrollableElement.onScroll(e => {
+			if (e.scrollLeftChanged) {
+				body.scrollLeft = e.scrollLeft;
+			}
+		}));
+
+		const onDidScrollViewContainer = this._register(new DomEmitter(body, 'scroll')).event;
+		this._register(onDidScrollViewContainer(_ => {
+			const position = this._scrollableElement.getScrollPosition();
+			const scrollLeft = Math.abs(body.scrollLeft - position.scrollLeft) <= 1 ? undefined : body.scrollLeft;
+
+			if (scrollLeft !== undefined) {
+				this._scrollableElement.setScrollPosition({ scrollLeft });
+			}
+		}));
+
+		container.appendChild(this._scrollableElement.getDomNode());
 	}
 
 	private updateCommentBody(body: string | IMarkdownString) {
@@ -460,6 +498,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	layout() {
 		this._commentEditor?.layout();
+		const scrollWidth = this._body.scrollWidth;
+		const width = dom.getContentWidth(this._body);
+		this._scrollableElement.setScrollDimensions({ width, scrollWidth });
 	}
 
 	public switchToEditMode() {
