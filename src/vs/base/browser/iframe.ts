@@ -109,6 +109,8 @@ export class IframeUtils {
 			}
 
 			if (!windowChainEl.iframeElement) {
+				top = 0
+				left = 0
 				break;
 			}
 
