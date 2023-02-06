@@ -15,8 +15,8 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, IF
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { Change, IRemoteUserData, ISyncData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
@@ -500,53 +500,4 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 		return snippets;
 	}
-}
-
-export class SnippetsInitializer extends AbstractInitializer {
-
-	constructor(
-		@IFileService fileService: IFileService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IStorageService storageService: IStorageService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-	) {
-		super(SyncResource.Snippets, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
-	}
-
-	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		if (!remoteSnippets) {
-			this.logService.info('Skipping initializing snippets because remote snippets does not exist.');
-			return;
-		}
-
-		const isEmpty = await this.isEmpty();
-		if (!isEmpty) {
-			this.logService.info('Skipping initializing snippets because local snippets exist.');
-			return;
-		}
-
-		for (const key of Object.keys(remoteSnippets)) {
-			const content = remoteSnippets[key];
-			if (content) {
-				const resource = this.extUri.joinPath(this.userDataProfilesService.defaultProfile.snippetsHome, key);
-				await this.fileService.createFile(resource, VSBuffer.fromString(content));
-				this.logService.info('Created snippet', this.extUri.basename(resource));
-			}
-		}
-
-		await this.updateLastSyncUserData(remoteUserData);
-	}
-
-	private async isEmpty(): Promise<boolean> {
-		try {
-			const stat = await this.fileService.resolve(this.userDataProfilesService.defaultProfile.snippetsHome);
-			return !stat.children?.length;
-		} catch (error) {
-			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
-		}
-	}
-
 }
