@@ -17,9 +17,10 @@ import { cellStatusIconError, cellStatusIconSuccess, cellStatusIconWarning } fro
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon, warningStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export function formatCellDuration(duration: number): string {
-	if (duration < 100) {
+	if (duration < 1000) {
 		return `${duration}ms`;
 	}
 
@@ -216,7 +217,8 @@ export class TimerCellStatusBarContrib extends Disposable implements INotebookEd
 registerNotebookContribution(TimerCellStatusBarContrib.id, TimerCellStatusBarContrib);
 
 const UPDATE_TIMER_GRACE_PERIOD = 200;
-const RENDER_TIME_GRACE_PERIOD = 0;
+const RENDER_GRACE_PERIOD = 0;
+const OVERHEAD_GRACE_PERIOD = 0;
 
 class TimerCellStatusBarItem extends Disposable {
 	private static UPDATE_INTERVAL = 100;
@@ -229,7 +231,8 @@ class TimerCellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
-		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly _executionStateService: INotebookExecutionStateService,
+		@INotebookService private readonly _notebookService: INotebookService,
 	) {
 		super();
 
@@ -258,10 +261,20 @@ class TimerCellStatusBarItem extends Disposable {
 			if (typeof startTime === 'number' && typeof endTime === 'number') {
 				timerItem = this._getTimeItem(startTime, endTime, undefined, true);
 
-				const timerDuration = Date.now() - endTime + adjustment;
+				const timerDuration = Date.now() - startTime + adjustment;
 				const executionDuration = endTime - startTime;
-				if (timerDuration - executionDuration > RENDER_TIME_GRACE_PERIOD) {
-					warningItem = this._getWarningItem(timerDuration, executionDuration);
+				const renderDuration = this._cell.internalMetadata.renderDuration ?? {};
+
+				let showDiagnosticWarning = timerDuration - executionDuration > OVERHEAD_GRACE_PERIOD;
+				for (const key in renderDuration) {
+					if (renderDuration[key] > RENDER_GRACE_PERIOD) {
+						showDiagnosticWarning = true;
+						break;
+					}
+				}
+
+				if (showDiagnosticWarning) {
+					warningItem = this._getWarningItem(renderDuration, executionDuration, timerDuration);
 				}
 			}
 		}
@@ -295,13 +308,18 @@ class TimerCellStatusBarItem extends Disposable {
 		};
 	}
 
-	private _getWarningItem(timerDuration: number, executionDuration: number): INotebookCellStatusBarItem {
+	private _getWarningItem(renderDuration: { [key: string]: number }, executionDuration: number, timerDuration: number): INotebookCellStatusBarItem {
+		let renderTimes = '';
+		for (const key in renderDuration) {
+			renderTimes += `  ${this._notebookService.getRendererInfo(key)?.displayName ?? key}: ${formatCellDuration(renderDuration[key])}\n`;
+		}
+
 		return <INotebookCellStatusBarItem>{
 			text: `$(${warningStateIcon.id})`,
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1,
 			color: themeColorFromId(cellStatusIconWarning),
-			tooltip: localize('notebook.cell.statusBar.timerWarning', "The notebook renderer for this cell is slow.\nExecution Time: {0}\nRender Time: {1}\nTotal Time: {2}", formatCellDuration(executionDuration), formatCellDuration(timerDuration - executionDuration), formatCellDuration(timerDuration))
+			tooltip: localize('notebook.cell.statusBar.timerWarning', "The output renderer for this cell is slow.\nExecution Time: {0}\nOverhead Time: {2}\nRender Times:\n{1}", formatCellDuration(executionDuration), renderTimes, formatCellDuration(timerDuration - executionDuration))
 		};
 	}
 

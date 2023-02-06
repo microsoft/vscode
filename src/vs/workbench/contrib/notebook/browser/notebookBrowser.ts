@@ -142,6 +142,7 @@ export interface ICommonCellInfo {
 	readonly cellId: string;
 	readonly cellHandle: number;
 	readonly cellUri: URI;
+	readonly executionId?: string;
 }
 
 export interface IFocusNotebookCellOptions {
