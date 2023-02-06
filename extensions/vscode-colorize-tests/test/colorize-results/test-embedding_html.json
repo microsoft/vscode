@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.derivative meta.tag.inline.a.start.html meta.attribute.event-handler.blur.html meta.embedded.line.js string.quoted.double.html punctuation.definition.string.end.html source.js",
+		"t": "text.html.derivative meta.tag.inline.a.start.html meta.attribute.event-handler.blur.html meta.embedded.line.js string.quoted.double.html punctuation.definition.string.end.html source.js-ignored-vscode",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -659,7 +659,7 @@
 	},
 	{
 		"c": "'",
-		"t": "text.html.derivative meta.tag.inline.a.start.html meta.attribute.event-handler.click.html meta.embedded.line.js string.quoted.single.html punctuation.definition.string.end.html source.js",
+		"t": "text.html.derivative meta.tag.inline.a.start.html meta.attribute.event-handler.click.html meta.embedded.line.js string.quoted.single.html punctuation.definition.string.end.html source.js-ignored-vscode",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.single.html: #0000FF",
@@ -897,7 +897,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "text.html.derivative meta.tag.structure.div.start.html meta.attribute.style.html meta.embedded.line.css string.quoted.double.html punctuation.definition.string.end.html source.css",
+		"t": "text.html.derivative meta.tag.structure.div.start.html meta.attribute.style.html meta.embedded.line.css string.quoted.double.html punctuation.definition.string.end.html source.css-ignored-vscode",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.double.html: #0000FF",
@@ -1065,7 +1065,7 @@
 	},
 	{
 		"c": "'",
-		"t": "text.html.derivative meta.tag.structure.div.start.html meta.attribute.style.html meta.embedded.line.css string.quoted.single.html punctuation.definition.string.end.html source.css",
+		"t": "text.html.derivative meta.tag.structure.div.start.html meta.attribute.style.html meta.embedded.line.css string.quoted.single.html punctuation.definition.string.end.html source.css-ignored-vscode",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.quoted.single.html: #0000FF",
