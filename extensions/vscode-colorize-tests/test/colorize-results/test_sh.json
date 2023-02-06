@@ -2171,7 +2171,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.shell meta.function.shell meta.function.body.shell meta.statement.shell",
+		"t": "source.shell meta.function.shell meta.function.body.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2409,7 +2409,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.shell meta.function.shell meta.function.body.shell meta.statement.shell",
+		"t": "source.shell meta.function.shell meta.function.body.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2535,7 +2535,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.shell meta.function.shell meta.function.body.shell meta.statement.shell",
+		"t": "source.shell meta.function.shell meta.function.body.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
