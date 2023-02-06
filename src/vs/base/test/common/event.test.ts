@@ -1202,7 +1202,7 @@ suite('Event utils', () => {
 			assert.deepStrictEqual(calls, [1, 1]);
 		});
 
-		test('should flush events when a listener is disposed', async () => {
+		test('should not flush events when a listener is disposed', async () => {
 			const emitter = new Emitter<number>();
 			const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0);
 
@@ -1215,8 +1215,25 @@ suite('Event utils', () => {
 			emitter.fire(1);
 
 			await timeout(1);
+			assert.deepStrictEqual(calls, []);
+		});
+
+		test('flushOnListenerRemove - should flush events when a listener is disposed', async () => {
+			const emitter = new Emitter<number>();
+			const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, undefined, true);
+
+			const calls: number[] = [];
+			const listener = debounced((e) => calls.push(e));
+
+			emitter.fire(1);
+			listener.dispose();
+
+			emitter.fire(1);
+
+			await timeout(1);
 			assert.deepStrictEqual(calls, [1], 'should fire with the first event, not the second (after listener dispose)');
 		});
+
 
 		test('should flush events when the emitter is disposed', async () => {
 			const emitter = new Emitter<number>();
