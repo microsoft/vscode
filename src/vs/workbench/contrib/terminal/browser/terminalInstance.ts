@@ -1119,14 +1119,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const shellIntegrationNodes = [];
+		let header;
 		for (const command of commands) {
-			const header = document.createElement('h2');
+			header = document.createElement('h2');
 			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
-			header.tabIndex = 0;
 			const output = document.createElement('p');
 			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
-			output.tabIndex = 0;
 			shellIntegrationNodes.push(header, output);
+		}
+		if (header) {
+			header.tabIndex = 0;
 		}
 		this.xterm.raw.setAccessibilityBufferElements(shellIntegrationNodes);
 		this._accessibilityBuffer.focus();
