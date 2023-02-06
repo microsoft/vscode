@@ -1114,6 +1114,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const font = this.xterm.getFont();
 		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
 		this._accessibilityBuffer.style.lineHeight = lineHeight;
+		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands) {
+			return;
+		}
+		const shellIntegrationNodes = [];
+		for (const command of commands) {
+			const header = document.createElement('h2');
+			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
+			header.tabIndex = 0;
+			const output = document.createElement('p');
+			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
+			output.tabIndex = 0;
+			shellIntegrationNodes.push(header, output);
+		}
+		this.xterm.raw.setAccessibilityBufferElements(shellIntegrationNodes);
 		this._accessibilityBuffer.focus();
 	}
 
