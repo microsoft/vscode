@@ -63,7 +63,7 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplSimpleElementsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
+import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplOutputElementRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
@@ -576,7 +576,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.replDelegate,
 			[
 				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(ReplSimpleElementsRenderer, linkDetector),
+				this.instantiationService.createInstance(ReplOutputElementRenderer, linkDetector),
 				new ReplEvaluationInputsRenderer(),
 				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
 				new ReplEvaluationResultsRenderer(linkDetector),

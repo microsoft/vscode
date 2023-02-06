@@ -20,20 +20,9 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onCommand:markdown.preview.toggleLock",
-    "onCommand:markdown.preview.refresh",
-    "onCommand:markdown.showPreview",
-    "onCommand:markdown.showPreviewToSide",
-    "onCommand:markdown.showLockedPreviewToSide",
-    "onCommand:markdown.showSource",
-    "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onCommand:markdown.findAllFileReferences",
-    "onCommand:markdown.editor.insertLinkFromWorkspace",
-    "onCommand:markdown.editor.insertImageFromWorkspace",
-    "onWebviewPanel:markdown.preview",
-    "onCustomEditor:vscode.markdown.preview.editor"
+    "onWebviewPanel:markdown.preview"
   ],
   "capabilities": {
     "virtualWorkspaces": true,

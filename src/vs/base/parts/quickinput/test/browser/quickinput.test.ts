@@ -13,6 +13,8 @@ import { raceTimeout } from 'vs/base/common/async';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
 import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -60,9 +62,9 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				countBadge: unthemedCountStyles,
 				inputBox: unthemedInboxStyles,
 				toggle: unthemedToggleStyles,
-				keybindingLabel: {},
+				keybindingLabel: unthemedKeybindingLabelOptions,
 				list: unthemedListStyles,
-				progressBar: {},
+				progressBar: unthemedProgressBarOptions,
 				widget: {
 					quickInputBackground: undefined,
 					quickInputForeground: undefined,

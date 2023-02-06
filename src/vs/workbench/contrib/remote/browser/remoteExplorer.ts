@@ -570,8 +570,14 @@ class ProcAutomaticPortForwarding extends Disposable {
 				continue;
 			}
 
+			if (!attributes) {
+				attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates);
+			}
+
+			const portAttributes = attributes?.get(value.port);
+
 			const address = makeAddress(value.host, value.port);
-			if (this.initialCandidates.has(address)) {
+			if (this.initialCandidates.has(address) && (portAttributes?.onAutoForward === undefined)) {
 				continue;
 			}
 			if (this.notifiedOnly.has(address) || this.autoForwarded.has(address)) {
@@ -582,11 +588,6 @@ class ProcAutomaticPortForwarding extends Disposable {
 				continue;
 			}
 
-			if (!attributes) {
-				attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates);
-			}
-
-			const portAttributes = attributes?.get(value.port);
 			if (portAttributes?.onAutoForward === OnPortForward.Ignore) {
 				this.logService.trace(`ForwardedPorts: (ProcForwarding) Port ${value.port} is ignored`);
 				continue;

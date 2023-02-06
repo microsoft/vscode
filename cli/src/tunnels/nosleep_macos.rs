@@ -63,7 +63,7 @@ pub struct SleepInhibitor {
 impl SleepInhibitor {
 	pub async fn new() -> io::Result<Self> {
 		let mut assertions = Vec::with_capacity(NUM_ASSERTIONS);
-		let assertion_name = CFString::from_static_string(concatcp!(TUNNEL_ACTIVITY_NAME));
+		let assertion_name = CFString::from_static_string(TUNNEL_ACTIVITY_NAME);
 		for typ in ASSERTIONS {
 			assertions.push(Assertion::make(
 				&CFString::from_static_string(typ),

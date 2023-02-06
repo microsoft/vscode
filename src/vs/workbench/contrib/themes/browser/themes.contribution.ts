@@ -36,6 +36,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -62,7 +63,8 @@ class MarketplaceThemesPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this._installedExtensions = extensionManagementService.getInstalled().then(installed => {
 			const result = new Set<string>();
@@ -226,13 +228,23 @@ class MarketplaceThemesPicker {
 	}
 
 	private async installExtension(galleryExtension: IGalleryExtension) {
+		openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
+		const result = await this.dialogService.confirm({
+			message: localize('installExtension.confirm', "This will install extension '{0}' published by '{1}'. Do you want to continue?", galleryExtension.displayName, galleryExtension.publisherDisplayName),
+			primaryButton: localize('installExtension.button.ok', "OK")
+		});
+		if (!result.confirmed) {
+			return false;
+		}
 		try {
-			openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
 				title: localize('installing extensions', "Installing Extension {0}...", galleryExtension.displayName)
 			}, async () => {
-				await this.extensionManagementService.installFromGallery(galleryExtension);
+				await this.extensionManagementService.installFromGallery(galleryExtension, {
+					// Setting this to false is how you get the extension to be synced with Settings Sync (if enabled).
+					isMachineScoped: false,
+				});
 			});
 			return true;
 		} catch (e) {

@@ -22,7 +22,7 @@ export class ExtensionsContributions extends Disposable {
 	) {
 		super();
 
-		extensionManagementService.removeUninstalledExtensions();
+		extensionManagementService.cleanUp();
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 	}
