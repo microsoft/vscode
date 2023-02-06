@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { revive } from 'vs/base/common/marshalling';
+import { isString } from 'vs/base/common/types';
 import { URI, UriDto } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -29,8 +29,11 @@ export class ServerUserDataProfilesService extends BaseUserDataProfilesService i
 
 }
 
+type StoredUserDataProfileState = StoredUserDataProfile & { location: URI | string };
 
 export class UserDataProfilesService extends ServerUserDataProfilesService implements IUserDataProfilesService {
+
+	protected static readonly PROFILE_ASSOCIATIONS_MIGRATION_KEY = 'profileAssociationsMigration';
 
 	constructor(
 		@IStateService private readonly stateService: IStateService,
@@ -43,11 +46,14 @@ export class UserDataProfilesService extends ServerUserDataProfilesService imple
 	}
 
 	protected override getStoredProfiles(): StoredUserDataProfile[] {
-		return revive(this.stateService.getItem<UriDto<StoredUserDataProfile>[]>(UserDataProfilesService.PROFILES_KEY, []));
+		const storedProfilesState = this.stateService.getItem<UriDto<StoredUserDataProfileState>[]>(UserDataProfilesService.PROFILES_KEY, []);
+		return storedProfilesState.map(p => ({ ...p, location: isString(p.location) ? this.uriIdentityService.extUri.joinPath(this.profilesHome, p.location) : URI.revive(p.location) }));
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
-		return revive(this.stateService.getItem<UriDto<StoredProfileAssociations>>(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, {}));
+		const associations = this.stateService.getItem<StoredProfileAssociations>(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, {});
+		const migrated = this.stateService.getItem<boolean>(UserDataProfilesService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, false);
+		return migrated ? associations : this.migrateStoredProfileAssociations(associations);
 	}
 
 	protected override getDefaultProfileExtensionsLocation(): URI {

@@ -331,7 +331,9 @@ export class WorkbenchList<T> extends List<T> {
 	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
-		this.updateStyles(options.overrideStyles);
+		if (options.overrideStyles !== undefined) {
+			this.updateStyles(options.overrideStyles);
+		}
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
@@ -441,7 +443,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
-		if (options.overrideStyles) {
+		if (options.overrideStyles !== undefined) {
 			this.updateStyles(options.overrideStyles);
 		}
 
@@ -584,7 +586,9 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	override updateOptions(options: IWorkbenchTableOptionsUpdate): void {
 		super.updateOptions(options);
 
-		this.updateStyles(options.overrideStyles);
+		if (options.overrideStyles !== undefined) {
+			this.updateStyles(options.overrideStyles);
+		}
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
@@ -935,7 +939,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
-		if (options.overrideStyles) {
+		if (options.overrideStyles !== undefined) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
 
@@ -1100,6 +1104,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 	const [workbenchListOptions, disposable] = instantiationService.invokeFunction(toWorkbenchListOptions, options);
 	const additionalScrollHeight = options.additionalScrollHeight;
+	const renderIndentGuides = options.renderIndentGuides !== undefined ? options.renderIndentGuides : configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
 
 	return {
 		getTypeNavigationMode,
@@ -1109,7 +1114,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			keyboardSupport: false,
 			...workbenchListOptions,
 			indent: typeof configurationService.getValue(treeIndentKey) === 'number' ? configurationService.getValue(treeIndentKey) : undefined,
-			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
+			renderIndentGuides,
 			smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
 			defaultFindMode: getDefaultTreeFindMode(configurationService),
 			defaultFindMatchType: getDefaultTreeFindMatchType(configurationService),
@@ -1119,7 +1124,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
 			contextViewProvider: contextViewService as IContextViewProvider,
-			findWidgetStyles: defaultFindWidgetStyles
+			findWidgetStyles: defaultFindWidgetStyles,
 		} as TOptions
 	};
 }
@@ -1233,7 +1238,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					const indent = configurationService.getValue<number>(treeIndentKey);
 					newOptions = { ...newOptions, indent };
 				}
-				if (e.affectsConfiguration(treeRenderIndentGuidesKey)) {
+				if (e.affectsConfiguration(treeRenderIndentGuidesKey) && options.renderIndentGuides === undefined) {
 					const renderIndentGuides = configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
 					newOptions = { ...newOptions, renderIndentGuides };
 				}

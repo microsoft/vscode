@@ -13,7 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { selectBorder, selectBackground, asCssValue } from 'vs/platform/theme/common/colorRegistry';
+import { selectBorder, selectBackground, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -125,9 +125,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.container.style.border = `1px solid ${asCssValue(selectBorder)}`;
-		selectBoxContainer.style.borderLeft = `1px solid ${asCssValue(selectBorder)}`;
-		this.container.style.backgroundColor = asCssValue(selectBackground);
+		this.container.style.border = `1px solid ${asCssVariable(selectBorder)}`;
+		selectBoxContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
+		this.container.style.backgroundColor = asCssVariable(selectBackground);
 
 		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
 			this.providers = providers;

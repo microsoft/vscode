@@ -9,7 +9,6 @@ const gulp = require('gulp');
 const path = require('path');
 const task = require('./lib/task');
 const util = require('./lib/util');
-const _ = require('underscore');
 const electron = require('gulp-atom-electron');
 const { config } = require('./lib/electron');
 const filter = require('gulp-filter');
@@ -42,19 +41,19 @@ BUILD_TARGETS.forEach(buildTarget => {
 	tasks.push(util.rimraf(destinationExe), util.rimraf(destinationPdb));
 
 	// electron
-	tasks.push(() => electron.dest(destinationExe, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch })));
+	tasks.push(() => electron.dest(destinationExe, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch }));
 
 	// pdbs for windows
 	if (platform === 'win32') {
 		tasks.push(
-			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true })),
+			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
 			util.rimraf(path.join(destinationExe, 'swiftshader')),
 			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')));
 	}
 
 	if (platform === 'linux') {
 		tasks.push(
-			() => electron.dest(destinationPdb, _.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true }))
+			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true })
 		);
 	}
 
@@ -72,7 +71,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 function nodeModules(destinationExe, destinationPdb, platform) {
 	const productionDependencies = deps.getProductionDependencies(root);
-	const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })

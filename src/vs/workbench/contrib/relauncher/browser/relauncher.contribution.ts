@@ -27,7 +27,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
-	workbench?: { experimental?: { settingsProfiles?: { enabled?: boolean } }; enableExperiments?: boolean };
+	workbench?: { enableExperiments?: boolean };
 	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
@@ -45,7 +45,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
-		'workbench.experimental.settingsProfiles.enabled',
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE'
 	];
@@ -60,7 +59,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
-	private readonly profilesEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 
@@ -127,9 +125,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			processChanged(this.workspaceTrustEnabled.handleChange(config?.security?.workspace?.trust?.enabled));
 		}
 
-		// Profiles
-		processChanged(this.productService.quality === 'stable' && this.profilesEnabled.handleChange(config.workbench?.experimental?.settingsProfiles?.enabled));
-
 		// Experiments
 		processChanged(this.experimentsEnabled.handleChange(config.workbench?.enableExperiments));
 
@@ -147,18 +142,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.productService.nameLong) :
 					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.productService.nameLong),
 				isNative ?
-					localize('restart', "&&Restart") :
-					localize('restartWeb', "&&Reload"),
+					localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart") :
+					localize({ key: 'restartWeb', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
 				() => this.hostService.restart()
 			);
 		}
 	}
 
-	private async doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): Promise<void> {
+	private async doConfirm(message: string, detail: string, primaryButton: string, confirmedFn: () => void): Promise<void> {
 		if (this.hostService.hasFocus) {
-			const res = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton });
-			if (res.confirmed) {
-				confirmed();
+			const { confirmed } = await this.dialogService.confirm({ message, detail, primaryButton });
+			if (confirmed) {
+				confirmedFn();
 			}
 		}
 	}

@@ -10,9 +10,8 @@ import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, asCssValue } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
@@ -177,9 +176,9 @@ export class FilterWidget extends Widget {
 
 	private createBadge(container: HTMLElement): HTMLElement {
 		const filterBadge = DOM.append(container, DOM.$('.viewpane-filter-badge.hidden'));
-		filterBadge.style.backgroundColor = asCssValue(badgeBackground);
-		filterBadge.style.color = asCssValue(badgeForeground);
-		filterBadge.style.border = `1px solid ${asCssValue(contrastBorder)}`;
+		filterBadge.style.backgroundColor = asCssVariable(badgeBackground);
+		filterBadge.style.color = asCssVariable(badgeForeground);
+		filterBadge.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 		return filterBadge;
 	}
 
@@ -230,18 +229,3 @@ export class FilterWidget extends Widget {
 	}
 
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
-});

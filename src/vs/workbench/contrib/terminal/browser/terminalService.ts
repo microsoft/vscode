@@ -528,6 +528,13 @@ export class TerminalService implements ITerminalService {
 		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
+	showTerminalAccessibilityHelp(): void {
+		this.getActiveOrCreateInstance().then((instance) => {
+			this._terminalGroupService.showPanel();
+			instance.showAccessibilityHelp();
+		});
+	}
+
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
@@ -891,12 +898,12 @@ export class TerminalService implements ITerminalService {
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "Do you want to terminate the {0} active terminal sessions?", this.instances.length);
 		}
-		const res = await this._dialogService.confirm({
-			message,
-			primaryButton: nls.localize('terminate', "Terminate"),
+		const { confirmed } = await this._dialogService.confirm({
 			type: 'warning',
+			message,
+			primaryButton: nls.localize({ key: 'terminate', comment: ['&& denotes a mnemonic'] }, "&&Terminate")
 		});
-		return !res.confirmed;
+		return !confirmed;
 	}
 
 	getDefaultInstanceHost(): ITerminalInstanceHost {

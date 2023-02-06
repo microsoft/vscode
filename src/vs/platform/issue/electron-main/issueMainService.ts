@@ -6,7 +6,6 @@
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -28,8 +27,6 @@ import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-
-
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 const processExplorerWindowState = 'issue.processExplorerWindowState';
@@ -112,22 +109,17 @@ export class IssueMainService implements IIssueMainService {
 		});
 
 		validatedIpcMain.on('vscode:issueReporterClipboard', async event => {
-			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
-				type: 'warning',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
-			};
-
 			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
+				const { response } = await this.dialogMainService.showMessageBox({
+					type: 'warning',
+					message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
+					buttons: [
+						localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+						localize('cancel', "Cancel")
+					]
+				}, this.issueReporterWindow);
+
+				this.safeSend(event, 'vscode:issueReporterClipboardResponse', response === 0);
 			}
 		});
 
@@ -137,22 +129,17 @@ export class IssueMainService implements IIssueMainService {
 		});
 
 		validatedIpcMain.on('vscode:issueReporterConfirmClose', async () => {
-			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
-				type: 'warning',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
-			};
-
 			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				if (result.response === 0) {
+				const { response } = await this.dialogMainService.showMessageBox({
+					type: 'warning',
+					message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+					buttons: [
+						localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+						localize('cancel', "Cancel")
+					]
+				}, this.issueReporterWindow);
+
+				if (response === 0) {
 					if (this.issueReporterWindow) {
 						this.issueReporterWindow.destroy();
 						this.issueReporterWindow = null;
@@ -473,13 +460,10 @@ export class IssueMainService implements IIssueMainService {
 
 		// Inform user to report an issue
 		await this.dialogMainService.showMessageBox({
-			title: this.productService.nameLong,
 			type: 'info',
 			message: localize('trace.message', "Successfully created the trace file"),
 			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-			buttons: [mnemonicButtonLabel(localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
-			defaultId: 0,
-			noLink: true
+			buttons: [localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 		}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
 		// Show item in explorer

@@ -656,6 +656,11 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	handleItemDidShow?(completions: T, item: T['items'][number]): void;
 
 	/**
+	 * Will be called when an item is partially accepted.
+	 */
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
+
+	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
 	freeInlineCompletions(completions: T): void;
@@ -1388,6 +1393,20 @@ export class FoldingRangeKind {
 	 * The value of the kind is 'region'.
 	 */
 	static readonly Region = new FoldingRangeKind('region');
+
+	/**
+	 * Returns a {@link FoldingRangeKind} for the given value.
+	 *
+	 * @param value of the kind.
+	 */
+	static fromValue(value: string) {
+		switch (value) {
+			case 'comment': return FoldingRangeKind.Comment;
+			case 'imports': return FoldingRangeKind.Imports;
+			case 'region': return FoldingRangeKind.Region;
+		}
+		return new FoldingRangeKind(value);
+	}
 
 	/**
 	 * Creates a new {@link FoldingRangeKind}.

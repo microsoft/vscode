@@ -76,7 +76,7 @@ class OrganizeImportsCommand implements Command {
 
 			const resource = activeEditor.document.uri;
 			const document = await vscode.workspace.openTextDocument(resource);
-			const openedFiledPath = this.client.toOpenedFilePath(document);
+			const openedFiledPath = this.client.toOpenTsFilePath(document);
 			if (!openedFiledPath) {
 				vscode.window.showErrorMessage(vscode.l10n.t("Organize Imports failed. Unknown file type."));
 				return;
@@ -128,7 +128,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return [];
 		}

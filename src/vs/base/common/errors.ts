@@ -85,7 +85,12 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
  * @see https://github.com/microsoft/vscode-remote-release/issues/6481
  */
 export function isSigPipeError(e: unknown): e is Error {
-	return !!e && typeof e === 'object' && (<any>e).code === 'EPIPE' && (<any>e).syscall === 'WRITE';
+	if (!e || typeof e !== 'object') {
+		return false;
+	}
+
+	const cast = e as Record<string, string | undefined>;
+	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
 }
 
 export function onUnexpectedError(e: any): undefined {

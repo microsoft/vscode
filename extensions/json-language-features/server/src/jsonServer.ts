@@ -201,6 +201,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		fileMatch?: string[];
 		url?: string;
 		schema?: JSONSchema;
+		folderUri?: string;
 	}
 
 
@@ -313,7 +314,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 					uri = schema.schema.id || `vscode://schemas/custom/${index}`;
 				}
 				if (uri) {
-					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
+					languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema, folderUri: schema.folderUri });
 				}
 			});
 		}

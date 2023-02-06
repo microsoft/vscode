@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -45,7 +44,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDBFileSystemProviderErrorDataClassification, IndexedDBFileSystemProvider, IndexedDBFileSystemProviderErrorData } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -73,7 +71,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
@@ -81,8 +79,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
-import { timeout } from 'vs/base/common/async';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { rendererLogId } from 'vs/workbench/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
 
@@ -293,19 +289,9 @@ export class BrowserMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		let isProfilesEnablementConfigured = false;
 		if (environmentService.remoteAuthority) {
 			// Always Disabled in web with remote connection
 			userDataProfilesService.setEnablement(false);
-		} else {
-			if (productService.quality === 'stable') {
-				// Enabled from Config
-				userDataProfilesService.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
-				isProfilesEnablementConfigured = true;
-			} else {
-				// Always Enabled
-				userDataProfilesService.setEnablement(true);
-			}
 		}
 
 		const currentProfile = userDataProfilesService.getProfileForWorkspace(workspace) ?? userDataProfilesService.defaultProfile;
@@ -333,15 +319,6 @@ export class BrowserMain extends Disposable {
 				return service;
 			})
 		]);
-
-		if (isProfilesEnablementConfigured) {
-			userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
-			this._register(configurationService.onDidChangeConfiguration(e => {
-				if (e.source !== ConfigurationTarget.DEFAULT && e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
-					window.localStorage.setItem(PROFILES_ENABLEMENT_CONFIG, !!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG) ? 'true' : 'false');
-				}
-			}));
-		}
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -386,36 +363,7 @@ export class BrowserMain extends Disposable {
 		const credentialsService = new BrowserCredentialsService(environmentService, remoteAgentService, productService);
 		serviceCollection.set(ICredentialsService, credentialsService);
 
-		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, credentialsService, userDataSyncStoreManagementService, fileService, userDataProfilesService, storageService, productService, requestService, logService, uriIdentityService);
-		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
-
-		try {
-			await Promise.race([
-				// Do not block more than 5s
-				timeout(5000),
-				this.initializeUserData(userDataInitializationService, configurationService)]
-			);
-		} catch (error) {
-			logService.error(error);
-		}
-
 		return { serviceCollection, configurationService, logService };
-	}
-
-	private async initializeUserData(userDataInitializationService: UserDataInitializationService, configurationService: WorkspaceService) {
-		if (await userDataInitializationService.requiresInitialization()) {
-			mark('code/willInitRequiredUserData');
-
-			// Initialize required resources - settings & global state
-			await userDataInitializationService.initializeRequiredResources();
-
-			// Important: Reload only local user configuration after initializing
-			// Reloading complete configuration blocks workbench until remote configuration is loaded.
-			await configurationService.reloadLocalUserConfiguration();
-
-			mark('code/didInitRequiredUserData');
-		}
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, bufferLogger: BufferLogger, logService: ILogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {

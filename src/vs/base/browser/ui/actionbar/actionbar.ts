@@ -25,7 +25,7 @@ export interface IActionViewItem extends IDisposable {
 }
 
 export interface IActionViewItemProvider {
-	(action: IAction): IActionViewItem | undefined;
+	(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
 }
 
 export const enum ActionsOrientation {
@@ -347,12 +347,13 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			let item: IActionViewItem | undefined;
 
+			const viewItemOptions = { hoverDelegate: this.options.hoverDelegate, ...options };
 			if (this.options.actionViewItemProvider) {
-				item = this.options.actionViewItemProvider(action);
+				item = this.options.actionViewItemProvider(action, viewItemOptions);
 			}
 
 			if (!item) {
-				item = new ActionViewItem(this.context, action, { hoverDelegate: this.options.hoverDelegate, ...options });
+				item = new ActionViewItem(this.context, action, viewItemOptions);
 			}
 
 			// Prevent native context menu on actions

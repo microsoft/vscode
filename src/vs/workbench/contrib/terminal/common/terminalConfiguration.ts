@@ -454,8 +454,8 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['off', 'on', 'notRemote'],
 			enumDescriptions: [
 				localize('enableFileLinks.off', "Always off."),
-				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace."),
-				localize('enableFileLinks.on', "Always on.")
+				localize('enableFileLinks.on', "Always on."),
+				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace.")
 			],
 			default: 'on'
 		},
@@ -569,11 +569,28 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
+		[TerminalSettingId.ShellIntegrationSuggestEnabled]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.AccessibleBufferContentEditable]: {
+			description: localize('terminal.integrated.accessibleBufferContentEditable', "Controls whether the accessible buffer is marks as a `contenteditable` element. This adds a text cursor to the buffer, allowing selection with the keyboard without a screen reader. Screen reader will typically want to leave this as `'auto'` or `'off'` which will treat the buffer similar to a document."),
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			enumDescriptions: [
+				localize('accessibleBufferContentEditable.auto', "Automatically enable when a screen reader is not detected."),
+				localize('accessibleBufferContentEditable.on', "Always on."),
+				localize('accessibleBufferContentEditable.off', "Always off.")
+			],
+			default: 'auto'
+		}
 	}
 };
 

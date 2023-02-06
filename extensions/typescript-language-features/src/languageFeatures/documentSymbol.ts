@@ -41,7 +41,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	) { }
 
 	public async provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
