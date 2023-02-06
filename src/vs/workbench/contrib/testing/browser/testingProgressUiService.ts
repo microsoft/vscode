@@ -10,14 +10,13 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/common/views';
 import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { LiveTestResult, TestResultItemChangeReason, TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;
@@ -35,7 +34,7 @@ export class TestingProgressTrigger extends Disposable {
 		@ITestResultService resultService: ITestResultService,
 		@ITestingProgressUiService progressService: ITestingProgressUiService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -83,7 +82,7 @@ export class TestingProgressTrigger extends Disposable {
 	}
 
 	private openTestView() {
-		this.paneCompositeService.openPaneComposite(Testing.ViewletId, ViewContainerLocation.Sidebar);
+		this.viewsService.openView(Testing.ExplorerViewId, false);
 	}
 }
 

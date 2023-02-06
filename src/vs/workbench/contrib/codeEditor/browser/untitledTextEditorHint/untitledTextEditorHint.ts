@@ -113,7 +113,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 					'Preserve double-square brackets and their order',
 					'language refers to a programming language'
 				]
-			}, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			}, '[[Select a language]], or [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
 			const hintHandler: IContentActionHandler = {
 				disposables: this.toDispose,
 				callback: (index, event) => {
@@ -122,9 +122,12 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 							languageOnClickOrTap(event.browserEvent);
 							break;
 						case '1':
-							chooseEditorOnClickOrTap(event.browserEvent);
+							snippetOnClickOrTap(event.browserEvent);
 							break;
 						case '2':
+							chooseEditorOnClickOrTap(event.browserEvent);
+							break;
+						case '3':
 							dontShowOnClickOrTap();
 							break;
 					}
@@ -153,6 +156,12 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 				await this.commandService.executeCommand(ChangeLanguageAction.ID, { from: 'hint' });
 				this.editor.focus();
+			};
+
+			const snippetOnClickOrTap = async (e: UIEvent) => {
+				e.stopPropagation();
+
+				await this.commandService.executeCommand(ApplyFileSnippetAction.Id);
 			};
 
 			const chooseEditorOnClickOrTap = async (e: UIEvent) => {

@@ -466,6 +466,8 @@ export interface IExtensionManagementService {
 
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
 	getTargetPlatform(): Promise<TargetPlatform>;
+
+	cleanUp(): Promise<void>;
 }
 
 export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
@@ -512,8 +514,7 @@ export interface IExtensionTipsService {
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
-export const PreferencesLabel = localize('preferences', "Preferences");
-export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };
+export const PreferencesLocalizedLabel = { value: localize('preferences', "Preferences"), original: 'Preferences' };
 
 export interface CLIOutput {
 	log(s: string): void;
