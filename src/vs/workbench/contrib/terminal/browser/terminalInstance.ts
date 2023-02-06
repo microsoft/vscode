@@ -1108,6 +1108,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._accessibilityBuffer) {
 			return;
 		}
+		const accessibleBufferContentEditable = this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
+		this._accessibilityBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
 		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
 		const font = this.xterm.getFont();
 		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
@@ -2675,8 +2677,8 @@ export function parseExitResult(
 }
 
 const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
-const enterAccessibilityModeNls = nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.');
-const enterAccessibilityModeNoKb = nls.localize('enterAccessibilityModeNoKb', 'The Enter Accessibility Mode command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
+const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
+const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
 const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
 const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
@@ -2749,7 +2751,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 
 	private _buildContent(): void {
 		const content = [];
-		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));

@@ -580,6 +580,17 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.AccessibleBufferContentEditable]: {
+			description: localize('terminal.integrated.accessibleBufferContentEditable', "Controls whether the accessible buffer is marks as a `contenteditable` element. This adds a text cursor to the buffer, allowing selection with the keyboard without a screen reader. Screen reader will typically want to leave this as `'auto'` or `'off'` which will treat the buffer similar to a document."),
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			enumDescriptions: [
+				localize('accessibleBufferContentEditable.auto', "Automatically enable when a screen reader is not detected."),
+				localize('accessibleBufferContentEditable.on', "Always on."),
+				localize('accessibleBufferContentEditable.off', "Always off.")
+			],
+			default: 'auto'
+		}
 	}
 };
 
