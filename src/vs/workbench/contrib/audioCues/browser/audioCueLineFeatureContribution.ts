@@ -19,6 +19,7 @@ import { autorun, autorunDelta, constObservable, debouncedObservable, derived, I
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { CachedFunction } from 'vs/base/common/cache';
 import { Position } from 'vs/editor/common/core/position';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class AudioCueLineFeatureContribution
 	extends Disposable
@@ -41,7 +42,8 @@ export class AudioCueLineFeatureContribution
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -105,8 +107,7 @@ export class AudioCueLineFeatureContribution
 				return editor.getPosition();
 			}
 		);
-		const debouncedPosition = debouncedObservable(curPosition, 300, store);
-
+		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('audioCues.debouncePositionChanges') ? 300 : 0, store);
 		const isTyping = wasEventTriggeredRecently(
 			editorModel.onDidChangeContent.bind(editorModel),
 			1000,
