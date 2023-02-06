@@ -62,6 +62,7 @@ export class CodeCell extends Disposable {
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
 		this._renderedInputCollapseState = false; // editor is always expanded initially
+		DOM.show(this.templateData.editorPart); // however the editor part display might not be cleared on template
 
 		this.registerViewCellLayoutChange();
 		this.registerCellEditorEventListeners();
