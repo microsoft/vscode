@@ -368,14 +368,6 @@ export interface ITerminalCommand {
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 }
 
-export interface INavigationMode {
-	exitNavigationMode(): void;
-	focusPreviousLine(): void;
-	focusNextLine(): void;
-	focusPreviousPage(): void;
-	focusNextPage(): void;
-}
-
 export interface IBeforeProcessDataEvent {
 	/**
 	 * The data of the event, this can be modified by the event listener to change what gets sent
@@ -579,11 +571,6 @@ export const enum TerminalCommandId {
 	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
 	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	NavigationModeExit = 'workbench.action.terminal.navigationModeExit',
-	NavigationModeFocusNext = 'workbench.action.terminal.navigationModeFocusNext',
-	NavigationModeFocusNextPage = 'workbench.action.terminal.navigationModeFocusNextPage',
-	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
-	NavigationModeFocusPreviousPage = 'workbench.action.terminal.navigationModeFocusPreviousPage',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
@@ -663,9 +650,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.SplitInActiveWorkspace,
 	TerminalCommandId.Split,
 	TerminalCommandId.Toggle,
-	TerminalCommandId.NavigationModeExit,
-	TerminalCommandId.NavigationModeFocusNext,
-	TerminalCommandId.NavigationModeFocusPrevious,
 	TerminalCommandId.SelectPrevSuggestion,
 	TerminalCommandId.SelectPrevPageSuggestion,
 	TerminalCommandId.SelectNextSuggestion,
