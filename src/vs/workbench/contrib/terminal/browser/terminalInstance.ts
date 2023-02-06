@@ -1115,7 +1115,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
 		this._accessibilityBuffer.style.lineHeight = lineHeight;
 		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		if (!commands) {
+		if (!commands?.length) {
+			const noContent = document.createElement('div');
+			const noContentLabel = nls.localize('terminal.integrated.noContent', "No terminal content available for this session.");
+			noContent.ariaLabel = noContentLabel;
+			noContent.textContent = noContentLabel;
+			this.xterm.raw.setAccessibilityBufferElements([noContent]);
+			this._accessibilityBuffer.focus();
 			return;
 		}
 		const shellIntegrationNodes = [];

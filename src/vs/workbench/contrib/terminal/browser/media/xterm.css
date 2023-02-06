@@ -221,7 +221,7 @@
 	overflow-x: hidden;
 }
 
-.xterm-accessibility-buffer div {
+.xterm .xterm-accessibility-buffer div {
 	white-space: pre-wrap;
 }
 
