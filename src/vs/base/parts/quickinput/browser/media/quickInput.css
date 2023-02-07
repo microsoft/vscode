@@ -7,9 +7,8 @@
 	position: absolute;
 	width: 600px;
 	z-index: 2550;
-	left: 0;
-	right: 0;
-	margin: 0 auto;
+	left: 50%;
+	margin-left: -300px;
 	-webkit-app-region: no-drag;
 	border-radius: 6px;
 }
