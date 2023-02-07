@@ -219,6 +219,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private _accessibilityBuffer: HTMLElement | undefined;
+	private _bufferElementProvider: IDisposable | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1104,6 +1105,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.element) {
 			return;
 		}
+		this._bufferElementProvider?.dispose();
 		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
 		if (!this._accessibilityBuffer) {
 			return;
@@ -1122,7 +1124,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			noContent.textContent = noContentLabel;
 			const fragment = document.createDocumentFragment();
 			fragment.appendChild(noContent);
-			this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => fragment }));
+			this._bufferElementProvider = this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => fragment }));
 			this._accessibilityBuffer.focus();
 			return;
 		}
@@ -1144,7 +1146,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// focus the cursor line's header
 			header.tabIndex = 0;
 		}
-		this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => shellIntegrationFragment }));
+		this._bufferElementProvider = this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => shellIntegrationFragment }));
 		this._accessibilityBuffer.focus();
 	}
 
