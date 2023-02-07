@@ -65,6 +65,7 @@
 		"keybindingLabel.foreground": "#000000e4",
 		"list.activeSelectionBackground": "#e8e8e8",
 		"list.activeSelectionForeground": "#000000",
+		"list.activeSelectionIconForeground": "#000000",
 		"list.hoverBackground": "#f2f2f2",
 		"menu.border": "#D4D4D4",
 		"notebook.cellBorderColor": "#E8E8E8",
