@@ -251,6 +251,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 			execPromise.then(exec => {
 				if (process.env.WSL_DISTRO_NAME) {
 					if (path.basename(exec, '.exe') === 'wt') {
+						exec = 'wt.exe'; // Force .exe to allow calling a Windows binary from WSL
 						termArgs.push('cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
 					} else {
 						exec = 'cmd.exe';
