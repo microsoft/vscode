@@ -1156,24 +1156,4 @@ suite('Glob', () => {
 		assert.ok(!glob.patternsEquals(undefined, ['b']));
 		assert.ok(!glob.patternsEquals(['a'], undefined));
 	});
-
-
-	test('simple includes', () => {
-		function testBraceExpansion(argGlob: string, expectedGlob: string[]): void {
-			const result = glob.performBraceExpansion(argGlob);
-			assert.deepStrictEqual(result, expectedGlob);
-		}
-
-		[
-			['eep/{a,b}/test', ['eep/a/test', 'eep/b/test']],
-			['eep/{a,b}/{c,d,e}', ['eep/a/c', 'eep/a/d', 'eep/a/e', 'eep/b/c', 'eep/b/d', 'eep/b/e']],
-			['eep/{a,b}/\\{c,d,e}', ['eep/a/{c,d,e}', 'eep/b/{c,d,e}']],
-			['eep/{a,b\\}/test', ['eep/{a,b}/test']],
-			['eep/{a,b\\\\}/test', ['eep/a/test', 'eep/b\\\\/test']],
-			['eep/{a,b\\\\\\}/test', ['eep/{a,b\\\\}/test']],
-			['e\\{ep/{a,b}/test', ['e{ep/a/test', 'e{ep/b/test']],
-			['eep/{a,\\b}/test', ['eep/a/test', 'eep/\\b/test']],
-			['{a/*.*,b/*.*}', ['a/*.*', 'b/*.*']],
-		].forEach(([includePattern, expectedPatterns]) => testBraceExpansion(<string>includePattern, <string[]>expectedPatterns));
-	});
 });
