@@ -12,7 +12,7 @@ declare module 'vscode' {
 		 * Controls whether the dialog allows users to select local files via the "Show Local" button.
 		 * Extensions that set this to `true` should check the scheme of the selected file.
 		 *
-		 * TODO: Workspace extensions already get only `file` scheme URIs back from the dialog. Should we ignore `allowLocal` for them?
+		 * TODO: Workspace extensions already get only `file` scheme URIs back from the dialog. How will we tell the extension that the file is local?
 		 */
 		allowLocal?: boolean;
 	}
