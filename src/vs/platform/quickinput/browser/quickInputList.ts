@@ -23,11 +23,11 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ltrim } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { QuickPickItem, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
+import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
+import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 const $ = dom.$;
 
