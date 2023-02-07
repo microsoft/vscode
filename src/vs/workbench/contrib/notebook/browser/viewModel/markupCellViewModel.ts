@@ -249,10 +249,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		}
 	}
 
-	hasDynamicHeight() {
-		return false;
-	}
-
 	getDynamicHeight() {
 		return null;
 	}
@@ -285,8 +281,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 		return {
 			cell: this,
-			matches,
-			modelMatchCount: matches.length
+			contentMatches: matches
 		};
 	}
 

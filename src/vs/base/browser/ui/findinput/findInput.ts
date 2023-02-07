@@ -11,7 +11,6 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./findInput';
@@ -19,7 +18,7 @@ import * as nls from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 
-export interface IFindInputOptions extends IFindInputStyles {
+export interface IFindInputOptions {
 	readonly placeholder?: string;
 	readonly width?: number;
 	readonly validation?: IInputValidator;
@@ -35,12 +34,8 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly history?: string[];
 	readonly additionalToggles?: Toggle[];
 	readonly showHistoryHint?: () => boolean;
-}
-
-export interface IFindInputStyles extends IInputBoxStyles {
-	inputActiveOptionBorder?: Color;
-	inputActiveOptionForeground?: Color;
-	inputActiveOptionBackground?: Color;
+	readonly toggleStyles: IToggleStyles;
+	readonly inputBoxStyles: IInputBoxStyles;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -56,23 +51,6 @@ export class FindInput extends Widget {
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
 	private additionalTogglesDisposables: DisposableStore = new DisposableStore();
-
-	protected inputActiveOptionBorder?: Color;
-	protected inputActiveOptionForeground?: Color;
-	protected inputActiveOptionBackground?: Color;
-	protected inputBackground?: Color;
-	protected inputForeground?: Color;
-	protected inputBorder?: Color;
-
-	protected inputValidationInfoBorder?: Color;
-	protected inputValidationInfoBackground?: Color;
-	protected inputValidationInfoForeground?: Color;
-	protected inputValidationWarningBorder?: Color;
-	protected inputValidationWarningBackground?: Color;
-	protected inputValidationWarningForeground?: Color;
-	protected inputValidationErrorBorder?: Color;
-	protected inputValidationErrorBackground?: Color;
-	protected inputValidationErrorForeground?: Color;
 
 	protected readonly controls: HTMLDivElement;
 	protected readonly regex?: RegexToggle;
@@ -110,23 +88,6 @@ export class FindInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 		this.showCommonFindToggles = !!options.showCommonFindToggles;
 
-		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
-		this.inputActiveOptionForeground = options.inputActiveOptionForeground;
-		this.inputActiveOptionBackground = options.inputActiveOptionBackground;
-		this.inputBackground = options.inputBackground;
-		this.inputForeground = options.inputForeground;
-		this.inputBorder = options.inputBorder;
-
-		this.inputValidationInfoBorder = options.inputValidationInfoBorder;
-		this.inputValidationInfoBackground = options.inputValidationInfoBackground;
-		this.inputValidationInfoForeground = options.inputValidationInfoForeground;
-		this.inputValidationWarningBorder = options.inputValidationWarningBorder;
-		this.inputValidationWarningBackground = options.inputValidationWarningBackground;
-		this.inputValidationWarningForeground = options.inputValidationWarningForeground;
-		this.inputValidationErrorBorder = options.inputValidationErrorBorder;
-		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
-		this.inputValidationErrorForeground = options.inputValidationErrorForeground;
-
 		const appendCaseSensitiveLabel = options.appendCaseSensitiveLabel || '';
 		const appendWholeWordsLabel = options.appendWholeWordsLabel || '';
 		const appendRegexLabel = options.appendRegexLabel || '';
@@ -144,32 +105,19 @@ export class FindInput extends Widget {
 			validationOptions: {
 				validation: this.validation
 			},
-			inputBackground: this.inputBackground,
-			inputForeground: this.inputForeground,
-			inputBorder: this.inputBorder,
-			inputValidationInfoBackground: this.inputValidationInfoBackground,
-			inputValidationInfoForeground: this.inputValidationInfoForeground,
-			inputValidationInfoBorder: this.inputValidationInfoBorder,
-			inputValidationWarningBackground: this.inputValidationWarningBackground,
-			inputValidationWarningForeground: this.inputValidationWarningForeground,
-			inputValidationWarningBorder: this.inputValidationWarningBorder,
-			inputValidationErrorBackground: this.inputValidationErrorBackground,
-			inputValidationErrorForeground: this.inputValidationErrorForeground,
-			inputValidationErrorBorder: this.inputValidationErrorBorder,
 			history,
 			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight
+			flexibleMaxHeight,
+			inputBoxStyles: options.inputBoxStyles,
 		}));
 
 		if (this.showCommonFindToggles) {
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
-				inputActiveOptionBorder: this.inputActiveOptionBorder,
-				inputActiveOptionForeground: this.inputActiveOptionForeground,
-				inputActiveOptionBackground: this.inputActiveOptionBackground
+				...options.toggleStyles
 			}));
 			this._register(this.regex.onChange(viaKeyboard => {
 				this._onDidOptionChange.fire(viaKeyboard);
@@ -185,9 +133,7 @@ export class FindInput extends Widget {
 			this.wholeWords = this._register(new WholeWordsToggle({
 				appendTitle: appendWholeWordsLabel,
 				isChecked: false,
-				inputActiveOptionBorder: this.inputActiveOptionBorder,
-				inputActiveOptionForeground: this.inputActiveOptionForeground,
-				inputActiveOptionBackground: this.inputActiveOptionBackground
+				...options.toggleStyles
 			}));
 			this._register(this.wholeWords.onChange(viaKeyboard => {
 				this._onDidOptionChange.fire(viaKeyboard);
@@ -200,9 +146,7 @@ export class FindInput extends Widget {
 			this.caseSensitive = this._register(new CaseSensitiveToggle({
 				appendTitle: appendCaseSensitiveLabel,
 				isChecked: false,
-				inputActiveOptionBorder: this.inputActiveOptionBorder,
-				inputActiveOptionForeground: this.inputActiveOptionForeground,
-				inputActiveOptionBackground: this.inputActiveOptionBackground
+				...options.toggleStyles
 			}));
 			this._register(this.caseSensitive.onChange(viaKeyboard => {
 				this._onDidOptionChange.fire(viaKeyboard);
@@ -373,60 +317,6 @@ export class FindInput extends Widget {
 
 	public onSearchSubmit(): void {
 		this.inputBox.addToHistory();
-	}
-
-	public style(styles: IFindInputStyles): void {
-		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
-		this.inputActiveOptionForeground = styles.inputActiveOptionForeground;
-		this.inputActiveOptionBackground = styles.inputActiveOptionBackground;
-		this.inputBackground = styles.inputBackground;
-		this.inputForeground = styles.inputForeground;
-		this.inputBorder = styles.inputBorder;
-
-		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
-		this.inputValidationInfoForeground = styles.inputValidationInfoForeground;
-		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
-		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
-		this.inputValidationWarningForeground = styles.inputValidationWarningForeground;
-		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
-		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
-		this.inputValidationErrorForeground = styles.inputValidationErrorForeground;
-		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
-
-		this.applyStyles();
-	}
-
-	protected applyStyles(): void {
-		if (this.domNode) {
-			const toggleStyles: IToggleStyles = {
-				inputActiveOptionBorder: this.inputActiveOptionBorder,
-				inputActiveOptionForeground: this.inputActiveOptionForeground,
-				inputActiveOptionBackground: this.inputActiveOptionBackground,
-			};
-			this.regex?.style(toggleStyles);
-			this.wholeWords?.style(toggleStyles);
-			this.caseSensitive?.style(toggleStyles);
-
-			for (const toggle of this.additionalToggles) {
-				toggle.style(toggleStyles);
-			}
-
-			const inputBoxStyles: IInputBoxStyles = {
-				inputBackground: this.inputBackground,
-				inputForeground: this.inputForeground,
-				inputBorder: this.inputBorder,
-				inputValidationInfoBackground: this.inputValidationInfoBackground,
-				inputValidationInfoForeground: this.inputValidationInfoForeground,
-				inputValidationInfoBorder: this.inputValidationInfoBorder,
-				inputValidationWarningBackground: this.inputValidationWarningBackground,
-				inputValidationWarningForeground: this.inputValidationWarningForeground,
-				inputValidationWarningBorder: this.inputValidationWarningBorder,
-				inputValidationErrorBackground: this.inputValidationErrorBackground,
-				inputValidationErrorForeground: this.inputValidationErrorForeground,
-				inputValidationErrorBorder: this.inputValidationErrorBorder
-			};
-			this.inputBox.style(inputBoxStyles);
-		}
 	}
 
 	public select(): void {

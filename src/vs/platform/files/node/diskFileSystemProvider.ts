@@ -90,11 +90,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
-				permissions: (stat.mode & 0o200) === 0 ? FilePermission.Readonly : undefined,
 				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
-				size: stat.size
+				size: stat.size,
+				permissions: (stat.mode & 0o200) === 0 ? (FilePermission.Readonly + FilePermission.IgnoreReadonly) : undefined,
 			};
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);

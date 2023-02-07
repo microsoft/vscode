@@ -38,6 +38,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
@@ -148,12 +149,13 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IFileService private readonly fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILabelService labelService: ILabelService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
@@ -171,7 +173,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			this.workingCopyTypeId,
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
-			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
+			workingCopyBackupService, uriIdentityService, filesConfigurationService, configurationService, workingCopyService,
 			notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 
@@ -423,7 +425,17 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		}
 
 		// Revert the source
-		await sourceWorkingCopy?.revert();
+		try {
+			await sourceWorkingCopy?.revert();
+		} catch (error) {
+
+			// It is possible that reverting the source fails, for example
+			// when a remote is disconnected and we cannot read it anymore.
+			// However, this should not interrupt the "Save As" flow, so
+			// we gracefully catch the error and just log it.
+
+			this.logService.error(error);
+		}
 
 		return targetStoredFileWorkingCopy;
 	}

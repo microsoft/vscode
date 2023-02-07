@@ -1,12 +1,15 @@
 {
 	"compilerOptions": {
 		"target": "es2022",
-		"lib": ["ES2020"],
+		"lib": [
+			"ES2020"
+		],
 		"module": "commonjs",
 		"alwaysStrict": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
+		"inlineSourceMap": true,
 		"resolveJsonModule": true,
 		// enable JavaScript type checking for the language service
 		// use the tsconfig.build.json for compiling which disable JavaScript

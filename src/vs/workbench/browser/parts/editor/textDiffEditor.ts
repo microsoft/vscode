@@ -7,9 +7,9 @@ import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
 import { isObject, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState, createTooLargeFileError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -18,7 +18,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -33,7 +33,9 @@ import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -42,7 +44,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
-	private diffEditorControl: IDiffEditor | undefined = undefined;
+	private diffEditorControl: DiffEditorWidget | undefined = undefined;
 
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
@@ -66,7 +68,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorService, editorGroupService, fileService);
 	}
@@ -79,7 +82,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
 		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
 	}
 
@@ -100,7 +103,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		await super.setInput(input, options, context, token);
 
 		try {
-			const resolvedModel = await input.resolve();
+			const resolvedModel = await input.resolve(options);
 
 			// Check for cancellation
 			if (token.isCancellationRequested) {
@@ -131,8 +134,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			}
 
 			// Diff navigator
-			this.diffNavigator = new DiffNavigator(control, {
-				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
+			this.diffNavigator = this.instantiationService.createInstance(DiffNavigator, control, {
+				alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState, // only reveal first change if we had no options or viewstate
+				findResultLoop: this.getMainControl()?.getOption(EditorOption.find).loop
 			});
 			this.diffNavigatorDisposables.add(this.diffNavigator);
 
@@ -146,15 +150,31 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
 		} catch (error) {
+			await this.handleSetInputError(error, input, options);
+		}
+	}
 
-			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-			if (this.isFileBinaryError(error)) {
-				this.openAsBinary(input, options);
-				return;
+	private async handleSetInputError(error: Error, input: DiffEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
+
+		// Handle case where content appears to be binary
+		if (this.isFileBinaryError(error)) {
+			return this.openAsBinary(input, options);
+		}
+
+		// Handle case where a file is too large to open without confirmation
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+			let message: string;
+			if (error instanceof TooLargeFileOperationError) {
+				message = localize('fileTooLargeForHeapErrorWithSize', "At least one file is not displayed in the text compare editor because it is very large ({0}).", ByteSize.formatSize(error.size));
+			} else {
+				message = localize('fileTooLargeForHeapErrorWithoutSize', "At least one file is not displayed in the text compare editor because it is very large.");
 			}
 
-			throw error;
+			throw createTooLargeFileError(this.group, input, options, message, this.preferencesService);
 		}
+
+		// Otherwise make sure the error bubbles up
+		throw error;
 	}
 
 	private restoreTextDiffEditorViewState(editor: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, control: IDiffEditor): boolean {
@@ -211,6 +231,14 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.diffEditorControl), ScrollType.Smooth);
 		}
+	}
+
+	protected override shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI): boolean {
+		if (super.shouldHandleConfigurationChangeEvent(e, resource)) {
+			return true;
+		}
+
+		return e.affectsConfiguration(resource, 'diffEditor');
 	}
 
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
@@ -306,6 +334,10 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	override layout(dimension: Dimension): void {
 		this.diffEditorControl?.layout(dimension);
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this.diffEditorControl?.setBoundarySashes(sashes);
 	}
 
 	protected override tracksEditorViewState(input: EditorInput): boolean {

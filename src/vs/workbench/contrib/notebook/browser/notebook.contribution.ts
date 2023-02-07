@@ -26,10 +26,10 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -46,7 +46,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
 import { getFormattedMetadataJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -54,7 +54,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
@@ -86,8 +85,11 @@ import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo'
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
-import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
+import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookBreakpoints';
+import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookCellPausing';
+import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookDebugDecorations';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
+import 'vs/workbench/contrib/notebook/browser/contrib/kernelDetection/notebookKernelDetection';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -105,6 +107,9 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -619,49 +624,6 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 }
 
-class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly _workingCopyEditorService: IWorkingCopyEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService
-	) {
-		super();
-
-		this._installHandler();
-	}
-
-	private async _installHandler(): Promise<void> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeNotebook,
-			isOpen: (workingCopy, editor) => {
-				if (isCompositeNotebookEditorInput(editor)) {
-					return !!editor.editorInputs.find(input => isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: input.resource.toString() }), workingCopy.resource));
-				}
-
-				return editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource);
-			},
-			createEditor: async workingCopy => {
-				// TODO this is really bad and should adopt the `typeId`
-				// for backups instead of storing that information in the
-				// backup.
-				// But since complex notebooks are deprecated, not worth
-				// pushing for it and should eventually delete this code
-				// entirely.
-				const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(workingCopy);
-				if (!backup?.meta) {
-					throw new Error(`No backup found for Notebook editor: ${workingCopy.resource}`);
-				}
-
-				return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, backup.meta.viewType, { startDirty: true });
-			}
-		}));
-	}
-}
-
 class NotebookLanguageSelectorScoreRefine {
 
 	constructor(
@@ -695,7 +657,6 @@ workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasCont
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
 registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
@@ -703,10 +664,12 @@ registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServ
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, InstantiationType.Delayed);
 registerSingleton(INotebookKernelService, NotebookKernelService, InstantiationType.Delayed);
+registerSingleton(INotebookKernelHistoryService, NotebookKernelHistoryService, InstantiationType.Delayed);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, InstantiationType.Delayed);
 registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService, InstantiationType.Delayed);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
+registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -896,11 +859,11 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.outputLineHeight]: {
 			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
-			default: 22,
+			default: 19,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
-			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to {0}, {1} is used.", '`0`', '`#editor.fontSize#`'),
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
 			tags: ['notebookLayout']
@@ -910,11 +873,30 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.kernelPickerMRU]: {
-			markdownDescription: nls.localize('notebook.kernelPickerMRU', "Controls whether the kernel picker should show the most recently used kernels."),
+		[NotebookSetting.kernelPickerType]: {
+			markdownDescription: nls.localize('notebook.kernelPickerType', "Controls the type of kernel picker to use."),
+			type: 'string',
+			enum: ['all', 'mru'],
+			enumDescriptions: [
+				nls.localize('notebook.kernelPickerType.all', "Show all kernels."),
+				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
+			],
+			tags: ['notebookLayout'],
+			default: 'mru'
+		},
+		[NotebookSetting.outputScrolling]: {
+			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
+		[NotebookSetting.logging]: {
+			markdownDescription: nls.localize('notebook.logging', "Enable logging for notebook support."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
 		}
 	}
 });
+
+

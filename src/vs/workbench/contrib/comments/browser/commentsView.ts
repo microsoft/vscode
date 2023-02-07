@@ -39,9 +39,20 @@ import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFil
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { Iterable } from 'vs/base/common/iterator';
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 const VIEW_STORAGE_ID = 'commentsViewState';
+
+function createResourceCommentsIterator(model: CommentsModel): Iterable<ITreeElement<ResourceWithCommentThreads | CommentNode>> {
+	return Iterable.map(model.resourceCommentThreads, m => {
+		const CommentNodeIt = Iterable.from(m.commentThreads);
+		const children = Iterable.map(CommentNodeIt, r => ({ element: r }));
+
+		return { element: m, children };
+	});
+}
 
 export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private treeLabels!: ResourceLabels;
@@ -78,8 +89,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@ICommentService private readonly commentService: ICommentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IActivityService readonly activityService: IActivityService,
-		@IStorageService readonly storageService: IStorageService
+		@IActivityService private readonly activityService: IActivityService,
+		@IStorageService storageService: IStorageService
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
@@ -159,7 +170,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.filterWidget.checkMoreFilters(!this.filters.showResolved || !this.filters.showUnresolved);
 	}
 
-	public override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		container.classList.add('comments-panel');
@@ -232,7 +243,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	private async renderComments(): Promise<void> {
 		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 		this.renderMessage();
-		await this.tree?.setInput(this.commentsModel);
+		await this.tree?.setChildren(null, createResourceCommentsIterator(this.commentsModel));
 	}
 
 	public collapseAll() {
@@ -249,7 +260,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		return !!this.tree;
 	}
 
-	public override layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
+	protected layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
 		if (this.messageBoxContainer) {
 			this.messageBoxContainer.style.height = `${height}px`;
 		}
@@ -307,10 +318,6 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 
 		this._register(this.tree.onDidOpen(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
-		}));
-		this._register(this.tree?.onDidChangeModel(() => {
-			this.cachedFilterStats = undefined;
-			this.updateFilter();
 		}));
 	}
 
@@ -382,7 +389,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 			this.cachedFilterStats = undefined;
 			this.renderMessage();
-			await this.tree.updateChildren();
+			this.tree?.setChildren(null, createResourceCommentsIterator(this.commentsModel));
 
 			if (this.tree.getSelection().length === 0 && this.commentsModel.hasCommentThreads()) {
 				const firstComment = this.commentsModel.resourceCommentThreads[0].commentThreads[0];
@@ -395,8 +402,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {
+		this.cachedFilterStats = undefined;
 		this.commentsModel.setCommentThreads(e.ownerId, e.commentThreads);
-
 		this.totalComments += e.commentThreads.length;
 
 		let unresolved = 0;
@@ -411,6 +418,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	private onCommentsUpdated(e: ICommentThreadChangedEvent): void {
+		this.cachedFilterStats = undefined;
 		const didUpdate = this.commentsModel.updateCommentThreads(e);
 
 		this.totalComments += e.added.length;

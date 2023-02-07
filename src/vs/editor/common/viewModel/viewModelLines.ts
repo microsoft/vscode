@@ -22,7 +22,7 @@ import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel'
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
@@ -69,6 +69,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private tabSize: number;
 	private wrappingColumn: number;
 	private wrappingIndent: WrappingIndent;
+	private wordBreak: 'normal' | 'keepAll';
 	private wrappingStrategy: 'simple' | 'advanced';
 
 	private modelLineProjections!: IModelLineProjection[];
@@ -90,6 +91,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		wrappingStrategy: 'simple' | 'advanced',
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
+		wordBreak: 'normal' | 'keepAll'
 	) {
 		this._editorId = editorId;
 		this.model = model;
@@ -101,6 +103,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
+		this.wordBreak = wordBreak;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -269,21 +272,23 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean {
 		const equalFontInfo = this.fontInfo.equals(fontInfo);
 		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent) {
+		const equalWordBreak = (this.wordBreak === wordBreak);
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
 
 		this.fontInfo = fontInfo;
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
+		this.wordBreak = wordBreak;
 
 		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -304,7 +309,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent);
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
 	}
 
 	public onModelFlushed(): void {

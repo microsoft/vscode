@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
 import 'vs/css!./media/gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -13,7 +14,8 @@ import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'v
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -28,7 +30,7 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -67,7 +69,7 @@ import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationVa
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -153,7 +155,6 @@ export class GettingStartedPage extends EditorPane {
 
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
-	private webviewID = generateUuid();
 	private categoriesSlideDisposables: DisposableStore;
 
 	constructor(
@@ -531,10 +532,10 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ id: this.webviewID, options: {}, contentOptions: {}, extension: undefined }));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
-			webview.html = await this.detailsRenderer.renderSVG(media.path);
+			webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
 
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -543,7 +544,7 @@ export class GettingStartedPage extends EditorPane {
 				// Render again since color vars change
 				const body = await this.detailsRenderer.renderSVG(media.path);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
+					webview.setHtml(body);
 				}
 			}));
 
@@ -572,11 +573,11 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ id: this.webviewID, options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, extension: undefined }));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, title: '', extension: undefined }));
 			webview.mountTo(this.stepMediaComponent);
 
 			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-			webview.html = rawHTML;
+			webview.setHtml(rawHTML);
 
 			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
 				.replace(/&#39;/g, '\'')
@@ -609,14 +610,16 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
-					postTrueKeysMessage();
-				}
-			}));
+			if (rawHTML.indexOf('<code>') >= 0) {
+				// Render again when Theme changes since syntax highlighting of code blocks may have changed
+				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+					const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
+					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+						webview.setHtml(body);
+						postTrueKeysMessage();
+					}
+				}));
+			}
 
 			const layoutDelayer = new Delayer(50);
 
@@ -696,13 +699,13 @@ export class GettingStartedPage extends EditorPane {
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
 	}
 
-	createEditor(parent: HTMLElement) {
+	protected createEditor(parent: HTMLElement) {
 		if (this.detailsPageScrollbar) { this.detailsPageScrollbar.dispose(); }
 		if (this.categoriesPageScrollbar) { this.categoriesPageScrollbar.dispose(); }
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('getStarted', "Get Started")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -729,6 +732,7 @@ export class GettingStartedPage extends EditorPane {
 			actionClassName: 'getting-started-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
 			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+			...defaultToggleStyles
 		});
 		showOnStartupCheckbox.domNode.id = 'showOnStartup';
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
@@ -848,9 +852,9 @@ export class GettingStartedPage extends EditorPane {
 			let windowOpenable: IWindowOpenable;
 			if (isRecentFolder(recent)) {
 				windowOpenable = { folderUri: recent.folderUri };
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
 			} else {
-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 
@@ -969,7 +973,7 @@ export class GettingStartedPage extends EditorPane {
 			const descriptionContent = $('.description-content', {},);
 
 			if (category.isFeatured) {
-				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-empty')));
+				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-full')));
 				reset(descriptionContent, ...renderLabelWithIcons(category.description));
 			}
 
@@ -1114,16 +1118,9 @@ export class GettingStartedPage extends EditorPane {
 
 		if (toSide && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT, { activate: true });
 
-				let gettingStartedSize: number;
-				if (fullSize.width > 1600) {
-					gettingStartedSize = 800;
-				} else if (fullSize.width > 800) {
-					gettingStartedSize = 400;
-				} else {
-					gettingStartedSize = 350;
-				}
+				const gettingStartedSize = Math.floor(fullSize.width / 2);
 
 				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
 				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
@@ -1345,7 +1342,7 @@ export class GettingStartedPage extends EditorPane {
 			$('.done-next-container', {},
 				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
 				...(showNextCategory
-					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-small-right'))]
+					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-right'))]
 					: []),
 			)
 		);

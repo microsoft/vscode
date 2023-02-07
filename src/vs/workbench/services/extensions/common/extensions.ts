@@ -409,9 +409,6 @@ export class ExtensionPointContribution<T> {
 }
 
 export const ExtensionHostLogFileName = 'exthost';
-export const localExtHostLog = 'extHostLog';
-export const remoteExtHostLog = 'remoteExtHostLog';
-export const webWorkerExtHostLog = 'webWorkerExtHostLog';
 
 export interface IWillActivateEvent {
 	readonly event: string;
@@ -556,12 +553,6 @@ export interface IExtensionService {
 	 * @param env New properties for the remote extension host
 	 */
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
-
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
-	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 }
 
 export interface IInternalExtensionService {
@@ -626,5 +617,4 @@ export class NullExtensionService implements IExtensionService {
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
-	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
 }

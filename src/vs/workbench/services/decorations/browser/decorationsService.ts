@@ -11,7 +11,8 @@ import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifec
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -20,7 +21,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { asArray, distinct } from 'vs/base/common/arrays';
-import { asCssValue, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
@@ -224,7 +225,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 	}
 
 	affectsResource(uri: URI): boolean {
-		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
+		return this._data.hasElementOrSubtree(uri);
 	}
 }
 
@@ -236,7 +237,7 @@ class DecorationDataRequest {
 }
 
 function getColor(color: ColorIdentifier | undefined) {
-	return color ? asCssValue(color) : 'inherit';
+	return color ? asCssVariable(color) : 'inherit';
 }
 
 type DecorationEntry = Map<IDecorationsProvider, DecorationDataRequest | IDecorationData | null>;

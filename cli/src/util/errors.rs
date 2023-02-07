@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use std::fmt::Display;
 
-use crate::constants::CONTROL_PORT;
+use crate::constants::{
+	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+};
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -40,6 +42,17 @@ impl From<reqwest::Error> for WrappedError {
 			),
 			original: format!("{}", e),
 		}
+	}
+}
+
+pub fn wrapdbg<T, S>(original: T, message: S) -> WrappedError
+where
+	T: std::fmt::Debug,
+	S: Into<String>,
+{
+	WrappedError {
+		message: message.into(),
+		original: format!("{:?}", original),
 	}
 }
 
@@ -158,7 +171,8 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at https://code.visualstudio.com/docs/remote/linux",
+			"{}\r\n\r\nMore info at {}/remote/linux",
+			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
 	}
@@ -235,15 +249,6 @@ impl std::fmt::Display for NoAttachedServerError {
 }
 
 #[derive(Debug)]
-pub struct ServerWriteError();
-
-impl std::fmt::Display for ServerWriteError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error writing to the server, it should be restarted")
-	}
-}
-
-#[derive(Debug)]
 pub struct RefreshTokenNotAvailableError();
 
 impl std::fmt::Display for RefreshTokenNotAvailableError {
@@ -271,8 +276,11 @@ impl std::fmt::Display for NoInstallInUserProvidedPath {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
             f,
-            "No VS Code installation could be found in {}. You can run `code --use-quality=stable` to switch to the latest stable version of VS Code.",
-            self.0
+            "No {} installation could be found in {}. You can run `{} --use-quality=stable` to switch to the latest stable version of {}.",
+						QUALITYLESS_PRODUCT_NAME,
+            self.0,
+						APPLICATION_NAME,
+						QUALITYLESS_PRODUCT_NAME
         )
 	}
 }
@@ -363,11 +371,72 @@ impl std::fmt::Display for WindowsNeedsElevation {
 }
 
 #[derive(Debug)]
+pub struct InvalidRpcDataError(pub String);
+
+impl std::fmt::Display for InvalidRpcDataError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "parse error: {}", self.0)
+	}
+}
+
+#[derive(Debug)]
 pub struct CorruptDownload(pub String);
 
 impl std::fmt::Display for CorruptDownload {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error updating the VS Code CLI: {}", self.0)
+		write!(
+			f,
+			"Error updating the {} CLI: {}",
+			QUALITYLESS_PRODUCT_NAME, self.0
+		)
+	}
+}
+
+#[derive(Debug)]
+pub struct MissingHomeDirectory();
+
+impl std::fmt::Display for MissingHomeDirectory {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "Could not find your home directory. Please ensure this command is running in the context of an normal user.")
+	}
+}
+
+#[derive(Debug)]
+pub struct OAuthError {
+	pub error: String,
+	pub error_description: Option<String>,
+}
+
+impl std::fmt::Display for OAuthError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Error getting authorization: {} {}",
+			self.error,
+			self.error_description.as_deref().unwrap_or("")
+		)
+	}
+}
+
+#[derive(Debug)]
+pub struct CommandFailed {
+	pub output: std::process::Output,
+	pub command: String,
+}
+
+impl std::fmt::Display for CommandFailed {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Failed to run command \"{}\" (code {}): {}",
+			self.command,
+			self.output.status,
+			String::from_utf8_lossy(if self.output.stderr.is_empty() {
+				&self.output.stdout
+			} else {
+				&self.output.stderr
+			})
+		)
 	}
 }
 
@@ -422,7 +491,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	ServerWriteError,
 	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
@@ -433,7 +501,11 @@ makeAnyError!(
 	ServiceAlreadyRegistered,
 	WindowsNeedsElevation,
 	UpdatesNotConfigured,
-	CorruptDownload
+	CorruptDownload,
+	MissingHomeDirectory,
+	CommandFailed,
+	OAuthError,
+	InvalidRpcDataError
 );
 
 impl From<reqwest::Error> for AnyError {

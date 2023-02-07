@@ -224,3 +224,11 @@ export type AddFirstParameterToFunctions<Target, TargetFunctionsReturnType, Firs
  * i.e. AtLeastOne<MyObject>;
  */
 export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];
+
+
+/**
+ * A type that removed readonly-less from all properties of `T`
+ */
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P]
+};

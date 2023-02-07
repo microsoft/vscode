@@ -485,7 +485,7 @@ suite('ViewDescriptorService', () => {
 		const sidebarViews = testObject.getViewContainerModel(sidebarContainer);
 		assert.deepStrictEqual(sidebarViews.allViewDescriptors.map(v => v.id), ['view2', 'view3']);
 
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 		assert.deepStrictEqual(sidebarViews.allViewDescriptors.map(v => v.id), ['view1', 'view2', 'view3']);
 	});
 
@@ -513,7 +513,7 @@ suite('ViewDescriptorService', () => {
 		ViewsRegistry.registerViews(viewDescriptors, sidebarContainer);
 
 		const testObject = aViewDescriptorService();
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedViewContainerId), null);
 		assert.deepStrictEqual(testObject.isViewContainerRemovedPermanently(generatedViewContainerId), true);
@@ -611,7 +611,7 @@ suite('ViewDescriptorService', () => {
 		ViewsRegistry.registerViews(viewDescriptors, viewContainer1);
 
 		const testObject = aViewDescriptorService();
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer1);
 		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.AuxiliaryBar);
@@ -619,6 +619,49 @@ suite('ViewDescriptorService', () => {
 
 		const actual = JSON.parse(storageService.get('views.customizations', StorageScope.PROFILE)!);
 		assert.deepStrictEqual(actual, viewsCustomizations);
+	});
+
+	test('storage change also updates locations even if views do not exists and views are registered later', async function () {
+		const storageService = instantiationService.get(IStorageService);
+		const testObject = aViewDescriptorService();
+
+		const generateViewContainerId = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)}.${generateUuid()}`;
+		const viewsCustomizations = {
+			viewContainerLocations: {
+				[generateViewContainerId]: ViewContainerLocation.AuxiliaryBar,
+			},
+			viewLocations: {
+				'view1': generateViewContainerId
+			}
+		};
+		storageService.store('views.customizations', JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
+
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewDescriptors: IViewDescriptor[] = [
+			{
+				id: 'view1',
+				ctorDescriptor: null!,
+				name: 'Test View 1',
+				canMoveView: true
+			},
+			{
+				id: 'view2',
+				ctorDescriptor: null!,
+				name: 'Test View 2',
+				canMoveView: true
+			}
+		];
+		ViewsRegistry.registerViews(viewDescriptors, viewContainer);
+
+		testObject.whenExtensionsRegistered();
+
+		const viewContainer1Views = testObject.getViewContainerModel(viewContainer);
+		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view2']);
+
+		const generateViewContainer = testObject.getViewContainerById(generateViewContainerId)!;
+		assert.deepStrictEqual(testObject.getViewContainerLocation(generateViewContainer), ViewContainerLocation.AuxiliaryBar);
+		const generatedViewContainerModel = testObject.getViewContainerModel(generateViewContainer);
+		assert.deepStrictEqual(generatedViewContainerModel.allViewDescriptors.map(v => v.id), ['view1']);
 	});
 
 });

@@ -495,6 +495,16 @@ export class MouseTargetFactory {
 		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
+
+			if (r.type === MouseTargetType.CONTENT_TEXT) {
+				// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
+				if (ctx.stickyTabStops && r.position !== null) {
+					const position = MouseTargetFactory._snapToSoftTabBoundary(r.position, ctx.viewModel);
+					const range = EditorRange.fromPositions(position, position).plusRange(r.range);
+					return request.fulfillContentText(position, range, r.detail);
+				}
+			}
+
 			// console.log(MouseTarget.toString(r));
 			return r;
 		} catch (err) {
@@ -789,7 +799,7 @@ export class MouseTargetFactory {
 
 		const columnHorizontalOffset = visibleRange.left;
 
-		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
+		if (Math.abs(request.mouseContentHorizontalOffset - columnHorizontalOffset) < 1) {
 			return request.fulfillContentText(pos, null, { mightBeForeignElement: !!injectedText, injectedText });
 		}
 
@@ -818,11 +828,13 @@ export class MouseTargetFactory {
 		const spanNodeClientRect = spanNode.getBoundingClientRect();
 		const mouseIsOverSpanNode = (spanNodeClientRect.left <= mouseCoordinates.clientX && mouseCoordinates.clientX <= spanNodeClientRect.right);
 
+		let rng: EditorRange | null = null;
+
 		for (let i = 1; i < points.length; i++) {
 			const prev = points[i - 1];
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
-				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
+				rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
 
 				// See https://github.com/microsoft/vscode/issues/152819
 				// Due to the use of zwj, the browser's hit test result is skewed towards the left
@@ -831,16 +843,17 @@ export class MouseTargetFactory {
 				const prevDelta = Math.abs(prev.offset - request.mouseContentHorizontalOffset);
 				const nextDelta = Math.abs(curr.offset - request.mouseContentHorizontalOffset);
 
-				const resultPos = (
+				pos = (
 					prevDelta < nextDelta
 						? new Position(lineNumber, prev.column)
 						: new Position(lineNumber, curr.column)
 				);
 
-				return request.fulfillContentText(resultPos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+				break;
 			}
 		}
-		return request.fulfillContentText(pos, null, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
+
+		return request.fulfillContentText(pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode || !!injectedText, injectedText });
 	}
 
 	/**
@@ -998,10 +1011,6 @@ export class MouseTargetFactory {
 			if (injectedText || !normalizedPosition.equals(result.position)) {
 				result = new ContentHitTestResult(normalizedPosition, result.spanNode, injectedText);
 			}
-		}
-		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
-			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.viewModel), result.spanNode, result.injectedText);
 		}
 		return result;
 	}

@@ -259,14 +259,14 @@ export class Range {
 	/**
 	 * Test if this range equals other.
 	 */
-	public equalsRange(other: IRange | null): boolean {
+	public equalsRange(other: IRange | null | undefined): boolean {
 		return Range.equalsRange(this, other);
 	}
 
 	/**
 	 * Test if range `a` equals `b`.
 	 */
-	public static equalsRange(a: IRange | null, b: IRange | null): boolean {
+	public static equalsRange(a: IRange | null | undefined, b: IRange | null | undefined): boolean {
 		if (!a && !b) {
 			return true;
 		}
@@ -337,17 +337,31 @@ export class Range {
 	}
 
 	/**
-	 * Moves the range by the given amount of lines.
-	 */
-	public delta(lineCount: number): Range {
-		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
-	}
-
-	/**
 	 * Create a new empty range using this range's start position.
 	 */
 	public static collapseToStart(range: IRange): Range {
 		return new Range(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
+	}
+
+	/**
+	 * Create a new empty range using this range's end position.
+	 */
+	public collapseToEnd(): Range {
+		return Range.collapseToEnd(this);
+	}
+
+	/**
+	 * Create a new empty range using this range's end position.
+	 */
+	public static collapseToEnd(range: IRange): Range {
+		return new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn);
+	}
+
+	/**
+	 * Moves the range by the given amount of lines.
+	 */
+	public delta(lineCount: number): Range {
+		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
 	}
 
 	// ---

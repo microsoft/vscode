@@ -7,7 +7,8 @@ import 'vs/css!./notebookOutline';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { CellRevealType, IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions, INotebookEditorPane, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -33,11 +34,11 @@ import { isEqual } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { marked } from 'vs/base/common/marked/marked';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { URI } from 'vs/base/common/uri';
+import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -366,7 +367,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
-			identityProvider: { getId: element => element.cell.id },
+			identityProvider: { getId: element => element.cell.uri.toString() },
 			keyboardNavigationLabelProvider: new NotebookNavigationLabelProvider()
 		};
 
@@ -452,12 +453,11 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 			if (isMarkdown) {
 				const fullContent = cell.getText().substring(0, 10_000);
-				for (const token of marked.lexer(fullContent, { gfm: true })) {
-					if (token.type === 'heading') {
-						hasHeader = true;
-						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false, false));
-					}
+				for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
+					hasHeader = true;
+					entries.push(new OutlineEntry(entries.length, depth, cell, text, false, false));
 				}
+
 				if (!hasHeader) {
 					// no markdown syntax headers, try to find html tags
 					const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);

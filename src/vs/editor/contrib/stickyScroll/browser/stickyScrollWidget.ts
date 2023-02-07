@@ -13,13 +13,13 @@ import { Position } from 'vs/editor/common/core/position';
 import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Location } from 'vs/editor/common/languages';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import 'vs/css!./stickyScroll';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -28,8 +28,8 @@ interface CustomMouseEvent {
 
 export class StickyScrollWidgetState {
 	constructor(
-		public readonly lineNumbers: number[],
-		public readonly lastLineRelativePosition: number
+		readonly lineNumbers: number[],
+		readonly lastLineRelativePosition: number
 	) { }
 }
 
@@ -40,13 +40,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _layoutInfo: EditorLayoutInfo;
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _disposableStore = this._register(new DisposableStore());
-	private _lineHeight: number;
-	private _lineNumbers: number[];
-	private _lastLineRelativePosition: number;
-	private _hoverOnLine: number;
-	private _hoverOnColumn: number;
-	private _stickyRangeProjectedOnEditor: IRange | null;
-	private _candidateDefinitionsLength: number;
+
+	private _lineNumbers: number[] = [];
+	private _lastLineRelativePosition: number = 0;
+	private _hoverOnLine: number = -1;
+	private _hoverOnColumn: number = -1;
+	private _stickyRangeProjectedOnEditor: IRange | undefined;
+	private _candidateDefinitionsLength: number = -1;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -57,25 +57,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._layoutInfo = this._editor.getLayoutInfo();
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.className = 'sticky-widget';
+		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-		this._lineNumbers = [];
-		this._lastLineRelativePosition = 0;
-		this._hoverOnLine = -1;
-		this._hoverOnColumn = -1;
-		this._stickyRangeProjectedOnEditor = null;
-		this._candidateDefinitionsLength = -1;
-		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.lineHeight)) {
-				this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
-			}
 
-		}));
-		this._register(this.updateLinkGesture());
+		this._register(this._updateLinkGesture());
 	}
 
-	private updateLinkGesture(): IDisposable {
-
+	private _updateLinkGesture(): IDisposable {
 
 		const linkGestureStore = new DisposableStore();
 		const sessionStore = new DisposableStore();
@@ -151,38 +139,42 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				if (this._candidateDefinitionsLength > 1) {
 					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
 				}
-				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor } as Location);
+				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
+
 			} else if (!e.isRightClick) {
 				// Normal click
-				this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
+				const position = { lineNumber: this._hoverOnLine, column: this._hoverOnColumn };
+				this._editor.revealPosition(position);
+				this._editor.setSelection(Range.fromPositions(position));
+				this._editor.focus();
 			}
 		}));
 		return linkGestureStore;
 	}
 
-	public get lineNumbers(): number[] {
+	get lineNumbers(): number[] {
 		return this._lineNumbers;
 	}
 
-	public get codeLineCount(): number {
+	get codeLineCount(): number {
 		return this._lineNumbers.length;
 	}
 
-	public getCurrentLines(): readonly number[] {
+	getCurrentLines(): readonly number[] {
 		return this._lineNumbers;
 	}
 
-	public setState(state: StickyScrollWidgetState): void {
+	setState(state: StickyScrollWidgetState): void {
 		this._disposableStore.clear();
 		this._lineNumbers.length = 0;
 		dom.clearNode(this._rootDomNode);
 
 		this._lastLineRelativePosition = state.lastLineRelativePosition;
 		this._lineNumbers = state.lineNumbers;
-		this.renderRootNode();
+		this._renderRootNode();
 	}
 
-	private getChildNode(index: number, line: number): HTMLElement {
+	private _renderChildNode(index: number, line: number): HTMLElement {
 
 		const child = document.createElement('div');
 		const viewModel = this._editor._getViewModel();
@@ -201,14 +193,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			actualInlineDecorations = [];
 		}
 
-		const renderLineInput: RenderLineInput =
-			new RenderLineInput(true, true, lineRenderingData.content,
-				lineRenderingData.continuesWithWrappedLine,
-
-				lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
-				lineRenderingData.tokens, actualInlineDecorations,
-				lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-				1, 1, 1, 500, 'none', true, true, null);
+		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
+			lineRenderingData.continuesWithWrappedLine,
+			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
+			lineRenderingData.tokens, actualInlineDecorations,
+			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
+			1, 1, 1, 500, 'none', true, true, null
+		);
 
 		const sb = new StringBuilder(2000);
 		renderViewLine(renderLineInput, sb);
@@ -283,41 +274,33 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return child;
 	}
 
-	private renderRootNode(): void {
+	private _renderRootNode(): void {
 		if (!this._editor._getViewModel()) {
 			return;
 		}
 		for (const [index, line] of this._lineNumbers.entries()) {
-			this._rootDomNode.appendChild(this.getChildNode(index, line));
+			this._rootDomNode.appendChild(this._renderChildNode(index, line));
 		}
-
-		const widgetHeight: number = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
+		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
 		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
 		}
-		else if (minimapSide === 'right') {
-			this._rootDomNode.style.marginLeft = '1px';
-		}
-		this._rootDomNode.style.zIndex = '11';
 	}
 
-	public getId(): string {
+	getId(): string {
 		return 'editor.contrib.stickyScrollWidget';
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this._rootDomNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition | null {
+	getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: null
 		};
-	}
-
-	override dispose(): void {
-		super.dispose();
 	}
 }

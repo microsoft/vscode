@@ -14,13 +14,13 @@ import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, Termina
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
-import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -49,6 +49,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
+	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -247,7 +248,7 @@ export class ExtHostTerminal {
 	}
 }
 
-export class ExtHostPseudoterminal implements ITerminalChildProcess {
+class ExtHostPseudoterminal implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
 
@@ -361,6 +362,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
+	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
@@ -652,6 +654,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
+
 	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
 			throw new Error(`Terminal profile provider "${id}" already registered`);
@@ -662,6 +665,35 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			this._profileProviders.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
 		});
+	}
+
+	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
+		if (this._quickFixProviders.has(id)) {
+			throw new Error(`Terminal quick fix provider "${id}" is already registered`);
+		}
+		this._quickFixProviders.set(id, provider);
+		this._proxy.$registerQuickFixProvider(id, extensionId);
+		return new VSCodeDisposable(() => {
+			this._quickFixProviders.delete(id);
+			this._proxy.$unregisterQuickFixProvider(id);
+		});
+	}
+
+	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<(vscode.TerminalQuickFixOpener | vscode.TerminalQuickFixCommand)[] | vscode.TerminalQuickFixOpener | vscode.TerminalQuickFixCommand | undefined> {
+		const token = new CancellationTokenSource().token;
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const provider = this._quickFixProviders.get(id);
+		if (!provider) {
+			return;
+		}
+		const quickFixes = await provider.provideTerminalQuickFixes(matchResult, token);
+		if (quickFixes === null) {
+			return undefined;
+		} else {
+			return quickFixes;
+		}
 	}
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -834,7 +866,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 }
 
-export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
 	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
 	private _persistent: boolean = true;
 

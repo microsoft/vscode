@@ -38,8 +38,23 @@
 
 .monaco-hover p,
 .monaco-hover .code,
-.monaco-hover ul {
+.monaco-hover ul,
+.monaco-hover h1,
+.monaco-hover h2,
+.monaco-hover h3,
+.monaco-hover h4,
+.monaco-hover h5,
+.monaco-hover h6 {
 	margin: 8px 0;
+}
+
+.monaco-hover h1,
+.monaco-hover h2,
+.monaco-hover h3,
+.monaco-hover h4,
+.monaco-hover h5,
+.monaco-hover h6 {
+	line-height: 1.1;
 }
 
 .monaco-hover code {

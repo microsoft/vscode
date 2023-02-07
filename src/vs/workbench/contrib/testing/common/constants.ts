@@ -26,13 +26,7 @@ export const enum TestExplorerViewSorting {
 	ByDuration = 'duration',
 }
 
-export const enum TestExplorerStateFilter {
-	OnlyFailed = 'failed',
-	OnlyExecuted = 'excuted',
-	All = 'all',
-}
-
-export const testStateNames: { [K in TestResultState]: string } = {
+const testStateNames: { [K in TestResultState]: string } = {
 	[TestResultState.Errored]: localize('testState.errored', 'Errored'),
 	[TestResultState.Failed]: localize('testState.failed', 'Failed'),
 	[TestResultState.Passed]: localize('testState.passed', 'Passed'),
@@ -82,13 +76,14 @@ export const enum TestCommandId {
 	SearchForTestExtension = 'testing.searchForTestExtension',
 	SelectDefaultTestProfiles = 'testing.selectDefaultTestProfiles',
 	ShowMostRecentOutputAction = 'testing.showMostRecentOutput',
+	StartContinousRun = 'testing.startContinuousRun',
+	StopContinousRun = 'testing.stopContinuousRun',
 	TestingSortByDurationAction = 'testing.sortByDuration',
 	TestingSortByLocationAction = 'testing.sortByLocation',
 	TestingSortByStatusAction = 'testing.sortByStatus',
 	TestingViewAsListAction = 'testing.viewAsList',
 	TestingViewAsTreeAction = 'testing.viewAsTree',
-	ToggleAutoRun = 'testing.toggleautoRun',
 	ToggleInlineTestOutput = 'testing.toggleInlineTestOutput',
-	UnhideTestAction = 'testing.unhideTest',
 	UnhideAllTestsAction = 'testing.unhideAllTests',
+	UnhideTestAction = 'testing.unhideTest',
 }

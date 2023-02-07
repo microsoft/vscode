@@ -16,11 +16,11 @@ suite('Lifecycleservice', function () {
 
 	class TestLifecycleService extends NativeLifecycleService {
 
-		override handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+		testHandleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 			return super.handleBeforeShutdown(reason);
 		}
 
-		override handleWillShutdown(reason: ShutdownReason): Promise<void> {
+		testHandleWillShutdown(reason: ShutdownReason): Promise<void> {
 			return super.handleWillShutdown(reason);
 		}
 	}
@@ -62,7 +62,7 @@ suite('Lifecycleservice', function () {
 			}, 'test');
 		});
 
-		const veto = await lifecycleService.handleBeforeShutdown(ShutdownReason.QUIT);
+		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(veto, true);
 		assert.strictEqual(vetoCalled, true);
@@ -93,7 +93,7 @@ suite('Lifecycleservice', function () {
 			}, 'test');
 		});
 
-		const veto = await lifecycleService.handleBeforeShutdown(ShutdownReason.QUIT);
+		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(veto, true);
 		assert.strictEqual(vetoCalled, true);
@@ -107,7 +107,7 @@ suite('Lifecycleservice', function () {
 			}), 'test');
 		});
 
-		const veto = await lifecycleService.handleBeforeShutdown(ShutdownReason.QUIT);
+		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(veto, true);
 	});
@@ -119,7 +119,7 @@ suite('Lifecycleservice', function () {
 			}), 'test');
 		});
 
-		const veto = await lifecycleService.handleBeforeShutdown(ShutdownReason.QUIT);
+		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(veto, true);
 	});
@@ -135,7 +135,7 @@ suite('Lifecycleservice', function () {
 			}), { id: 'test', label: 'test' });
 		});
 
-		await lifecycleService.handleWillShutdown(ShutdownReason.QUIT);
+		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(joinCalled, true);
 	});
@@ -151,7 +151,7 @@ suite('Lifecycleservice', function () {
 			}), { id: 'test', label: 'test' });
 		});
 
-		await lifecycleService.handleWillShutdown(ShutdownReason.QUIT);
+		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(joinCalled, true);
 	});

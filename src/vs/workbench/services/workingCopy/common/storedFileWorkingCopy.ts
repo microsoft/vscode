@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -28,6 +28,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
 
 /**
  * Stored file specific working copy model factory.
@@ -309,6 +311,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
+	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
+
 	//#endregion
 
 	constructor(
@@ -321,6 +325,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -781,6 +786,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
+	private ignoreSaveFromSaveParticipants = false;
+
 	async save(options: IStoredFileWorkingCopySaveOptions = Object.create(null)): Promise<boolean> {
 		if (!this.isResolved()) {
 			return false;
@@ -816,6 +823,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		let versionId = this.versionId;
 		this.trace(`doSave(${versionId}) - enter with versionId ${versionId}`);
+
+		// Return early if saved from within save participant to break recursion
+		//
+		// Scenario: a save participant triggers a save() on the working copy
+		if (this.ignoreSaveFromSaveParticipants) {
+			this.trace(`doSave(${versionId}) - exit - refusing to save() recursively from save participant`);
+
+			return;
+		}
 
 		// Lookup any running pending save for this versionId and return it if found
 		//
@@ -902,7 +918,12 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Run save participants unless save was cancelled meanwhile
 					if (!saveCancellation.token.isCancellationRequested) {
-						await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						this.ignoreSaveFromSaveParticipants = true;
+						try {
+							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						} finally {
+							this.ignoreSaveFromSaveParticipants = false;
+						}
 					}
 				} catch (error) {
 					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(), this.typeId);
@@ -1118,8 +1139,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
-		const oldReadonly = this.isReadonly();
-
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
 			this.lastResolvedFileStat = newFileStat;
@@ -1134,10 +1153,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			this.lastResolvedFileStat = newFileStat;
 		}
 
-		// Signal that the readonly state changed
-		if (this.isReadonly() !== oldReadonly) {
-			this._onDidChangeReadonly.fire();
-		}
+		// readonlyHelper also needs to read lastResolvedFileStat
+		this._readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
+		// Signal if the readonly state changed
+		this.isReadonly();
 	}
 
 	//#endregion
@@ -1215,9 +1234,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	//#region Utilities
 
 	isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._readonlyHelper.isReadonly();
 	}
-
 	private trace(msg: string): void {
 		this.logService.trace(`[stored file working copy] ${msg}`, this.resource.toString(), this.typeId);
 	}

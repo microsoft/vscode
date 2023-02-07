@@ -11,13 +11,13 @@ import { derived, IObservable, observableFromEvent, observableValue } from 'vs/b
 import { basename, isEqual } from 'vs/base/common/resources';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { ConfirmResult, IDialogOptions, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
@@ -25,6 +25,7 @@ import { conflictMarkers } from 'vs/workbench/contrib/mergeEditor/browser/mergeM
 import { MergeDiffComputer } from 'vs/workbench/contrib/mergeEditor/browser/model/diffComputer';
 import { InputData, MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
+import { StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -103,15 +104,14 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 		);
 		store.add(temporaryResultModel);
 
-		const diffProvider = this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider);
+		const mergeDiffComputer = this._instantiationService.createInstance(MergeDiffComputer);
 		const model = this._instantiationService.createInstance(
 			MergeEditorModel,
 			base.object.textEditorModel,
 			input1Data,
 			input2Data,
 			temporaryResultModel,
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
+			mergeDiffComputer,
 			{
 				resetResult: true,
 			},
@@ -314,15 +314,15 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 		const hasConflictMarkers = lines.some(l => l.startsWith(conflictMarkers.start));
 		const resetResult = hasConflictMarkers;
 
-		const diffProvider = this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider);
+		const mergeDiffComputer = this._instantiationService.createInstance(MergeDiffComputer);
+
 		const model = this._instantiationService.createInstance(
 			MergeEditorModel,
 			base.object.textEditorModel,
 			input1Data,
 			input2Data,
 			result.object.textEditorModel,
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
-			this._instantiationService.createInstance(MergeDiffComputer, diffProvider),
+			mergeDiffComputer,
 			{
 				resetResult
 			},
@@ -351,6 +351,7 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 		private readonly resultTextFileModel: ITextFileEditorModel,
 		private readonly telemetry: MergeEditorTelemetry,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 	}
@@ -451,7 +452,7 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 			const { choice } = await this._dialogService.show(Severity.Info, message, actions.map(a => a[0]), { ...options, cancelId: actions.length - 1 });
 			return actions[choice][1];
 
-		} else if (someUnhandledConflicts) {
+		} else if (someUnhandledConflicts && !this._storageService.getBoolean(StorageCloseWithConflicts, StorageScope.PROFILE, false)) {
 			const message = isMany
 				? localize('workspace.messageN.nonDirty', 'Do you want to close {0} merge editors?', inputModels.length)
 				: localize('workspace.message1.nonDirty', 'Do you want to close the merge editor for {0}?', basename(inputModels[0].resultUri));
@@ -473,7 +474,16 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 				[localize('workspace.cancel', 'Cancel'), ConfirmResult.CANCEL],
 			];
 
-			const { choice } = await this._dialogService.show(Severity.Info, message, actions.map(a => a[0]), { ...options, cancelId: actions.length - 1 });
+			const { choice, checkboxChecked } = await this._dialogService.show(Severity.Info, message, actions.map(a => a[0]), {
+				...options,
+				cancelId: actions.length - 1,
+				checkbox: { label: localize('noMoreWarn', "Don't ask again") }
+			});
+
+			if (checkboxChecked) {
+				this._storageService.store(StorageCloseWithConflicts, true, StorageScope.PROFILE, StorageTarget.USER);
+			}
+
 			return actions[choice][1];
 		} else {
 			// This shouldn't do anything

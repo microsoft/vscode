@@ -15,6 +15,7 @@ import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLo
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 interface IBundledExtension {
 	extensionPath: string;
@@ -74,6 +75,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 						}
 						browserNlsBundleUris.en = uriIdentityService.extUri.resolvePath(builtinExtensionsServiceUrl!, e.browserNlsMetadataPath);
 					}
+					ImplicitActivationEvents.updateManifest(e.packageJSON);
 					return {
 						identifier: { id },
 						location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),

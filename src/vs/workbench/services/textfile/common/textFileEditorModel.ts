@@ -11,7 +11,7 @@ import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEdit
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
@@ -31,6 +31,8 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ReadonlyHelper } from 'vs/workbench/services/filesConfiguration/common/readonlyHelper';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -89,14 +91,18 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private versionId = 0;
 	private bufferSavedVersionId: number | undefined;
+
 	private ignoreDirtyOnModelContentChange = false;
+	private ignoreSaveFromSaveParticipants = false;
 
 	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
 	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
 
-	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
+	lastResolvedFileStat: IFileStatWithMetadata | undefined; // used in tests
 
 	private readonly saveSequentializer = new TaskSequentializer();
+
+	private readonly _readonlyHelper = this._register(new ReadonlyHelper(this.resource, this._onDidChangeReadonly, this.fileService, this.configurationService));
 
 	private dirty = false;
 	private inConflictMode = false;
@@ -115,6 +121,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -430,7 +437,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Resolve Content
 		try {
-			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
+			const content = await this.textFileService.readStream(this.resource, {
+				acceptTextOnly: !allowBinary,
+				etag, encoding: this.preferredEncoding,
+				limits: options?.limits
+			});
 
 			// Clear orphaned state when resolving was successful
 			this.setOrphaned(false);
@@ -738,6 +749,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let versionId = this.versionId;
 		this.trace(`doSave(${versionId}) - enter with versionId ${versionId}`);
 
+		// Return early if saved from within save participant to break recursion
+		//
+		// Scenario: a save participant triggers a save() on the model
+		if (this.ignoreSaveFromSaveParticipants) {
+			this.trace(`doSave(${versionId}) - exit - refusing to save() recursively from save participant`);
+
+			return;
+		}
+
 		// Lookup any running pending save for this versionId and return it if found
 		//
 		// Scenario: user invoked the save action multiple times quickly for the same contents
@@ -820,7 +840,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 					// Run save participants unless save was cancelled meanwhile
 					if (!saveCancellation.token.isCancellationRequested) {
-						await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						this.ignoreSaveFromSaveParticipants = true;
+						try {
+							await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						} finally {
+							this.ignoreSaveFromSaveParticipants = false;
+						}
 					}
 				} catch (error) {
 					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString());
@@ -946,8 +971,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
-		const oldReadonly = this.isReadonly();
-
 		// First resolve - just take
 		if (!this.lastResolvedFileStat) {
 			this.lastResolvedFileStat = newFileStat;
@@ -960,10 +983,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.lastResolvedFileStat = newFileStat;
 		}
 
-		// Signal that the readonly state changed
-		if (this.isReadonly() !== oldReadonly) {
-			this._onDidChangeReadonly.fire();
-		}
+		// readonlyHelper also needs to read lastResolvedFileStat
+		this._readonlyHelper.setLastResolvedFileStat(this.lastResolvedFileStat);
+		// Signal if the readonly state changed
+		this.isReadonly();
 	}
 
 	//#endregion
@@ -1131,7 +1154,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._readonlyHelper.isReadonly();
 	}
 
 	override dispose(): void {

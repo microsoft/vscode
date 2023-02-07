@@ -14,7 +14,8 @@ import { formatCellDuration } from 'vs/workbench/contrib/notebook/browser/contri
 suite('notebookBrowser', () => {
 	test('formatCellDuration', function () {
 		assert.strictEqual(formatCellDuration(0), '0.0s');
-		assert.strictEqual(formatCellDuration(10), '0.1s');
+		assert.strictEqual(formatCellDuration(10), '0.0s');
+		assert.strictEqual(formatCellDuration(100), '0.1s');
 		assert.strictEqual(formatCellDuration(200), '0.2s');
 		assert.strictEqual(formatCellDuration(3300), '3.3s');
 		assert.strictEqual(formatCellDuration(180000), '3m 0.0s');
