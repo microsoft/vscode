@@ -21,7 +21,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -219,6 +219,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private _accessibilityBuffer: HTMLElement | undefined;
+	private _bufferElementFragment: DocumentFragment;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -549,6 +550,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._fixedCols) {
 				await this._addScrollbar();
 			}
+			this._register(this.xterm!.raw.registerBufferElementProvider({ provideBufferElements: () => this._provideBufferElements() }));
 		}).catch((err) => {
 			// Ignore exceptions if the terminal is already disposed
 			if (!this._isDisposed) {
@@ -601,6 +603,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				window.clearTimeout(initialDataEventsTimeout);
 			}
 		}));
+		this._bufferElementFragment = document.createDocumentFragment();
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
@@ -1108,13 +1111,54 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._accessibilityBuffer) {
 			return;
 		}
-		const accessibleBufferContentEditable = this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
+		// see https://github.com/microsoft/vscode/issues/173532
+		const accessibleBufferContentEditable = isLinux ? 'on' : this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
 		this._accessibilityBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
 		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
 		const font = this.xterm.getFont();
 		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
 		this._accessibilityBuffer.style.lineHeight = lineHeight;
+		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands?.length) {
+			const noContent = document.createElement('div');
+			const noContentLabel = nls.localize('terminal.integrated.noContent', "No terminal content available for this session.");
+			noContent.textContent = noContentLabel;
+			this._bufferElementFragment.replaceChildren(noContent);
+			this._accessibilityBuffer.focus();
+			return;
+		}
+		let header;
+		let replaceChildren = true;
+		for (const command of commands) {
+			header = document.createElement('h2');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			header.tabIndex = -1;
+			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
+			const output = document.createElement('div');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			output.tabIndex = -1;
+			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
+			if (replaceChildren) {
+				this._bufferElementFragment.replaceChildren(header, output);
+				replaceChildren = false;
+			} else {
+				this._bufferElementFragment.appendChild(header);
+				this._bufferElementFragment.appendChild(output);
+			}
+		}
+		if (header) {
+			// focus the cursor line's header
+			header.tabIndex = 0;
+		}
 		this._accessibilityBuffer.focus();
+		if (this._accessibilityBuffer.contentEditable === 'true') {
+			document.execCommand('selectAll', false, undefined);
+			document.getSelection()?.collapseToEnd();
+		}
+	}
+
+	private _provideBufferElements(): DocumentFragment {
+		return this._bufferElementFragment;
 	}
 
 	private _setShellIntegrationContextKey(): void {
