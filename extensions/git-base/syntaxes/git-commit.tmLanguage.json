@@ -1,16 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been copied from https://github.com/walles/git-commit-message-plus/blob/main/syntaxes/git-commit.tmLanguage.json",
+		"This file has been converted from https://github.com/walles/git-commit-message-plus/blob/master/syntaxes/git-commit.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"metadata": [
-		"This file is maintained here:",
-		"https://github.com/walles/git-commit-message-plus/blob/main/syntaxes/git-commit.tmLanguage.json",
-		"",
-		"It was originally based on this file, but has been heavily modified:",
-		"https://github.com/microsoft/vscode/blob/e95c74c4c7af876e79ec58df262464467c06df28/extensions/git-base/syntaxes/git-commit.tmLanguage.json"
-	],
+	"version": "https://github.com/walles/git-commit-message-plus/commit/35a079dea5a91b087021b40c01a6bb4eb0337a87",
 	"name": "Git Commit Message",
 	"scopeName": "text.git-commit",
 	"patterns": [
@@ -20,7 +14,11 @@
 			"contentName": "source.diff",
 			"begin": "(?=^diff\\ \\-\\-git)",
 			"end": "\\z",
-			"patterns": [ { "include": "source.diff" } ]
+			"patterns": [
+				{
+					"include": "source.diff"
+				}
+			]
 		},
 		{
 			"comment": "User supplied message",
@@ -33,8 +31,12 @@
 					"name": "meta.scope.subject.git-commit",
 					"match": "\\G.{0,50}(.{0,22}(.*))$",
 					"captures": {
-						"1": { "name": "invalid.deprecated.line-too-long.git-commit" },
-						"2": { "name": "invalid.illegal.line-too-long.git-commit" }
+						"1": {
+							"name": "invalid.deprecated.line-too-long.git-commit"
+						},
+						"2": {
+							"name": "invalid.illegal.line-too-long.git-commit"
+						}
 					}
 				}
 			]
@@ -48,22 +50,38 @@
 			"patterns": [
 				{
 					"match": "^#\\t((modified|renamed):.*)$",
-					"captures": { "1": { "name": "markup.changed.git-commit" } }
+					"captures": {
+						"1": {
+							"name": "markup.changed.git-commit"
+						}
+					}
 				},
 				{
 					"match": "^#\\t(new file:.*)$",
-					"captures": { "1": { "name": "markup.inserted.git-commit" } }
+					"captures": {
+						"1": {
+							"name": "markup.inserted.git-commit"
+						}
+					}
 				},
 				{
 					"match": "^#\\t(deleted.*)$",
-					"captures": { "1": { "name": "markup.deleted.git-commit" } }
+					"captures": {
+						"1": {
+							"name": "markup.deleted.git-commit"
+						}
+					}
 				},
 				{
 					"comment": "Fallback for non-English git commit template",
 					"match": "^#\\t([^:]+): *(.*)$",
 					"captures": {
-						"1": { "name": "keyword.other.file-type.git-commit" },
-						"2": { "name": "string.unquoted.filename.git-commit" }
+						"1": {
+							"name": "keyword.other.file-type.git-commit"
+						},
+						"2": {
+							"name": "string.unquoted.filename.git-commit"
+						}
 					}
 				}
 			]
