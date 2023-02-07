@@ -422,8 +422,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 			this.serverState = new ServerState.Errored(err, handle.tsServerLog);
 			this.error('TSServer errored with error.', err);
-			if (handle.tsServerLog) {
-				this.error(`TSServer log file: ${handle.tsServerLog}`);
+			if (handle.tsServerLog && handle.tsServerLog.type === 'file') {
+				this.error(`TSServer log file: ${handle.tsServerLog.uri.fsPath}`);
 			}
 
 			/* __GDPR__
@@ -462,8 +462,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				return;
 			}
 
-			if (handle.tsServerLog) {
-				this.info(`TSServer log file: ${handle.tsServerLog}`);
+			if (handle.tsServerLog && handle.tsServerLog.type === 'file') {
+				this.info(`TSServer log file: ${handle.tsServerLog.uri.fsPath}`);
 			}
 			this.serviceExited(!this.isRestarting);
 			this.isRestarting = false;
