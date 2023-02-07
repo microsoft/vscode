@@ -1833,9 +1833,10 @@ export class SearchView extends ViewPane {
 						if (match instanceof NotebookMatch) {
 							element.parent().showMatch(match);
 						}
-						this.tree.setSelection([match], getSelectionKeyboardEvent());
-						// todo: bug sometimes where results disappear
-						// todo: focus goes automatically to notebook when using arrow keys
+
+						if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+							this.tree.setSelection([match], getSelectionKeyboardEvent());
+						}
 					}
 
 				}
