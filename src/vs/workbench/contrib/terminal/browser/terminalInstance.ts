@@ -550,7 +550,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._fixedCols) {
 				await this._addScrollbar();
 			}
-			this._register(this.xterm?.raw.registerBufferElementProvider({ provideBufferElements: () => this._provideBufferElements() }));
+			this._register(this.xterm!.raw.registerBufferElementProvider({ provideBufferElements: () => this._provideBufferElements() }));
 		}).catch((err) => {
 			// Ignore exceptions if the terminal is already disposed
 			if (!this._isDisposed) {
