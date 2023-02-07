@@ -35,5 +35,5 @@
 }
 
 .monaco-editor .sticky-widget.peek {
-	background-color : var(--vscode-peekViewEditorStickScroll-background);
+	background-color : var(--vscode-peekViewEditorStickyScroll-background);
 }

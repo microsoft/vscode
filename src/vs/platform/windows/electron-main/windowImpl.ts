@@ -50,7 +50,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -207,6 +206,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		super();
 
 		//#region create browser window
+		let useSandbox = false;
 		{
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
@@ -225,7 +225,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-			let useSandbox = false;
 			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
 				useSandbox = windowSettings.experimental.useSandbox;
 			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
@@ -442,7 +441,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Eventing
-		this.registerListeners();
+		this.registerListeners(useSandbox);
 	}
 
 	setRepresentedFilename(filename: string): void {
@@ -546,12 +545,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 	}
 
-	private registerListeners(): void {
+	private registerListeners(sandboxed: boolean): void {
 
 		// Window error conditions to handle
-		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, details));
-		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
+		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE, { sandboxed }));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, { ...details, sandboxed }));
+		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode, sandboxed }));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
@@ -648,10 +647,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this.marketplaceHeadersPromise;
 	}
 
-	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
+	private async onWindowError(error: WindowError.UNRESPONSIVE, details: { sandboxed: boolean }): Promise<void>;
+	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number; sandboxed: boolean }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number; sandboxed: boolean }): Promise<void>;
+	private async onWindowError(type: WindowError, details: { reason?: string; exitCode?: number; sandboxed: boolean }): Promise<void> {
 
 		switch (type) {
 			case WindowError.PROCESS_GONE:
@@ -669,6 +668,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
+			sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window was sandboxed or not.' };
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
@@ -677,8 +677,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 			code: number | undefined;
+			sandboxed: string;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: details?.reason, code: details?.exitCode });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', {
+			type,
+			reason: details?.reason,
+			code: details?.exitCode,
+			sandboxed: details?.sandboxed ? '1' : '0'
+		});
 
 		// Inform User if non-recoverable
 		switch (type) {
@@ -715,7 +721,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					}
 
 					// Show Dialog
-					const { options, buttonIndeces } = massageMessageBoxOptions({
+					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
 						buttons: [
 							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen"),
@@ -725,15 +731,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						message: localize('appStalled', "The window is not responding"),
 						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this.productService);
-
-					const result = await this.dialogMainService.showMessageBox(options, this._win);
-					const buttonIndex = buttonIndeces[result.response];
+					}, this._win);
 
 					// Handle choice
-					if (buttonIndex !== 1 /* keep waiting */) {
-						const reopen = buttonIndex === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+					if (response !== 2 /* keep waiting */) {
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 
@@ -758,7 +761,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 
 						// Show Dialog
-						const { options, buttonIndeces } = massageMessageBoxOptions({
+						const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 							type: 'warning',
 							buttons: [
 								this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
@@ -769,20 +772,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 								localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
 								localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
 							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-						}, this.productService);
-
-						const result = await this.dialogMainService.showMessageBox(options, this._win);
+						}, this._win);
 
 						// Handle choice
-						const reopen = buttonIndeces[result.response] === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 				break;
 		}
 	}
 
-	private async handleWindowsAdminCrash(details: { reason: string; exitCode: number }) {
+	private async handleWindowsAdminCrash(details: { reason?: string; exitCode?: number; sandboxed: boolean }) {
 
 		// Prepare telemetry event (TODO@bpasero remove me eventually)
 		const appenders: ITelemetryAppender[] = [];
@@ -818,7 +819,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Inform user
-		const { options, buttonIndeces } = massageMessageBoxOptions({
+		const { response } = await this.dialogMainService.showMessageBox({
 			type: 'error',
 			buttons: [
 				localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
@@ -826,10 +827,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			],
 			message: localize('appGoneAdminMessage', "Running as administrator is not supported in your environment"),
 			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong)
-		}, this.productService);
+		}, this._win);
 
-		const result = await this.dialogMainService.showMessageBox(options, this._win);
-		if (buttonIndeces[result.response] === 0) {
+		if (response === 0) {
 			await this.nativeHostMainService.openExternal(undefined, 'https://go.microsoft.com/fwlink/?linkid=2220179');
 		}
 

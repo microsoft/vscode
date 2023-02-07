@@ -227,13 +227,6 @@ export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWo
 }
 
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
-}
-
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;

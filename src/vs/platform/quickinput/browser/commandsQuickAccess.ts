@@ -10,7 +10,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import Severity from 'vs/base/common/severity';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -189,7 +188,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 						await this.commandService.executeCommand(commandPick.commandId);
 					} catch (error) {
 						if (!isCancellationError(error)) {
-							this.dialogService.show(Severity.Error, localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
+							this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
 						}
 					}
 				}

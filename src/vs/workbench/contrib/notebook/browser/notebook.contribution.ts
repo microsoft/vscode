@@ -613,7 +613,10 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		this._register(this._workingCopyEditorService.registerHandler({
-			handles: workingCopy => typeof this._getViewType(workingCopy) === 'string',
+			handles: workingCopy => {
+				const viewType = this._getViewType(workingCopy);
+				return typeof viewType === 'string' && viewType !== 'interactive';
+			},
 			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource),
 			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!)
 		}));
@@ -857,9 +860,9 @@ configurationRegistry.registerConfiguration({
 			default: 'fromEditor'
 		},
 		[NotebookSetting.outputLineHeight]: {
-			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
-			default: 19,
+			default: 0,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
@@ -886,12 +889,6 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
-			type: 'boolean',
-			tags: ['notebookLayout'],
-			default: false
-		},
-		[NotebookSetting.logging]: {
-			markdownDescription: nls.localize('notebook.logging', "Enable logging for notebook support."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false

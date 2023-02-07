@@ -38,11 +38,10 @@ export const IInstantiationService = createDecorator<IInstantiationService>('ins
  * Given a list of arguments as a tuple, attempt to extract the leading, non-service arguments
  * to their own tuple.
  */
-export type GetLeadingNonServiceArgs<Args> =
-	Args extends [...BrandedService[]] ? []
-	: Args extends [infer A, ...BrandedService[]] ? [A]
-	: Args extends [infer A, ...infer R] ? [A, ...GetLeadingNonServiceArgs<R>]
-	: never;
+export type GetLeadingNonServiceArgs<TArgs extends any[]> =
+	TArgs extends [] ? []
+	: TArgs extends [...infer TFirst, BrandedService] ? GetLeadingNonServiceArgs<TFirst>
+	: TArgs;
 
 export interface IInstantiationService {
 

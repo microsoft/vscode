@@ -9,6 +9,13 @@ import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } fro
 
 const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 
+export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Worker {
+	if (!blobUrl.startsWith('blob:')) {
+		throw new URIError('Not a blob-url: ' + blobUrl);
+	}
+	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, options);
+}
+
 function getWorker(label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	if (globals.MonacoEnvironment) {

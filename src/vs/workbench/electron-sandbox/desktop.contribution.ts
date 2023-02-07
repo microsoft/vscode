@@ -353,7 +353,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				}
 			},
 			'log-level': {
-				type: 'string',
+				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}
