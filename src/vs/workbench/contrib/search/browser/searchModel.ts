@@ -515,9 +515,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	matches(): Match[] {
-		const vals = this._matches.values();
-		const arr = Array.from(vals);
-		return arr;
+		return Array.from(this._matches.values());
 	}
 
 	remove(matches: Match | Match[]): void {
@@ -1769,7 +1767,6 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-
 	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, onProgress?: (result: ISearchProgressItem) => void) {
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const onProgressCall = (p: ISearchProgressItem) => {
@@ -1788,7 +1785,6 @@ export class SearchModel extends Disposable {
 		);
 		tokenSource.dispose();
 		return { ...currentResult, ...notebookResult };
-
 	}
 
 	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {

@@ -220,7 +220,6 @@ export class ReplaceService implements IReplaceService {
 
 	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
 		const fileMatch: FileMatch = match.parent();
-
 		return new ResourceTextEdit(
 			resource ?? fileMatch.resource,
 			{ range: match.range(), text }, undefined, undefined
