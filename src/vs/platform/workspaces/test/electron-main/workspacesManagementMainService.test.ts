@@ -109,7 +109,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
-		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateMainService(environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService(), productService);
+		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateMainService(environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService());
 
 		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});

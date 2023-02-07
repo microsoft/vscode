@@ -7,7 +7,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

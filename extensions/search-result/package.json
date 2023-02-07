@@ -14,9 +14,7 @@
   ],
   "main": "./out/extension.js",
   "browser": "./dist/extension.js",
-  "activationEvents": [
-    "onLanguage:search-result"
-  ],
+  "activationEvents": [],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"

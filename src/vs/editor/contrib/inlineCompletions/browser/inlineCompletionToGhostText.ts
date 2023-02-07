@@ -212,7 +212,7 @@ function cachingDiff(originalValue: string, newValue: string): readonly IDiffCha
 function deletedCharacters(changes: readonly IDiffChange[]): number {
 	let sum = 0;
 	for (const c of changes) {
-		sum += Math.max(c.originalLength - c.modifiedLength, 0);
+		sum += c.originalLength;
 	}
 	return sum;
 }

@@ -32,7 +32,7 @@ class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 		initialMousePosX: number | undefined,
 		initialMousePosY: number | undefined
 	) {
-		super(10, owner, part.item.anchor.range, initialMousePosX, initialMousePosY);
+		super(10, owner, part.item.anchor.range, initialMousePosX, initialMousePosY, true);
 	}
 }
 

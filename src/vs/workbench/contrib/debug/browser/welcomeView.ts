@@ -110,7 +110,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'openAFileWhichCanBeDebugged', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"[Open a file](command:{0}) which can be debugged or run.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFileAction.ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()),
-	group: ViewContentGroups.Open
+	group: ViewContentGroups.Open,
 });
 
 let debugKeybindingLabel = '';
@@ -118,7 +118,9 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, DEBUG_START_COMMAND_ID),
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	group: ViewContentGroups.Debug
+	group: ViewContentGroups.Debug,
+	// Allow inserting more buttons directly after this one (by setting order to 1).
+	order: 1
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
