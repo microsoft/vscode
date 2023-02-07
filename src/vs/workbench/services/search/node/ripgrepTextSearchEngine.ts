@@ -677,8 +677,8 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 					escaped = false;
 				} else {
 					if (inBraces) {
-						// ripgrep treats this as attempting to do an alternating group, which is invalid. Return with pattern including changes from escaped braces.
-						return { strInBraces: fixedStart + '{' + strInBraces };
+						// ripgrep treats this as attempting to do a nested alternate group, which is invalid. Return with pattern including changes from escaped braces.
+						return { strInBraces: fixedStart + '{' + strInBraces + '{' + pattern.substring(i + 1) };
 					} else {
 						inBraces = true;
 					}
@@ -714,6 +714,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 		}
 	}
 
+
 	// we are haven't hit the last brace, so no splitting should occur. Return with pattern including changes from escaped braces.
 	return { strInBraces: fixedStart + (inBraces ? ('{' + strInBraces) : '') };
 }
@@ -728,7 +729,12 @@ export function performBraceExpansionForRipgrep(pattern: string): string[] {
 		return [strInBraces];
 	}
 
-	const arr = splitGlobAware(strInBraces, ',');
+	let arr = splitGlobAware(strInBraces, ',');
+
+	if (!arr.length) {
+		// occurs if the braces are empty.
+		arr = [''];
+	}
 
 	const ends = performBraceExpansionForRipgrep(fixedEnd);
 

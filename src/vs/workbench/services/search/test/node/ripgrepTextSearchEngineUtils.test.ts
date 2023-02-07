@@ -357,6 +357,14 @@ suite('RipgrepTextSearchEngine', () => {
 			['e\\{ep/{a,b}/test', ['e{ep/a/test', 'e{ep/b/test']],
 			['eep/{a,\\b}/test', ['eep/a/test', 'eep/\\b/test']],
 			['{a/*.*,b/*.*}', ['a/*.*', 'b/*.*']],
+			['{{}', ['{{}']],
+			['aa{{}', ['aa{{}']],
+			['{b{}', ['{b{}']],
+			['{{}c', ['{{}c']],
+			['{{}}', ['{{}}']],
+			['\\{{}}', ['{}']],
+			['{}foo', ['foo']],
+			['bar{ }foo', ['bar foo']],
 		].forEach(([includePattern, expectedPatterns]) => testBraceExpansion(<string>includePattern, <string[]>expectedPatterns));
 	});
 });
