@@ -9,6 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
@@ -40,6 +41,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@ILogService private _logService: ILogService,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 	) {
@@ -148,7 +150,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			return shellProcessId;
 
 		} else if (args.kind === 'external') {
-			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+			return runInExternalTerminal(args, await this._configurationService.getConfigProvider(), this._logService);
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
@@ -156,14 +158,14 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider, logService: ILogService): Promise<number | undefined> {
 	if (!externalTerminalService) {
 		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService();
+			externalTerminalService = new WindowsExternalTerminalService(logService);
 		} else if (platform.isMacintosh) {
 			externalTerminalService = new MacExternalTerminalService();
 		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService();
+			externalTerminalService = new LinuxExternalTerminalService(logService);
 		} else {
 			throw new Error('external terminals not supported on this platform');
 		}

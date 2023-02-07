@@ -33,7 +33,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	private static readonly CMD = 'cmd.exe';
 	private static _DEFAULT_TERMINAL_WINDOWS: string;
 
-	constructor(@ILogService private readonly _logService: ILogService) {
+	constructor(@ILogService private readonly _logService?: ILogService) {
 		super();
 	}
 
@@ -110,7 +110,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				spawnExec = WindowsExternalTerminalService.CMD;
 				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
 			}
-			this._logService.info('externalTerminal spawm', { spawnExec, cmdArgs, options });
+			this._logService?.info('externalTerminal spawm', { spawnExec, cmdArgs, options });
 			const cmd = cp.spawn(spawnExec, cmdArgs, options);
 
 			cmd.on('error', err => {
@@ -224,7 +224,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
-	constructor(@ILogService private readonly _logService: ILogService) {
+	constructor(@ILogService private readonly _logService?: ILogService) {
 		super();
 	}
 
@@ -283,7 +283,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				};
 
 				let stderr = '';
-				this._logService.info('externalTerminal spawm', { exec, termArgs, options });
+				this._logService?.info('externalTerminal spawm', { exec, termArgs, options });
 				const cmd = cp.spawn(exec, termArgs, options);
 				cmd.on('error', err => {
 					reject(improveError(err));
