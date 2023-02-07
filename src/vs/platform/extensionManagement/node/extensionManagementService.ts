@@ -129,7 +129,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
+	getInstalled(type?: ExtensionType, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<ILocalExtension[]> {
 		return this.extensionsScanner.scanExtensions(type ?? null, profileLocation);
 	}
 
