@@ -1148,6 +1148,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._bufferElementProvider = this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => shellIntegrationFragment }));
 		this._accessibilityBuffer.focus();
+		if (this._accessibilityBuffer.contentEditable === 'true') {
+			document.execCommand('selectAll', false, undefined);
+			document.getSelection()?.collapseToEnd();
+		}
 	}
 
 	private _setShellIntegrationContextKey(): void {
