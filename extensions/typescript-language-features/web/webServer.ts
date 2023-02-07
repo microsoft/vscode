@@ -263,7 +263,13 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			}
 
 			try {
-				return fs.stat(toResource(path)).type === FileType.Directory;
+				const s = fs.stat(toResource(path));
+				if (path.startsWith('/https') && !path.endsWith('.d.ts')) {
+					// TODO: Hack, https "file system" can't actually tell what is a file vs directory
+					return s.type === FileType.File || s.type === FileType.Directory;
+				}
+
+				return s.type === FileType.Directory;
 			} catch (error) {
 				logNormal('Error fs.directoryExists', { path, error: error + '' });
 				return false;
@@ -469,14 +475,42 @@ class WasmCancellationToken implements ts.server.ServerCancellationToken {
 }
 
 interface StartSessionOptions {
-	globalPlugins: ts.server.SessionOptions['globalPlugins'];
-	pluginProbeLocations: ts.server.SessionOptions['pluginProbeLocations'];
-	allowLocalPluginLoads: ts.server.SessionOptions['allowLocalPluginLoads'];
-	useSingleInferredProject: ts.server.SessionOptions['useSingleInferredProject'];
-	useInferredProjectPerProjectRoot: ts.server.SessionOptions['useInferredProjectPerProjectRoot'];
-	suppressDiagnosticEvents: ts.server.SessionOptions['suppressDiagnosticEvents'];
-	noGetErrOnBackgroundUpdate: ts.server.SessionOptions['noGetErrOnBackgroundUpdate'];
-	serverMode: ts.server.SessionOptions['serverMode'];
+	readonly globalPlugins: ts.server.SessionOptions['globalPlugins'];
+	readonly pluginProbeLocations: ts.server.SessionOptions['pluginProbeLocations'];
+	readonly allowLocalPluginLoads: ts.server.SessionOptions['allowLocalPluginLoads'];
+	readonly useSingleInferredProject: ts.server.SessionOptions['useSingleInferredProject'];
+	readonly useInferredProjectPerProjectRoot: ts.server.SessionOptions['useInferredProjectPerProjectRoot'];
+	readonly suppressDiagnosticEvents: ts.server.SessionOptions['suppressDiagnosticEvents'];
+	readonly noGetErrOnBackgroundUpdate: ts.server.SessionOptions['noGetErrOnBackgroundUpdate'];
+	readonly serverMode: ts.server.SessionOptions['serverMode'];
+	readonly disableAutomaticTypingAcquisition: boolean;
+}
+
+class WebTypingsInstaller implements ts.server.ITypingsInstaller {
+	isKnownTypesPackageName(_name: string): boolean {
+		console.log('isKnownTypesPackageName', _name);
+		return true;
+	}
+
+	installPackage(_options: ts.server.InstallPackageOptionsWithProject): Promise<ts.ApplyCodeActionCommandResult> {
+		throw new Error('Method not implemented.');
+	}
+
+	enqueueInstallTypingsRequest(_p: ts.server.Project, _typeAcquisition: ts.TypeAcquisition, _unresolvedImports: ts.SortedReadonlyArray<string> | undefined): void {
+		console.log('enqueueInstallTypingsRequest');
+		return;
+	}
+
+	attach(_projectService: ts.server.ProjectService): void {
+		// Noop
+	}
+
+	onProjectClosed(_projectService: ts.server.Project): void {
+		// noop
+	}
+
+	globalTypingsCacheLocation = '/https/bierner.vscode-unpkg.net/bierner/vscode-type-load/0.0.1/extension';
+
 }
 
 class WorkerSession extends ts.server.Session<{}> {
@@ -487,16 +521,18 @@ class WorkerSession extends ts.server.Session<{}> {
 	constructor(
 		host: ts.server.ServerHost,
 		options: StartSessionOptions,
-		public readonly port: MessagePort,
+		private readonly port: MessagePort,
 		logger: ts.server.Logger,
 		hrtime: ts.server.SessionOptions['hrtime']
 	) {
 		const cancellationToken = new WasmCancellationToken();
+		const typingsInstaller = options.disableAutomaticTypingAcquisition ? ts.server.nullTypingsInstaller : new WebTypingsInstaller();
+
 		super({
 			host,
 			cancellationToken,
 			...options,
-			typingsInstaller: ts.server.nullTypingsInstaller, // TODO: Someday!
+			typingsInstaller,
 			byteLength: () => { throw new Error('Not implemented'); }, // Formats the message text in send of Session which is overridden in this class so not needed
 			hrtime,
 			logger,
@@ -631,7 +667,7 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 	logger.info(`Version: 0.0.0`);
 	logger.info(`Arguments: ${args.join(' ')}`);
 	logger.info(`ServerMode: ${serverMode} unknownServerMode: ${unknownServerMode}`);
-	const options = {
+	const options: StartSessionOptions = {
 		globalPlugins: findArgumentStringArray(args, '--globalPlugins'),
 		pluginProbeLocations: findArgumentStringArray(args, '--pluginProbeLocations'),
 		allowLocalPluginLoads: hasArgument(args, '--allowLocalPluginLoads'),
@@ -639,7 +675,8 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 		useInferredProjectPerProjectRoot: hasArgument(args, '--useInferredProjectPerProjectRoot'),
 		suppressDiagnosticEvents: hasArgument(args, '--suppressDiagnosticEvents'),
 		noGetErrOnBackgroundUpdate: hasArgument(args, '--noGetErrOnBackgroundUpdate'),
-		serverMode
+		serverMode,
+		disableAutomaticTypingAcquisition: hasArgument(args, '--disableAutomaticTypingAcquisition'),
 	};
 
 	let sys: ServerHostWithImport;
