@@ -23,7 +23,8 @@ const defaultEnvironment = {};
 suite('platform - terminalEnvironment', () => {
 	suite('getShellIntegrationInjection', () => {
 		suite('should not enable', () => {
-			test('when isFeatureTerminal or when no executable is provided', () => {
+			// This test is only expected to work on Windows 10 build 18309 and above
+			(getWindowsBuildNumber() < 18309 ? test.skip : test)('when isFeatureTerminal or when no executable is provided', () => {
 				ok(!getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService));
 				ok(getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: false }, enabledProcessOptions, defaultEnvironment, logService, productService));
 			});
