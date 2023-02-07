@@ -365,6 +365,7 @@ suite('RipgrepTextSearchEngine', () => {
 			['\\{{}}', ['{}']],
 			['{}foo', ['foo']],
 			['bar{ }foo', ['bar foo']],
+			['{}', ['']],
 		].forEach(([includePattern, expectedPatterns]) => testBraceExpansion(<string>includePattern, <string[]>expectedPatterns));
 	});
 });
