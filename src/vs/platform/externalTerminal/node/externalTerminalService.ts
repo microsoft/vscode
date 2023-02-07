@@ -257,8 +257,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 						exec = 'cmd.exe';
 						termArgs.push('/c', 'start', 'cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
 					}
-					const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
-					termArgs.push(command);
+					termArgs.push(...args);
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
 						termArgs.push('-x');
