@@ -219,7 +219,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private _accessibilityBuffer: HTMLElement | undefined;
-	private _bufferElementProvider: IDisposable | undefined;
+	private _bufferElementFragment: DocumentFragment;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -550,6 +550,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._fixedCols) {
 				await this._addScrollbar();
 			}
+			this._register(this.xterm?.raw.registerBufferElementProvider({ provideBufferElements: () => this._provideBufferElements() }));
 		}).catch((err) => {
 			// Ignore exceptions if the terminal is already disposed
 			if (!this._isDisposed) {
@@ -602,6 +603,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				window.clearTimeout(initialDataEventsTimeout);
 			}
 		}));
+		this._bufferElementFragment = document.createDocumentFragment();
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
@@ -1105,7 +1107,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.element) {
 			return;
 		}
-		this._bufferElementProvider?.dispose();
 		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
 		if (!this._accessibilityBuffer) {
 			return;
@@ -1118,18 +1119,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
 		this._accessibilityBuffer.style.lineHeight = lineHeight;
 		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		const fragment = document.createDocumentFragment();
-
 		if (!commands?.length) {
 			const noContent = document.createElement('div');
 			const noContentLabel = nls.localize('terminal.integrated.noContent', "No terminal content available for this session.");
 			noContent.textContent = noContentLabel;
-			fragment.appendChild(noContent);
-			this._bufferElementProvider = this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => fragment }));
+			this._bufferElementFragment.replaceChildren(noContent);
 			this._accessibilityBuffer.focus();
 			return;
 		}
 		let header;
+		let replaceChildren = true;
 		for (const command of commands) {
 			header = document.createElement('h2');
 			// without this, the text area gets focused when keyboard shortcuts are used
@@ -1139,19 +1138,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// without this, the text area gets focused when keyboard shortcuts are used
 			output.tabIndex = -1;
 			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
-			fragment.appendChild(header);
-			fragment.appendChild(output);
+			if (replaceChildren) {
+				this._bufferElementFragment.replaceChildren(header, output);
+				replaceChildren = false;
+			} else {
+				this._bufferElementFragment.appendChild(header);
+				this._bufferElementFragment.appendChild(output);
+			}
 		}
 		if (header) {
 			// focus the cursor line's header
 			header.tabIndex = 0;
 		}
-		this._bufferElementProvider = this._register(this.xterm.raw.registerBufferElementProvider({ provideBufferElements: () => fragment }));
 		this._accessibilityBuffer.focus();
 		if (this._accessibilityBuffer.contentEditable === 'true') {
 			document.execCommand('selectAll', false, undefined);
 			document.getSelection()?.collapseToEnd();
 		}
+	}
+
+	private _provideBufferElements(): DocumentFragment {
+		return this._bufferElementFragment;
 	}
 
 	private _setShellIntegrationContextKey(): void {
