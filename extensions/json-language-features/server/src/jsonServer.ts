@@ -109,6 +109,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let resultLimit = Number.MAX_VALUE;
 	let jsonFoldingRangeLimit = Number.MAX_VALUE;
 	let jsoncFoldingRangeLimit = Number.MAX_VALUE;
+	let jsonColorDecoratorLimit = Number.MAX_VALUE;
+	let jsoncColorDecoratorLimit = Number.MAX_VALUE;
+
+
 	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
 	let diagnosticsSupport: DiagnosticsSupport | undefined;
@@ -190,6 +194,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			resultLimit?: number;
 			jsonFoldingLimit?: number;
 			jsoncFoldingLimit?: number;
+			jsonColorDecoratorLimit?: number;
+			jsoncColorDecoratorLimit?: number;
 		};
 		http?: {
 			proxy?: string;
@@ -225,6 +231,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		resultLimit = sanitizeLimitSetting(settings.json?.resultLimit || Number.MAX_VALUE);
 		jsonFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsonFoldingLimit || foldingRangeLimitDefault);
 		jsoncFoldingRangeLimit = sanitizeLimitSetting(settings.json?.jsoncFoldingLimit || foldingRangeLimitDefault);
+		jsonColorDecoratorLimit = sanitizeLimitSetting(settings.json?.jsonColorDecoratorLimit || Number.MAX_VALUE);
+		jsoncColorDecoratorLimit = sanitizeLimitSetting(settings.json?.jsoncColorDecoratorLimit || Number.MAX_VALUE);
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
@@ -422,6 +430,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 
 				const jsonDocument = getJSONDocument(document);
+				const resultLimit = document.languageId === 'jsonc' ? jsoncColorDecoratorLimit : jsonColorDecoratorLimit;
 				return languageService.findDocumentColors(document, jsonDocument, { resultLimit });
 			}
 			return [];
