@@ -590,6 +590,7 @@ export const enum TerminalCommandId {
 	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
 	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
+	ShowAiCommandSearch = 'workbench.action.terminal.showAiCommandSearch',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
