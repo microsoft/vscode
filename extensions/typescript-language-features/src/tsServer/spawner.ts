@@ -142,12 +142,12 @@ export class TypeScriptServerSpawner {
 		const { args, tsServerLog, tsServerTraceDirectory } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager, canceller.cancellationPipeName);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			if (!isWeb()) {
-				if (tsServerLog) {
-					this._logger.info(`<${kind}> Log file: ${tsServerLog}`);
-				} else {
-					this._logger.error(`<${kind}> Could not create log directory`);
-				}
+			if (tsServerLog?.type === 'file') {
+				this._logger.info(`<${kind}> Log file: ${tsServerLog.uri.fsPath}`);
+			} else if (tsServerLog?.type === 'output') {
+				this._logger.info(`<${kind}> Logging to output`);
+			} else {
+				this._logger.error(`<${kind}> Could not create TS Server log`);
 			}
 		}
 
@@ -275,7 +275,7 @@ export class TypeScriptServerSpawner {
 			args.push('--enableProjectWideIntelliSenseOnWeb');
 		}
 
-		return { args, tsServerLog: tsServerLog, tsServerTraceDirectory };
+		return { args, tsServerLog, tsServerTraceDirectory };
 	}
 
 	private static isLoggingEnabled(configuration: TypeScriptServiceConfiguration) {
