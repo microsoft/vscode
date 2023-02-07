@@ -817,4 +817,3 @@ export function patternsEquals(patternsA: Array<string | IRelativePattern> | und
 		return false;
 	});
 }
-
