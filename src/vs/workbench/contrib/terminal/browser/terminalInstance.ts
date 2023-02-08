@@ -122,7 +122,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
-		Terminal.strings.accessibilityBuffer = nls.localize('terminal.integrated.accessibilityBuffer', 'Terminal buffer');
+		Terminal.strings.accessibilityBuffer = nls.localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
@@ -1097,10 +1097,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
-	}
-
-	focusAccessibilityBuffer(): void {
-		this.xterm?.focusAccessibilityBuffer();
 	}
 
 	private _setShellIntegrationContextKey(): void {
