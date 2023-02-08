@@ -356,7 +356,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private async _ensureLanguagePackIsInstalled(language: string): Promise<void> {
 		if (
 			// No need to install language packs for the default language
-			language === platform.LANGUAGE_DEFAULT &&
+			language === platform.LANGUAGE_DEFAULT ||
 			// The extension gallery service needs to be available
 			!this._extensionGalleryService.isEnabled()
 		) {

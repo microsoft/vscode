@@ -2192,7 +2192,7 @@ export interface MainThreadThemingShape extends IDisposable {
 }
 
 export interface MainThreadLocalizationShape extends IDisposable {
-	$fetchBuiltInBundleUri(id: string): Promise<UriComponents | undefined>;
+	$fetchBuiltInBundleUri(id: string, language: string): Promise<UriComponents | undefined>;
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
 }
 
