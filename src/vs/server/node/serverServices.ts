@@ -201,6 +201,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const languagePackService = accessor.get(ILanguagePackService);
 		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(
 			connectionToken,
 			environmentService,
@@ -209,7 +210,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			extensionGalleryService,
 			logService,
 			extensionHostStatusService,
-			extensionsScannerService
+			extensionsScannerService,
+			languagePackService
 		);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 

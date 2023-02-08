@@ -29,8 +29,8 @@ import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/e
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
-import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -47,6 +47,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly _logService: ILogService,
 		private readonly _extensionHostStatusService: IExtensionHostStatusService,
 		private readonly _extensionsScannerService: IExtensionsScannerService,
+		private readonly _languagePackService: ILanguagePackService
 	) {
 		if (_environmentService.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] };
@@ -361,29 +362,31 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		) {
 			return;
 		}
-		const config = await getNLSConfiguration(language, this._environmentService.userDataPath);
-		if (!InternalNLSConfiguration.is(config)) {
-			try {
-				const tagResult = await this._extensionGalleryService.query({ text: `tag:lp-${language}` }, CancellationToken.None);
-				if (tagResult.total === 0) {
-					this._logService.warn(`No extension found for language ${language}. This is unexpected since the client is configured to use this language.`);
-					return;
-				}
-
-				const extensionToInstall = tagResult.total === 1
-					? tagResult.firstPage[0]
-					// If there are multiple extensions, prefer the one from Microsoft. This mirrors the client behavior. This "multiple extensions" case hasn't
-					// come up yet, but it is possible that a language pack is published by a third party.
-					: tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack')) ?? tagResult.firstPage[0];
-				this._logService.trace(`Language Pack for ${language} is not installed. It will be installed now.`);
-				await this._extensionManagementCLI.installExtensions([extensionToInstall.identifier.id], [], { isMachineScoped: true }, true, {
-					log: (s) => this._logService.info(s),
-					error: (s) => this._logService.error(s)
-				});
-			} catch (err) {
-				// log and continue with the default language
-				this._logService.error(err);
+		const installed = await this._languagePackService.getInstalledLanguages();
+		if (installed.find(p => p.id === language)) {
+			// language pack already installed.
+			return;
+		}
+		try {
+			const tagResult = await this._extensionGalleryService.query({ text: `tag:lp-${language}` }, CancellationToken.None);
+			if (tagResult.total === 0) {
+				this._logService.warn(`No extension found for language ${language}. This is unexpected since the client is configured to use this language.`);
+				return;
 			}
+
+			const extensionToInstall = tagResult.total === 1
+				? tagResult.firstPage[0]
+				// If there are multiple extensions, prefer the one from Microsoft. This mirrors the client behavior. This "multiple extensions" case hasn't
+				// come up yet, but it is possible that a language pack is published by a third party.
+				: tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack')) ?? tagResult.firstPage[0];
+			this._logService.trace(`Language Pack for ${language} is not installed. It will be installed now.`);
+			await this._extensionManagementCLI.installExtensions([extensionToInstall.identifier.id], [], { isMachineScoped: true }, true, {
+				log: (s) => this._logService.info(s),
+				error: (s) => this._logService.error(s)
+			});
+		} catch (err) {
+			// log and continue with the default language
+			this._logService.error(err);
 		}
 	}
 }
