@@ -257,7 +257,15 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 						exec = 'cmd.exe';
 						termArgs.push('/c', 'start', 'cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
 					}
-					termArgs.push(...args);
+					// Convert any relative path args to absolute to avoid them being resolved to a
+					// Windows-side path instead of the proper WSL path
+					const mappedArgs = args.map(e => {
+						if (e.match(/^\.\.?[\\/]/)) {
+							return path.resolve(dir, e);
+						}
+						return e;
+					});
+					termArgs.push(...mappedArgs);
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
 						termArgs.push('-x');
