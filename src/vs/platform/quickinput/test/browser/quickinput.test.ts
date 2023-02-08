@@ -50,6 +50,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
+			linkOpenerDelegate(content) { },
 			createList: <T>(
 				user: string,
 				container: HTMLElement,

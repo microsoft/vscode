@@ -9,7 +9,6 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { CountBadge, ICountBadgeStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -34,7 +33,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
-import { getIconClass } from './quickInputUtils';
+import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -43,6 +42,7 @@ export interface IQuickInputOptions {
 	isScreenReaderOptimized(): boolean;
 	backKeybindingLabel(): string | undefined;
 	setContextKey(id?: string): void;
+	linkOpenerDelegate(content: string): void;
 	returnFocus(): void;
 	createList<T>(
 		user: string,
@@ -118,6 +118,7 @@ interface QuickInputUI {
 	setComboboxAccessibility(enabled: boolean): void;
 	setEnabled(enabled: boolean): void;
 	setContextKey(contextKey?: string): void;
+	linkOpenerDelegate(content: string): void;
 	hide(): void;
 }
 
@@ -400,7 +401,13 @@ class QuickInput extends Disposable implements IQuickInput {
 		const validationMessage = this.validationMessage || this.noValidationMessage;
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
+			dom.reset(this.ui.message);
+			renderQuickInputDescription(validationMessage, this.ui.message, {
+				callback: (content) => {
+					this.ui.linkOpenerDelegate(content);
+				},
+				disposables: this.visibleDisposables,
+			});
 		}
 		if (this._lastSeverity !== this.severity) {
 			this._lastSeverity = this.severity;
@@ -1395,6 +1402,10 @@ export class QuickInputController extends Disposable {
 						if (this.getUI().list.isDisplayed()) {
 							selectors.push('.monaco-list');
 						}
+						// focus links if there are any
+						if (this.getUI().message) {
+							selectors.push('.quick-input-message a');
+						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
 						if (event.shiftKey && event.target === stops[0]) {
 							dom.EventHelper.stop(e, true);
@@ -1443,6 +1454,7 @@ export class QuickInputController extends Disposable {
 			setComboboxAccessibility: enabled => this.setComboboxAccessibility(enabled),
 			setEnabled: enabled => this.setEnabled(enabled),
 			setContextKey: contextKey => this.options.setContextKey(contextKey),
+			linkOpenerDelegate: content => this.options.linkOpenerDelegate(content)
 		};
 		this.updateStyles();
 		return this.ui;
