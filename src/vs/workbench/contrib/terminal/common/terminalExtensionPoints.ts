@@ -18,7 +18,7 @@ export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;
 
 	readonly terminalProfiles: ReadonlyArray<IExtensionTerminalProfile>;
-	readonly quickFixes: Promise<Array<ITerminalCommandSelector>>;
+	readonly terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 }
 
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
@@ -29,16 +29,16 @@ export class TerminalContributionService implements ITerminalContributionService
 	private _terminalProfiles: ReadonlyArray<IExtensionTerminalProfile> = [];
 	get terminalProfiles() { return this._terminalProfiles; }
 
-	quickFixes: Promise<Array<ITerminalCommandSelector>>;
+	terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 
 	constructor() {
-		this.quickFixes = new Promise((r) => terminalsExtPoint.setHandler(contributions => {
+		this.terminalQuickFixes = new Promise((r) => terminalsExtPoint.setHandler(contributions => {
 			this._terminalProfiles = contributions.map(c => {
 				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
 					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
 			}).flat();
-			const quickFixes = (contributions.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value.quickFixes ? c.value.quickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : [])).flat();
+			const quickFixes = (contributions.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value.terminalQuickFixes ? c.value.terminalQuickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : [])).flat();
 			r(quickFixes);
 		}));
 	}

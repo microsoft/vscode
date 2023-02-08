@@ -739,7 +739,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 			for (const profileContrib of (contrib.profiles ?? [])) {
 				result.push(`onTerminalProfile:${profileContrib.id}`);
 			}
-			for (const quickFixContrib of (contrib.quickFixes ?? [])) {
+			for (const quickFixContrib of (contrib.terminalQuickFixes ?? [])) {
 				result.push(`onTerminalQuickFixRequest:${quickFixContrib.id}`);
 			}
 		}
@@ -748,9 +748,9 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
 		type: 'object',
 		properties: {
-			quickFixes: {
+			terminalQuickFixes: {
 				type: 'array',
-				description: nls.localize('vscode.extension.contributes.terminal.quickFixes', "Defines quick fixes for terminals with shell integration enabled."),
+				description: nls.localize('vscode.extension.contributes.terminalQuickFixes', "Defines quick fixes for terminals with shell integration enabled."),
 				items: {
 					type: 'object',
 					additionalProperties: false,
@@ -765,15 +765,15 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 					}],
 					properties: {
 						id: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.id', "The ID of the quick fix provider"),
+							description: nls.localize('vscode.extension.contributes.terminalQuickFixes.id', "The ID of the quick fix provider"),
 							type: 'string',
 						},
 						commandLineMatcher: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandLineMatcher', "A regular expression or string to test the command line against"),
+							description: nls.localize('vscode.extension.contributes.terminalQuickFixes.commandLineMatcher', "A regular expression or string to test the command line against"),
 							type: 'string',
 						},
 						outputMatcher: {
-							markdownDescription: nls.localize('vscode.extension.contributes.terminal.quickFixes.outputMatcher', "A regular expression or string to test the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
+							markdownDescription: nls.localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to test the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
 							type: 'object',
 							required: ['lineMatcher', 'anchor', 'offset', 'length'],
 							properties: {
@@ -796,7 +796,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 							}
 						},
 						commandExitResult: {
-							description: nls.localize('vscode.extension.contributes.terminal.quickFixes.commandExitResult', "The command exit result to match on"),
+							description: nls.localize('vscode.extension.contributes.terminalQuickFixes.commandExitResult', "The command exit result to match on"),
 							enum: ['success', 'error'],
 							enumDescriptions: [
 								'The command exited with an exit code of zero.',

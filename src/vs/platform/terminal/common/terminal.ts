@@ -844,7 +844,7 @@ export interface IShellIntegration {
 
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
-	quickFixes?: ITerminalCommandSelector[];
+	terminalQuickFixes?: ITerminalCommandSelector[];
 }
 
 export const enum ShellIntegrationStatus {
