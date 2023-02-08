@@ -17,7 +17,7 @@ export class FindMatchDecorationModel extends Disposable {
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 
 	constructor(
-		private _notebookEditor: INotebookEditor,
+		private readonly _notebookEditor: INotebookEditor
 	) {
 		super();
 	}

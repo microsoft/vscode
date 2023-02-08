@@ -84,9 +84,6 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stub(ILogService, new NullLogService());
-		// const config = new TestConfigurationService();
-		// config.setUserConfiguration('search', { searchOnType: true });
-		// instantiationService.stub(IConfigurationService, config);
 	});
 
 	teardown(() => {
