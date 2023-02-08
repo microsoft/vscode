@@ -116,7 +116,8 @@ export function getShellIntegrationInjection(
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
-	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || (isWindows && !options.windowsEnableConpty)) {
+	const useWinpty = isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309);
+	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || useWinpty) {
 		return undefined;
 	}
 

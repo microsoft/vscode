@@ -254,7 +254,7 @@ export namespace Event {
 				});
 			},
 			onWillRemoveListener() {
-				if (flushOnListenerRemove) {
+				if (flushOnListenerRemove && numDebouncedCalls > 0) {
 					doFire?.();
 				}
 			},
