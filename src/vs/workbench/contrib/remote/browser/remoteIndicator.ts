@@ -39,6 +39,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -112,6 +114,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					category,
 					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
 					f1: true,
+					keybinding: {
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyMod.Shift | KeyCode.KeyR,
+					}
 				});
 			}
 			run = () => that.showRemoteMenu();
