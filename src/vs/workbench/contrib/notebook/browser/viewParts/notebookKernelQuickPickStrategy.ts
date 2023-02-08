@@ -661,25 +661,14 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 	protected _getKernelPickerQuickPickItems(notebookTextModel: NotebookTextModel, matchResult: INotebookKernelMatchResult, notebookKernelService: INotebookKernelService, scopedContextKeyService: IContextKeyService): QuickPickInput<KernelQuickPickItem>[] {
 		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
-		let previousKind = '';
 
 		if (matchResult.selected) {
 			const kernelItem = toKernelQuickPick(matchResult.selected, matchResult.selected);
-			const kind = matchResult.selected.kind || '';
-			if (kind) {
-				previousKind = kind;
-				quickPickItems.push({ type: 'separator', label: kind });
-			}
 			quickPickItems.push(kernelItem);
 		}
 
 		matchResult.suggestions.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toKernelQuickPick(kernel, matchResult.selected))
 			.forEach(kernel => {
-				const kind = kernel.kernel.kind || '';
-				if (kind && kind !== previousKind) {
-					previousKind = kind;
-					quickPickItems.push({ type: 'separator', label: kind });
-				}
 				quickPickItems.push(kernel);
 			});
 
