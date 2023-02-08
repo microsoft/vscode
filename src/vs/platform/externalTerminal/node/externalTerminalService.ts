@@ -264,10 +264,12 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 					termArgs.push('bash', '-c');
 					// Set any environment variables since they don't get carried over from the
 					// Windows spawned process environment
+					const bashCommand: string[] = [];
 					for (const [key, val] of Object.entries(envVars)) {
-						termArgs.push(`export ${key}="${val}"\n`);
+						bashCommand.push(`export ${key}="${val}"\n`);
 					}
-					termArgs.push(...args);
+					bashCommand.push(...args);
+					termArgs.push(bashCommand.join(''));
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
 						termArgs.push('-x');
