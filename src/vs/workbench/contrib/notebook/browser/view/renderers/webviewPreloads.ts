@@ -923,7 +923,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (match) {
 				let offset = 0;
 				try {
-					console.log(match.id);
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;

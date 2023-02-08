@@ -21,6 +21,10 @@ import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSea
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Search Actions', () => {
 
@@ -30,6 +34,7 @@ suite('Search Actions', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
 		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
 		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS));
@@ -169,8 +174,15 @@ suite('Search Actions', () => {
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		instantiationService.stub(IConfigurationService, config);
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 });

@@ -1767,7 +1767,7 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, onProgress?: (result: ISearchProgressItem) => void) {
+	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const onProgressCall = (p: ISearchProgressItem) => {
 			progressEmitter.fire();

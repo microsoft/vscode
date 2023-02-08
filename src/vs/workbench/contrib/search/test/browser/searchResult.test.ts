@@ -25,6 +25,10 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { isWindows } from 'vs/base/common/platform';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -36,6 +40,7 @@ suite('SearchResult', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stubPromise(IReplaceService, {});
 		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
@@ -516,9 +521,16 @@ suite('SearchResult', () => {
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		instantiationService.stub(IConfigurationService, config);
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 
 	function getPopulatedSearchResult() {
