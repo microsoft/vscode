@@ -110,7 +110,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 				spawnExec = WindowsExternalTerminalService.CMD;
 				cmdArgs = ['/c', 'start', title, '/wait', exec, '/c', command];
 			}
-			this._logService?.info('externalTerminal spawm', { spawnExec, cmdArgs, options });
+			this._logService?.info('externalTerminal spawn', { spawnExec, cmdArgs, options });
 			const cmd = cp.spawn(spawnExec, cmdArgs, options);
 
 			cmd.on('error', err => {
@@ -257,7 +257,16 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 						exec = 'cmd.exe';
 						termArgs.push('/c', 'start', 'cmd.exe', '/c');
 					}
+					// We need a new WSL session to start the debug session in
 					termArgs.push('wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--cd', dir, '--');
+					// Use a bash -c session to allow the setting of environment variables via
+					// export
+					termArgs.push('bash', '-c');
+					// Set any environment variables since they don't get carried over from the
+					// Windows spawned process environment
+					for (const [key, val] of Object.entries(envVars)) {
+						termArgs.push(`export ${key}="${val}"\n`);
+					}
 					termArgs.push(...args);
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
@@ -284,7 +293,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				};
 
 				let stderr = '';
-				this._logService?.info('externalTerminal spawm', { exec, termArgs, options });
+				this._logService?.info('externalTerminal spawn', { exec, termArgs, options });
 				const cmd = cp.spawn(exec, termArgs, options);
 				cmd.on('error', err => {
 					reject(improveError(err));
