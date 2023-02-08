@@ -403,17 +403,27 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
-		options.keepLines = keepLinesEnabled;
+
 		const document = documents.get(textDocument.uri);
 		if (document) {
-			const edits = languageService.format(document, range ?? getFullRange(document), options);
-			if (edits.length > formatterMaxNumberOfEdits) {
-				const newText = TextDocument.applyEdits(document, edits);
-				return [TextEdit.replace(getFullRange(document), newText)];
-			}
-			return edits;
+			const sortedDocument = languageService.sort(document, options);
+			return [TextEdit.replace(getFullRange(document), sortedDocument)];
 		}
+
 		return [];
+
+		// OLD CODE
+		// options.keepLines = keepLinesEnabled;
+		// const document = documents.get(textDocument.uri);
+		// if (document) {
+		//	const edits = languageService.format(document, range ?? getFullRange(document), options);
+		//	if (edits.length > formatterMaxNumberOfEdits) {
+		//		const newText = TextDocument.applyEdits(document, edits);
+		//		return [TextEdit.replace(getFullRange(document), newText)];
+		//	}
+		//	return edits;
+		// }
+		// return [];
 	}
 
 	connection.onDocumentRangeFormatting((formatParams, token) => {
