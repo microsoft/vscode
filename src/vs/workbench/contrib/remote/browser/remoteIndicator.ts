@@ -116,7 +116,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					f1: true,
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
-						primary: KeyMod.Shift | KeyCode.KeyR,
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyO,
 					}
 				});
 			}
