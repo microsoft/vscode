@@ -5,9 +5,9 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='webworker' />
 
-import * as ts from 'typescript/lib/tsserverlibrary';
-import { ApiClient, FileType, Requests } from '@vscode/sync-api-client';
+import { ApiClient, FileSystem, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
+import * as ts from 'typescript/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
 
 // GLOBALS
@@ -486,31 +486,132 @@ interface StartSessionOptions {
 	readonly disableAutomaticTypingAcquisition: boolean;
 }
 
+// Copied from typescript/jsTypings.ts
+const enum NameValidationResult {
+	Ok,
+	EmptyName,
+	NameTooLong,
+	NameStartsWithDot,
+	NameStartsWithUnderscore,
+	NameContainsNonURISafeCharacters
+}
+interface ScopedPackageNameValidationResult {
+	readonly name: string;
+	readonly isScopeName: boolean;
+	readonly result: NameValidationResult;
+}
+type PackageNameValidationResult = NameValidationResult | ScopedPackageNameValidationResult;
+
+
+enum CharacterCodes {
+	_ = 0x5F,
+	dot = 0x2E,
+}
+
+const maxPackageNameLength = 214;
+
 class WebTypingsInstaller implements ts.server.ITypingsInstaller {
-	isKnownTypesPackageName(_name: string): boolean {
-		console.log('isKnownTypesPackageName', _name);
-		return true;
+
+	private projectService: ts.server.ProjectService | undefined;
+
+	constructor(
+		private readonly fs: FileSystem,
+	) { }
+
+	readonly globalTypingsCacheLocation = '/vscode-type-load/ts-null-authority';
+
+	isKnownTypesPackageName(packageName: string): boolean {
+		const looksLikeValidName = this.validatePackageNameWorker(packageName, true);
+		if (looksLikeValidName.result !== NameValidationResult.Ok) {
+			return false;
+		}
+
+		try {
+			if (this.fs.stat(URI.parse('vscode-type-load://ts-null-authority/node_modules/' + packageName)).type === FileType.Directory) {
+				return true;
+			}
+		} catch {
+			// Noop
+		}
+
+		try {
+			if (this.fs.stat(URI.parse('vscode-type-load://ts-null-authority/node_modules/@types/' + packageName)).type === FileType.Directory) {
+				return true;
+			}
+		} catch {
+			// Noop
+		}
+		return false;
 	}
 
 	installPackage(_options: ts.server.InstallPackageOptionsWithProject): Promise<ts.ApplyCodeActionCommandResult> {
 		throw new Error('Method not implemented.');
 	}
 
-	enqueueInstallTypingsRequest(_p: ts.server.Project, _typeAcquisition: ts.TypeAcquisition, _unresolvedImports: ts.SortedReadonlyArray<string> | undefined): void {
+	enqueueInstallTypingsRequest(p: ts.server.Project, _typeAcquisition: ts.TypeAcquisition, _unresolvedImports: ts.SortedReadonlyArray<string> | undefined): void {
 		console.log('enqueueInstallTypingsRequest');
+
+		const response: ts.server.PackageInstalledResponse = {
+			kind: 'action::packageInstalled',
+			success: true,
+			message: '',
+			projectName: p.getProjectName(),
+		};
+
+		this.projectService!.updateTypingsForProject(response);
 		return;
 	}
 
-	attach(_projectService: ts.server.ProjectService): void {
-		// Noop
+	attach(projectService: ts.server.ProjectService): void {
+		this.projectService = projectService;
 	}
 
 	onProjectClosed(_projectService: ts.server.Project): void {
 		// noop
 	}
 
-	globalTypingsCacheLocation = '/https/bierner.vscode-unpkg.net/bierner/vscode-type-load/0.0.1/extension';
 
+	// Validates package name using rules defined at https://docs.npmjs.com/files/package.json
+	// Copied from typescript/jsTypings.ts
+	private validatePackageNameWorker(packageName: string, supportScopedPackage: true): ScopedPackageNameValidationResult;
+	private validatePackageNameWorker(packageName: string, supportScopedPackage: false): NameValidationResult;
+	private validatePackageNameWorker(packageName: string, supportScopedPackage: boolean): PackageNameValidationResult {
+		if (!packageName) {
+			return NameValidationResult.EmptyName;
+		}
+		if (packageName.length > maxPackageNameLength) {
+			return NameValidationResult.NameTooLong;
+		}
+		if (packageName.charCodeAt(0) === CharacterCodes.dot) {
+			return NameValidationResult.NameStartsWithDot;
+		}
+		if (packageName.charCodeAt(0) === CharacterCodes._) {
+			return NameValidationResult.NameStartsWithUnderscore;
+		}
+
+		// check if name is scope package like: starts with @ and has one '/' in the middle
+		// scoped packages are not currently supported
+		if (supportScopedPackage) {
+			const matches = /^@([^/]+)\/([^/]+)$/.exec(packageName);
+			if (matches) {
+				const scopeResult = this.validatePackageNameWorker(matches[1], /*supportScopedPackage*/ false);
+				if (scopeResult !== NameValidationResult.Ok) {
+					return { name: matches[1], isScopeName: true, result: scopeResult };
+				}
+				const packageResult = this.validatePackageNameWorker(matches[2], /*supportScopedPackage*/ false);
+				if (packageResult !== NameValidationResult.Ok) {
+					return { name: matches[2], isScopeName: false, result: packageResult };
+				}
+				return NameValidationResult.Ok;
+			}
+		}
+
+		if (encodeURIComponent(packageName) !== packageName) {
+			return NameValidationResult.NameContainsNonURISafeCharacters;
+		}
+
+		return NameValidationResult.Ok;
+	}
 }
 
 class WorkerSession extends ts.server.Session<{}> {
@@ -520,13 +621,14 @@ class WorkerSession extends ts.server.Session<{}> {
 
 	constructor(
 		host: ts.server.ServerHost,
+		fs: FileSystem | undefined,
 		options: StartSessionOptions,
 		private readonly port: MessagePort,
 		logger: ts.server.Logger,
 		hrtime: ts.server.SessionOptions['hrtime']
 	) {
 		const cancellationToken = new WasmCancellationToken();
-		const typingsInstaller = options.disableAutomaticTypingAcquisition ? ts.server.nullTypingsInstaller : new WebTypingsInstaller();
+		const typingsInstaller = options.disableAutomaticTypingAcquisition || !fs ? ts.server.nullTypingsInstaller : new WebTypingsInstaller(fs);
 
 		super({
 			host,
@@ -680,18 +782,20 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 	};
 
 	let sys: ServerHostWithImport;
+	let fs: FileSystem | undefined;
 	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
 		const connection = new ClientConnection<Requests>(ports.sync);
 		await connection.serviceReady();
 
-		sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, ports.watcher);
+		const apiClient = new ApiClient(connection);
+		fs = apiClient.vscode.workspace.fileSystem;
+		sys = createServerHost(extensionUri, logger, apiClient, args, ports.watcher);
 	} else {
 		sys = createServerHost(extensionUri, logger, undefined, args, ports.watcher);
-
 	}
 
 	setSys(sys);
-	session = new WorkerSession(sys, options, ports.tsserver, logger, hrtime);
+	session = new WorkerSession(sys, fs, options, ports.tsserver, logger, hrtime);
 	session.listen();
 }
 
