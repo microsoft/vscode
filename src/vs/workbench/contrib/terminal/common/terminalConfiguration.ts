@@ -581,7 +581,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.AccessibleBufferContentEditable]: {
-			markdownDescription: localize('terminal.integrated.accessibleBufferContentEditable', "Controls whether the accessible buffer is marks as a `contenteditable` element. This adds a text cursor to the buffer, allowing selection with the keyboard without a screen reader. Screen reader users will typically want to leave this as `'auto'` or `'off'` which will treat the buffer similar to a document. By default, on Linux, this will be set to `on` so that it works when using Orca."),
+			markdownDescription: localize('terminal.integrated.accessibleBufferContentEditable', "Controls whether the accessible buffer is marks as a `contenteditable` element. This adds a text cursor to the buffer, allowing selection with the keyboard without a screen reader. Screen reader users will typically want to leave this as `auto` or `off` which will treat the buffer similar to a document. By default, on Linux, this will be set to `on` so that it works when using Orca."),
 			type: 'string',
 			enum: ['auto', 'on', 'off'],
 			enumDescriptions: [

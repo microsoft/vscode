@@ -1146,14 +1146,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._bufferElementFragment.appendChild(output);
 			}
 		}
-		if (header) {
-			// focus the cursor line's header
-			header.tabIndex = 0;
-		}
 		this._accessibilityBuffer.focus();
 		if (this._accessibilityBuffer.contentEditable === 'true') {
 			document.execCommand('selectAll', false, undefined);
 			document.getSelection()?.collapseToEnd();
+		} else if (header) {
+			// focus the cursor line's header
+			header.tabIndex = 0;
 		}
 	}
 
