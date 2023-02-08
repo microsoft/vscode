@@ -95,7 +95,6 @@ export class FindMatchDecorationModel extends Disposable {
 	}
 
 	public clearCurrentFindMatchDecoration() {
-
 		if (this._currentMatchDecorations?.kind === 'input') {
 			this._notebookEditor.changeModelDecorations(accessor => {
 				accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], []);
@@ -110,7 +109,6 @@ export class FindMatchDecorationModel extends Disposable {
 
 
 	public setAllFindMatchesDecorations(cellFindMatches: CellFindMatchWithIndex[]) {
-
 		this._notebookEditor.changeModelDecorations((accessor) => {
 
 			const findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;

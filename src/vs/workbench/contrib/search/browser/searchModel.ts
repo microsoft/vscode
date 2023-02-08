@@ -46,7 +46,6 @@ import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/
 export class Match {
 
 	private static readonly MAX_PREVIEW_CHARS = 250;
-	// need to make sure that IDs are different for same-line-different-cell stuff
 	protected _id: string;
 	protected _range: Range;
 	private _oneLinePreviewText: string;
@@ -407,8 +406,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private async updateMatchesForEditorWidget(): Promise<void> {
-		// this is called from a timeout and might fire
-		// after the model has been disposed
 		if (!this._notebookEditorWidget) {
 			return;
 		}
@@ -466,7 +463,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean, model: ITextModel): void {
-
 		const textSearchResults = editorMatchesToTextSearchResults(matches, model, this._previewOptions);
 		textSearchResults.forEach(textSearchResult => {
 			textSearchResultToMatches(textSearchResult, this).forEach(match => {
