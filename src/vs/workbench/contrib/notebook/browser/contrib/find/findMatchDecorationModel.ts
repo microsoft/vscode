@@ -17,21 +17,13 @@ export class FindMatchDecorationModel extends Disposable {
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 
 	constructor(
-		private _notebookEditor: INotebookEditor | undefined,
+		private _notebookEditor: INotebookEditor,
 	) {
 		super();
 	}
 
 	public get currentMatchDecorations() {
 		return this._currentMatchDecorations;
-	}
-
-	set notebookEditor(notebookEditor: INotebookEditor | undefined) {
-		if (this._notebookEditor) {
-			// clear any previous decorations if applicable
-			this.clearDecorations();
-		}
-		this._notebookEditor = notebookEditor;
 	}
 
 	public clearDecorations() {
@@ -41,9 +33,6 @@ export class FindMatchDecorationModel extends Disposable {
 
 
 	public async highlightCurrentFindMatchDecorationInCell(cell: ICellViewModel, cellRange: Range): Promise<number | null> {
-		if (!this._notebookEditor) {
-			return null;
-		}
 
 		this.clearCurrentFindMatchDecoration();
 
@@ -83,9 +72,7 @@ export class FindMatchDecorationModel extends Disposable {
 	}
 
 	public async highlightCurrentFindMatchDecorationInWebview(cell: ICellViewModel, index: number): Promise<number | null> {
-		if (!this._notebookEditor) {
-			return null;
-		}
+
 		this.clearCurrentFindMatchDecoration();
 
 		const offset = await this._notebookEditor.highlightFind(index);
@@ -108,9 +95,7 @@ export class FindMatchDecorationModel extends Disposable {
 	}
 
 	public clearCurrentFindMatchDecoration() {
-		if (!this._notebookEditor) {
-			return;
-		}
+
 		if (this._currentMatchDecorations?.kind === 'input') {
 			this._notebookEditor.changeModelDecorations(accessor => {
 				accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], []);
@@ -125,9 +110,7 @@ export class FindMatchDecorationModel extends Disposable {
 
 
 	public setAllFindMatchesDecorations(cellFindMatches: CellFindMatchWithIndex[]) {
-		if (!this._notebookEditor) {
-			return;
-		}
+
 		this._notebookEditor.changeModelDecorations((accessor) => {
 
 			const findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;

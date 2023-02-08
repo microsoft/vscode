@@ -277,7 +277,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
-	private _findMatchDecorationModel: FindMatchDecorationModel;
+	private _findMatchDecorationModel: FindMatchDecorationModel | undefined;
 
 	private _context: Map<number, string> = new Map();
 	public get context(): Map<number, string> {
@@ -304,7 +304,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
-		this._findMatchDecorationModel = new FindMatchDecorationModel(undefined);
 		this.createMatches();
 	}
 
@@ -366,7 +365,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 
 		this._notebookEditorWidget = widget;
-		this._findMatchDecorationModel.notebookEditor = widget;
+
+		this._findMatchDecorationModel?.dispose();
+		this._findMatchDecorationModel = new FindMatchDecorationModel(widget);
 		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
 			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
 				return;
@@ -384,7 +385,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateMatchesForEditorWidget();
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
-			this._findMatchDecorationModel.notebookEditor = undefined;
+			this._findMatchDecorationModel?.dispose();
 			this._editorWidgetListener?.dispose();
 		}
 		this._notebookEditorWidget = null;
@@ -460,8 +461,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				}
 			});
 		});
-
-		this._findMatchDecorationModel.setAllFindMatchesDecorations(matches);
+		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
 
@@ -613,7 +613,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.setSelectedMatch(null);
 		this.unbindModel();
 		this.unbindEditorWidget();
-		this._findMatchDecorationModel.dispose();
+		this._findMatchDecorationModel?.dispose();
 		this._onDispose.fire();
 		super.dispose();
 	}
@@ -624,6 +624,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
+		if (!this._findMatchDecorationModel) {
+			return null;
+		}
 		if (match.webviewIndex === undefined) {
 			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInCell(match.cell, match.range());
 		} else {

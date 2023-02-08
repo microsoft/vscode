@@ -158,8 +158,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
-	private readonly _onDidDispose = this._register(new Emitter<void>());
-	readonly onDidDispose = this._onDidDispose.event;
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -2938,13 +2936,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
-		this.viewModel = undefined;
 
 		this._renderedEditors.clear();
 		this._baseCellEditorOptions.forEach(v => v.dispose());
 		this._baseCellEditorOptions.clear();
 
-		this._onDidDispose.fire();
 		this._notebookOverviewRulerContainer.remove();
 
 		super.dispose();
