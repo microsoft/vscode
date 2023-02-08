@@ -153,7 +153,7 @@ export class TypeScriptServerSpawner {
 
 		if (configuration.enableTsServerTracing) {
 			if (tsServerTraceDirectory) {
-				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory}`);
+				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory.fsPath}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create trace directory`);
 			}
@@ -240,7 +240,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory.path);
+				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
 			}
 		}
 
