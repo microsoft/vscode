@@ -1099,10 +1099,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	focusAccessibileBuffer(): void {
-		this.xterm?.focusAccessibleBuffer();
-	}
-
 	private _setShellIntegrationContextKey(): void {
 		if (this.xterm) {
 			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
