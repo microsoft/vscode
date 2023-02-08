@@ -252,11 +252,12 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				if (process.env.WSL_DISTRO_NAME) {
 					if (path.basename(exec, '.exe') === 'wt') {
 						exec = 'wt.exe'; // Force .exe to allow calling a Windows binary from WSL
-						termArgs.push('cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
+						termArgs.push('cmd.exe', '/c');
 					} else {
 						exec = 'cmd.exe';
-						termArgs.push('/c', 'start', 'cmd.exe', '/c', 'wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--');
+						termArgs.push('/c', 'start', 'cmd.exe', '/c');
 					}
+					termArgs.push('wsl.exe', '-d', process.env.WSL_DISTRO_NAME, '--cd', dir, '--');
 					termArgs.push(...args);
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
