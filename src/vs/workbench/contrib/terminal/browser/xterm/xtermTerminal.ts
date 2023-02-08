@@ -810,6 +810,9 @@ class AccessibleBuffer extends DisposableStore {
 			// without this, the text area gets focused when keyboard shortcuts are used
 			header.tabIndex = -1;
 			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
+			if (command.exitCode !== 0) {
+				header.textContent += ` exited with code ${command.exitCode}`;
+			}
 			const output = document.createElement('div');
 			// without this, the text area gets focused when keyboard shortcuts are used
 			output.tabIndex = -1;
