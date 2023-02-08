@@ -706,7 +706,7 @@ export interface ITerminalInstance {
 	/**
 	 * Focuses the terminal buffer accessibility element
 	 */
-	focusAccessibilityBuffer(): void;
+	focusAccessibileBuffer(): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -1058,7 +1058,7 @@ export interface IXtermTerminal {
 	/**
 	 * Focuses the accessible buffer, updating its contents
 	 */
-	focusAccessibilityBuffer(): void;
+	focusAccessibleBuffer(): void;
 }
 
 export interface IInternalXtermTerminal {
