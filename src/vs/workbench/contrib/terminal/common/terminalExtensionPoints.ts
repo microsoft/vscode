@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
+import { terminalContributionsDescriptor, terminalQuickFixesContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
@@ -13,6 +13,7 @@ import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/term
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
+const terminalQuickFixesExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalCommandSelector[]>(terminalQuickFixesContributionsDescriptor);
 
 export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;
@@ -32,15 +33,17 @@ export class TerminalContributionService implements ITerminalContributionService
 	terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 
 	constructor() {
-		this.terminalQuickFixes = new Promise((r) => terminalsExtPoint.setHandler(contributions => {
+		this.terminalQuickFixes = new Promise((r) => terminalQuickFixesExtPoint.setHandler(fixes => {
+			const quickFixes = (fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value ? c.value.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : [])).flat();
+			r(quickFixes);
+		}));
+		terminalsExtPoint.setHandler(contributions => {
 			this._terminalProfiles = contributions.map(c => {
 				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
 					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
 			}).flat();
-			const quickFixes = (contributions.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => c.value.terminalQuickFixes ? c.value.terminalQuickFixes.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; }) : [])).flat();
-			r(quickFixes);
-		}));
+		});
 	}
 }
 
