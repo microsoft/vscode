@@ -18,6 +18,7 @@ import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon,
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export function formatCellDuration(duration: number): string {
 	if (duration < 1000) {
@@ -311,15 +312,22 @@ class TimerCellStatusBarItem extends Disposable {
 	private _getWarningItem(renderDuration: { [key: string]: number }, executionDuration: number, timerDuration: number): INotebookCellStatusBarItem {
 		let renderTimes = '';
 		for (const key in renderDuration) {
-			renderTimes += `  ${this._notebookService.getRendererInfo(key)?.displayName ?? key}: ${formatCellDuration(renderDuration[key])}\n`;
+
+			const rendererInfo = this._notebookService.getRendererInfo(key);
+			renderTimes += `- [${rendererInfo?.displayName ?? key}](command:workbench.action.openIssueReporter?%5B%22${rendererInfo?.extensionId.value}%22%5D) ${formatCellDuration(renderDuration[key])}\n`;
 		}
+
+		const tooltip: IMarkdownString = {
+			value: localize('notebook.cell.statusBar.timerWarning', "The output renderer for this cell is slow.\n\n**Execution Time** {0}\n\n**Overhead Time** {2}\n\n**Render Times**\n\n{1}", formatCellDuration(executionDuration), renderTimes, formatCellDuration(timerDuration - executionDuration)),
+			isTrusted: true
+		};
 
 		return <INotebookCellStatusBarItem>{
 			text: `$(${warningStateIcon.id})`,
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1,
 			color: themeColorFromId(cellStatusIconWarning),
-			tooltip: localize('notebook.cell.statusBar.timerWarning', "The output renderer for this cell is slow.\nExecution Time: {0}\nOverhead Time: {2}\nRender Times:\n{1}", formatCellDuration(executionDuration), renderTimes, formatCellDuration(timerDuration - executionDuration))
+			tooltip: tooltip
 		};
 	}
 

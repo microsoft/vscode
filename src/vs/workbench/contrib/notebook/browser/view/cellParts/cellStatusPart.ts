@@ -27,7 +27,7 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -315,7 +315,10 @@ class CellStatusBarItem extends Disposable {
 		this.container.setAttribute('aria-label', ariaLabel);
 		this.container.setAttribute('role', role || '');
 
-		this._itemDisposables.add(setupCustomHover(this._hoverDelegate, this.container, item.tooltip ?? ''));
+		if (item.tooltip) {
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as ITooltipMarkdownString;
+			this._itemDisposables.add(setupCustomHover(this._hoverDelegate, this.container, hoverContent));
+		}
 
 		this.container.classList.toggle('cell-status-item-has-command', !!item.command);
 		if (item.command) {
