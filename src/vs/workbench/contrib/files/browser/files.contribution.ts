@@ -480,7 +480,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.autoCreateNewFolder': {
 			'type': 'boolean',
-			description: nls.localize('explorer.autoCreateNewFolder', "Wether to create folder when new file name input value ends with slash (`/`)."),
+			markdownDescription: nls.localize('explorer.autoCreateNewFolder', "Wether to create folder when new file name input value ends with slash (`/`)."),
 			default: false
 		},
 		'explorer.compactFolders': {
