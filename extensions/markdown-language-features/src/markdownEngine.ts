@@ -416,7 +416,7 @@ function normalizeHighlightLang(lang: string | undefined) {
 			return 'python';
 
 		case 'shell':
-			return 'shell';
+			return 'sh';
 
 		case 'tsx':
 		case 'typescriptreact':
