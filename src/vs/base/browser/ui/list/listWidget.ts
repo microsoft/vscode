@@ -798,13 +798,33 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
+		/* foreground in active list: 1. focus & selected, 2. selected, 3. focused */
+
+		const listFocusAndSelectionForeground = asCssValueWithDefault(styles.listFocusAndSelectionForeground, asCssValueWithDefault(styles.listActiveSelectionForeground, styles.listFocusForeground ?? ''));
+		if (listFocusAndSelectionForeground) {
+			content.push(`
+				.monaco-drag-image,
+				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${listFocusAndSelectionForeground}; }
+			`);
+		}
+
+		if (styles.listActiveSelectionForeground) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
 		if (styles.listFocusForeground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		}
+
+		/* background in active list: 1. focus & selected, 2. selected, 3. focused */
+
+		const listFocusAndSelectionBackground = asCssValueWithDefault(styles.listFocusAndSelectionBackground, asCssValueWithDefault(styles.listActiveSelectionBackground, styles.listFocusBackground ?? ''));
+		if (listFocusAndSelectionBackground) {
+			content.push(`
+				.monaco-drag-image,
+				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${listFocusAndSelectionBackground}; }
+			`);
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected.focused:hover { background-color: ${listFocusAndSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listActiveSelectionBackground) {
@@ -812,26 +832,25 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		if (styles.listFocusBackground) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listActiveSelectionIconForeground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
 		}
 
-		if (styles.listFocusAndSelectionBackground) {
-			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
-			`);
+
+		/* foreground in inactive list: 1. focus & selected, 2. selected, 3. focused */
+
+		const listInactiveFocusAndSelectionForeground = asCssValueWithDefault(styles.listInactiveSelectionForeground, styles.listInactiveFocusForeground ?? '');
+		if (listInactiveFocusAndSelectionForeground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.selected.focused { color: ${listInactiveFocusAndSelectionForeground}; }`);
 		}
 
-		if (styles.listFocusAndSelectionForeground) {
-			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
-			`);
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
 		}
 
 		if (styles.listInactiveFocusForeground) {
@@ -843,9 +862,11 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; }`);
 		}
 
-		if (styles.listInactiveFocusBackground) {
-			content.push(`.monaco-list${suffix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
-			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
+		/* background in inactive list: 1. focus & selected, 2. selected, 3. focused */
+
+		const listInactiveFocusAndSelectionBackground = asCssValueWithDefault(styles.listInactiveSelectionBackground, styles.listInactiveFocusBackground ?? '');
+		if (listInactiveFocusAndSelectionBackground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.selected.focused { background-color: ${listInactiveFocusAndSelectionBackground}; }`);
 		}
 
 		if (styles.listInactiveSelectionBackground) {
@@ -853,8 +874,9 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
-		if (styles.listInactiveSelectionForeground) {
-			content.push(`.monaco-list${suffix} .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
+		if (styles.listInactiveFocusBackground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listHoverBackground) {
@@ -865,9 +887,8 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
 		}
 
-		/**
-		 * Outlines
-		 */
+		/* outline in active list: 1. focus & selected, 2. focused */
+
 		const focusAndSelectionOutline = asCssValueWithDefault(styles.listFocusAndSelectionOutline, asCssValueWithDefault(styles.listSelectionOutline, styles.listFocusOutline ?? ''));
 		if (focusAndSelectionOutline) { // default: listFocusOutline
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
@@ -880,6 +901,8 @@ export class DefaultStyleController implements IStyleController {
 				.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
+
+		/* outline in inactive list: 1. focus & selected, 2. selected 3. focused  */
 
 		const inactiveFocusAndSelectionOutline = asCssValueWithDefault(styles.listSelectionOutline, styles.listInactiveFocusOutline ?? '');
 		if (inactiveFocusAndSelectionOutline) {
