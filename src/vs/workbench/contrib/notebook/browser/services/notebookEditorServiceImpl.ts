@@ -30,9 +30,6 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
-	private readonly _onDidAddNotebookEditorWidget = new Emitter<NotebookEditorWidget>();
-	readonly onDidAddNotebookEditorWidget = this._onDidAddNotebookEditorWidget.event;
-
 	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; token: number | undefined }>>();
 
 	constructor(
@@ -161,7 +158,6 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			// NEW widget
 			const instantiationService = accessor.get(IInstantiationService);
 			const widget = instantiationService.createInstance(NotebookEditorWidget, creationOptions ?? getDefaultNotebookCreationOptions(), initialDimension);
-			this._onDidAddNotebookEditorWidget.fire(widget);
 			const token = this._tokenPool++;
 			value = { widget, token };
 
