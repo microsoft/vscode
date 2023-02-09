@@ -2698,6 +2698,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
+				instance.focus();
 			}
 		}));
 		this._register(instance.onDidFocus(() => this.hide()));
