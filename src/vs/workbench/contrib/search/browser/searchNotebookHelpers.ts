@@ -50,9 +50,14 @@ function notebookEditorMatchToTextSearchResult(cellInfo: CellFindMatchInfoForTex
 		}
 	}
 	else {
+		// TODO: this is a placeholder for webview matches
+		const searchPreviewInfo = matches.searchPreviewInfo ?? {
+			line: '', range: { start: 0, end: 0 }
+		};
+
 		return new NotebookTextSearchMatch(
-			matches.searchPreviewInfo.line,
-			new Range(0, matches.searchPreviewInfo.range.start, 0, matches.searchPreviewInfo.range.end),
+			searchPreviewInfo.line,
+			new Range(0, searchPreviewInfo.range.start, 0, searchPreviewInfo.range.end),
 			cellInfo.notebookMatchInfo,
 			previewOptions);
 	}

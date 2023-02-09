@@ -424,7 +424,7 @@ export interface IFindMatch {
 	readonly cellId: string;
 	readonly id: string;
 	readonly index: number;
-	readonly searchPreviewInfo: ISearchPreviewInfo;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export interface IDidFindMessage extends BaseToWebviewMessage {
