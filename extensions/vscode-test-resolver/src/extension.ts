@@ -6,12 +6,12 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import * as os from 'os';
 import * as net from 'net';
 import * as http from 'http';
 import * as crypto from 'crypto';
-import { downloadAndUnzipVSCodeServer } from './download';
+import { downloadAndUnzipVSCodeServer, downloadVSCodeServerArchive } from './download';
 import { terminateProcess } from './util/processes';
 
 let extHostProcess: cp.ChildProcess | undefined;
@@ -20,23 +20,33 @@ const enum CharCode {
 	LineFeed = 10
 }
 
-let outputChannel: vscode.OutputChannel;
+let _outputChannel: vscode.OutputChannel;
+function getOutputChannel() {
+	if (!_outputChannel) {
+		_outputChannel = vscode.window.createOutputChannel('TestResolver');
+	}
+	return _outputChannel;
+}
 
 export function activate(context: vscode.ExtensionContext) {
 
 	let connectionPaused = false;
 	const connectionPausedEvent = new vscode.EventEmitter<boolean>();
 
+	const { updateUrl, commit, quality, serverDataFolderName, serverApplicationName, dataFolderName } = getProductConfiguration();
+	const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), `${serverDataFolderName || dataFolderName}-testresolver`);
+	const serverBin = path.join(remoteDataDir, 'bin');
+
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
 		if (connectionPaused) {
 			throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable('Not available right now');
 		}
 		const connectionToken = String(crypto.randomInt(0xffffffffff));
+		const outputChannel = getOutputChannel();
 
 		// eslint-disable-next-line no-async-promise-executor
 		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
-			outputChannel = vscode.window.createOutputChannel('TestResolver');
 
 			let isResolved = false;
 			async function processError(message: string) {
@@ -88,10 +98,8 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const { updateUrl, commit, quality, serverDataFolderName, serverApplicationName, dataFolderName } = getProductConfiguration();
 			const commandArgs = ['--host=127.0.0.1', '--port=0', '--disable-telemetry', '--use-host-proxy', '--accept-server-license-terms'];
 			const env = getNewEnv();
-			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), `${serverDataFolderName || dataFolderName}-testresolver`);
 			const logsDir = process.env['TESTRESOLVER_LOGS_FOLDER'];
 			if (logsDir) {
 				commandArgs.push('--logsPath', logsDir);
@@ -122,7 +130,6 @@ export function activate(context: vscode.ExtensionContext) {
 				const serverCommand = `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`;
 				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment variable to specify location of server on disk
 				if (!serverLocation) {
-					const serverBin = path.join(remoteDataDir, 'bin');
 					progress.report({ message: 'Installing VSCode Server' });
 					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin, m => outputChannel.appendLine(m));
 				}
@@ -231,7 +238,7 @@ export function activate(context: vscode.ExtensionContext) {
 					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port, connectionToken);
 					r.tunnelFeatures = {
 						elevation: true,
-						privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
+						privacyOptions: getConfiguration('supportPublicPorts') ? [
 							{
 								id: 'public',
 								label: 'Public',
@@ -300,9 +307,7 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}));
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
-		if (outputChannel) {
-			outputChannel.show();
-		}
+		getOutputChannel().show();
 	}));
 
 	const pauseStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
@@ -351,6 +356,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	}));
 	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
+
+	if (getConfiguration('downloadServerInBackground')) {
+		const backgroundDownloader = enableDownloadInBackground(serverBin, m => getOutputChannel().appendLine(m));
+	}
 }
 
 type ActionItem = (vscode.MessageItem & { execute: () => void });
@@ -393,7 +402,7 @@ export interface IProductConfiguration {
 }
 
 function getProductConfiguration(): IProductConfiguration {
-	const content = fs.readFileSync(path.join(vscode.env.appRoot, 'product.json')).toString();
+	const content = readFileSync(path.join(vscode.env.appRoot, 'product.json')).toString();
 	return JSON.parse(content) as IProductConfiguration;
 }
 
@@ -420,7 +429,7 @@ async function showCandidatePort(_host: string, port: number, _detail: string): 
 }
 
 async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Promise<vscode.Tunnel> {
-	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
+	getOutputChannel().appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
 	if (tunnelCreationOptions.elevationRequired) {
 		await vscode.window.showInformationMessage('This is a fake elevation message. A real resolver would show a native elevation prompt.', { modal: true }, 'Ok');
 	}
@@ -474,7 +483,7 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 			}
 			proxyServer.listen(localPort, '127.0.0.1', () => {
 				const localPort = (<net.AddressInfo>proxyServer.address()).port;
-				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
+				getOutputChannel().appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
 				const tunnel = newTunnel({ host: '127.0.0.1', port: localPort });
 				tunnel.onDidDispose(() => proxyServer.close());
 				res(tunnel);
@@ -492,7 +501,7 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 	server.listen(port, '127.0.0.1');
 	const message = `Opened HTTP server on http://127.0.0.1:${port}`;
 	console.log(message);
-	outputChannel.appendLine(message);
+	getOutputChannel().appendLine(message);
 	return {
 		dispose: () => {
 			server.close();
@@ -503,3 +512,42 @@ function runHTTPTestServer(port: number): vscode.Disposable {
 		}
 	};
 }
+
+interface IUpdate {
+	version: string;
+	productVersion: string;
+	supportsFastUpdate?: boolean;
+	url?: string;
+	hash?: string;
+}
+
+export function enableDownloadInBackground(destDir: string, log: (messsage: string) => void): vscode.Disposable {
+	const { updateUrl, quality } = getProductConfiguration();
+	let downloadedCommit: string | undefined = undefined;
+	let archiveLocation: string | undefined;
+	const handle = setInterval(async () => {
+		try {
+			const status = await vscode.commands.executeCommand('_update.state') as { state: string; update?: IUpdate };
+			if (status && status.update) {
+				const commit = status.update.version;
+				if (downloadedCommit !== commit) {
+					if (archiveLocation) {
+						fs.unlink(archiveLocation);
+						archiveLocation = undefined;
+					}
+					archiveLocation = await downloadVSCodeServerArchive(updateUrl, commit, quality, destDir, log);
+					downloadedCommit = commit;
+				}
+			}
+		} catch (e) {
+			log('Problems getting update information ' + String(e));
+		}
+	}, 60 * 1000);
+
+	return {
+		dispose: () => {
+			clearInterval(handle);
+		}
+	};
+}
+
