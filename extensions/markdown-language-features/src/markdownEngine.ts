@@ -415,6 +415,9 @@ function normalizeHighlightLang(lang: string | undefined) {
 		case 'py3':
 			return 'python';
 
+		case 'shell':
+			return 'shell';
+
 		case 'tsx':
 		case 'typescriptreact':
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
