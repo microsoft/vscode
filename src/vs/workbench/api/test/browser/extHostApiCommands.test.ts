@@ -160,7 +160,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		commands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, insta.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
@@ -1484,26 +1488,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.TypeHierarchyItem[]>('vscode.provideSubtypes', root[0]);
 		assert.strictEqual(outgoing.length, 1);
 		assert.strictEqual(outgoing[0].name, 'SUB');
-	});
-
-	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
-
-		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
-			provideSelectionRanges(_doc, positions) {
-				const [first] = positions;
-				return [
-					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
-				];
-			}
-		}));
-
-		await rpcProtocol.sync();
-		const value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
-		assert.strictEqual(value.length, 1);
-		assert.strictEqual(value[0].range.start.line, 0);
-		assert.strictEqual(value[0].range.start.character, 10);
-		assert.strictEqual(value[0].range.end.line, 0);
-		assert.strictEqual(value[0].range.end.character, 10);
 	});
 
 	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {

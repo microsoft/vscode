@@ -115,7 +115,11 @@ suite('ExtHostLanguageFeatures', function () {
 		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
-		const commands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		const commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+			override onExtensionError(): boolean {
+				return true;
+			}
+		});
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
@@ -842,7 +846,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
 
-		const called = [false, false, false, false];
+		let called = [false, false, false, false];
 
 		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
 			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
@@ -872,11 +876,8 @@ suite('ExtHostLanguageFeatures', function () {
 		await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 
 		assert.deepStrictEqual(called, [true, true, true, false]);
-	});
 
-	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
-
-		const called = [false, false, false];
+		called = [false, false, false];
 
 		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
 			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
@@ -986,7 +987,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(items[0].completion.insertText, 'weak-selector');
 	});
 
-	test('Suggest, order 2/3', async () => {
+	test('Suggest, order 3/3', async () => {
 
 		disposables.push(extHost.registerCompletionItemProvider(defaultExtension, defaultSelector, new class implements vscode.CompletionItemProvider {
 			provideCompletionItems(): any {

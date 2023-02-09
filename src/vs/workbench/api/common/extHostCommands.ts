@@ -52,6 +52,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
+	private readonly _extHostTelemetry: IExtHostTelemetry;
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	readonly converter: CommandsConverter;
@@ -59,10 +60,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService logService: ILogService,
-		@IExtHostTelemetry private readonly _extHostTelemetry: IExtHostTelemetry
+		@IExtHostTelemetry extHostTelemetry: IExtHostTelemetry
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
+		this._extHostTelemetry = extHostTelemetry;
 		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
