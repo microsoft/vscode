@@ -984,7 +984,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: preview.id,
 								container: preview,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0),
+								originalRange: shadowSelection.getRangeAt(0)
 							});
 						}
 					}
