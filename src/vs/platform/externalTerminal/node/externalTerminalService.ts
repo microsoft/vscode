@@ -266,7 +266,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 					// Windows spawned process environment
 					const bashCommand: string[] = [];
 					for (const [key, val] of Object.entries(envVars)) {
-						bashCommand.push(`export ${key}="${val?.replace('"', '\\"') ?? ''}"\n`);
+						bashCommand.push(`export ${key}="${val?.replace(/"/g, '\\"') ?? ''}"\n`);
 					}
 					bashCommand.push(args.join(' '));
 					termArgs.push(bashCommand.join(''));
