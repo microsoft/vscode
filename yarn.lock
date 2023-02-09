@@ -1233,6 +1233,14 @@
     xml2js "^0.4.23"
     yargs "^17.5.1"
 
+"@vscode/policy-watcher@^1.1.2":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.2.tgz#ce56bff65c52d06c10c89f7f05748688db5d50e3"
+  integrity sha512-rUGB84SHQcK5h12tkhDE4BDTTD4XsnxpqewfyX0hT6Ng9vBhGhg6epewYWNIntlR3tRSMecM8uhK+Xrm0ZXNoA==
+  dependencies:
+    bindings "^1.5.0"
+    node-addon-api "*"
+
 "@vscode/ripgrep@^1.14.2":
   version "1.14.2"
   resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.2.tgz#47c0eec2b64f53d8f7e1b5ffd22a62e229191c34"
@@ -7682,9 +7690,9 @@ node-abi@^3.3.0:
     semver "^7.3.5"
 
 node-addon-api@*:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-5.0.0.tgz#7d7e6f9ef89043befdb20c1989c905ebde18c501"
-  integrity sha512-CvkDw2OEnme7ybCykJpVcKH+uAOLV2qLqiyla128dN9TkEWfrYmxG6C2boDe5KcNQqZF3orkqzGgOMvZ/JNekA==
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-5.1.0.tgz#49da1ca055e109a23d537e9de43c09cca21eb762"
+  integrity sha512-eh0GgfEkpnoWDq+VY8OyvYhFEzBk6jIYbRKdIlyTiAXIVJ8PyBaKb0rp7oDtoddbdoHWhq8wwr+XZ81F1rpNdA==
 
 node-addon-api@^3.0.2:
   version "3.1.0"
@@ -11296,14 +11304,6 @@ vscode-oniguruma@1.7.0:
   version "1.7.0"
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.7.0.tgz#439bfad8fe71abd7798338d1cd3dc53a8beea94b"
   integrity sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==
-
-vscode-policy-watcher@^1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.1.1.tgz#3646d17de9f82c741437fd6d687fd0c414ea513d"
-  integrity sha512-ZwJKg8gpIQ3UO8gdTqBvbXJBOBUStWPArjQJuqGIz8TimgMy+4H7tScVjvlxmzb/sS6rErn3wGMn8gRH824nnw==
-  dependencies:
-    bindings "^1.5.0"
-    node-addon-api "*"
 
 vscode-proxy-agent@^0.12.0:
   version "0.12.0"
