@@ -266,9 +266,9 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 					// Windows spawned process environment
 					const bashCommand: string[] = [];
 					for (const [key, val] of Object.entries(envVars)) {
-						bashCommand.push(`export ${key}="${val}"\n`);
+						bashCommand.push(`export ${key}="${val?.replace('"', '\\"') ?? ''}"\n`);
 					}
-					bashCommand.push(...args);
+					bashCommand.push(args.join(' '));
 					termArgs.push(bashCommand.join(''));
 				} else {
 					if (exec.indexOf('gnome-terminal') >= 0) {
