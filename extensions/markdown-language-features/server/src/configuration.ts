@@ -17,6 +17,7 @@ export interface Settings {
 		readonly suggest: {
 			readonly paths: {
 				readonly enabled: boolean;
+				readonly includeWorkspaceHeaderCompletions: 'never' | 'onSingleOrDoubleHash' | 'onDoubleHash';
 			};
 		};
 
