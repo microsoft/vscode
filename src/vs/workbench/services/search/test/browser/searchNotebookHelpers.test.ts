@@ -10,12 +10,9 @@ import { notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/s
 import { ISearchRange } from 'vs/workbench/services/search/common/search';
 import { CellFindMatchWithIndex, ICellViewModel, CellWebviewFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('searchNotebookHelpers', () => {
-	let instantiationService: TestInstantiationService;
 	setup(() => {
-		instantiationService = new TestInstantiationService();
 	});
 	suite('notebookEditorMatchesToTextSearchResults', () => {
 
