@@ -15,6 +15,7 @@
     "contribEditSessions",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "showLocal",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",

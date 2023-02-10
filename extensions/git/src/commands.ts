@@ -523,7 +523,7 @@ export class CommandCenter {
 		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string } = {}): Promise<void> {
+	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean; ref?: string; allowUIResources?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource({
 				providerLabel: provider => l10n.t('Clone from {0}', provider.name),
@@ -553,9 +553,10 @@ export class CommandCenter {
 				canSelectFiles: false,
 				canSelectFolders: true,
 				canSelectMany: false,
-				defaultUri: Uri.file(defaultCloneDirectory),
+				defaultUri: options.allowUIResources ? undefined : Uri.file(defaultCloneDirectory),
 				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select as Repository Destination')
+				openLabel: l10n.t('Select as Repository Destination'),
+				allowUIResources: options.allowUIResources,
 			});
 
 			if (!uris || uris.length === 0) {
@@ -695,12 +696,12 @@ export class CommandCenter {
 			}
 
 			// If already in desktop client, directly clone
-			void this.clone(uri, undefined, { ref: ref });
+			void this.clone(uri, undefined, { ref: ref, allowUIResources: true });
 		}
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; allowUIResources?: boolean }): Promise<void> {
 		await this.cloneRepository(url, parentPath, options);
 	}
 
