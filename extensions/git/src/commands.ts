@@ -553,10 +553,9 @@ export class CommandCenter {
 				canSelectFiles: false,
 				canSelectFolders: true,
 				canSelectMany: false,
-				defaultUri: options.allowUIResources ? undefined : Uri.file(defaultCloneDirectory),
+				defaultUri: Uri.file(defaultCloneDirectory),
 				title: l10n.t('Choose a folder to clone {0} into', url),
-				openLabel: l10n.t('Select as Repository Destination'),
-				allowUIResources: options.allowUIResources,
+				openLabel: l10n.t('Select as Repository Destination')
 			});
 
 			if (!uris || uris.length === 0) {
@@ -686,22 +685,18 @@ export class CommandCenter {
 		const ref = selection.repository.HEAD?.upstream?.name;
 
 		if (uri !== undefined) {
-			// Launch desktop client if currently in web
 			if (env.uiKind === UIKind.Web) {
-				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}&windowId=_blank`;
 				if (ref !== undefined) {
 					target += `&ref=${encodeURIComponent(ref)}`;
 				}
 				return Uri.parse(target);
 			}
-
-			// If already in desktop client, directly clone
-			void this.clone(uri, undefined, { ref: ref, allowUIResources: true });
 		}
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string; allowUIResources?: boolean }): Promise<void> {
+	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
 		await this.cloneRepository(url, parentPath, options);
 	}
 
