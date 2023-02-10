@@ -21,13 +21,12 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
@@ -715,10 +714,12 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 					content: undefined,
 				}), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: userData.content === null ? null : JSON.parse(userData.content) });
+			} else {
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Invalid data.`, userData);
 			}
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.debug(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
 			} else {
 				this.logService.error(error);
 			}
@@ -910,73 +911,5 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		}
 		return this._formattingOptions;
 	}
-
-}
-
-export abstract class AbstractInitializer implements IUserDataInitializer {
-
-	protected readonly extUri: IExtUri;
-	private readonly lastSyncResource: URI;
-
-	constructor(
-		readonly resource: SyncResource,
-		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@ILogService protected readonly logService: ILogService,
-		@IFileService protected readonly fileService: IFileService,
-		@IStorageService protected readonly storageService: IStorageService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-	) {
-		this.extUri = uriIdentityService.extUri;
-		this.lastSyncResource = getLastSyncResourceUri(undefined, this.resource, environmentService, this.extUri);
-	}
-
-	async initialize({ ref, content }: IUserData): Promise<void> {
-		if (!content) {
-			this.logService.info('Remote content does not exist.', this.resource);
-			return;
-		}
-
-		const syncData = this.parseSyncData(content);
-		if (!syncData) {
-			return;
-		}
-
-		try {
-			await this.doInitialize({ ref, syncData });
-		} catch (error) {
-			this.logService.error(error);
-		}
-	}
-
-	private parseSyncData(content: string): ISyncData | undefined {
-		try {
-			const syncData: ISyncData = JSON.parse(content);
-			if (isSyncData(syncData)) {
-				return syncData;
-			}
-		} catch (error) {
-			this.logService.error(error);
-		}
-		this.logService.info('Cannot parse sync data as it is not compatible with the current version.', this.resource);
-		return undefined;
-	}
-
-	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
-		if (additionalProps['ref'] || additionalProps['version']) {
-			throw new Error('Cannot have core properties as additional');
-		}
-
-		const lastSyncUserDataState: ILastSyncUserDataState = {
-			ref: lastSyncRemoteUserData.ref,
-			version: undefined,
-			...additionalProps
-		};
-
-		this.storageService.store(`${this.resource}.lastSyncUserData`, JSON.stringify(lastSyncUserDataState), StorageScope.APPLICATION, StorageTarget.MACHINE);
-		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncRemoteUserData)));
-	}
-
-	protected abstract doInitialize(remoteUserData: IRemoteUserData): Promise<void>;
 
 }

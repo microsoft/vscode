@@ -47,8 +47,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	) {
 		if (_environmentService.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] };
+			performance.mark('code/server/willInstallBuiltinExtensions');
 			this.whenExtensionsReady = extensionManagementCLI.installExtensions([], _environmentService.args['install-builtin-extension'], installOptions, !!_environmentService.args['force'])
-				.then(null, error => {
+				.then(() => performance.mark('code/server/didInstallBuiltinExtensions'), error => {
 					_logService.error(error);
 				});
 		} else {
@@ -91,6 +92,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 			case 'scanExtensions': {
 				await this.whenExtensionsReady;
+				performance.mark('code/server/willScanExtensions');
+
 				const args = <IScanExtensionsArguments>arg;
 				const language = args.language;
 				this._logService.trace(`Scanning extensions using UI language: ${language}`);
@@ -105,6 +108,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				this._logService.trace('Scanned Extensions', extensions);
 				RemoteAgentEnvironmentChannel._massageWhenConditions(extensions);
 
+				performance.mark('code/server/didScanExtensions');
 				return extensions;
 			}
 

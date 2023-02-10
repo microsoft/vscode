@@ -122,7 +122,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
-		Terminal.strings.accessibilityBuffer = nls.localize('terminal.integrated.accessibilityBuffer', 'Terminal buffer');
+		Terminal.strings.accessibleBuffer = nls.localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
@@ -218,7 +218,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
-	private _accessibilityBuffer: HTMLElement | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1098,21 +1097,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
-	}
-
-	focusAccessibilityBuffer(): void {
-		if (!this.xterm?.raw.element) {
-			return;
-		}
-		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
-		if (!this._accessibilityBuffer) {
-			return;
-		}
-		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
-		const font = this.xterm.getFont();
-		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
-		this._accessibilityBuffer.style.lineHeight = lineHeight;
-		this._accessibilityBuffer.focus();
 	}
 
 	private _setShellIntegrationContextKey(): void {
@@ -2675,8 +2659,8 @@ export function parseExitResult(
 }
 
 const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
-const enterAccessibilityModeNls = nls.localize('enterAccessibilityMode', 'The Enter Accessibility Mode ({0}) command enables screen readers to read terminal contents.');
-const enterAccessibilityModeNoKb = nls.localize('enterAccessibilityModeNoKb', 'The Enter Accessibility Mode command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
+const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
+const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
 const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
 const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
@@ -2714,6 +2698,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
+				instance.focus();
 			}
 		}));
 		this._register(instance.onDidFocus(() => this.hide()));
@@ -2749,7 +2734,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 
 	private _buildContent(): void {
 		const content = [];
-		content.push(this._descriptionForCommand(TerminalCommandId.EnterAccessibilityMode, enterAccessibilityModeNls, enterAccessibilityModeNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));

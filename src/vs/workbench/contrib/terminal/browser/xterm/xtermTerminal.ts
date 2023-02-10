@@ -38,6 +38,8 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { isLinux } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const enum RenderConstants {
 	/**
@@ -139,6 +141,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
+
+	private _accessibileBuffer: AccessibleBuffer | undefined;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -277,6 +281,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		});
 	}
 
+	focusAccessibleBuffer(): void {
+		this._accessibileBuffer?.focus();
+	}
+
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._getSerializeAddonConstructor();
@@ -304,6 +312,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
+		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this.raw, this.getFont(), this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -752,5 +761,78 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
+	}
+}
+
+class AccessibleBuffer extends DisposableStore {
+
+	private _accessibleBuffer: HTMLElement | undefined;
+	private _bufferElementFragment: DocumentFragment | undefined;
+
+	constructor(
+		private readonly _terminal: RawXtermTerminal,
+		private readonly _font: ITerminalFont,
+		private readonly _capabilities: ITerminalCapabilityStore,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super();
+		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
+	}
+
+	focus(): DocumentFragment {
+		if (!this._bufferElementFragment) {
+			this._bufferElementFragment = document.createDocumentFragment();
+		}
+		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
+		if (!this._accessibleBuffer) {
+			return this._bufferElementFragment;
+		}
+		// see https://github.com/microsoft/vscode/issues/173532
+		const accessibleBufferContentEditable = isLinux ? 'on' : this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
+		this._accessibleBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
+		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
+		const lineHeight = this._font?.charHeight ? this._font.charHeight * this._font.lineHeight + 'px' : '';
+		this._accessibleBuffer.style.lineHeight = lineHeight;
+		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands?.length) {
+			const noContent = document.createElement('div');
+			const noContentLabel = localize('terminal.integrated.noContent', "No terminal content available for this session.");
+			noContent.textContent = noContentLabel;
+			this._bufferElementFragment.replaceChildren(noContent);
+			this._accessibleBuffer.focus();
+			return this._bufferElementFragment;
+		}
+		let header;
+		let replaceChildren = true;
+		for (const command of commands) {
+			header = document.createElement('h2');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			header.tabIndex = -1;
+			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
+			if (command.exitCode !== 0) {
+				header.textContent += ` exited with code ${command.exitCode}`;
+			}
+			const output = document.createElement('div');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			output.tabIndex = -1;
+			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
+			if (replaceChildren) {
+				this._bufferElementFragment.replaceChildren(header, output);
+				replaceChildren = false;
+			} else {
+				this._bufferElementFragment.appendChild(header);
+				this._bufferElementFragment.appendChild(output);
+			}
+		}
+		this._accessibleBuffer.focus();
+		if (this._accessibleBuffer.contentEditable === 'true') {
+			document.execCommand('selectAll', false, undefined);
+			document.getSelection()?.collapseToEnd();
+		} else if (header) {
+			// focus the cursor line's header
+			header.tabIndex = 0;
+		}
+		return this._bufferElementFragment;
 	}
 }
