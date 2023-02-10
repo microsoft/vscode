@@ -52,7 +52,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
-	private readonly _extHostTelemetry: IExtHostTelemetry;
+	readonly #extHostTelemetry: IExtHostTelemetry;
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	readonly converter: CommandsConverter;
@@ -64,7 +64,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this._extHostTelemetry = extHostTelemetry;
+		this.#extHostTelemetry = extHostTelemetry;
 		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
@@ -260,7 +260,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			}
 
 			if (command.extension?.identifier) {
-				const reported = this._extHostTelemetry.onExtensionError(command.extension.identifier, err);
+				const reported = this.#extHostTelemetry.onExtensionError(command.extension.identifier, err);
 				this._logService.trace('forwarded error to extension?', reported, command.extension?.identifier);
 			}
 
