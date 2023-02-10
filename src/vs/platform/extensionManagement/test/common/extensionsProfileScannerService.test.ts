@@ -403,6 +403,26 @@ suite('ExtensionsProfileScannerService', () => {
 		} catch (error) { /*expected*/ }
 	});
 
+	test('read extension when manifest is empty', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(''));
+
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual, []);
+	});
+
+	test('read extension when manifest has empty lines and spaces', async () => {
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(`   
+
+
+		`));
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual, []);
+	});
+
 	function aExtension(id: string, location: URI, e?: Partial<IExtension>): IExtension {
 		return {
 			identifier: { id },
