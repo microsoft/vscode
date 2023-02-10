@@ -431,6 +431,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the Explorer should expand multi-root workspaces containing only one folder during initialization"),
 			'default': true
 		},
+		'explorer.renderTooltip': {
+			'type': 'boolean',
+			'description': nls.localize('explorer.renderTooltip', "Controls whether the Explorer should render the tooltip containing the full path on hover."),
+			'default': true
+		},
 		'explorer.sortOrder': {
 			'type': 'string',
 			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified, SortOrder.FoldersNestsFiles],

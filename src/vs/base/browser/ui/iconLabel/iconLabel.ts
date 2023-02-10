@@ -12,6 +12,7 @@ import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -21,7 +22,7 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelValueOptions {
-	title?: string | ITooltipMarkdownString;
+	title?: string | ITooltipMarkdownString | null;
 	descriptionTitle?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
@@ -140,7 +141,7 @@ export class IconLabel extends Disposable {
 
 		this.domNode.className = labelClasses.join(' ');
 		this.labelContainer.className = containerClasses.join(' ');
-		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
+		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, withNullAsUndefined(options?.title));
 
 		this.nameNode.setLabel(label, options);
 
