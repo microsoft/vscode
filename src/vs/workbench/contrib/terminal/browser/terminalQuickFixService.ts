@@ -25,7 +25,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 
 	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
-		this._terminalContributionService.quickFixes.then(selectors => {
+		this._terminalContributionService.terminalQuickFixes.then(selectors => {
 			for (const selector of selectors) {
 				this.registerCommandSelector(selector);
 			}
@@ -42,7 +42,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		// IDisposable synchronously but we must await ITerminalContributionService.quickFixes
 		// asynchronously before actually registering the provider.
 		let disposed = false;
-		this._terminalContributionService.quickFixes.then(() => {
+		this._terminalContributionService.terminalQuickFixes.then(() => {
 			if (disposed) {
 				return;
 			}

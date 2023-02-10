@@ -224,7 +224,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 			let storedProfileExtensions: IStoredProfileExtension[] | undefined;
 			try {
 				const content = await this.fileService.readFile(file);
-				storedProfileExtensions = JSON.parse(content.value.toString());
+				storedProfileExtensions = JSON.parse(content.value.toString().trim() || '[]');
 			} catch (error) {
 				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 					throw error;

@@ -20,6 +20,9 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 
 export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShape {
+
+	readonly _serviceBrand: undefined;
+
 	private readonly _onDidChangeTelemetryEnabled = this._register(new Emitter<boolean>());
 	readonly onDidChangeTelemetryEnabled: Event<boolean> = this._onDidChangeTelemetryEnabled.event;
 
