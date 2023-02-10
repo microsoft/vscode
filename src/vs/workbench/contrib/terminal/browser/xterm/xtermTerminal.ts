@@ -42,6 +42,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import * as dom from 'vs/base/browser/dom';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const enum RenderConstants {
 	/**
@@ -772,7 +773,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 class AccessibleBuffer extends DisposableStore {
 
-	private _accessibleBuffer: HTMLElement | undefined | null;
+	private _accessibleBuffer: HTMLElement | undefined;
 	private _bufferElementFragment: DocumentFragment | undefined;
 	private _focusContextKey: IContextKey<boolean>;
 
@@ -786,7 +787,7 @@ class AccessibleBuffer extends DisposableStore {
 	) {
 		super();
 		this._focusContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(contextKeyService);
-		this._accessibleBuffer = this._terminal.element?.querySelector<HTMLElement>('.xterm-accessibility-buffer');
+		this._accessibleBuffer = withNullAsUndefined(this._terminal.element?.querySelector<HTMLElement>('.xterm-accessibility-buffer'));
 		if (!this._accessibleBuffer) {
 			throw new Error('No accessible buffer');
 		}
