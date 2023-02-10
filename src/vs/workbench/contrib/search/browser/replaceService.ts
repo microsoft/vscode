@@ -28,6 +28,7 @@ import { dirname } from 'vs/base/common/resources';
 import { Promises } from 'vs/base/common/async';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -100,7 +101,8 @@ export class ReplaceService implements IReplaceService {
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IBulkEditService private readonly bulkEditorService: IBulkEditService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService
 	) { }
 
 	replace(match: Match): Promise<any>;
@@ -114,7 +116,9 @@ export class ReplaceService implements IReplaceService {
 			if (e.resource.scheme === network.Schemas.vscodeNotebookCell) {
 				const notebookResource = CellUri.parse(e.resource)?.notebook;
 				if (notebookResource) {
-					return this.editorService.save([...this.editorService.findEditors(notebookResource)]);
+					// todo: find whether there is a common API for saving notebooks and text files
+					const ref = await this.notebookEditorModelResolverService.resolve(notebookResource);
+					return ref.object.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
 				} else {
 					return;
 				}
