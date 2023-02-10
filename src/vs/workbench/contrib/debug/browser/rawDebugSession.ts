@@ -669,7 +669,7 @@ export class RawDebugSession implements IDisposable {
 					...{
 						request: args.request,
 						type: this.dbgr.type,
-						name: this.name
+						name: args.configuration.name || this.name
 					}
 				};
 				const success = await this.dbgr.startDebugging(config, this.sessionId);

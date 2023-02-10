@@ -408,20 +408,22 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.EnterAccessibilityMode,
-				title: { value: localize('workbench.action.terminal.enterAccessibilityMode', 'Enter Accessibility Mode'), original: 'Enter Accessibility Mode' },
+				id: TerminalCommandId.FocusAccessibleBuffer,
+				title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
-				keybinding: {
-					primary: KeyMod.Shift | KeyCode.Tab,
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: TerminalContextKeys.focus
-				}
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				keybinding: [
+					{
+						primary: KeyMod.Shift | KeyCode.Tab,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus)
+					}
+				],
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			accessor.get(ITerminalService).activeInstance?.focusAccessibilityBuffer();
+			accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -649,7 +651,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true, true);
-			await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
+			await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -681,7 +683,7 @@ export function registerTerminalActions() {
 			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
 				instance = await terminalService.createTerminal();
 				terminalService.setActiveInstance(instance);
-				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
+				await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
 			}
 
 			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
@@ -2744,5 +2746,13 @@ async function focusActiveTerminal(instance: ITerminalInstance, terminalEditorSe
 		await instance.focusWhenReady(true);
 	} else {
 		await terminalGroupService.showPanel(true);
+	}
+}
+
+async function revealActiveTerminal(instance: ITerminalInstance, terminalEditorService: ITerminalEditorService, terminalGroupService: ITerminalGroupService): Promise<void> {
+	if (instance.target === TerminalLocation.Editor) {
+		await terminalEditorService.revealActiveEditor();
+	} else {
+		await terminalGroupService.showPanel();
 	}
 }

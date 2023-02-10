@@ -7,9 +7,8 @@
 	position: absolute;
 	width: 600px;
 	z-index: 2550;
-	left: 0;
-	right: 0;
-	margin: 0 auto;
+	left: 50%;
+	margin-left: -300px;
 	-webkit-app-region: no-drag;
 	border-radius: 6px;
 }
@@ -139,6 +138,12 @@
 .quick-input-message > .codicon {
 	margin: 0 0.2em;
 	vertical-align: text-bottom;
+}
+
+/* Links in descriptions & validations */
+.quick-input-message a {
+	text-decoration: underline;
+	color: inherit;
 }
 
 .quick-input-progress.monaco-progress-container {

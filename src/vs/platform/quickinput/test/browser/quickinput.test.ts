@@ -10,11 +10,11 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListOptions, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { raceTimeout } from 'vs/base/common/async';
-import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
 import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
 import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
+import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
+import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -50,6 +50,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
+			linkOpenerDelegate(content) { },
 			createList: <T>(
 				user: string,
 				container: HTMLElement,

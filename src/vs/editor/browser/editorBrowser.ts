@@ -127,14 +127,22 @@ export const enum ContentWidgetPositionPreference {
  */
 export interface IContentWidgetPosition {
 	/**
-	 * Desired position for the content widget.
-	 * `preference` will also affect the placement.
+	 * Desired position which serves as an anchor for placing the content widget.
+	 * The widget will be placed above, at, or below the specified position, based on the
+	 * provided preference. The widget will always touch this position.
+	 *
+	 * Given sufficient horizontal space, the widget will be placed to the right of the
+	 * passed in position. This can be tweaked by providing a `secondaryPosition`.
+	 *
+	 * @see preference
+	 * @see secondaryPosition
 	 */
 	position: IPosition | null;
 	/**
-	 * Optionally, a secondary position can be provided to further
-	 * define the position of the content widget. The secondary position
-	 * must have the same line number as the primary position.
+	 * Optionally, a secondary position can be provided to further define the placing of
+	 * the content widget. The secondary position must have the same line number as the
+	 * primary position. If possible, the widget will be placed such that it also touches
+	 * the secondary position.
 	 */
 	secondaryPosition?: IPosition | null;
 	/**

@@ -37,6 +37,10 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -78,7 +82,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -109,6 +114,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					category,
 					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
 					f1: true,
+					keybinding: {
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyO,
+					}
 				});
 			}
 			run = () => that.showRemoteMenu();
@@ -479,7 +488,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		once(quickPick.onDidAccept)((_ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
-				this.commandService.executeCommand(selectedItems[0].id!);
+				const commandId = selectedItems[0].id!;
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					id: commandId,
+					from: 'remote indicator'
+				});
+				this.commandService.executeCommand(commandId);
 			}
 
 			quickPick.hide();

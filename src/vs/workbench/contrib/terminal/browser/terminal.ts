@@ -704,11 +704,6 @@ export interface ITerminalInstance {
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
-	 * Focuses the terminal buffer accessibility element
-	 */
-	focusAccessibilityBuffer(): void;
-
-	/**
 	 * Check if anything is selected in terminal.
 	 */
 	hasSelection(): boolean;
@@ -1054,6 +1049,11 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
+
+	/**
+	 * Focuses the accessible buffer, updating its contents
+	 */
+	focusAccessibleBuffer(): void;
 }
 
 export interface IInternalXtermTerminal {

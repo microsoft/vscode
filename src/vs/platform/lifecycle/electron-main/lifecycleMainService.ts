@@ -65,7 +65,7 @@ export interface ShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 */
-	join(promise: Promise<void>): void;
+	join(id: string, promise: Promise<void>): void;
 }
 
 export interface ILifecycleMainService {
@@ -286,7 +286,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// will-quit: an event that is fired after all windows have been
 		// closed, but before actually quitting.
 		app.once('will-quit', e => {
-			this.trace('Lifecycle#app.on(will-quit)');
+			this.trace('Lifecycle#app.on(will-quit) - begin');
 
 			// Prevent the quit until the shutdown promise was resolved
 			e.preventDefault();
@@ -296,6 +296,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 			// Wait until shutdown is signaled to be complete
 			shutdownPromise.finally(() => {
+				this.trace('Lifecycle#app.on(will-quit) - after fireOnWillShutdown');
 
 				// Resolve pending quit promise now without veto
 				this.resolvePendingQuitPromise(false /* no veto */);
@@ -303,8 +304,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// Quit again, this time do not prevent this, since our
 				// will-quit listener is only installed "once". Also
 				// remove any listener we have that is no longer needed
+
 				app.removeListener('before-quit', beforeQuitListener);
 				app.removeListener('window-all-closed', windowAllClosedListener);
+
+				this.trace('Lifecycle#app.on(will-quit) - calling app.quit()');
+
 				app.quit();
 			});
 		});
@@ -315,14 +320,18 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			return this.pendingWillShutdownPromise; // shutdown is already running
 		}
 
+		const logService = this.logService;
 		this.trace('Lifecycle#onWillShutdown.fire()');
 
 		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			reason,
-			join(promise) {
-				joiners.push(promise);
+			join(id, promise) {
+				logService.trace(`Lifecycle#onWillShutdown - begin '${id}'`);
+				joiners.push(promise.finally(() => {
+					logService.trace(`Lifecycle#onWillShutdown - end '${id}'`);
+				}));
 			}
 		});
 

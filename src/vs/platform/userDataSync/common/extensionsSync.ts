@@ -22,12 +22,11 @@ import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/comm
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { Change, IRemoteUserData, ISyncData, ISyncExtension, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ILocalSyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
@@ -566,60 +565,6 @@ export class LocalExtensionsProvider {
 					disposables.dispose();
 				}
 			});
-	}
-
-}
-
-export interface IExtensionsInitializerPreviewResult {
-	readonly installedExtensions: ILocalExtension[];
-	readonly disabledExtensions: IExtensionIdentifier[];
-	readonly newExtensions: (IExtensionIdentifier & { preRelease: boolean })[];
-	readonly remoteExtensions: ISyncExtension[];
-}
-
-export abstract class AbstractExtensionsInitializer extends AbstractInitializer {
-
-	constructor(
-		@IExtensionManagementService protected readonly extensionManagementService: IExtensionManagementService,
-		@IIgnoredExtensionsManagementService private readonly ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
-		@IFileService fileService: IFileService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILogService logService: ILogService,
-		@IStorageService storageService: IStorageService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-	) {
-		super(SyncResource.Extensions, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
-	}
-
-	protected async parseExtensions(remoteUserData: IRemoteUserData): Promise<ISyncExtension[] | null> {
-		return remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
-	}
-
-	protected generatePreview(remoteExtensions: ISyncExtension[], localExtensions: ILocalExtension[]): IExtensionsInitializerPreviewResult {
-		const installedExtensions: ILocalExtension[] = [];
-		const newExtensions: (IExtensionIdentifier & { preRelease: boolean })[] = [];
-		const disabledExtensions: IExtensionIdentifier[] = [];
-		for (const extension of remoteExtensions) {
-			if (this.ignoredExtensionsManagementService.hasToNeverSyncExtension(extension.identifier.id)) {
-				// Skip extension ignored to sync
-				continue;
-			}
-
-			const installedExtension = localExtensions.find(i => areSameExtensions(i.identifier, extension.identifier));
-			if (installedExtension) {
-				installedExtensions.push(installedExtension);
-				if (extension.disabled) {
-					disabledExtensions.push(extension.identifier);
-				}
-			} else if (extension.installed) {
-				newExtensions.push({ ...extension.identifier, preRelease: !!extension.preRelease });
-				if (extension.disabled) {
-					disabledExtensions.push(extension.identifier);
-				}
-			}
-		}
-		return { installedExtensions, newExtensions, disabledExtensions, remoteExtensions };
 	}
 
 }
