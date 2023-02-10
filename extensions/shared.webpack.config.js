@@ -139,6 +139,9 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 						},
 					},
 				]
+			}, {
+				test: /\.wasm$/,
+				type: 'asset/inline'
 			}]
 		},
 		externals: {

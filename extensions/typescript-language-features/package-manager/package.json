@@ -1,0 +1,5 @@
+{
+  "name": "package-manager",
+  "module": "packageManager.ts",
+  "private": true
+}

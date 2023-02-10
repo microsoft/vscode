@@ -3,6 +3,8 @@
 	"compilerOptions": {
 		"outDir": "./out",
 		"experimentalDecorators": true,
+		"module": "nodenext",
+		"moduleDetection": "legacy",
 		"types": [
 			"node"
 		]
