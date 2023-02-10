@@ -41,6 +41,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { isLinux } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import * as dom from 'vs/base/browser/dom';
 
 const enum RenderConstants {
 	/**
@@ -787,18 +788,12 @@ class AccessibleBuffer extends DisposableStore {
 		this._focusContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(contextKeyService);
 		this._accessibleBuffer = this._terminal.element?.querySelector<HTMLElement>('.xterm-accessibility-buffer');
 		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
-		this.add(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([TerminalContextKeys.focus.key]))) {
-				const terminalTextAreaFocused = contextKeyService.getContextKeyValue(TerminalContextKeys.focus.key);
-				if (terminalTextAreaFocused) {
-					this._focusContextKey.set(false);
-				}
-			}
-		}));
+		const focusTracker = this.add(dom.trackFocus(this._accessibleBuffer));
+		this.add(focusTracker.onDidFocus(() => this._focusContextKey.set(true)));
+		this.add(focusTracker.onDidBlur(() => this._focusContextKey.reset()));
 	}
 
 	focus(): DocumentFragment {
-		this._focusContextKey.set(true);
 		if (!this._bufferElementFragment) {
 			this._bufferElementFragment = document.createDocumentFragment();
 		}
