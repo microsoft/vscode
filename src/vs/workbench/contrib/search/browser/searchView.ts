@@ -1823,7 +1823,7 @@ export class SearchView extends ViewPane {
 					if (editorWidget) {
 						// Ensure that the editor widget is binded. If if is, then this should return immediately.
 						// Otherwise, it will bind the widget.
-						await element.parent().bindEditorWidget(editorWidget);
+						await element.parent().bindNotebookEditorWidget(editorWidget);
 
 						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
 						const matches = element.parent().matches();

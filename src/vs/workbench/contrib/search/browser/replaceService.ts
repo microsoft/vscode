@@ -116,7 +116,7 @@ export class ReplaceService implements IReplaceService {
 				if (notebookResource) {
 					return this.editorService.save([...this.editorService.findEditors(notebookResource)]);
 				} else {
-					return Promise.resolve();
+					return;
 				}
 			} else {
 				return this.textFileService.files.get(e.resource)?.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
