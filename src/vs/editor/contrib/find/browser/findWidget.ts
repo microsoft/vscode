@@ -71,6 +71,7 @@ const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
+const NLS_GO_TO_MATCH_TITLE = nls.localize('findMatchAction.goToMatch', "Go to Match...");
 export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
@@ -134,7 +135,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _replaceInput!: ReplaceInput;
 
 	private _toggleReplaceBtn!: SimpleButton;
-	private _matchesCount!: HTMLElement;
+	private _matchesCount!: SimpleButton;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
 	private _toggleSelectionFind!: Toggle;
@@ -397,16 +398,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	}
 
 	private _updateMatchesCount(): void {
-		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.domNode.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		if (this._state.matchesCount >= MATCHES_LIMIT) {
-			this._matchesCount.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
+			this._matchesCount.domNode.title = NLS_MATCHES_COUNT_LIMIT_TITLE;
 		} else {
-			this._matchesCount.title = '';
+			this._matchesCount.domNode.title = NLS_GO_TO_MATCH_TITLE;
 		}
 
 		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		if (this._matchesCount.domNode.firstChild) {
+			this._matchesCount.domNode.removeChild(this._matchesCount.domNode.firstChild);
 		}
 
 		let label: string;
@@ -420,14 +421,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				matchesPosition = '?';
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+			this._matchesCount.setEnabled(true);
 		} else {
 			label = NLS_NO_RESULTS;
+			this._matchesCount.setEnabled(false);
+			this._matchesCount.domNode.title = '';
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.domNode.appendChild(document.createTextNode(label));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
-		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
+		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.domNode.clientWidth);
 	}
 
 	// ----- actions
@@ -1005,8 +1009,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
 		}
 
-		this._matchesCount = document.createElement('div');
-		this._matchesCount.className = 'matchesCount';
+		this._matchesCount = this._register(new SimpleButton({
+			label: NLS_GO_TO_MATCH_TITLE,
+			className: 'matchesCount',
+			onTrigger: () => {
+				assertIsDefined(this._codeEditor.getAction(FIND_IDS.GoToMatchFindAction)).run().then(undefined, onUnexpectedError);
+			}
+		}));
 		this._updateMatchesCount();
 
 		// Previous button
@@ -1033,7 +1042,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const actionsContainer = document.createElement('div');
 		actionsContainer.className = 'find-actions';
 		findPart.appendChild(actionsContainer);
-		actionsContainer.appendChild(this._matchesCount);
+		actionsContainer.appendChild(this._matchesCount.domNode);
 		actionsContainer.appendChild(this._prevBtn.domNode);
 		actionsContainer.appendChild(this._nextBtn.domNode);
 
