@@ -40,7 +40,6 @@ suite('UserDataProfileService (Common)', () => {
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
 		testObject = new InMemoryUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
-		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());

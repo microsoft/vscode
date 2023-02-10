@@ -13,7 +13,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -116,10 +117,8 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	renderTemplate(container: HTMLElement): IHelpItemTemplateData {
 		container.classList.add('remote-help-tree-node-item');
 		const icon = dom.append(container, dom.$('.remote-help-tree-node-item-icon'));
-		const data = <IHelpItemTemplateData>Object.create(null);
-		data.parent = container;
-		data.icon = icon;
-		return data;
+		const parent = container;
+		return { parent, icon };
 	}
 
 	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
@@ -961,9 +960,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, custom: true }).then(result => {
-								// Reload the window
-								if (result.choice === 0) {
+							dialogService.confirm({
+								type: Severity.Error,
+								message: nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."),
+								primaryButton: nls.localize({ key: 'reloadWindow.dialog', comment: ['&& denotes a mnemonic'] }, "&&Reload Window")
+							}).then(result => {
+								if (result.confirmed) {
 									commandService.executeCommand(ReloadWindowAction.ID);
 								}
 							});

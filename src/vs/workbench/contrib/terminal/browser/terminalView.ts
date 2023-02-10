@@ -10,7 +10,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -23,8 +24,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
@@ -43,6 +43,8 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Event } from 'vs/base/common/event';
 
 export class TerminalViewPane extends ViewPane {
 	private _fontStyleElement: HTMLElement | undefined;
@@ -290,11 +292,10 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
@@ -303,15 +304,12 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeInstancePrimaryStatus(() => this._updateItems(), this));
-		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-terminal');
-		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
-		}));
+		container.style.borderColor = asCssVariable(selectBorder);
 	}
 
 	private _updateItems(): void {
@@ -356,19 +354,25 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		super(action, { draggable: true }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
 
 		// Register listeners to update the tab
-		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this.updateLabel(e)));
-		this._register(this._terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
-		this._register(this._terminalService.onDidChangeInstanceIcon(e => this.updateLabel(e.instance)));
-		this._register(this._terminalService.onDidChangeInstanceColor(e => this.updateLabel(e.instance)));
-		this._register(this._terminalService.onDidChangeInstanceTitle(e => {
-			if (e === this._terminalGroupService.activeInstance) {
-				this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
-				this.updateLabel();
+		this._register(Event.debounce<ITerminalInstance | undefined, Set<ITerminalInstance>>(Event.any(
+			this._terminalService.onDidChangeInstancePrimaryStatus,
+			this._terminalGroupService.onDidChangeActiveInstance,
+			Event.map(this._terminalService.onDidChangeInstanceIcon, e => e.instance),
+			Event.map(this._terminalService.onDidChangeInstanceColor, e => e.instance),
+			this._terminalService.onDidChangeInstanceTitle,
+			this._terminalService.onDidChangeInstanceCapability,
+		), (last, e) => {
+			if (!last) {
+				last = new Set();
 			}
-		}));
-		this._register(this._terminalService.onDidChangeInstanceCapability(e => {
-			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
-			this.updateLabel(e);
+			if (e) {
+				last.add(e);
+			}
+			return last;
+		})(merged => {
+			for (const e of merged) {
+				this.updateLabel(e);
+			}
 		}));
 
 		// Clean up on dispose
@@ -464,6 +468,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._altCommand = `alt-command`;
 				label.classList.add(this._altCommand);
 			}
+			this._action.tooltip = getSingleTabTooltip(instance, this._terminalService.configHelper.config.tabs.separator);
 			this.updateTooltip();
 		}
 	}
@@ -497,9 +502,10 @@ function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator:
 	if (!instance) {
 		return '';
 	}
-	const shellIntegrationString = getShellIntegrationTooltip(instance, false);
-	const title = getSingleTabTitle(instance, separator);
-	return shellIntegrationString ? title + shellIntegrationString : title;
+	const parts: string[] = [];
+	parts.push(getSingleTabTitle(instance, separator) + getShellIntegrationTooltip(instance, false));
+	parts.push(instance.statusList.primary?.tooltip || '');
+	return parts.filter(e => e).join('\n\n');
 }
 
 function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {

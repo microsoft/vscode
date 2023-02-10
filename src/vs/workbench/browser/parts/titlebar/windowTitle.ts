@@ -235,7 +235,7 @@ export class WindowTitle extends Disposable {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : `${this.userDataProfileService.currentProfile.name} (${localize('profile', "Profile")})`;
+		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 

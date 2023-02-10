@@ -25,11 +25,6 @@ interface IWatchRequest {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
-	 *
-	 * Paths or basic glob patterns that are relative will be
-	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
 	 */
 	excludes: string[];
 
@@ -37,11 +32,6 @@ interface IWatchRequest {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
-	 *
-	 * Paths or basic glob patterns that are relative will be
-	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }

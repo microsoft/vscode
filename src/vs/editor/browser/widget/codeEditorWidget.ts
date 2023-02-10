@@ -398,6 +398,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.addCodeEditor(this);
 	}
 
+	public writeScreenReaderContent(reason: string): void {
+		this._modelData?.view.writeScreenReaderContent(reason);
+	}
+
 	protected _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>, accessibilityService: IAccessibilityService): EditorConfiguration {
 		return new EditorConfiguration(isSimpleWidget, options, this._domElement, accessibilityService);
 	}

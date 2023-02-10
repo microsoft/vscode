@@ -488,6 +488,10 @@ export class View extends ViewEventHandler {
 		}
 	}
 
+	public writeScreenReaderContent(reason: string): void {
+		this._textAreaHandler.writeScreenReaderContent(reason);
+	}
+
 	public focus(): void {
 		this._textAreaHandler.focusTextArea();
 	}

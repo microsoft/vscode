@@ -17,6 +17,7 @@ import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -53,7 +54,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
@@ -77,6 +78,7 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import 'vs/css!./testingOutputPeek';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class TestDto {
 	public readonly test: ITestItem;
@@ -243,7 +245,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return;
 		}
 
-		if (evt.result.request.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
+		if (evt.result.request.continuous && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun)) {
 			return;
 		}
 
@@ -432,6 +434,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
@@ -469,7 +472,9 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		} else if (typeof message.message === 'string') {
 			this.editorService.openEditor({ resource: current.messageUri, options });
 		} else {
-			this.commandService.executeCommand('markdown.showPreview', current.messageUri);
+			this.commandService.executeCommand('markdown.showPreview', current.messageUri).catch(err => {
+				this.notificationService.error(localize('testing.markdownPeekError', 'Could not open markdown preview: {0}.\n\nPlease make sure the markdown extension is enabled.', err.message));
+			});
 		}
 	}
 
@@ -957,7 +962,7 @@ class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer 
 
 		this.textPreview.value = new ScrollableMarkdownMessage(
 			this.container,
-			this.markdown.getValue(),
+			this.markdown.value,
 			message.message as IMarkdownString,
 		);
 	}
@@ -1097,7 +1102,7 @@ interface ITreeElement {
 	ariaLabel?: string;
 }
 
-export class TestResultElement implements ITreeElement {
+class TestResultElement implements ITreeElement {
 	public readonly type = 'result';
 	public readonly context = this.value.id;
 	public readonly id = this.value.id;
@@ -1114,7 +1119,7 @@ export class TestResultElement implements ITreeElement {
 	constructor(public readonly value: ITestResult) { }
 }
 
-export class TestCaseElement implements ITreeElement {
+class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
 	public readonly context = this.test.item.extId;
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
@@ -1534,7 +1539,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
 					localize('testing.showResultOutput', "Show Result Output"),
-					Codicon.terminal.classNames,
+					ThemeIcon.asClassName(Codicon.terminal),
 					undefined,
 					() => this.testTerminalService.open(element.value)
 				));
@@ -1563,7 +1568,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.goToFile',
 					localize('testing.goToFile', "Go to File"),
-					Codicon.goToFile.classNames,
+					ThemeIcon.asClassName(Codicon.goToFile),
 					undefined,
 					() => this.commandService.executeCommand('vscode.revealTest', extId),
 				));
@@ -1571,7 +1576,7 @@ class TreeActionsProvider {
 				secondary.push(new Action(
 					'testing.outputPeek.revealInExplorer',
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
-					Codicon.listTree.classNames,
+					ThemeIcon.asClassName(Codicon.listTree),
 					undefined,
 					() => this.commandService.executeCommand('_revealTestInExplorer', extId),
 				));
@@ -1602,7 +1607,7 @@ class TreeActionsProvider {
 					primary.push(new Action(
 						'testing.outputPeek.showMessageInTerminal',
 						localize('testing.showMessageInTerminal', "Show Output in Terminal"),
-						Codicon.terminal.classNames,
+						ThemeIcon.asClassName(Codicon.terminal),
 						undefined,
 						() => this.testTerminalService.open(element.result, element.marker),
 					));

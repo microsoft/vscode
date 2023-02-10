@@ -6,7 +6,7 @@
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import * as dom from 'vs/base/browser/dom';
 
 /**
@@ -17,7 +17,7 @@ export const ARROW_IMG_SIZE = 11;
 export interface ScrollbarArrowOptions {
 	onActivate: () => void;
 	className: string;
-	icon: Codicon;
+	icon: ThemeIcon;
 
 	bgWidth: number;
 	bgHeight: number;
@@ -61,7 +61,7 @@ export class ScrollbarArrow extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = opts.className;
-		this.domNode.classList.add(...opts.icon.classNamesArray);
+		this.domNode.classList.add(...ThemeIcon.asClassNameArray(opts.icon));
 
 		this.domNode.style.position = 'absolute';
 		this.domNode.style.width = ARROW_IMG_SIZE + 'px';

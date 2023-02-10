@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
@@ -20,7 +21,6 @@ import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 /**
  * @internal
@@ -279,7 +279,7 @@ export const enum CompletionItemKind {
  */
 export namespace CompletionItemKinds {
 
-	const byKind = new Map<CompletionItemKind, CSSIcon>();
+	const byKind = new Map<CompletionItemKind, ThemeIcon>();
 	byKind.set(CompletionItemKind.Method, Codicon.symbolMethod);
 	byKind.set(CompletionItemKind.Function, Codicon.symbolFunction);
 	byKind.set(CompletionItemKind.Constructor, Codicon.symbolConstructor);
@@ -313,7 +313,7 @@ export namespace CompletionItemKinds {
 	/**
 	 * @internal
 	 */
-	export function toIcon(kind: CompletionItemKind): CSSIcon {
+	export function toIcon(kind: CompletionItemKind): ThemeIcon {
 		let codicon = byKind.get(kind);
 		if (!codicon) {
 			console.info('No codicon found for CompletionItemKind ' + kind);
@@ -654,6 +654,11 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when an item is shown.
 	*/
 	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Will be called when an item is partially accepted.
+	 */
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -1066,7 +1071,7 @@ export const enum SymbolTag {
  */
 export namespace SymbolKinds {
 
-	const byKind = new Map<SymbolKind, CSSIcon>();
+	const byKind = new Map<SymbolKind, ThemeIcon>();
 	byKind.set(SymbolKind.File, Codicon.symbolFile);
 	byKind.set(SymbolKind.Module, Codicon.symbolModule);
 	byKind.set(SymbolKind.Namespace, Codicon.symbolNamespace);
@@ -1096,7 +1101,7 @@ export namespace SymbolKinds {
 	/**
 	 * @internal
 	 */
-	export function toIcon(kind: SymbolKind): CSSIcon {
+	export function toIcon(kind: SymbolKind): ThemeIcon {
 		let icon = byKind.get(kind);
 		if (!icon) {
 			console.info('No codicon found for SymbolKind ' + kind);
@@ -1388,6 +1393,20 @@ export class FoldingRangeKind {
 	 * The value of the kind is 'region'.
 	 */
 	static readonly Region = new FoldingRangeKind('region');
+
+	/**
+	 * Returns a {@link FoldingRangeKind} for the given value.
+	 *
+	 * @param value of the kind.
+	 */
+	static fromValue(value: string) {
+		switch (value) {
+			case 'comment': return FoldingRangeKind.Comment;
+			case 'imports': return FoldingRangeKind.Imports;
+			case 'region': return FoldingRangeKind.Region;
+		}
+		return new FoldingRangeKind(value);
+	}
 
 	/**
 	 * Creates a new {@link FoldingRangeKind}.

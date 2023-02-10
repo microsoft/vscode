@@ -26,7 +26,7 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CallHierarchyItem | vscode.CallHierarchyItem[] | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
@@ -43,7 +43,7 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	}
 
 	public async provideCallHierarchyIncomingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): Promise<vscode.CallHierarchyIncomingCall[] | undefined> {
-		const filepath = this.client.toPath(item.uri);
+		const filepath = this.client.toTsFilePath(item.uri);
 		if (!filepath) {
 			return undefined;
 		}
@@ -58,7 +58,7 @@ class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	}
 
 	public async provideCallHierarchyOutgoingCalls(item: vscode.CallHierarchyItem, token: vscode.CancellationToken): Promise<vscode.CallHierarchyOutgoingCall[] | undefined> {
-		const filepath = this.client.toPath(item.uri);
+		const filepath = this.client.toTsFilePath(item.uri);
 		if (!filepath) {
 			return undefined;
 		}

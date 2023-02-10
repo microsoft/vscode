@@ -443,7 +443,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getWidthIsFast(): boolean {
-		return (this.input.lineContent.length < Constants.MaxMonospaceDistance);
+		return (this.input.lineContent.length < Constants.MaxMonospaceDistance) || this._cachedWidth !== -1;
 	}
 
 	public monospaceAssumptionsAreValid(): boolean {

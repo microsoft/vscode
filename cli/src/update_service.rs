@@ -247,7 +247,7 @@ impl Platform {
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
-			Platform::WindowsARM64 => "server-win32-arm64",
+			Platform::WindowsARM64 => "server-win32-x64", // we don't publish an arm64 server build yet
 		}
 		.to_owned()
 	}
@@ -287,7 +287,7 @@ impl Platform {
 			Some(Platform::LinuxAlpineARM64)
 		} else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
 			Some(Platform::LinuxX64)
-		} else if cfg!(all(target_os = "linux", target_arch = "armhf")) {
+		} else if cfg!(all(target_os = "linux", target_arch = "arm")) {
 			Some(Platform::LinuxARM32)
 		} else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
 			Some(Platform::LinuxARM64)

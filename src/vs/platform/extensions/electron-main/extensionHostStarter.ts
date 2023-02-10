@@ -41,7 +41,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		// On shutdown: gracefully await extension host shutdowns
 		lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
-			e.join(this._waitForAllExit(6000));
+			e.join('extHostStarter', this._waitForAllExit(6000));
 		});
 	}
 

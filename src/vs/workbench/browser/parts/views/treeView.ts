@@ -51,14 +51,15 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { FileThemeIcon, FolderThemeIcon, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { FileThemeIcon, FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, NoTreeViewError, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -344,8 +345,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						children = node.children;
 					} else {
 						node = node ?? self.root;
-						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-						children = node.children ?? [];
+						try {
+							node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
+							children = node.children ?? [];
+						} catch (e) {
+							if (e instanceof NoTreeViewError) {
+								// It can happen that a tree view is hidden right as `getChildren` is called. This results in an error because the data provider gets removed.
+								// The tree will shortly get cleaned up in this case. We just need to handle the error here.
+								node.children = [];
+								children = [];
+								return children;
+							} else {
+								throw e;
+							}
+						}
 					}
 					if (node instanceof Root) {
 						const oldEmpty = this._isEmpty;
@@ -719,11 +732,19 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					args = [...args, e];
 				}
 
-				this.commandService.executeCommand(command.id, ...args);
+				try {
+					await this.commandService.executeCommand(command.id, ...args);
+				} catch (err) {
+					this.notificationService.error(err);
+				}
 			}
 		}));
 
-		this._register(treeMenus.onDidChange((changed) => this.tree?.rerender(changed)));
+		this._register(treeMenus.onDidChange((changed) => {
+			if (this.tree?.hasNode(changed)) {
+				this.tree?.rerender(changed);
+			}
+		}));
 	}
 
 	private async resolveCommand(element: ITreeItem | undefined): Promise<TreeCommand | undefined> {
@@ -881,6 +902,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			// The extension could have changed the tree during the reveal.
 			// Because of that, we ignore errors.
 		}
+	}
+
+	isCollapsed(item: ITreeItem): boolean {
+		return !!this.tree?.isCollapsed(item);
 	}
 
 	setSelection(items: ITreeItem[]): void {

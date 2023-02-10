@@ -97,7 +97,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {
-			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
+			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.textLabel);
 			if (!this.range) {
 				const replacementRange = this.getFuzzyWordRange();
 				if (replacementRange) {
@@ -171,7 +171,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		const requestToken = new vscode.CancellationTokenSource();
 
 		const promise = (async (): Promise<ResolvedCompletionItem | undefined> => {
-			const filepath = client.toOpenedFilePath(this.document);
+			const filepath = client.toOpenTsFilePath(this.document);
 			if (!filepath) {
 				return undefined;
 			}
@@ -701,7 +701,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			});
 		}
 
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}

@@ -57,8 +57,6 @@ export namespace Schemas {
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
-	export const vscodeNotebook = 'vscode-notebook';
-
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';

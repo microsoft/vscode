@@ -22,7 +22,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 /**
@@ -228,16 +228,18 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 	) {
 		super();
 
-		this.updateConfiguration();
+		this.updateConfiguration(undefined);
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(e)));
 	}
 
-	private updateConfiguration(): void {
-		this.shareEditorState = this.configurationService.getValue(undefined, 'workbench.editor.sharedViewState') === true;
+	private updateConfiguration(e: ITextResourceConfigurationChangeEvent | undefined): void {
+		if (!e || e.affectsConfiguration(undefined, 'workbench.editor.sharedViewState')) {
+			this.shareEditorState = this.configurationService.getValue(undefined, 'workbench.editor.sharedViewState') === true;
+		}
 	}
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;

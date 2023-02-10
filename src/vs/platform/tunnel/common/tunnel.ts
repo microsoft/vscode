@@ -110,7 +110,7 @@ export interface ITunnel {
 export interface ISharedTunnelsService {
 	readonly _serviceBrand: undefined;
 
-	openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 }
 
 export interface ITunnelService {
@@ -126,7 +126,7 @@ export interface ITunnelService {
 	readonly onAddedTunnelProvider: Event<void>;
 
 	canTunnel(uri: URI): boolean;
-	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost?: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 	getExistingTunnel(remoteHost: string, remotePort: number): Promise<RemoteTunnel | undefined>;
 	setEnvironmentTunnel(remoteHost: string, remotePort: number, localAddress: string, privacy: string, protocol: string): void;
 	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
@@ -313,7 +313,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return undefined;
 	}
 
-	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded: boolean = false, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost?: string, localPort?: number, elevateIfNeeded: boolean = false, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) openTunnel request for ${remoteHost}:${remotePort} on local port ${localPort}.`);
 		if (!addressProvider) {
 			return undefined;
@@ -322,6 +322,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		if (!remoteHost) {
 			remoteHost = 'localhost';
 		}
+		if (!localHost) {
+			localHost = this.defaultTunnelHost;
+		}
 
 		// Prevent tunnel factories from calling openTunnel from within the factory
 		if (this._tunnelProvider && this._factoryInProgress.has(remotePort)) {
@@ -329,7 +332,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			return;
 		}
 
-		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
+		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded, privacy, protocol);
 		if (!resolvedTunnel) {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Tunnel was not created.`);
 			return resolvedTunnel;
@@ -448,7 +451,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	public abstract isPortPrivileged(port: number): boolean;
 
-	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel with provider ${remoteHost}:${remotePort} on local port ${localPort}.`);

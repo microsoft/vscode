@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -36,6 +36,10 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { isLinux } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const enum RenderConstants {
 	/**
@@ -129,6 +133,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	private _decorationAddon: DecorationAddon;
+	private _suggestAddon: SuggestAddon;
 
 	// Optional addons
 	private _canvasAddon?: CanvasAddonType;
@@ -137,11 +142,18 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 
+	private _accessibileBuffer: AccessibleBuffer | undefined;
+
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
+	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestFocus = new Emitter<void>();
+	readonly onDidRequestFocus = this._onDidRequestFocus.event;
+	private readonly _onDidRequestSendText = new Emitter<string>();
+	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 	private readonly _onDidRequestFreePort = new Emitter<string>();
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
@@ -151,6 +163,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
+	get suggestController(): ISuggestController | undefined { return this._suggestAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -177,6 +190,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		rows: number,
 		location: TerminalLocation,
 		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		disableShellIntegrationReporting: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -208,6 +222,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
+			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
 			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
@@ -255,6 +270,19 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
+		// may still come in
+		this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+		this.raw.loadAddon(this._suggestAddon);
+		this._suggestAddon.onAcceptedCompletion(async text => {
+			this._onDidRequestFocus.fire();
+			this._onDidRequestSendText.fire(text);
+		});
+	}
+
+	focusAccessibleBuffer(): void {
+		this._accessibileBuffer?.focus();
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -284,12 +312,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
+		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this.raw, this.getFont(), this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else if (this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
 		}
+
+		this._suggestAddon.setContainer(container);
+
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
@@ -304,6 +336,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.options.scrollback = config.scrollback;
 		this.raw.options.drawBoldTextInBrightColors = config.drawBoldTextInBrightColors;
 		this.raw.options.minimumContrastRatio = config.minimumContrastRatio;
+		this.raw.options.tabStopWidth = config.tabStopWidth;
 		this.raw.options.fastScrollSensitivity = config.fastScrollSensitivity;
 		this.raw.options.scrollSensitivity = config.mouseWheelScrollSensitivity;
 		this.raw.options.macOptionIsMeta = config.macOptionIsMeta;
@@ -728,5 +761,78 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
+	}
+}
+
+class AccessibleBuffer extends DisposableStore {
+
+	private _accessibleBuffer: HTMLElement | undefined;
+	private _bufferElementFragment: DocumentFragment | undefined;
+
+	constructor(
+		private readonly _terminal: RawXtermTerminal,
+		private readonly _font: ITerminalFont,
+		private readonly _capabilities: ITerminalCapabilityStore,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super();
+		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
+	}
+
+	focus(): DocumentFragment {
+		if (!this._bufferElementFragment) {
+			this._bufferElementFragment = document.createDocumentFragment();
+		}
+		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
+		if (!this._accessibleBuffer) {
+			return this._bufferElementFragment;
+		}
+		// see https://github.com/microsoft/vscode/issues/173532
+		const accessibleBufferContentEditable = isLinux ? 'on' : this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
+		this._accessibleBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
+		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
+		const lineHeight = this._font?.charHeight ? this._font.charHeight * this._font.lineHeight + 'px' : '';
+		this._accessibleBuffer.style.lineHeight = lineHeight;
+		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands?.length) {
+			const noContent = document.createElement('div');
+			const noContentLabel = localize('terminal.integrated.noContent', "No terminal content available for this session.");
+			noContent.textContent = noContentLabel;
+			this._bufferElementFragment.replaceChildren(noContent);
+			this._accessibleBuffer.focus();
+			return this._bufferElementFragment;
+		}
+		let header;
+		let replaceChildren = true;
+		for (const command of commands) {
+			header = document.createElement('h2');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			header.tabIndex = -1;
+			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
+			if (command.exitCode !== 0) {
+				header.textContent += ` exited with code ${command.exitCode}`;
+			}
+			const output = document.createElement('div');
+			// without this, the text area gets focused when keyboard shortcuts are used
+			output.tabIndex = -1;
+			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
+			if (replaceChildren) {
+				this._bufferElementFragment.replaceChildren(header, output);
+				replaceChildren = false;
+			} else {
+				this._bufferElementFragment.appendChild(header);
+				this._bufferElementFragment.appendChild(output);
+			}
+		}
+		this._accessibleBuffer.focus();
+		if (this._accessibleBuffer.contentEditable === 'true') {
+			document.execCommand('selectAll', false, undefined);
+			document.getSelection()?.collapseToEnd();
+		} else if (header) {
+			// focus the cursor line's header
+			header.tabIndex = 0;
+		}
+		return this._bufferElementFragment;
 	}
 }

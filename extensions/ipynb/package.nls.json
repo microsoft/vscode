@@ -1,5 +1,10 @@
 {
 	"displayName": ".ipynb Support",
 	"description": "Provides basic support for opening and reading Jupyter's .ipynb notebook files",
-	"ipynb.pasteImagesAsAttachments.enabled": "Enable/disable pasting of images into Markdown cells in ipynb notebook files. Pasted images are inserted as attachments to the cell."
+	"ipynb.pasteImagesAsAttachments.enabled": "Enable/disable pasting of images into Markdown cells in ipynb notebook files. Pasted images are inserted as attachments to the cell.",
+	"newUntitledIpynb.title": "New Jupyter Notebook",
+	"newUntitledIpynb.shortTitle": "Jupyter Notebook",
+	"openIpynbInNotebookEditor.title": "Open IPYNB File In Notebook Editor",
+	"cleanInvalidImageAttachment.title": "Clean Invalid Image Attachment Reference",
+	"markdownAttachmentRenderer.displayName": "Markdown it ipynb Cell Attachment renderer"
 }

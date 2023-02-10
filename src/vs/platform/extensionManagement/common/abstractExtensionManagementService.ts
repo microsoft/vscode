@@ -13,7 +13,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
-	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
+	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
 	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -36,8 +36,8 @@ export interface IInstallExtensionTask {
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
 	readonly verificationStatus?: ExtensionVerificationStatus;
-	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
-	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
+	run(): Promise<ILocalExtension>;
+	waitUntilTaskIsFinished(): Promise<ILocalExtension>;
 	cancel(): void;
 }
 
@@ -142,8 +142,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			const installingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
 			if (installingExtension) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
-				const { local } = await installingExtension.task.waitUntilTaskIsFinished();
-				return local;
+				return installingExtension.task.waitUntilTaskIsFinished();
 			}
 		}
 
@@ -234,7 +233,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
 					try {
-						const { local } = await task.run();
+						const local = await task.run();
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, installExtensionTaskOptions, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							const isUpdate = task.operation === InstallOperation.Update;
@@ -657,10 +656,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
+	abstract cleanUp(): Promise<void>;
 
-	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
-	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
-	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
+	abstract onDidUpdateExtensionMetadata: Event<ILocalExtension>;
+	abstract getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined>;
+	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
@@ -686,7 +686,7 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
 	let errorcode: ExtensionManagementErrorCode | undefined;
 	let errorcodeDetail: string | undefined;
 

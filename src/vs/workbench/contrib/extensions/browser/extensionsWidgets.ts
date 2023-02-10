@@ -14,7 +14,8 @@ import { EnablementState, IExtensionManagementServerService } from 'vs/workbench
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, ExtensionStatusAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -114,7 +115,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			}
 		}
 		else {
-			installLabel = installCount.toLocaleString(platform.locale);
+			installLabel = installCount.toLocaleString(platform.language);
 		}
 
 		return installLabel;
@@ -179,6 +180,42 @@ export class RatingsWidget extends ExtensionWidget {
 				ratingCountElemet.style.paddingLeft = '1px';
 			}
 		}
+	}
+}
+
+export class VerifiedPublisherWidget extends ExtensionWidget {
+
+	private disposables = this._register(new DisposableStore());
+
+	constructor(
+		private container: HTMLElement,
+		private small: boolean,
+		@IOpenerService private readonly openerService: IOpenerService,
+	) {
+		super();
+		this.render();
+	}
+
+	render(): void {
+		reset(this.container);
+		this.disposables.clear();
+		if (!this.extension?.publisherDomain?.verified) {
+			return;
+		}
+
+		const publisherDomainLink = URI.parse(this.extension.publisherDomain.link);
+		const verifiedPublisher = append(this.container, $('span.extension-verified-publisher.clickable'));
+		append(verifiedPublisher, renderIcon(verifiedPublisherIcon));
+
+		if (!this.small) {
+			verifiedPublisher.tabIndex = 0;
+			verifiedPublisher.title = this.extension.publisherDomain.link;
+			verifiedPublisher.setAttribute('role', 'link');
+
+			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
+			this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
+		}
+
 	}
 }
 

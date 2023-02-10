@@ -727,17 +727,12 @@ export function lcut(text: string, n: number) {
 	return text.substring(i).replace(/^\s/, '');
 }
 
-// Escape codes
-// http://en.wikipedia.org/wiki/ANSI_escape_code
-const EL = /\x1B\x5B[12]?K/g; // Erase in line
-const COLOR_START = /\x1b\[\d+m/g; // Color
-const COLOR_END = /\x1b\[0?m/g; // Color
+// Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
+const CSI_SEQUENCE = /(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/g;
 
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
-		str = str.replace(EL, '');
-		str = str.replace(COLOR_START, '');
-		str = str.replace(COLOR_END, '');
+		str = str.replace(CSI_SEQUENCE, '');
 	}
 
 	return str;
@@ -1134,7 +1129,7 @@ export class AmbiguousCharacters {
 			return result;
 		}
 
-		const data = this.ambiguousCharacterData.getValue();
+		const data = this.ambiguousCharacterData.value;
 
 		let filteredLocales = locales.filter(
 			(l) => !l.startsWith('_') && l in data
@@ -1160,12 +1155,12 @@ export class AmbiguousCharacters {
 	}
 
 	private static _locales = new Lazy<string[]>(() =>
-		Object.keys(AmbiguousCharacters.ambiguousCharacterData.getValue()).filter(
+		Object.keys(AmbiguousCharacters.ambiguousCharacterData.value).filter(
 			(k) => !k.startsWith('_')
 		)
 	);
 	public static getLocales(): string[] {
-		return AmbiguousCharacters._locales.getValue();
+		return AmbiguousCharacters._locales.value;
 	}
 
 	private constructor(

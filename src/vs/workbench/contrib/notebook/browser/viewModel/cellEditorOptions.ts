@@ -9,7 +9,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IBaseCellEditorOptions, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export class BaseCellEditorOptions extends Disposable implements IBaseCellEditorOptions {
 	private static fixedEditorOptions: IEditorOptions = {

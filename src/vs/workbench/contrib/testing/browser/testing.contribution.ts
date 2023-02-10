@@ -43,10 +43,12 @@ import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
+import { ITestingContinuousRunService, TestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
 registerSingleton(ITestProfileService, TestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestingContinuousRunService, TestingContinuousRunService, InstantiationType.Delayed);
 registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
 registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, InstantiationType.Delayed);

@@ -18,7 +18,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
-	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
@@ -188,6 +188,12 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 4.5,
 			tags: ['accessibility']
+		},
+		[TerminalSettingId.TabStopWidth]: {
+			markdownDescription: localize('terminal.integrated.tabStopWidth', "The number of cells in a tab stop."),
+			type: 'number',
+			minimum: 1,
+			default: 8
 		},
 		[TerminalSettingId.FastScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
@@ -448,8 +454,8 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['off', 'on', 'notRemote'],
 			enumDescriptions: [
 				localize('enableFileLinks.off', "Always off."),
-				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace."),
-				localize('enableFileLinks.on', "Always on.")
+				localize('enableFileLinks.on', "Always on."),
+				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace.")
 			],
 			default: 'on'
 		},
@@ -563,11 +569,28 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
+		[TerminalSettingId.ShellIntegrationSuggestEnabled]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.AccessibleBufferContentEditable]: {
+			markdownDescription: localize('terminal.integrated.accessibleBufferContentEditable', "Controls whether the accessible buffer is marks as a `contenteditable` element. This adds a text cursor to the buffer, allowing selection with the keyboard without a screen reader. Screen reader users will typically want to leave this as `auto` or `off` which will treat the buffer similar to a document. By default, on Linux, this will be set to `on` so that it works when using Orca."),
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			enumDescriptions: [
+				localize('accessibleBufferContentEditable.auto', "Automatically enable when a screen reader is not detected."),
+				localize('accessibleBufferContentEditable.on', "Always on."),
+				localize('accessibleBufferContentEditable.off', "Always off.")
+			],
+			default: 'auto'
+		}
 	}
 };
 

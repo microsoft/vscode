@@ -478,7 +478,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
-					listBackground: this.getBackgroundColor()
+					listBackground: this.getBackgroundColor(),
+					listInactiveSelectionIconForeground: undefined // we don't want to override the severity icon color
 				},
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
@@ -901,7 +902,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(user, container, delegate, renderers, options, instantiationService, contextKeyService, listService, themeService, configurationService);
+		super(user, container, delegate, renderers, options, instantiationService, contextKeyService, listService, configurationService);
 		this.visibilityContextKey = MarkersContextKeys.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
 	}
 
