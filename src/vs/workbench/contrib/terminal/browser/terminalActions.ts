@@ -1796,6 +1796,30 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.selectAllAccessibleBuffer,
+				title: { value: localize('workbench.action.terminal.selectAllAccessibleBuffer', "Select All Accessible Buffer"), original: 'Select All Accessible Buffer' },
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+				keybinding: [{
+					// Don't use ctrl+a by default as that would override the common go to start
+					// of prompt shell binding
+					primary: 0,
+					// Technically this doesn't need to be here as it will fall back to this
+					// behavior anyway when handed to xterm.js, having this handled by VS Code
+					// makes it easier for users to see how it works though.
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyA },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: TerminalContextKeys.accessibleBufferFocus
+				}]
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).activeInstance?.xterm?.selectAllAccessibleBuffer();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.New,
 				title: { value: localize('workbench.action.terminal.new', "Create New Terminal"), original: 'Create New Terminal' },
 				f1: true,

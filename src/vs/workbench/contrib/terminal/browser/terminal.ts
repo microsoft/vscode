@@ -1054,6 +1054,11 @@ export interface IXtermTerminal {
 	 * Focuses the accessible buffer, updating its contents
 	 */
 	focusAccessibleBuffer(): void;
+
+	/**
+	 * Select all accessible buffer content
+	 */
+	selectAllAccessibleBuffer(): void;
 }
 
 export interface IInternalXtermTerminal {

@@ -498,6 +498,7 @@ export const enum TerminalCommandId {
 	CopySelection = 'workbench.action.terminal.copySelection',
 	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
 	SelectAll = 'workbench.action.terminal.selectAll',
+	selectAllAccessibleBuffer = 'workbench.action.terminal.selectAllAccessibleBuffer',
 	DeleteWordLeft = 'workbench.action.terminal.deleteWordLeft',
 	DeleteWordRight = 'workbench.action.terminal.deleteWordRight',
 	DeleteToLineStart = 'workbench.action.terminal.deleteToLineStart',

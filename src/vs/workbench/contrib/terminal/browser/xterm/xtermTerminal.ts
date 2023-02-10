@@ -37,9 +37,10 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isLinux } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const enum RenderConstants {
 	/**
@@ -758,6 +759,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}
 	}
 
+	selectAllAccessibleBuffer(): void {
+		this._accessibileBuffer?.selectAll();
+	}
+
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
@@ -768,19 +773,32 @@ class AccessibleBuffer extends DisposableStore {
 
 	private _accessibleBuffer: HTMLElement | undefined;
 	private _bufferElementFragment: DocumentFragment | undefined;
+	private _focusContextKey: IContextKey<boolean>;
 
 	constructor(
 		private readonly _terminal: RawXtermTerminal,
 		private readonly _font: ITerminalFont,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
+		this._focusContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(contextKeyService);
+		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
 		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
+		this.add(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([TerminalContextKeys.focus.key]))) {
+				const terminalTextAreaFocused = contextKeyService.getContextKeyValue(TerminalContextKeys.focus.key);
+				if (terminalTextAreaFocused) {
+					this._focusContextKey.set(false);
+				}
+			}
+		}));
 	}
 
 	focus(): DocumentFragment {
+		this._focusContextKey.set(true);
 		if (!this._bufferElementFragment) {
 			this._bufferElementFragment = document.createDocumentFragment();
 		}
@@ -834,5 +852,11 @@ class AccessibleBuffer extends DisposableStore {
 			header.tabIndex = 0;
 		}
 		return this._bufferElementFragment;
+	}
+
+	selectAll(): void {
+		if (this._accessibleBuffer?.contentEditable === 'true') {
+			document.execCommand('selectAll', false, undefined);
+		}
 	}
 }
