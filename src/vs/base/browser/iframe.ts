@@ -88,7 +88,7 @@ export class IframeUtils {
 	 */
 	public static getPositionOfChildWindowRelativeToAncestorWindow(childWindow: Window, ancestorWindow: Window | null) {
 
-		if (!ancestorWindow || childWindow === ancestorWindow || childWindow === ancestorWindow.proxy) {
+		if (!ancestorWindow || childWindow === ancestorWindow || childWindow === (ancestorWindow as any).proxy) {
 			return {
 				top: 0,
 				left: 0
