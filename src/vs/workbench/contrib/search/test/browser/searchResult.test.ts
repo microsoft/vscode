@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, SearchResult, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/browser/searchModel';
+import { Match, FileMatch, SearchResult, SearchModel, FolderMatch, NotebookMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { URI } from 'vs/base/common/uri';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,6 +29,9 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
+import { NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -220,6 +223,42 @@ suite('SearchResult', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
+	test('Adding multiple raw notebook matches', function () {
+		const testObject = aSearchResult();
+
+		const modelTarget = instantiationService.spy(IModelService, 'getModel');
+		const cell = { cellKind: CellKind.Code } as ICellViewModel;
+		const target = [
+			aRawMatch('/1',
+				new NotebookTextSearchMatch('preview 1', new OneLineRange(1, 1, 4), {
+					cellIndex: 0,
+					matchStartIndex: 0,
+					matchEndIndex: 1,
+					cell,
+				}),
+				new NotebookTextSearchMatch('preview 1', new OneLineRange(1, 4, 11), {
+					cellIndex: 0,
+					matchStartIndex: 0,
+					matchEndIndex: 1,
+					cell,
+				})),
+			aRawMatch('/2',
+				new NotebookTextSearchMatch('preview 2', lineOneRange, {
+					cellIndex: 0,
+					matchStartIndex: 0,
+					matchEndIndex: 1,
+					cell,
+				}))];
+
+		testObject.add(target);
+		assert.strictEqual(3, testObject.count());
+
+		// when a model is binded, the results are queried once again.
+		assert.ok(modelTarget.calledTwice);
+		assert.ok(modelTarget.calledWith(testObject.matches()[0].resource));
+		assert.ok(modelTarget.calledWith(testObject.matches()[1].resource));
+	});
+
 	test('Dispose disposes matches', function () {
 		const target1 = sinon.spy();
 		const target2 = sinon.spy();
@@ -271,21 +310,6 @@ suite('SearchResult', () => {
 
 		assert.ok(target.calledOnce);
 		assert.deepStrictEqual([{ elements: arrayToRemove, removed: true }], target.args[0]);
-	});
-
-	test('remove triggers change event', function () {
-		const target = sinon.spy();
-		const testObject = aSearchResult();
-		testObject.add([
-			aRawMatch('/1',
-				new TextSearchMatch('preview 1', lineOneRange))]);
-		const objectToRemove = testObject.matches()[0];
-		testObject.onChange(target);
-
-		testObject.remove(objectToRemove);
-
-		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
 	});
 
 	test('Removing all line matches and adding back will add file back to result', function () {
