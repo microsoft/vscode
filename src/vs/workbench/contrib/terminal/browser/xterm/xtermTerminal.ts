@@ -772,7 +772,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 class AccessibleBuffer extends DisposableStore {
 
-	private _accessibleBuffer: HTMLElement | undefined;
+	private _accessibleBuffer: HTMLElement | undefined | null;
 	private _bufferElementFragment: DocumentFragment | undefined;
 	private _focusContextKey: IContextKey<boolean>;
 
@@ -787,6 +787,9 @@ class AccessibleBuffer extends DisposableStore {
 		super();
 		this._focusContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(contextKeyService);
 		this._accessibleBuffer = this._terminal.element?.querySelector<HTMLElement>('.xterm-accessibility-buffer');
+		if (!this._accessibleBuffer) {
+			throw new Error('No accessible buffer');
+		}
 		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
 		const focusTracker = this.add(dom.trackFocus(this._accessibleBuffer));
 		this.add(focusTracker.onDidFocus(() => this._focusContextKey.set(true)));
