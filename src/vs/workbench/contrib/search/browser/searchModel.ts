@@ -1640,6 +1640,7 @@ export class SearchResult extends Disposable {
 	}
 
 	override dispose(): void {
+		this._onWillChangeModelListener?.dispose();
 		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
