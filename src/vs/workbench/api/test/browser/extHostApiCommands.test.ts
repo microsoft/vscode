@@ -1494,6 +1494,26 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
 			provideSelectionRanges(_doc, positions) {
+				const [first] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		const value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.strictEqual(value.length, 1);
+		assert.strictEqual(value[0].range.start.line, 0);
+		assert.strictEqual(value[0].range.start.character, 10);
+		assert.strictEqual(value[0].range.end.line, 0);
+		assert.strictEqual(value[0].range.end.character, 10);
+	});
+
+	test('more element test of selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
 				const [first, second] = positions;
 				return [
 					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),

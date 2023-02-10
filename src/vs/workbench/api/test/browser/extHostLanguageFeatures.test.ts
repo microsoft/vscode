@@ -844,9 +844,9 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.edits.length, 2);
 	});
 
-	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers 1/2, #98352', async function () {
 
-		let called = [false, false, false, false];
+		const called = [false, false, false, false];
 
 		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
 			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
@@ -876,8 +876,11 @@ suite('ExtHostLanguageFeatures', function () {
 		await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 
 		assert.deepStrictEqual(called, [true, true, true, false]);
+	});
 
-		called = [false, false, false];
+	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers 2/2, #98352', async function () {
+
+		const called = [false, false, false];
 
 		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
 			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
