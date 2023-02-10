@@ -135,11 +135,7 @@ class SharedProcessMain extends Disposable {
 
 		// Shared process lifecycle
 		const onExit = async () => {
-			if (this.lifecycleService) {
-				await this.lifecycleService.fireOnWillShutdown();
-				this.lifecycleService.dispose();
-				this.lifecycleService = undefined;
-			}
+			this.lifecycleService?.fireOnWillShutdown();
 			this.dispose();
 		};
 		process.once('exit', onExit);
@@ -197,8 +193,6 @@ class SharedProcessMain extends Disposable {
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
-		// Lifecycle
-
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
@@ -227,7 +221,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILogService, logService);
 
 		// Lifecycle
-		this.lifecycleService = new SharedProcessLifecycleService(logService);
+		this.lifecycleService = this._register(new SharedProcessLifecycleService(logService));
 		services.set(ISharedProcessLifecycleService, this.lifecycleService);
 
 		// Worker
