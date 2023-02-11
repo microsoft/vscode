@@ -286,9 +286,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 		}
 
-		console.log(language);
-		console.log(locale);
-
 		let primaryControlLocation = isMacintosh ? 'left' : 'right';
 		if (isMacintosh && isNative && locale) {
 			// Check if the locale is RTL, macOS will move traffic lights in RTL locales
