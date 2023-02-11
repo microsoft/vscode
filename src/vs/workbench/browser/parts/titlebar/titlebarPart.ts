@@ -17,7 +17,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative, language, locale } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative, locale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
 import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, prepend, reset } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
