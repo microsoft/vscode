@@ -18,8 +18,8 @@ import { timeout } from 'vs/base/common/async';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class CachedExtensionScanner {
-
-	public readonly scannedExtensions: Promise<IExtensionDescription[]>;
+	private _isDirty = false;
+	private _scannedExtensions: Promise<IExtensionDescription[]> | null = null;
 	private _scannedExtensionsResolve!: (result: IExtensionDescription[]) => void;
 	private _scannedExtensionsReject!: (err: any) => void;
 
@@ -29,11 +29,21 @@ export class CachedExtensionScanner {
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly _logService: ILogService,
-	) {
-		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
-			this._scannedExtensionsResolve = resolve;
-			this._scannedExtensionsReject = reject;
-		});
+	) { }
+
+	public getExtensions(): Promise<IExtensionDescription[]> {
+		if (this._isDirty || !this._scannedExtensions) {
+			this._scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
+				this._scannedExtensionsResolve = resolve;
+				this._scannedExtensionsReject = reject;
+			});
+			this.startScanningExtensions();
+		}
+		return this._scannedExtensions;
+	}
+
+	public onExtensionsChanged() {
+		this._isDirty = true;
 	}
 
 	public async scanSingleExtension(extensionPath: string, isBuiltin: boolean): Promise<IExtensionDescription | null> {
@@ -44,14 +54,11 @@ export class CachedExtensionScanner {
 	public async startScanningExtensions(): Promise<void> {
 		try {
 			const extensions = await this._scanInstalledExtensions();
+			this._isDirty = false;
 			this._scannedExtensionsResolve(extensions);
 		} catch (err) {
 			this._scannedExtensionsReject(err);
 		}
-	}
-
-	public async noCacheQueryInstalledExtensions(): Promise<IExtensionDescription[]> {
-		return this._scanInstalledExtensions();
 	}
 
 	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {

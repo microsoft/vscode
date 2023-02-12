@@ -106,6 +106,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
+		this.onDidChangeExtensions(e => {
+			this._extensionScanner.onExtensionsChanged();
+		});
 
 		// delay extension host creation and extension scanning
 		// until the workbench is running. we cannot defer the
@@ -152,7 +155,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
-		return this._extensionScanner.scannedExtensions;
+		return this._extensionScanner.getExtensions();
 	}
 
 	protected _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
@@ -162,7 +165,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					// Here we load even extensions that would be disabled by workspace trust
 
 					// It may be being initialized because a new extension was installed and activated, so don't use the cached extension list.
-					const localExtensions = this._checkEnabledAndProposedAPI(await this._extensionScanner.noCacheQueryInstalledExtensions(), /* ignore workspace trust */true);
+					const localExtensions = this._checkEnabledAndProposedAPI(await this._extensionScanner.getExtensions(), /* ignore workspace trust */true);
 					const runningLocation = this._determineRunningLocation(localExtensions);
 					const myExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
