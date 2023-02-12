@@ -50,6 +50,10 @@ export class CachedExtensionScanner {
 		}
 	}
 
+	public async noCacheQueryInstalledExtensions(): Promise<IExtensionDescription[]> {
+		return this._scanInstalledExtensions();
+	}
+
 	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {
 		try {
 			const language = platform.language;

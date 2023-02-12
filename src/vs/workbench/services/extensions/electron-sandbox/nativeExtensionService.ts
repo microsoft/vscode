@@ -160,7 +160,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			getInitData: async (): Promise<ILocalProcessExtensionHostInitData & IWebWorkerExtensionHostInitData> => {
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
-					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
+
+					// It may be being initialized because a new extension was installed and activated, so don't use the cached extension list.
+					const localExtensions = this._checkEnabledAndProposedAPI(await this._extensionScanner.noCacheQueryInstalledExtensions(), /* ignore workspace trust */true);
 					const runningLocation = this._determineRunningLocation(localExtensions);
 					const myExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
