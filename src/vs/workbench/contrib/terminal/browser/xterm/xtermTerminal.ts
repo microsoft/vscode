@@ -784,7 +784,7 @@ class AccessibleBuffer extends DisposableStore {
 		if (!this._bufferElementFragment) {
 			this._bufferElementFragment = document.createDocumentFragment();
 		}
-		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
+		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
 		if (!this._accessibleBuffer) {
 			return this._bufferElementFragment;
 		}
