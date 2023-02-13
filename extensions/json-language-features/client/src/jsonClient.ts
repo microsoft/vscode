@@ -159,18 +159,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 		if (isClientReady) {
 			console.log('Before send request');
-			// const params = undefined;
-			// const activeDocUri = window.activeTextEditor.document.uri.toString();
 			const document = window.activeTextEditor?.document;
 			if (document) {
-				await client.sendRequest(DocumentSortingRequest.type, document.uri.toString()).then((textEdits) => {
-					const convertedTextEdits = client.protocol2CodeConverter.asTextEdits(textEdits);
-					console.log('convertedTextEdits : ', convertedTextEdits);
-					// (error) => {
-					//	client.handleFailedRequest(DocumentSortingRequest.type, undefined, error, []);
-					//	return Promise.resolve([]);
-					// }
-				});
+				const textEdits = await client.sendRequest(DocumentSortingRequest.type, document.uri.toString());
+				console.log('textEdits : ', textEdits);
+				// How to use the text-edits? Implement a sorting provider?
 			}
 		}
 	}));
