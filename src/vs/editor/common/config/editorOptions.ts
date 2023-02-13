@@ -4578,8 +4578,12 @@ class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode,
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
-		const readOnly = options.get(EditorOption.readOnly);
-		return (readOnly ? true : env.tabFocusMode);
+		try {
+			const opt = options.get(EditorOption.tabFocusMode);
+			return opt;
+		} catch {
+			return false;
+		}
 	}
 }
 

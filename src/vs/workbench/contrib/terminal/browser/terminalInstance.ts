@@ -473,6 +473,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			return findWidget;
 		});
+		const viewKey = new Set<string>();
+		viewKey.add('focusedView');
+		this._register(this.onDidFocus(() => TabFocus.setTabFocusMode(this._configurationService.getValue(TerminalSettingId.TabFocusMode))));
+		this._register(contextKeyService.onDidChangeContext((c) => {
+			if (c.affectsSome(viewKey)) {
+				const view = contextKeyService.getContextKeyValue('focusedView');
+				console.log(view);
+				if (view !== 'terminal') {
+					TabFocus.setTabFocusMode(this._configurationService.getValue('editor.tabFocusMode'));
+				}
+			}
+		}));
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
