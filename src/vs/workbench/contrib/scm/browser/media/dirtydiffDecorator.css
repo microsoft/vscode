@@ -93,3 +93,22 @@
 	bottom: 0;
 	transition: height 80ms linear;
 }
+
+.peekview-title .dropdown {
+	margin-right: 10px;
+}
+
+.peekview-title .dropdown.select-container {
+	cursor: default;
+}
+
+.peekview-title .dropdown .monaco-select-box {
+	cursor: pointer;
+	min-width: 100px;
+	min-height: 18px;
+	padding: 0px 23px 0px 8px;
+}
+
+.peekview-title .dropdown-label {
+	margin-right: 5px;
+}

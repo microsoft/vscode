@@ -42,7 +42,7 @@ import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition
 import { equals, sortedDiff } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
@@ -59,6 +59,7 @@ import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
+import { SwitchQuickDiffAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -183,6 +184,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private index: number = 0;
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
+	private dropdown: SwitchQuickDiffViewItem | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -213,10 +215,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.setTitle(this.title);
 	}
 
-	showChange(index: number): void {
+	showChange(index: number, usePosition: boolean = true): void {
 		const labeledChange = this.model.changes[index];
 		const change = labeledChange.change;
 		this.index = index;
+		const previousVisibleRange = this.diffEditor.getModifiedEditor().getVisibleRanges()[0];
 		this.change = change;
 
 		const originalModel = this.model.original;
@@ -229,13 +232,14 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		// TODO@joao TODO@alex need this setTimeout probably because the
 		// non-side-by-side diff still hasn't created the view zones
-		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
+		onFirstDiffUpdate(() => setTimeout(() => usePosition ? this.revealChange(change) : this.revealLines(previousVisibleRange), 0));
 
 		const diffEditorModel = this.model.getDiffEditorModel(labeledChange.uri.toString());
 		if (!diffEditorModel) {
 			return;
 		}
 		this.diffEditor.setModel(diffEditorModel);
+		this.dropdown?.setSelection(labeledChange.label);
 
 		const position = new Position(getModifiedEndLineNumber(change), 1);
 
@@ -244,27 +248,59 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const editorHeightInLines = Math.floor(editorHeight / lineHeight);
 		const height = Math.min(getChangeHeight(change) + /* padding */ 8, Math.floor(editorHeightInLines / 3));
 
-		this.renderTitle(labeledChange.labels);
+		this.renderTitle(labeledChange.label);
 
 		const changeType = getChangeType(change);
 		const changeTypeColor = getChangeTypeColor(this.themeService.getColorTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
 		this._actionbarWidget!.context = [diffEditorModel.modified.uri, this.model.changes.map(change => change.change), index];
-		this.show(position, height);
+		if (usePosition) {
+			this.show(position, height);
+		}
 		this.editor.focus();
 	}
 
-	private renderTitle(labels: string[]): void {
-		const detail = this.model.changes.length > 1
-			? nls.localize('changes', "{0} - {1} of {2} changes", labels.join(', '), this.index + 1, this.model.changes.length)
-			: nls.localize('change', "{0} - {1} of {2} change", labels.join(', '), this.index + 1, this.model.changes.length);
-
+	private renderTitle(labels: string): void {
+		let detail: string;
+		if (this.model.quickDiffs.length === 1) {
+			detail = this.model.changes.length > 1
+				? nls.localize('changes', "{0} - {1} of {2} changes", labels, this.index + 1, this.model.changes.length)
+				: nls.localize('change', "{0} - {1} of {2} change", labels, this.index + 1, this.model.changes.length);
+		} else {
+			detail = this.model.changes.length > 1
+				? nls.localize('multiChanges', "{0} of {1} changes", this.index + 1, this.model.changes.length)
+				: nls.localize('multiChange', "{0} of {1} change", this.index + 1, this.model.changes.length);
+		}
 		this.setTitle(this.title, detail);
+	}
+
+	private switchQuickDiff(event: unknown) {
+		const newProvider = (event as { provider: string }).provider;
+		if (newProvider === this.model.changes[this.index].label) {
+			return;
+		}
+		let index = this.index < this.model.changes.length - 1 ? this.index + 1 : 0;
+		for (let i = index; i !== this.index; i < this.model.changes.length - 1 ? i++ : i = 0) {
+			if (this.model.changes[i].label === newProvider) {
+				index = i;
+				break;
+			}
+		}
+		this.showChange(index, false);
 	}
 
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
+
+		if (this.model.quickDiffs.length > 1 && this._titleElement) {
+			const dropdownContainer = dom.prepend(this._titleElement, dom.$('.dropdown'));
+			const dropdownLabel = dom.prepend(this._titleElement, dom.$('.dropdown-label'));
+			dropdownLabel.textContent = nls.localize('quickDiffDropdown', "Diff Base");
+			this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffAction((event: unknown) => this.switchQuickDiff(event)),
+				this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this.index].label);
+			this.dropdown.render(dropdownContainer);
+		}
 
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(this.editor), ThemeIcon.asClassName(gotoNextLocation));
@@ -352,6 +388,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}
 
 		this.diffEditor.revealLinesInCenter(start, end, ScrollType.Immediate);
+	}
+
+	private revealLines(range: Range): void {
+		this.diffEditor.revealLinesInCenter(range.startLineNumber, range.endLineNumber, ScrollType.Immediate);
 	}
 
 	private _applyTheme(theme: IColorTheme) {
@@ -622,7 +662,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
-		this.stylesheet = createStyleSheet();
+		this.stylesheet = dom.createStyleSheet();
 		this._register(toDisposable(() => this.stylesheet.remove()));
 
 		if (this.enabled) {
@@ -1110,7 +1150,7 @@ export async function getOriginalResource(quickDiffService: IQuickDiffService, u
 	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }
 
-type LabeledChange = { change: IChange; labels: string[]; uri: URI };
+type LabeledChange = { change: IChange; label: string; uri: URI };
 
 export class DirtyDiffModel extends Disposable {
 
@@ -1166,6 +1206,10 @@ export class DirtyDiffModel extends Disposable {
 		}));
 
 		this.triggerDiff();
+	}
+
+	get quickDiffs(): readonly QuickDiff[] {
+		return this._quickDiffs;
 	}
 
 	public getDiffEditorModel(originalUri: string): IDiffEditorModel | undefined {
@@ -1243,32 +1287,19 @@ export class DirtyDiffModel extends Disposable {
 				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 				: ignoreTrimWhitespaceSetting !== 'false';
 
-			const allDiffs: { change: IChange; labels: string[]; uri: URI }[] = [];
+			const allDiffs: LabeledChange[] = [];
 			for (const quickDiff of filteredToDiffable) {
 				const dirtyDiff = await this.editorWorkerService.computeDirtyDiff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
 				if (dirtyDiff) {
 					for (const diff of dirtyDiff) {
 						if (diff) {
-							allDiffs.push({ change: diff, labels: [quickDiff.label], uri: quickDiff.originalResource });
+							allDiffs.push({ change: diff, label: quickDiff.label, uri: quickDiff.originalResource });
 						}
 					}
 				}
 			}
 			const sorted = allDiffs.sort((a, b) => compareChanges(a.change, b.change));
-			const reduced = [];
-			for (const diff of sorted) {
-				if (reduced.length === 0) {
-					reduced.push(diff);
-				} else {
-					const comparedChanges = compareChanges(reduced[reduced.length - 1].change, diff.change);
-					if (comparedChanges === 0) {
-						reduced[reduced.length - 1].labels.push(...diff.labels);
-					} else {
-						reduced.push(diff);
-					}
-				}
-			}
-			return reduced;
+			return sorted;
 		});
 	}
 
@@ -1422,7 +1453,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
-		this.stylesheet = createStyleSheet();
+		this.stylesheet = dom.createStyleSheet();
 		this._register(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
