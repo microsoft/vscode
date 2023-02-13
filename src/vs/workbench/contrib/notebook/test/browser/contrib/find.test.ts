@@ -277,9 +277,23 @@ suite('Notebook Find', () => {
 				mdModel.contentMatches.push(new FindMatch(new Range(1, 1, 1, 2), []));
 				assert.strictEqual(mdModel.length, 1);
 				mdModel.webviewMatches.push({
-					index: 0
+					index: 0,
+					searchPreviewInfo: {
+						line: '',
+						range: {
+							start: 0,
+							end: 0,
+						}
+					}
 				}, {
-					index: 1
+					index: 1,
+					searchPreviewInfo: {
+						line: '',
+						range: {
+							start: 0,
+							end: 0,
+						}
+					}
 				});
 
 				assert.strictEqual(mdModel.length, 3);

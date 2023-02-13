@@ -16,7 +16,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { SearchModel } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -25,6 +25,10 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { isWindows } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -75,14 +79,11 @@ suite('SearchModel', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => '' });
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
 		instantiationService.stub(ISearchService, {});
 		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stub(ILogService, new NullLogService());
-
-		const config = new TestConfigurationService();
-		config.setUserConfiguration('search', { searchOnType: true });
-		instantiationService.stub(IConfigurationService, config);
 	});
 
 	teardown(() => {
@@ -171,9 +172,8 @@ suite('SearchModel', () => {
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 
 		assert.ok(target.calledThrice);
-		const data = target.args[2];
-		data[1].duration = -1;
-		assert.deepStrictEqual(['searchResultsFirstRender', { duration: -1 }], data);
+		assert.ok(target.calledWith('searchResultsFirstRender'));
+		assert.ok(target.calledWith('searchResultsFinished'));
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
@@ -355,9 +355,16 @@ suite('SearchModel', () => {
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		instantiationService.stub(IConfigurationService, config);
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 
 });
