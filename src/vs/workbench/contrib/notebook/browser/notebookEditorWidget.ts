@@ -125,6 +125,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
 	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
+	private readonly _onWillChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
+	readonly onWillChangeModel: Event<NotebookTextModel | undefined> = this._onWillChangeModel.event;
 	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
@@ -157,7 +159,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
-
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -209,6 +210,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
+		this._onWillChangeModel.fire(this._notebookViewModel?.notebookDocument);
 		this._notebookViewModel = newModel;
 		this._onDidChangeModel.fire(newModel?.notebookDocument);
 	}
@@ -2462,7 +2464,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	async highlightFind(cell: CodeCellViewModel, matchIndex: number): Promise<number> {
+	async highlightFind(matchIndex: number): Promise<number> {
 		if (!this._webview) {
 			return 0;
 		}

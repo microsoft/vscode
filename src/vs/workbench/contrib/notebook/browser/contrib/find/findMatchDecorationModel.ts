@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable } from 'vs/base/common/lifecycle';
-import { FindMatch, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
+import { Range } from 'vs/editor/common/core/range';
 import { overviewRulerSelectionHighlightForeground, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor, NotebookOverviewRulerLane, } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor, NotebookOverviewRulerLane, } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export class FindMatchDecorationModel extends Disposable {
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
@@ -25,65 +26,72 @@ export class FindMatchDecorationModel extends Disposable {
 		return this._currentMatchDecorations;
 	}
 
-	public async highlightCurrentFindMatchDecoration(cell: ICellViewModel, match: FindMatch | CellWebviewFindMatch): Promise<number | null> {
+	public clearDecorations() {
+		this.clearCurrentFindMatchDecoration();
+		this.setAllFindMatchesDecorations([]);
+	}
 
-		if (match instanceof FindMatch) {
-			this.clearCurrentFindMatchDecoration();
 
-			// match is an editor FindMatch, we update find match decoration in the editor
-			// we will highlight the match in the webview
-			this._notebookEditor.changeModelDecorations(accessor => {
-				const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
+	public async highlightCurrentFindMatchDecorationInCell(cell: ICellViewModel, cellRange: Range): Promise<number | null> {
 
-				const decorations: IModelDeltaDecoration[] = [
-					{ range: match.range, options: findMatchesOptions }
-				];
-				const deltaDecoration: ICellModelDeltaDecorations = {
-					ownerId: cell.handle,
-					decorations: decorations
-				};
+		this.clearCurrentFindMatchDecoration();
 
-				this._currentMatchDecorations = {
-					kind: 'input',
-					decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [deltaDecoration])
-				};
-			});
+		// match is an editor FindMatch, we update find match decoration in the editor
+		// we will highlight the match in the webview
+		this._notebookEditor.changeModelDecorations(accessor => {
+			const findMatchesOptions: ModelDecorationOptions = FindDecorations._CURRENT_FIND_MATCH_DECORATION;
 
-			this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
+			const decorations: IModelDeltaDecoration[] = [
+				{ range: cellRange, options: findMatchesOptions }
+			];
+			const deltaDecoration: ICellModelDeltaDecorations = {
 				ownerId: cell.handle,
-				handle: cell.handle,
-				options: {
-					overviewRuler: {
-						color: overviewRulerSelectionHighlightForeground,
-						modelRanges: [match.range],
-						includeOutput: false,
-						position: NotebookOverviewRulerLane.Center
-					}
+				decorations: decorations
+			};
+
+			this._currentMatchDecorations = {
+				kind: 'input',
+				decorations: accessor.deltaDecorations(this._currentMatchDecorations?.kind === 'input' ? this._currentMatchDecorations.decorations : [], [deltaDecoration])
+			};
+		});
+
+		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
+			ownerId: cell.handle,
+			handle: cell.handle,
+			options: {
+				overviewRuler: {
+					color: overviewRulerSelectionHighlightForeground,
+					modelRanges: [cellRange],
+					includeOutput: false,
+					position: NotebookOverviewRulerLane.Center
 				}
-			} as INotebookDeltaDecoration]);
+			}
+		} as INotebookDeltaDecoration]);
 
-			return null;
-		} else {
-			this.clearCurrentFindMatchDecoration();
+		return null;
+	}
 
-			const offset = await this._notebookEditor.highlightFind(cell, match.index);
-			this._currentMatchDecorations = { kind: 'output', index: match.index };
+	public async highlightCurrentFindMatchDecorationInWebview(cell: ICellViewModel, index: number): Promise<number | null> {
 
-			this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
-				ownerId: cell.handle,
-				handle: cell.handle,
-				options: {
-					overviewRuler: {
-						color: overviewRulerSelectionHighlightForeground,
-						modelRanges: [],
-						includeOutput: true,
-						position: NotebookOverviewRulerLane.Center
-					}
+		this.clearCurrentFindMatchDecoration();
+
+		const offset = await this._notebookEditor.highlightFind(index);
+		this._currentMatchDecorations = { kind: 'output', index: index };
+
+		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, [{
+			ownerId: cell.handle,
+			handle: cell.handle,
+			options: {
+				overviewRuler: {
+					color: overviewRulerSelectionHighlightForeground,
+					modelRanges: [],
+					includeOutput: true,
+					position: NotebookOverviewRulerLane.Center
 				}
-			} as INotebookDeltaDecoration]);
+			}
+		} as INotebookDeltaDecoration]);
 
-			return offset;
-		}
+		return offset;
 	}
 
 	public clearCurrentFindMatchDecoration() {
