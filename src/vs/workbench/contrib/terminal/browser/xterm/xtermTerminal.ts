@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, IDecoration, ITheme, Terminal as RawXtermTerminal } from 'xterm';
 import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
@@ -40,6 +40,7 @@ import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/sugges
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isLinux } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { timeout } from 'vs/base/common/async';
 
 const enum RenderConstants {
 	/**
@@ -202,6 +203,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
+		(window as any).term = this;
 		this.target = location;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
@@ -761,6 +763,106 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
+	}
+
+	beforeCustomKeyEventHandler(): boolean {
+		return !this._viewZone;
+	}
+
+	private _viewZone: IDecoration | undefined;
+
+	/**
+	 * Inserts a view zone into the terminal just below the cursor. A view zone allows inserting
+	 * arbitrary content into the terminal by making space in the actual buffer. When the view zone
+	 * is removed, the space made in the buffer behind the view zone remains, this will typically be
+	 * harmless and will lead to a more consistent experience.
+	 */
+	async insertViewZone(): Promise<IDecoration | undefined> {
+		// TODO: Track an element an react to the size changing
+		let lines = 1;
+		// TODO: max lines
+		// TODO: resize
+		// TODO: input
+
+		// Save cursor, cursor next line, force new line, insert new line, restore cursor
+		await new Promise<void>(r => this.raw.write('\x1b[s\x1b[1E\n\x1b[L\x1b[u', r));
+
+		const marker = this.raw.registerMarker(1)!; // Should always succeed
+		this._viewZone = this.raw.registerDecoration({
+			marker,
+			width: this.raw.cols
+		});
+		if (!this._viewZone) {
+			throw new Error('Decoration couldn\'t be registered');
+		}
+		let initialized = false;
+		this._viewZone.onRender((e: HTMLElement) => {
+			if (!initialized) {
+				initialized = true;
+				e.style.background = '#3C3D3B';
+				e.style.color = '#fff';
+				e.classList.add('xterm-view-zone');
+				const message = document.createElement('div');
+				message.style.fontFamily = 'Hack';
+				const input = document.createElement('input');
+				input.type = 'text';
+				input.placeholder = 'Ask me anything...';
+				input.style.background = 'transparent';
+				// Prevent the main textarea from stealing focus
+				e.addEventListener('mousedown', (e: MouseEvent) => e.stopImmediatePropagation());
+				e.addEventListener('keydown', (e: KeyboardEvent) => {
+					switch (e.key) {
+						case 'Enter':
+							if ((message.textContent?.length ?? 0) > 0 && input.value === '') {
+								// TODO: Call into term instance run command
+								this._core._onData.fire('git log --grep="fix"\r');
+								this._viewZone?.dispose();
+								this._viewZone = undefined;
+								this.raw.focus();
+								return;
+							}
+							input.value = '';
+							// Simulate network
+							setTimeout(() => {
+								input.placeholder = 'Press enter to run or type to clarify...';
+								message.textContent += ((message.textContent?.length ?? 0) > 0 ? '\n' : '') + 'git log --grep="fix"';
+							}, 300);
+							break;
+						case 'Escape':
+							this._viewZone?.dispose();
+							this._viewZone = undefined;
+							this.raw.focus();
+							break;
+					}
+				});
+
+				const resizeObserver = new ResizeObserver(entries => {
+					console.log('resize!', entries);
+					if (entries.length === 0) {
+						return;
+					}
+					const entry = entries[0];
+					const lineHeight = parseInt(e.style.lineHeight.replace('px', ''));
+					const availableHeight = lineHeight * lines;
+					if (availableHeight < entry.contentRect.height) {
+						// TODO: .
+						const newLines = lines + Math.ceil((entry.contentRect.height - availableHeight) / lineHeight);
+						for (let i = lines; i < newLines; i++) {
+							this.raw.write(`\x1b[s\x1b[${i}E\n\x1b[L\x1b[u`);
+						}
+						lines = newLines;
+
+						// console.log('make some room!', linesToAdd);
+					}
+				});
+				resizeObserver.observe(e);
+				console.log('e', e);
+
+				e.append(message, input);
+				input.focus();
+			}
+		});
+		return this._viewZone;
 	}
 }
 

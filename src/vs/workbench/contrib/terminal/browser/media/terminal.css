@@ -582,3 +582,14 @@
 	text-decoration: underline;
 	outline-color: var(--vscode-focusBorder);
 }
+
+.monaco-workbench .xterm-view-zone {
+	/* Force height to be based on the content */
+	height: auto !important;
+	padding: 2px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .xterm-view-zone {
+	background: transparent;
+}
