@@ -11,7 +11,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';

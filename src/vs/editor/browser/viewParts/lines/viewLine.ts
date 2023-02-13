@@ -17,6 +17,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
 import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -43,48 +44,6 @@ const canUseFastRenderedViewLine = (function () {
 })();
 
 let monospaceAssumptionsAreValid = true;
-
-export class DomReadingContext {
-
-	private readonly _domNode: HTMLElement;
-	private _clientRectDeltaLeft: number;
-	private _clientRectScale: number;
-	private _clientRectRead: boolean;
-
-	private readClientRect(): void {
-		if (!this._clientRectRead) {
-			this._clientRectRead = true;
-			const rect = this._domNode.getBoundingClientRect();
-			this._clientRectDeltaLeft = rect.left;
-			this._clientRectScale = rect.width / this._domNode.offsetWidth;
-		}
-	}
-
-	public get clientRectDeltaLeft(): number {
-		if (!this._clientRectRead) {
-			this.readClientRect();
-		}
-		return this._clientRectDeltaLeft;
-	}
-
-	public get clientRectScale(): number {
-		if (!this._clientRectRead) {
-			this.readClientRect();
-		}
-		return this._clientRectScale;
-	}
-
-	public readonly endNode: HTMLElement;
-
-	constructor(domNode: HTMLElement, endNode: HTMLElement) {
-		this._domNode = domNode;
-		this._clientRectDeltaLeft = 0;
-		this._clientRectScale = 1;
-		this._clientRectRead = false;
-		this.endNode = endNode;
-	}
-
-}
 
 export class ViewLineOptions {
 	public readonly themeType: ColorScheme;
@@ -305,11 +264,11 @@ export class ViewLine implements IVisibleLine {
 
 	// --- end IVisibleLineData
 
-	public getWidth(): number {
+	public getWidth(context: DomReadingContext | null): number {
 		if (!this._renderedViewLine) {
 			return 0;
 		}
-		return this._renderedViewLine.getWidth();
+		return this._renderedViewLine.getWidth(context);
 	}
 
 	public getWidthIsFast(): boolean {
@@ -354,7 +313,7 @@ export class ViewLine implements IVisibleLine {
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1 && endColumn > stopRenderingLineAfter + 1) {
 			// This range is obviously not visible
-			return new VisibleRanges(true, [new FloatHorizontalRange(this.getWidth(), 0)]);
+			return new VisibleRanges(true, [new FloatHorizontalRange(this.getWidth(context), 0)]);
 		}
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter + 1) {
@@ -384,7 +343,7 @@ export class ViewLine implements IVisibleLine {
 interface IRenderedViewLine {
 	domNode: FastDomNode<HTMLElement> | null;
 	readonly input: RenderLineInput;
-	getWidth(): number;
+	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
 	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
@@ -431,13 +390,14 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		this._charWidth = renderLineInput.spaceWidth;
 	}
 
-	public getWidth(): number {
+	public getWidth(context: DomReadingContext | null): number {
 		if (!this.domNode || this.input.lineContent.length < Constants.MaxMonospaceDistance) {
 			const horizontalOffset = this._characterMapping.getHorizontalOffset(this._characterMapping.length);
 			return Math.round(this._charWidth * horizontalOffset);
 		}
 		if (this._cachedWidth === -1) {
 			this._cachedWidth = this._getReadingTarget(this.domNode).offsetWidth;
+			context?.markDidDomLayout();
 		}
 		return this._cachedWidth;
 	}
@@ -451,7 +411,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 			return monospaceAssumptionsAreValid;
 		}
 		if (this.input.lineContent.length < Constants.MaxMonospaceDistance) {
-			const expectedWidth = this.getWidth();
+			const expectedWidth = this.getWidth(null);
 			const actualWidth = (<HTMLSpanElement>this.domNode.domNode.firstChild).offsetWidth;
 			if (Math.abs(expectedWidth - actualWidth) >= 2) {
 				// more than 2px off
@@ -509,7 +469,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 			return -1;
 		}
 		const domPosition = this._characterMapping.getDomPosition(column);
-		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(this.domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
+		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(this.domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {
 			return -1;
 		}
@@ -573,12 +533,13 @@ class RenderedViewLine implements IRenderedViewLine {
 	/**
 	 * Width of the line in pixels
 	 */
-	public getWidth(): number {
+	public getWidth(context: DomReadingContext | null): number {
 		if (!this.domNode) {
 			return 0;
 		}
 		if (this._cachedWidth === -1) {
 			this._cachedWidth = this._getReadingTarget(this.domNode).offsetWidth;
+			context?.markDidDomLayout();
 		}
 		return this._cachedWidth;
 	}
@@ -641,11 +602,12 @@ class RenderedViewLine implements IRenderedViewLine {
 			}
 			if (this._containsForeignElements === ForeignElementType.Before) {
 				// We have foreign elements before the (empty) line
-				return this.getWidth();
+				return this.getWidth(context);
 			}
 			// We have foreign elements before & after the (empty) line
 			const readingTarget = this._getReadingTarget(domNode);
 			if (readingTarget.firstChild) {
+				context.markDidDomLayout();
 				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth;
 			} else {
 				return 0;
@@ -671,7 +633,7 @@ class RenderedViewLine implements IRenderedViewLine {
 	private _actualReadPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
 		if (this._characterMapping.length === 0) {
 			// This line has no content
-			const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), 0, 0, 0, 0, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
+			const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), 0, 0, 0, 0, context);
 			if (!r || r.length === 0) {
 				return -1;
 			}
@@ -680,12 +642,12 @@ class RenderedViewLine implements IRenderedViewLine {
 
 		if (column === this._characterMapping.length && this._isWhitespaceOnly && this._containsForeignElements === ForeignElementType.None) {
 			// This branch helps in the case of whitespace only lines which have a width set
-			return this.getWidth();
+			return this.getWidth(context);
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
 
-		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
+		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {
 			return -1;
 		}
@@ -705,13 +667,13 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (startColumn === 1 && endColumn === this._characterMapping.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
 
-			return [new FloatHorizontalRange(0, this.getWidth())];
+			return [new FloatHorizontalRange(0, this.getWidth(context))];
 		}
 
 		const startDomPosition = this._characterMapping.getDomPosition(startColumn);
 		const endDomPosition = this._characterMapping.getDomPosition(endColumn);
 
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startDomPosition.partIndex, startDomPosition.charIndex, endDomPosition.partIndex, endDomPosition.charIndex, context.clientRectDeltaLeft, context.clientRectScale, context.endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startDomPosition.partIndex, startDomPosition.charIndex, endDomPosition.partIndex, endDomPosition.charIndex, context);
 	}
 
 	/**
