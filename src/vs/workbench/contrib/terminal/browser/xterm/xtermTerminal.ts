@@ -800,7 +800,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			if (!initialized) {
 				initialized = true;
 				e.style.background = '#3C3D3B';
-				e.style.color = '#fff';
+				e.style.fontFamily = 'Hack';
 				e.classList.add('xterm-view-zone');
 				const message = document.createElement('div');
 				message.style.fontFamily = 'Hack';
@@ -810,24 +810,32 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				input.style.background = 'transparent';
 				// Prevent the main textarea from stealing focus
 				e.addEventListener('mousedown', (e: MouseEvent) => e.stopImmediatePropagation());
-				e.addEventListener('keydown', (e: KeyboardEvent) => {
+				e.addEventListener('keydown', async (e: KeyboardEvent) => {
 					switch (e.key) {
-						case 'Enter':
+						case 'Enter': {
 							if ((message.textContent?.length ?? 0) > 0 && input.value === '') {
 								// TODO: Call into term instance run command
-								this._core._onData.fire('git log --grep="fix"\r');
+								this._core._onData.fire(`${message.textContent}\r`);
+								// HACK: Need to prevent the last enter from being executed somehow
+								await timeout(100);
 								this._viewZone?.dispose();
 								this._viewZone = undefined;
 								this.raw.focus();
 								return;
 							}
+							const value = input.value;
 							input.value = '';
 							// Simulate network
 							setTimeout(() => {
 								input.placeholder = 'Press enter to run or type to clarify...';
-								message.textContent += ((message.textContent?.length ?? 0) > 0 ? '\n' : '') + 'git log --grep="fix"';
+								if (value === 'echo') {
+									message.textContent = 'echo abc';
+								} else {
+									message.textContent += ((message.textContent?.length ?? 0) > 0 ? '\n' : '') + 'git log --grep="fix"';
+								}
 							}, 300);
 							break;
+						}
 						case 'Escape':
 							this._viewZone?.dispose();
 							this._viewZone = undefined;

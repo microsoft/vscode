@@ -597,6 +597,8 @@
 	opacity: 1;
 	color: var(--vscode-input-foreground);
 	outline: none;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .xterm-view-zone input::placeholder {
