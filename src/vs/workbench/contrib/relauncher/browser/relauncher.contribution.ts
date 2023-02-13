@@ -28,7 +28,6 @@ interface IConfiguration extends IWindowsConfiguration {
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
 	workbench?: { enableExperiments?: boolean };
-	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
 
@@ -38,7 +37,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.titleBarStyle',
 		'window.experimental.windowControlsOverlay.enabled',
 		'window.experimental.useSandbox',
-		'extensions.experimental.useUtilityProcess',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -52,7 +50,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
-	private readonly extensionHostUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -97,9 +94,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
-
-			// Extension Host: Utility Process
-			processChanged(this.extensionHostUtilityProcessEnabled.handleChange(config.extensions?.experimental?.useUtilityProcess));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
