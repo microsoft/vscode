@@ -118,10 +118,10 @@ export class ReplaceService implements IReplaceService {
 				if (notebookResource) {
 					// todo: find whether there is a common API for saving notebooks and text files
 					const ref = await this.notebookEditorModelResolverService.resolve(notebookResource);
-					return ref.object.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
-				} else {
-					return;
+					await ref.object.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
+					ref.dispose();
 				}
+				return;
 			} else {
 				return this.textFileService.files.get(e.resource)?.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
 			}
