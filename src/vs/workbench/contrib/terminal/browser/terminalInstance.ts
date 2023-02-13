@@ -196,6 +196,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
 	private _icon: TerminalIcon | undefined;
+	private _editorTabFocus: boolean | undefined;
+	private _terminalTabFocus: boolean | undefined;
 	private _messageTitleDisposable: IDisposable | undefined;
 	private _widgetManager: TerminalWidgetManager = new TerminalWidgetManager();
 	private _linkManager: TerminalLinkManager | undefined;
@@ -475,12 +477,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		const viewKey = new Set<string>();
 		viewKey.add('focusedView');
-		this._register(this.onDidFocus(() => TabFocus.setTabFocusMode(this._configurationService.getValue(TerminalSettingId.TabFocusMode))));
+		TabFocus.onDidChangeTabFocus(tabFocus => {
+			if (contextKeyService.getContextKeyValue('focusedView') !== 'terminal') {
+				this._editorTabFocus = tabFocus;
+			} else {
+				this._terminalTabFocus = tabFocus;
+			}
+		});
 		this._register(contextKeyService.onDidChangeContext((c) => {
 			if (c.affectsSome(viewKey)) {
-				const view = contextKeyService.getContextKeyValue('focusedView');
-				if (view !== 'terminal') {
-					TabFocus.setTabFocusMode(this._configurationService.getValue('editor.tabFocusMode'));
+				if (contextKeyService.getContextKeyValue('focusedView') !== 'terminal') {
+					this._terminalTabFocus = TabFocus.getTabFocusMode();
+					TabFocus.setTabFocusMode(this._editorTabFocus ?? this._configurationService.getValue('editor.tabFocusMode'));
+				} else {
+					this._editorTabFocus = TabFocus.getTabFocusMode();
+					TabFocus.setTabFocusMode(this._terminalTabFocus ?? this._configurationService.getValue(TerminalSettingId.TabFocusMode));
 				}
 			}
 		}));
@@ -570,6 +581,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
+			} else if (e.affectsConfiguration('editor.tabFocusMode')) {
+				this._editorTabFocus = undefined;
+			} else if (e.affectsConfiguration(TerminalSettingId.TabFocusMode)) {
+				this._terminalTabFocus = undefined;
 			}
 			const layoutSettings: string[] = [
 				TerminalSettingId.FontSize,
