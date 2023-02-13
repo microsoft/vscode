@@ -562,9 +562,9 @@ class ResourceLabelWidget extends IconLabel {
 				this.computedPathLabel = this.labelService.getUriLabel(resource);
 			}
 
-			if (iconLabelOptions.title === undefined || (typeof iconLabelOptions.title === 'string')) {
+			if (!iconLabelOptions.title || (typeof iconLabelOptions.title === 'string')) {
 				iconLabelOptions.title = this.computedPathLabel;
-			} else if (iconLabelOptions.title && !iconLabelOptions.title.markdownNotSupportedFallback) {
+			} else if (!iconLabelOptions.title.markdownNotSupportedFallback) {
 				iconLabelOptions.title.markdownNotSupportedFallback = this.computedPathLabel;
 			}
 		}
