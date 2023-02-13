@@ -255,7 +255,6 @@
 							"url",
 							"util",
 							"v8-inspect-profiler",
-							"vscode-policy-watcher",
 							"vscode-proxy-agent",
 							"vscode-regexpp",
 							"vscode-textmate",
