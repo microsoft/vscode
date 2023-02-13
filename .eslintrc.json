@@ -227,6 +227,7 @@
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
+							"@vscode/policy-watcher",
 							"assert",
 							"child_process",
 							"console",
