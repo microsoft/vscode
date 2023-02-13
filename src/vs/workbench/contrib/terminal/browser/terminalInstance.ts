@@ -478,20 +478,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const viewKey = new Set<string>();
 		viewKey.add('focusedView');
 		TabFocus.onDidChangeTabFocus(tabFocus => {
-			if (contextKeyService.getContextKeyValue('focusedView') !== 'terminal') {
-				this._editorTabFocus = tabFocus;
-			} else {
+			if (contextKeyService.getContextKeyValue('focusedView') === 'terminal') {
 				this._terminalTabFocus = tabFocus;
+			} else {
+				this._editorTabFocus = tabFocus;
 			}
 		});
 		this._register(contextKeyService.onDidChangeContext((c) => {
 			if (c.affectsSome(viewKey)) {
-				if (contextKeyService.getContextKeyValue('focusedView') !== 'terminal') {
-					this._terminalTabFocus = TabFocus.getTabFocusMode();
-					TabFocus.setTabFocusMode(this._editorTabFocus ?? this._configurationService.getValue('editor.tabFocusMode'));
-				} else {
+				if (contextKeyService.getContextKeyValue('focusedView') === 'terminal') {
 					this._editorTabFocus = TabFocus.getTabFocusMode();
 					TabFocus.setTabFocusMode(this._terminalTabFocus ?? this._configurationService.getValue(TerminalSettingId.TabFocusMode));
+				} else {
+					this._terminalTabFocus = TabFocus.getTabFocusMode();
+					TabFocus.setTabFocusMode(this._editorTabFocus ?? this._configurationService.getValue('editor.tabFocusMode'));
 				}
 			}
 		}));
