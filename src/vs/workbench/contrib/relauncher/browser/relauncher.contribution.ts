@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
+	files?: { experimental?: { watcherUseUtilityProcess?: boolean } };
 	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
@@ -39,6 +40,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.experimental.windowControlsOverlay.enabled',
 		'window.experimental.useSandbox',
 		'extensions.experimental.useUtilityProcess',
+		'files.experimental.watcherUseUtilityProcess',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -53,6 +55,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
 	private readonly extensionHostUtilityProcessEnabled = new ChangeObserver('boolean');
+	private readonly fileWatcherUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -100,6 +103,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Extension Host: Utility Process
 			processChanged(this.extensionHostUtilityProcessEnabled.handleChange(config.extensions?.experimental?.useUtilityProcess));
+
+			// File Watcher: Utility Process
+			processChanged(this.fileWatcherUtilityProcessEnabled.handleChange(config.files?.experimental?.watcherUseUtilityProcess));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
