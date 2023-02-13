@@ -319,6 +319,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
 		this._register(TabFocus.onDidChangeTabFocus(() => this.onTabFocusModeChange()));
+		this.onTabFocusModeChange();
 	}
 
 	private registerCommands(): void {
