@@ -10,25 +10,32 @@ import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateReadonlyService, IStateService } from 'vs/platform/state/node/state';
 
 type StorageDatabase = { [key: string]: unknown };
+
+export const enum SaveStrategy {
+	IMMEDIATE,
+	DELAYED
+}
 
 export class FileStorage {
 
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
 
-	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
+	private readonly flushDelayer: ThrottledDelayer<void>;
 
 	private initializing: Promise<void> | undefined = undefined;
 	private closing: Promise<void> | undefined = undefined;
 
 	constructor(
 		private readonly storagePath: URI,
+		saveStrategy: SaveStrategy,
 		private readonly logService: ILogService,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
 	) {
+		this.flushDelayer = new ThrottledDelayer<void>(saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */);
 	}
 
 	init(): Promise<void> {
@@ -144,18 +151,19 @@ export class FileStorage {
 	}
 }
 
-export class StateService implements IStateService {
+export class StateReadonlyService implements IStateReadonlyService {
 
 	declare readonly _serviceBrand: undefined;
 
 	protected readonly fileStorage: FileStorage;
 
 	constructor(
+		saveStrategy: SaveStrategy,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService
 	) {
-		this.fileStorage = new FileStorage(environmentService.stateResource, logService, fileService);
+		this.fileStorage = new FileStorage(environmentService.stateResource, saveStrategy, logService, fileService);
 	}
 
 	async init(): Promise<void> {
@@ -166,5 +174,26 @@ export class StateService implements IStateService {
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 	getItem<T>(key: string, defaultValue?: T): T | undefined {
 		return this.fileStorage.getItem(key, defaultValue);
+	}
+}
+
+export class StateService extends StateReadonlyService implements IStateService {
+
+	declare readonly _serviceBrand: undefined;
+
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
+		this.fileStorage.setItem(key, data);
+	}
+
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void {
+		this.fileStorage.setItems(items);
+	}
+
+	removeItem(key: string): void {
+		this.fileStorage.removeItem(key);
+	}
+
+	close(): Promise<void> {
+		return this.fileStorage.close();
 	}
 }

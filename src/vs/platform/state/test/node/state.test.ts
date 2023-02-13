@@ -15,9 +15,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { FileStorage } from 'vs/platform/state/node/stateService';
+import { FileStorage, SaveStrategy } from 'vs/platform/state/node/stateService';
 
-flakySuite('StateMainService', () => {
+flakySuite('StateService', () => {
 
 	let testDir: string;
 	let fileService: IFileService;
@@ -47,7 +47,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), logService, fileService);
+		let service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 		await service.init();
 
 		service.setItem('some.key', 'some.value');
@@ -62,7 +62,7 @@ flakySuite('StateMainService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), logService, fileService);
+		service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
@@ -109,7 +109,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), logService, fileService);
+		let service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 		await service.init();
 
 		service.setItem('some.key1', 'some.value1');
@@ -125,7 +125,7 @@ flakySuite('StateMainService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), logService, fileService);
+		service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
@@ -138,7 +138,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
@@ -163,7 +163,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 
 		await service.init();
 
@@ -187,7 +187,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');

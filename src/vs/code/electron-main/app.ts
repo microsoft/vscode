@@ -65,7 +65,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
@@ -131,7 +131,7 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -528,7 +528,7 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await resolveMachineId(this.stateMainService);
+		const machineId = await resolveMachineId(this.stateService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
@@ -920,7 +920,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateMainService);
+		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
 
 		// Workspaces

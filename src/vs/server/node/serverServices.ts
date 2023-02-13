@@ -123,14 +123,19 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const uriIdentityService = new UriIdentityService(fileService);
 	services.set(IUriIdentityService, uriIdentityService);
 
+	// Configuration
+	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
+	services.set(IConfigurationService, configurationService);
+
 	// User Data Profiles
 	const userDataProfilesService = new ServerUserDataProfilesService(uriIdentityService, environmentService, fileService, logService);
 	services.set(IUserDataProfilesService, userDataProfilesService);
 
-	// Configuration
-	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
-	services.set(IConfigurationService, configurationService);
-	await configurationService.initialize();
+	// Initialize
+	await Promise.all([
+		configurationService.initialize(),
+		userDataProfilesService.init()
+	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);

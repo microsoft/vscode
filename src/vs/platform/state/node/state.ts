@@ -5,13 +5,25 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IStateService = createDecorator<IStateService>('stateService');
-
-export interface IStateService {
+export const IStateReadonlyService = createDecorator<IStateReadonlyService>('IStateReadonlyService');
+export interface IStateReadonlyService {
 
 	readonly _serviceBrand: undefined;
 
 	getItem<T>(key: string, defaultValue: T): T;
 	getItem<T>(key: string, defaultValue?: T): T | undefined;
 
+}
+
+export const IStateService = createDecorator<IStateService>('stateService');
+export interface IStateService extends IStateReadonlyService {
+
+	readonly _serviceBrand: undefined;
+
+	setItem(key: string, data?: object | string | number | boolean | undefined | null): void;
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void;
+
+	removeItem(key: string): void;
+
+	close(): Promise<void>;
 }
