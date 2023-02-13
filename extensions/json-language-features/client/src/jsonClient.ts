@@ -36,6 +36,9 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+namespace DocumentSortingRequest {
+	export const type: RequestType<string, TextEdit[], any> = new RequestType('json/sort');
+}
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -144,6 +147,32 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
+	}));
+
+	toDispose.push(commands.registerCommand('json.sort', async () => {
+
+		// const params: DocumentSortingParams = {
+		//	textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+		//	range: client.code2ProtocolConverter.asRange(range),
+		//	options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
+		//};
+
+		if (isClientReady) {
+			console.log('Before send request');
+			// const params = undefined;
+			// const activeDocUri = window.activeTextEditor.document.uri.toString();
+			const document = window.activeTextEditor?.document;
+			if (document) {
+				await client.sendRequest(DocumentSortingRequest.type, document.uri.toString()).then((textEdits) => {
+					const convertedTextEdits = client.protocol2CodeConverter.asTextEdits(textEdits);
+					console.log('convertedTextEdits : ', convertedTextEdits);
+					// (error) => {
+					//	client.handleFailedRequest(DocumentSortingRequest.type, undefined, error, []);
+					//	return Promise.resolve([]);
+					// }
+				});
+			}
+		}
 	}));
 
 	// Options to control the language client

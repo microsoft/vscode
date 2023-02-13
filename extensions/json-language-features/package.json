@@ -149,6 +149,11 @@
         "command": "json.clearCache",
         "title": "%json.command.clearCache%",
         "category": "JSON"
+      },
+      {
+        "command": "json.sort",
+        "title": "%json.command.sort%",
+        "category": "JSON"
       }
     ]
   },
