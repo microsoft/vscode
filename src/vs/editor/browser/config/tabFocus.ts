@@ -16,13 +16,11 @@ class TabFocusImpl {
 	}
 
 	public setTabFocusMode(tabFocusMode: boolean): void {
-		console.log('focus mode is ', tabFocusMode);
 		if (this._tabFocus === tabFocusMode) {
 			return;
 		}
 
 		this._tabFocus = tabFocusMode;
-		console.log('changed tab focus mode', this._tabFocus);
 		this._onDidChangeTabFocus.fire(this._tabFocus);
 	}
 }
