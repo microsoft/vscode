@@ -837,7 +837,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 				});
 
 				const resizeObserver = new ResizeObserver(entries => {
-					console.log('resize!', entries);
 					if (entries.length === 0) {
 						return;
 					}
@@ -851,12 +850,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 							this.raw.write(`\x1b[s\x1b[${i}E\n\x1b[L\x1b[u`);
 						}
 						lines = newLines;
-
-						// console.log('make some room!', linesToAdd);
 					}
 				});
 				resizeObserver.observe(e);
-				console.log('e', e);
 
 				e.append(message, input);
 				input.focus();

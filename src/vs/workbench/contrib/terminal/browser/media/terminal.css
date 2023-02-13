@@ -588,8 +588,17 @@
 	height: auto !important;
 	padding: 2px;
 	box-sizing: border-box;
+	border: 1px solid var(--vscode-panelInput-border, transparent);
 }
 
-.monaco-workbench .xterm-view-zone {
+.monaco-workbench .xterm-view-zone input {
 	background: transparent;
+	border-color: var(--vscode-focusBorder);
+	opacity: 1;
+	color: var(--vscode-input-foreground);
+	outline: none;
+}
+
+.monaco-workbench .xterm-view-zone input::placeholder {
+	color: var(--input-placeholder-foreground);
 }
