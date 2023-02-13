@@ -482,7 +482,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
-		this._extensionScanner.startScanningExtensions();
+		this._extensionScanner.getExtensions(); // Don't wait for this, just start the scanning.
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
 
