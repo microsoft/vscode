@@ -22,7 +22,7 @@ import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, is
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
@@ -42,6 +42,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -594,19 +595,50 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
+	private _activateAllStartupFinishedDeferred(extensions: Readonly<IRelaxedExtensionDescription>[], start: number = 0): void {
+		const timeBudget = 50; // 50 milliseconds
+		const startTime = Date.now();
+
+		setTimeout0(() => {
+			for (let i = start; i < extensions.length; i += 1) {
+				const desc = extensions[i];
+				for (const activationEvent of (desc.activationEvents ?? [])) {
+					if (activationEvent === 'onStartupFinished') {
+						if (Date.now() - startTime > timeBudget) {
+							// time budget for current task has been exceeded
+							// set a new task to activate current and remaining extensions
+							this._activateAllStartupFinishedDeferred(extensions, i);
+							break;
+						} else {
+							this._activateOneStartupFinished(desc, activationEvent);
+						}
+					}
+				}
+			}
+		});
+	}
+
 	private _activateAllStartupFinished(): void {
 		// startup is considered finished
 		this._mainThreadExtensionsProxy.$setPerformanceMarks(performance.getMarks());
 
-		for (const desc of this._myRegistry.getAllExtensionDescriptions()) {
-			if (desc.activationEvents) {
-				for (const activationEvent of desc.activationEvents) {
-					if (activationEvent === 'onStartupFinished') {
-						this._activateOneStartupFinished(desc, activationEvent);
+		this._extHostConfiguration.getConfigProvider().then((configProvider) => {
+			const shouldDeferActivation = configProvider.getConfiguration('extensions.experimental').get<boolean>('deferredStartupFinishedActivation');
+			const allExtensionDescriptions = this._myRegistry.getAllExtensionDescriptions();
+			if (shouldDeferActivation) {
+				this._activateAllStartupFinishedDeferred(allExtensionDescriptions);
+			} else {
+				for (const desc of allExtensionDescriptions) {
+					if (desc.activationEvents) {
+						for (const activationEvent of desc.activationEvents) {
+							if (activationEvent === 'onStartupFinished') {
+								this._activateOneStartupFinished(desc, activationEvent);
+							}
+						}
 					}
 				}
 			}
-		}
+		});
 	}
 
 	// Handle "eager" activation extensions

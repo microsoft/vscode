@@ -315,7 +315,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		const notebookEditorWidgetBorrow = experimentalNotebooksEnabled ? this.notebookEditorService.retrieveExistingWidgetFromURI(this._resource) : undefined;
 		if (notebookEditorWidgetBorrow?.value) {
-			await this.bindEditorWidget(notebookEditorWidgetBorrow.value);
+			await this.bindNotebookEditorWidget(notebookEditorWidgetBorrow.value);
 		} else if (model) {
 			this.bindModel(model);
 			this.updateMatchesForModel();
@@ -357,7 +357,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
-	async bindEditorWidget(widget: NotebookEditorWidget) {
+	async bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 
 		if (this._notebookEditorWidget === widget) {
 			return;
@@ -376,7 +376,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		await this.updateMatchesForEditorWidget();
 	}
 
-	unbindEditorWidget(widget?: NotebookEditorWidget) {
+	unbindNotebookEditorWidget(widget?: NotebookEditorWidget) {
 		if (widget && this._notebookEditorWidget !== widget) {
 			return;
 		}
@@ -608,7 +608,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	override dispose(): void {
 		this.setSelectedMatch(null);
 		this.unbindModel();
-		this.unbindEditorWidget();
+		this.unbindNotebookEditorWidget();
 		this._findMatchDecorationModel?.dispose();
 		this._onDispose.fire();
 		super.dispose();
@@ -740,28 +740,28 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	async bindEditorWidget(editor: NotebookEditorWidget, resource: URI) {
+	async bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI) {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			await fileMatch.bindEditorWidget(editor);
+			await fileMatch.bindNotebookEditorWidget(editor);
 		} else {
 			const folderMatches = this.folderMatchesIterator();
 			for (const elem of folderMatches) {
-				await elem.bindEditorWidget(editor, resource);
+				await elem.bindNotebookEditorWidget(editor, resource);
 			}
 		}
 	}
 
-	unbindEditorWidget(editor: NotebookEditorWidget, resource: URI) {
+	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI) {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			fileMatch.unbindEditorWidget(editor);
+			fileMatch.unbindNotebookEditorWidget(editor);
 		} else {
 			const folderMatches = this.folderMatchesIterator();
 			for (const elem of folderMatches) {
-				elem.unbindEditorWidget(editor, resource);
+				elem.unbindNotebookEditorWidget(editor, resource);
 			}
 		}
 
@@ -1285,6 +1285,7 @@ export class SearchResult extends Disposable {
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => void = () => { };
 	private _isDirty = false;
+	private _onWillChangeModelListener: IDisposable | undefined;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -1300,6 +1301,15 @@ export class SearchResult extends Disposable {
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 		this._register(this.notebookEditorService.onDidAddNotebookEditorWidget(widget => this.onDidAddNotebookEditorWidget(widget)));
+
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+		if (experimentalNotebooksEnabled) {
+			this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {
+				if (widget instanceof NotebookEditorWidget) {
+					this.onDidAddNotebookEditorWidget(<NotebookEditorWidget>widget);
+				}
+			}));
+		}
 
 		this._register(this.onChange(e => {
 			if (e.removed) {
@@ -1411,7 +1421,8 @@ export class SearchResult extends Disposable {
 			return;
 		}
 
-		widget.onWillChangeModel(
+		this._onWillChangeModelListener?.dispose();
+		this._onWillChangeModelListener = widget.onWillChangeModel(
 			(model) => {
 				if (model) {
 					this.onNotebookEditorWidgetRemoved(widget, model?.uri);
@@ -1436,12 +1447,12 @@ export class SearchResult extends Disposable {
 
 	private async onNotebookEditorWidgetAdded(editor: NotebookEditorWidget, resource: URI): Promise<void> {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
-		await folderMatch?.bindEditorWidget(editor, resource);
+		await folderMatch?.bindNotebookEditorWidget(editor, resource);
 	}
 
 	private onNotebookEditorWidgetRemoved(editor: NotebookEditorWidget, resource: URI): void {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
-		folderMatch?.unbindEditorWidget(editor, resource);
+		folderMatch?.unbindNotebookEditorWidget(editor, resource);
 	}
 
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
@@ -1636,6 +1647,7 @@ export class SearchResult extends Disposable {
 	}
 
 	override dispose(): void {
+		this._onWillChangeModelListener?.dispose();
 		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
@@ -1708,7 +1720,7 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	private async getLocalNotebookResults(query: ITextQuery): Promise<{ results: ResourceMap<IFileMatch | null>; limitHit: boolean }> {
+	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatch | null>; limitHit: boolean }> {
 		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
@@ -1730,7 +1742,7 @@ export class SearchModel extends Disposable {
 						includeMarkupPreview: false,
 						includeCodeInput: true,
 						includeOutput: false,
-					}, CancellationToken.None);
+					}, token);
 
 
 				if (matches.length) {
@@ -1752,8 +1764,8 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-	async notebookSearch(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		const localResults = await this.getLocalNotebookResults(query);
+	async notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const localResults = await this.getLocalNotebookResults(query, token);
 
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
@@ -1776,7 +1788,7 @@ export class SearchModel extends Disposable {
 		};
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 
-		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, onProgressCall) : <ISearchComplete>{ messages: [], results: [] };
+		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, this.currentCancelTokenSource.token, onProgressCall) : <ISearchComplete>{ messages: [], results: [] };
 		const currentResult = await this.searchService.textSearch(
 			searchQuery,
 			this.currentCancelTokenSource.token, onProgressCall,

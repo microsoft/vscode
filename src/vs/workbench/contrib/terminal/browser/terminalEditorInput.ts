@@ -102,25 +102,16 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	async confirm(terminals: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult> {
-		const { choice } = await this._dialogService.show(
-			Severity.Warning,
-			localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
-			[
-				localize({ key: 'confirmDirtyTerminal.button', comment: ['&& denotes a mnemonic'] }, "&&Terminate"),
-				localize('cancel', "Cancel")
-			],
-			{
-				cancelId: 1,
-				detail: terminals.length > 1 ?
-					terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
-					localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
-			}
-		);
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: localize('confirmDirtyTerminal.message', "Do you want to terminate running processes?"),
+			primaryButton: localize({ key: 'confirmDirtyTerminal.button', comment: ['&& denotes a mnemonic'] }, "&&Terminate"),
+			detail: terminals.length > 1 ?
+				terminals.map(terminal => terminal.editor.getName()).join('\n') + '\n\n' + localize('confirmDirtyTerminals.detail', "Closing will terminate the running processes in the terminals.") :
+				localize('confirmDirtyTerminal.detail', "Closing will terminate the running processes in this terminal.")
+		});
 
-		switch (choice) {
-			case 0: return ConfirmResult.DONT_SAVE;
-			default: return ConfirmResult.CANCEL;
-		}
+		return confirmed ? ConfirmResult.DONT_SAVE : ConfirmResult.CANCEL;
 	}
 
 	override async revert(): Promise<void> {

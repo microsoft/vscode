@@ -6,9 +6,8 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export enum TriggerAction {
 

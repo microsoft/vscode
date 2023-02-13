@@ -54,7 +54,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
-const LineQueryRegex = /line=(\d+)/;
+const LineQueryRegex = /line=(\d+)$/;
 
 
 export interface ICachedInset<K extends ICommonCellInfo> {
@@ -133,8 +133,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
-	private _initialized?: DeferredPromise<void>;
-	private _webviewPreloadInitialized?: DeferredPromise<void>;
 	private firstInit = true;
 	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
@@ -261,7 +259,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		};
 	}
 
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
@@ -435,10 +433,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
@@ -495,67 +489,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
+	createWebview(): void {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
-
-		// Python notebooks assume that requirejs is a global.
-		// For all other notebooks, they need to provide their own loader.
-		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
-			const htmlContent = this.generateContent('', baseUrl.toString());
-			this._initialize(htmlContent);
-			return;
-		}
-
-		let coreDependencies = '';
-
-		this._initialized = new DeferredPromise();
-		this._webviewPreloadInitialized = new DeferredPromise();
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js');
-			const loader = this.asWebviewUri(loaderUri, undefined);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			this._initialized.complete();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			});
-		}
-
-		await this._initialized.p;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		this._initialize(htmlContent);
 	}
 
 	private getNotebookBaseUri() {
@@ -613,7 +550,6 @@ var requirejs = (function() {
 
 			switch (data.type) {
 				case 'initialized': {
-					this._webviewPreloadInitialized?.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -744,13 +680,20 @@ var requirejs = (function() {
 						return;
 					}
 
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell)) {
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
+					} else if (matchesScheme(data.href, Schemas.vscodeNotebookCell)) {
+						const uri = URI.parse(data.href);
+						this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						this._handleResourceOpening(data.href);
 					} else {
 						// uri with scheme
-						this._openUri(URI.parse(data.href));
+						if (osPath.isAbsolute(data.href)) {
+							this._openUri(URI.file(data.href));
+						} else {
+							this._openUri(URI.parse(data.href));
+						}
 					}
 					break;
 				}
@@ -870,6 +813,31 @@ var requirejs = (function() {
 				}
 			}
 		}));
+	}
+
+	private _handleNotebookCellResource(uri: URI) {
+		const lineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				const lineNumber = parsedLineNumber + 1;
+				const fragment = uri.fragment.substring(0, lineMatch.index);
+
+				// open the uri with selection
+				const editorOptions: ITextEditorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
+				};
+				this.openerService.open(uri.with({ fragment }), {
+					fromUserGesture: true,
+					fromWorkspace: true,
+					editorOptions: editorOptions
+				});
+				return;
+			}
+		}
+
+		this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		return uri;
 	}
 
 	private _handleResourceOpening(href: string) {
@@ -1264,11 +1232,6 @@ var requirejs = (function() {
 		this.initializeMarkupPromise?.p.complete();
 		const requestId = UUID.generateUuid();
 		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId, isFirstInit: this.firstInit };
-
-		if (this._webviewPreloadInitialized) {
-			// wait for webview preload script module to be loaded
-			await this._webviewPreloadInitialized.p;
-		}
 
 		this.firstInit = false;
 

@@ -224,7 +224,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 			let storedProfileExtensions: IStoredProfileExtension[] | undefined;
 			try {
 				const content = await this.fileService.readFile(file);
-				storedProfileExtensions = JSON.parse(content.value.toString());
+				storedProfileExtensions = JSON.parse(content.value.toString().trim() || '[]');
 			} catch (error) {
 				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 					throw error;
@@ -323,6 +323,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		if (!this._migrationPromise) {
 			this._migrationPromise = (async () => {
 				const oldDefaultProfileExtensionsLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json');
+				const oldDefaultProfileExtensionsInitLocation = this.uriIdentityService.extUri.joinPath(this.extensionsLocation, '.init-default-profile-extensions');
 				let content: string;
 				try {
 					content = (await this.fileService.readFile(oldDefaultProfileExtensionsLocation)).value.toString();
@@ -362,6 +363,14 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 
 				try {
 					await this.fileService.del(oldDefaultProfileExtensionsLocation);
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						this.logService.error(error);
+					}
+				}
+
+				try {
+					await this.fileService.del(oldDefaultProfileExtensionsInitLocation);
 				} catch (error) {
 					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 						this.logService.error(error);

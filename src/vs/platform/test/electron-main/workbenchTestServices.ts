@@ -24,7 +24,7 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 
 		this._onWillShutdown.fire({
 			reason: ShutdownReason.QUIT,
-			join(promise) {
+			join(id, promise) {
 				joiners.push(promise);
 			}
 		});

@@ -121,8 +121,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this._productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
+				primaryButton: nls.localize({ key: 'restart3', comment: ['&& denotes a mnemonic'] }, "&&Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });

@@ -649,8 +649,7 @@ export class SearchView extends ViewPane {
 		const confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "&&Replace"),
-			type: 'question'
+			primaryButton: nls.localize({ key: 'replaceAll.confirm.button', comment: ['&& denotes a mnemonic'] }, "&&Replace")
 		};
 
 		this.dialogService.confirm(confirmation).then(res => {
@@ -1823,7 +1822,7 @@ export class SearchView extends ViewPane {
 					if (editorWidget) {
 						// Ensure that the editor widget is binded. If if is, then this should return immediately.
 						// Otherwise, it will bind the widget.
-						await element.parent().bindEditorWidget(editorWidget);
+						await element.parent().bindNotebookEditorWidget(editorWidget);
 
 						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
 						const matches = element.parent().matches();

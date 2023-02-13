@@ -16,7 +16,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -31,12 +31,18 @@ import { getCodiconAriaLabel } from 'vs/base/common/iconLabels';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -64,6 +70,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
+	private readonly recommendedExtensions = new Set<string>();
+	private extensionsToInstall = new Map<string, string>();
+
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -78,7 +87,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -109,6 +120,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					category,
 					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
 					f1: true,
+					keybinding: {
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyO,
+					}
 				});
 			}
 			run = () => that.showRemoteMenu();
@@ -141,28 +156,56 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 
 		if (this.extensionGalleryService.isEnabled()) {
+			const that = this;
 			registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 						category,
+						// Only show this if there are missing remotes
 						title: { value: nls.localize('remote.install', "Install Remote Development Extensions"), original: 'Install Remote Development Extensions' },
 						f1: true
 					});
 				}
 				run = (accessor: ServicesAccessor, input: string) => {
-					const paneCompositeService = accessor.get(IPaneCompositePartService);
-					return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
-						if (viewlet) {
-							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
-							viewlet.focus();
+					const commandService = accessor.get(ICommandService);
+					const quickInputService = accessor.get(IQuickInputService);
+					const progressService = accessor.get(IProgressService);
+
+					const items: (IQuickPickItem & { extensionId: string })[] = [];
+					for (const [extensionId, label] of that.extensionsToInstall.entries()) {
+						items.push({ label, extensionId, buttons: [{ tooltip: nls.localize('remote.install.info', 'View Extension Description'), iconClass: ThemeIcon.asClassName(Codicon.info) }] });
+					}
+					items.sort((a, b) => a.label.localeCompare(b.label));
+
+					const quickPick = quickInputService.createQuickPick<IQuickPickItem & { extensionId: string }>();
+					quickPick.items = items;
+					quickPick.placeholder = nls.localize('remote.install.placeholder', "Select remote extensions to install");
+					quickPick.canSelectMany = true;
+					quickPick.selectedItems = items;
+					quickPick.ignoreFocusOut = true;
+					quickPick.onDidTriggerItemButton(e => {
+						commandService.executeCommand('extension.open', e.item.extensionId);
+					});
+					quickPick.onDidAccept(async () => {
+						try {
+							for (const item of quickPick.selectedItems) {
+								await progressService.withProgress(
+									{
+										location: ProgressLocation.Notification,
+										title: nls.localize("remote.install.progress", "Installing the {0} extension...", item.label),
+									},
+									async () => commandService.executeCommand('workbench.extensions.installExtension', item.extensionId)
+								);
+							}
+						} finally {
+							quickPick.dispose();
 						}
 					});
+					quickPick.show();
 				};
 			});
 		}
-
-
 	}
 
 	private registerListeners(): void {
@@ -211,6 +254,22 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				this.updateRemoteStatusIndicator();
 			}));
 		}
+
+		this._register(this.extensionService.onDidChangeExtensions((e) => {
+			e.added.forEach((extensionIdentifier) => {
+				const id = extensionIdentifier.id?.toLowerCase();
+				if (id && this.recommendedExtensions.has(id)) {
+					this.extensionsToInstall.delete(id);
+				}
+			});
+			e.removed.forEach((extensionIdentifier) => {
+				let { id, displayName } = extensionIdentifier;
+				id = id?.toLowerCase();
+				if (id && displayName && this.recommendedExtensions.has(id)) {
+					this.extensionsToInstall.set(id, displayName);
+				}
+			});
+		}));
 	}
 
 	private updateVirtualWorkspaceLocation() {
@@ -233,6 +292,16 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					this.setState('disconnected');
 				}
 			})();
+		}
+
+		const extensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
+		for (const [_, extension] of Object.entries(extensionTips)) {
+			let { extensionId, friendlyName } = extension;
+			extensionId = extensionId.toLowerCase();
+			this.recommendedExtensions.add(extensionId);
+			if (!this.extensionService.extensions.some((extension) => extension.id?.toLowerCase() === extensionId)) {
+				this.extensionsToInstall.set(extensionId, friendlyName);
+			}
 		}
 
 		this.updateRemoteStatusIndicator();
@@ -455,7 +524,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
-			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled()) {
+			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled() && this.extensionsToInstall.size > 0) {
 				items.push({
 					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
@@ -479,7 +548,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		once(quickPick.onDidAccept)((_ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
-				this.commandService.executeCommand(selectedItems[0].id!);
+				const commandId = selectedItems[0].id!;
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					id: commandId,
+					from: 'remote indicator'
+				});
+				this.commandService.executeCommand(commandId);
 			}
 
 			quickPick.hide();
