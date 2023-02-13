@@ -5,8 +5,8 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IStateReadonlyService = createDecorator<IStateReadonlyService>('IStateReadonlyService');
-export interface IStateReadonlyService {
+export const IStateReadService = createDecorator<IStateReadService>('stateReadService');
+export interface IStateReadService {
 
 	readonly _serviceBrand: undefined;
 
@@ -16,7 +16,7 @@ export interface IStateReadonlyService {
 }
 
 export const IStateService = createDecorator<IStateService>('stateService');
-export interface IStateService extends IStateReadonlyService {
+export interface IStateService extends IStateReadService {
 
 	readonly _serviceBrand: undefined;
 

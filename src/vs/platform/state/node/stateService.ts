@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadonlyService, IStateService } from 'vs/platform/state/node/state';
+import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
 
 type StorageDatabase = { [key: string]: unknown };
 
@@ -24,7 +24,7 @@ export class FileStorage {
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
 
-	private readonly flushDelayer: ThrottledDelayer<void>;
+	private readonly flushDelayer: ThrottledDelayer<void> | undefined;
 
 	private initializing: Promise<void> | undefined = undefined;
 	private closing: Promise<void> | undefined = undefined;
@@ -35,7 +35,7 @@ export class FileStorage {
 		private readonly logService: ILogService,
 		private readonly fileService: IFileService,
 	) {
-		this.flushDelayer = new ThrottledDelayer<void>(saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */);
+		this.flushDelayer = saveStrategy === SaveStrategy.IMMEDIATE ? undefined : new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
 	}
 
 	init(): Promise<void> {
@@ -116,7 +116,11 @@ export class FileStorage {
 			return; // already about to close
 		}
 
-		return this.flushDelayer.trigger(() => this.doSave());
+		if (this.flushDelayer) {
+			return this.flushDelayer.trigger(() => this.doSave());
+		}
+
+		return this.doSave();
 	}
 
 	private async doSave(): Promise<void> {
@@ -144,14 +148,16 @@ export class FileStorage {
 
 	async close(): Promise<void> {
 		if (!this.closing) {
-			this.closing = this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */);
+			this.closing = this.flushDelayer
+				? this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */)
+				: this.doSave();
 		}
 
 		return this.closing;
 	}
 }
 
-export class StateReadonlyService implements IStateReadonlyService {
+export class StateReadonlyService implements IStateReadService {
 
 	declare readonly _serviceBrand: undefined;
 

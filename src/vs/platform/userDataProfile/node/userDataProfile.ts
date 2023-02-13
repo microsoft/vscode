@@ -7,7 +7,7 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadonlyService, IStateService } from 'vs/platform/state/node/state';
+import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -21,7 +21,7 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 	protected static readonly PROFILE_ASSOCIATIONS_MIGRATION_KEY = 'profileAssociationsMigration';
 
 	constructor(
-		@IStateReadonlyService private readonly stateReadonlyService: IStateReadonlyService,
+		@IStateReadService private readonly stateReadonlyService: IStateReadService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
