@@ -33,13 +33,9 @@ export class ToggleStickyScroll extends Action2 {
 				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 2 },
 				{ id: MenuId.StickyScrollContext }
 			],
-			precondition: undefined,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS,
-				mac: {
-					primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS,
-				},
+				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS
 			}
 		});
 	}
