@@ -173,8 +173,8 @@ export class UtilityProcess extends Disposable {
 
 		const serviceName = `${this.configuration.type}-${this.id}`;
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
-		const args = [...this.configuration.args ?? [], `--type=${this.configuration.type}`];
-		const execArgv = this.configuration.execArgv ?? [];
+		const args = this.configuration.args ?? [];
+		const execArgv = [...this.configuration.execArgv ?? [], `--vscode-utility-kind=${this.configuration.type}`];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const stdio = 'pipe';
 
