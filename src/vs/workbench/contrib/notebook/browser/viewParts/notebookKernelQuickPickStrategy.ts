@@ -807,8 +807,12 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
 				// selected explicilty, it should trigger the execution?
-				selectedKernelPickItem.action.runAction();
-				return true;
+				try {
+					await selectedKernelPickItem.action.runAction();
+					return true;
+				} catch (ex) {
+					return false;
+				}
 			} else if (isSearchMarketplacePick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
 					this._paneCompositePartService,
