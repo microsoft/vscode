@@ -300,7 +300,17 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	}
 
 	public write(buffer: VSBuffer): void {
-		this._flowManager.writeMessage(buffer);
+		const maxSendChunkSize = 10 * 1024 * 1024;
+
+		if (buffer.byteLength <= maxSendChunkSize) {
+			this._flowManager.writeMessage(buffer);
+		} else {
+			let start = 0;
+			while (start < buffer.byteLength) {
+				this._flowManager.writeMessage(buffer.slice(start, Math.min(start + maxSendChunkSize, buffer.byteLength)));
+				start += maxSendChunkSize;
+			}
+		}
 	}
 
 	private _write(buffer: VSBuffer, compressed: boolean): void {
