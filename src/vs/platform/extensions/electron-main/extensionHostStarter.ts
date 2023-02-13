@@ -119,7 +119,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			...opts,
 			type: 'extensionHost',
 			args: ['--skipWorkspaceStorageLock'],
-			execArgv: opts.execArgv ?? [],
+			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
 			correlationId: id
 		});
