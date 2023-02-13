@@ -195,7 +195,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(ISharedProcessService, sharedProcessService);
 
 		// Shared Process Worker
-		const sharedProcessWorkerWorkbenchService = new SharedProcessWorkerWorkbenchService(this.configuration.windowId, logService, sharedProcessService);
+		const sharedProcessWorkerWorkbenchService = new SharedProcessWorkerWorkbenchService(this.configuration.windowId, this.configuration.preferUtilityProcess, logService, sharedProcessService, mainProcessService);
 		serviceCollection.set(ISharedProcessWorkerWorkbenchService, sharedProcessWorkerWorkbenchService);
 
 		// Remote

@@ -5,7 +5,7 @@
 
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOnDidTerminateSharedProcessWorkerProcess, ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
@@ -70,7 +70,8 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 	private _sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 	private get sharedProcessWorkerService(): ISharedProcessWorkerService {
 		if (!this._sharedProcessWorkerService) {
-			this._sharedProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName));
+			const channel = this.useUtilityProcess ? this.mainProcessService.getChannel(ipcSharedProcessWorkerChannelName) : this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName);
+			this._sharedProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(channel);
 		}
 
 		return this._sharedProcessWorkerService;
@@ -78,8 +79,10 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 	constructor(
 		readonly windowId: number,
+		private readonly useUtilityProcess: boolean,
 		@ILogService private readonly logService: ILogService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService
 	) {
 		super();
 	}
