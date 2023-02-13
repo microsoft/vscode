@@ -48,7 +48,7 @@ import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree'
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { isNumber } from 'vs/base/common/types';
+import { isNumber, isStringArray } from 'vs/base/common/types';
 import { IEditableData } from 'vs/workbench/common/views';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -62,6 +62,9 @@ import { ResourceSet } from 'vs/base/common/map';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { timeout } from 'vs/base/common/async';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -275,6 +278,60 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
+	private readonly hoverDelegate = new class implements IHoverDelegate {
+
+		readonly placement = 'element';
+
+		get delay() {
+			return this.configurationService.getValue<number>('workbench.hover.delay');
+		}
+
+		constructor(
+			private readonly configurationService: IConfigurationService,
+			private readonly hoverService: IHoverService
+		) { }
+
+		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+			let element: HTMLElement;
+			if (options.target instanceof HTMLElement) {
+				element = options.target;
+			} else {
+				element = options.target.targetElements[0];
+			}
+
+			const child = element.children[0] as Element | undefined;
+			const childOfChild = child?.children[0] as HTMLElement | undefined;
+			let overflowed = false;
+			if (childOfChild && child) {
+				const width = child.clientWidth;
+				const childWidth = childOfChild.offsetWidth;
+				// Check if element is overflowing its parent container
+				overflowed = width <= childWidth;
+			}
+
+			const hasDecoration = element.classList.toString().includes('monaco-decoration-iconBadge');
+			// If it's overflowing or has a decoration show the tooltip
+			overflowed = overflowed || hasDecoration;
+			// TODO @lramos15 find a better way to do this, grabs the indent element to position hover above the label
+			const indentGuideElement = element.parentElement?.parentElement?.children[0] as HTMLElement | undefined;
+
+			if (!indentGuideElement) {
+				return;
+			}
+
+			return overflowed ? this.hoverService.showHover({
+				...options,
+				target: indentGuideElement,
+				compact: true,
+				additionalClasses: ['explorer-item-hover'],
+				skipFadeInAnimation: true,
+				showPointer: false,
+				forwardClickEvent: true,
+				hoverPosition: HoverPosition.RIGHT,
+			}, focus) : undefined;
+		}
+	}(this.configurationService, this.hoverService);
+
 	constructor(
 		container: HTMLElement,
 		private labels: ResourceLabels,
@@ -285,7 +342,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -320,8 +378,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const templateDisposables = new DisposableStore();
-
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: this.hoverDelegate }));
 		templateDisposables.add(label.onDidRender(() => {
 			try {
 				if (templateData.currentContext) {
@@ -421,7 +478,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			// We use null to indicate an explicit lack of tooltip vs undefined leaves it up to computation later in the rendering
-			title: this.config.explorer.renderTooltip ? undefined : null,
+			title: this.config.explorer.renderTooltip ? isStringArray(label) ? label[0] : label : null,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,

@@ -61,6 +61,20 @@ export class HoverService implements IHoverService {
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(new HoverContextViewDelegate(hover, focus));
 		hover.onRequestLayout(() => provider.layout());
+		if (options.forwardClickEvent) {
+			hoverDisposables.add(addDisposableListener(hover.domNode, EventType.CLICK, e => {
+				// Forward the click to the target element(s)
+				if (options.target) {
+					if ('targetElements' in options.target) {
+						for (const element of options.target.targetElements) {
+							element.click();
+						}
+					} else {
+						options.target.click();
+					}
+				}
+			}));
+		}
 		if ('targetElements' in options.target) {
 			for (const element of options.target.targetElements) {
 				hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));

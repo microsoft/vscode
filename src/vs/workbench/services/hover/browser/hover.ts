@@ -126,6 +126,11 @@ export interface IHoverOptions {
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
 	 */
 	trapFocus?: boolean;
+
+	/**
+	 * Whether to forward all click events to the target element.
+	 */
+	forwardClickEvent?: boolean;
 }
 
 export interface IHoverAction {
