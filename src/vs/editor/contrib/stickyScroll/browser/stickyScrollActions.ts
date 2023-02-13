@@ -9,6 +9,8 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export class ToggleStickyScroll extends Action2 {
 
@@ -30,7 +32,15 @@ export class ToggleStickyScroll extends Action2 {
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 2 },
 				{ id: MenuId.StickyScrollContext }
-			]
+			],
+			precondition: undefined,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS,
+				mac: {
+					primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS,
+				},
+			}
 		});
 	}
 
