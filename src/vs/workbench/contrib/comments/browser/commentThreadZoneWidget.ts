@@ -277,7 +277,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return 0;
 	}
 
-	toggleExpand(range: IRange) {
+	toggleExpand() {
 		if (this._isExpanded) {
 			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 			this.hide();
