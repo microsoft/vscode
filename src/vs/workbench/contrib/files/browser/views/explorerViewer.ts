@@ -356,9 +356,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer')) {
 				this.config = this.configurationService.getValue();
-				if (e.affectsConfiguration('explorer.renderTooltip')) {
-					this.explorerService.refresh();
-				}
 			}
 			if (e.affectsConfiguration('workbench.tree.indent')) {
 				updateOffsetStyles();
@@ -478,7 +475,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			// We use null to indicate an explicit lack of tooltip vs undefined leaves it up to computation later in the rendering
-			title: this.config.explorer.renderTooltip ? isStringArray(label) ? label[0] : label : null,
+			title: isStringArray(label) ? label[0] : label,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
