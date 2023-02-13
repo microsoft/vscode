@@ -12,6 +12,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
+const fileIconCoalescedGlobRegex = /(?<=\*)(?:\.\*)+/;
 
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
@@ -40,6 +41,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
+			pushGlobIconClasses(classes, name);
 		}
 
 		// Files
@@ -53,12 +55,13 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 				// (most file systems do not allow files > 255 length) with lots of `.` characters
 				// https://github.com/microsoft/vscode/issues/116199
 				if (name.length <= 255) {
-					const dotSegments = name.split('.');
-					for (let i = 1; i < dotSegments.length; i++) {
-						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+					const segments = name.split('.');
+					for (let i = 1; i < segments.length; i++) {
+						classes.push(`${segments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
+				pushGlobIconClasses(classes, name);
 			}
 
 			// Detected Mode
@@ -73,6 +76,87 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 
 export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
+}
+
+// Generate globs matching file icon themes
+function pushGlobIconClasses(classes: string[], name: string, kind: string) {
+	// Remove ellipsis to defend against explosive combination
+	const segments = name.replace(/\.\.\.+/g, '').split('.');
+
+	// Limit permutative ("full") glob generation to <=4 file extensions.
+	if (segments.length < 5) {
+		const bitmask = Math.pow(2, segments.length) - 1;
+
+		// All globs excluding those with chained `*` dot segments
+		for (let i = 0; i < bitmask; i++) {
+			let buffer = [];
+			for (let j = 0; j < segments.length; j++) {
+				const base = Math.pow(2, j);
+				buffer.push(i & base ? segments[j] : '*');
+			}
+			const glob = buffer.join('.');
+
+			// Globs with chained * filename segments coaelesced into **
+			if (glob.match(fileIconCoalescedGlobRegex)) {
+				const coaelescedGlob = glob.replace(fileIconCoalescedGlobRegex, '**');
+				classes.push(`${coaelescedGlob}-glob-${kind}-icon`);
+			}
+
+			// Globs including chained * dot segments
+			classes.push(`${glob}-glob-${kind}-icon`);
+		}
+	} else {
+		const lastDotIndex = segments.length - 1;
+
+		for (let i = 0; i < lastDotIndex; i++) {
+			// Prefix-matching coalescing globs
+			const suffixSegments = segments.slice(0, i + 1);
+			suffixSegments.push(i < lastDotIndex - 1 ? '**' : '*');
+			const suffixGlob = suffixSegments.join('.');
+			classes.push(`${suffixGlob}-glob-${kind}-icon`);
+
+			// Non-coalescing wildcard globs
+			const baseSegments = segments.slice();
+			baseSegments[i] = '*';
+			const baseGlob = baseSegments.join('.');
+			classes.push(`${baseGlob}-glob-${kind}-icon`);
+		}
+	}
+
+	// Simplest-case globs for dashed file basenames.
+	// Targets tooling filename conventions.
+	const dotLastIndex = name.lastIndexOf('.');
+	if (
+		dotLastIndex !== -1 && // >=1 file extensions
+		dotLastIndex === name.indexOf('.') // <=1 file extension
+	) {
+		const extname = name.substring(dotLastIndex);
+		const basename = name.substring(name.lastIndexOf('.', dotLastIndex - 1), dotLastIndex);
+
+		let separator = basename.match(/_|-/)?.[0];
+		switch (true) {
+			case basename.indexOf('_') > -1:
+				separator = '_';
+				break;
+			case basename.indexOf('-') > -1:
+				separator = '-';
+				break;
+		}
+
+		if (separator) {
+			// Prefix basename glob e.g. `test_*.py`
+			const basenameDashIndex = basename.indexOf(separator);
+			const basenamePrefix = basename.substring(0, basenameDashIndex);
+			const basenamePrefixGlob = basenamePrefix + separator + '*' + extname;
+			classes.push(`${basenamePrefixGlob}-glob-${kind}-icon`);
+
+			// Suffix basename glob e.g. `*_test.go`
+			const basenameLastDashIndex = basename.lastIndexOf(separator);
+			const basenameSuffix = basename.substring(basenameLastDashIndex + 1);
+			const basenameSuffixGlob = '*' + separator + basenameSuffix + extname;
+			classes.push(`${basenameSuffixGlob}-glob-${kind}-icon`);
+		}
+	}
 }
 
 function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {

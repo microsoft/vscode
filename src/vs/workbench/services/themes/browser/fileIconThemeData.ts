@@ -293,7 +293,8 @@ export class FileIconThemeLoader {
 					for (const key in folderNames) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
+						const kind = name.indexOf('*') !== -1 ? 'glob' : 'name';
+						selectors.push(`.${escapeCSS(name)}-${kind}-folder-icon`);
 						addSelector(`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
 						result.hasFolderIcons = true;
 					}
@@ -303,7 +304,8 @@ export class FileIconThemeLoader {
 					for (const key in folderNamesExpanded) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
+						const kind = name.indexOf('*') !== -1 ? 'glob' : 'name';
+						selectors.push(`.${escapeCSS(name)}-${kind}-folder-icon`);
 						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
@@ -329,7 +331,8 @@ export class FileIconThemeLoader {
 						const segments = name.split('.');
 						if (segments.length) {
 							for (let i = 0; i < segments.length; i++) {
-								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+								const kind = name.indexOf('*') !== -1 ? 'glob' : 'ext';
+								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-${kind}-file-icon`);
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
@@ -343,12 +346,14 @@ export class FileIconThemeLoader {
 					for (const key in fileNames) {
 						const selectors: string[] = [];
 						const fileName = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
+						const kind = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
+						selectors.push(`.${escapeCSS(fileName)}-${kind}-file-icon`);
 						selectors.push('.name-file-icon'); // extra segment to increase file-name score
 						const segments = fileName.split('.');
 						if (segments.length) {
 							for (let i = 1; i < segments.length; i++) {
-								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
+								const kind = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
+								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-${kind}-file-icon`);
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
