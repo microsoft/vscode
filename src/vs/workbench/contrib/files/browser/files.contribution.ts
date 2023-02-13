@@ -35,7 +35,6 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import product from 'vs/platform/product/common/product';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -264,7 +263,7 @@ configurationRegistry.registerConfiguration({
 		'files.experimental.watcherUseUtilityProcess': { // TODO@bpasero remove me once sandbox is enabled by default
 			type: 'boolean',
 			description: nls.localize('watcherUseUtilityProcess', "When enabled, the file watcher will be launched using the new UtilityProcess Electron API."),
-			default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+			default: false, //typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
 			ignoreSync: true
 		},
 		'files.hotExit': hotExitConfiguration,
