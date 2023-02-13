@@ -67,10 +67,10 @@ export class HoverService implements IHoverService {
 				if (options.target) {
 					if ('targetElements' in options.target) {
 						for (const element of options.target.targetElements) {
-							element.click();
+							element.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
 						}
 					} else {
-						options.target.click();
+						options.target.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
 					}
 				}
 			}));
