@@ -41,7 +41,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
-			pushGlobIconClasses(classes, name);
+			pushGlobIconClasses(classes, name, 'folder');
 		}
 
 		// Files
@@ -61,7 +61,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
-				pushGlobIconClasses(classes, name);
+				pushGlobIconClasses(classes, name, 'file');
 			}
 
 			// Detected Mode
