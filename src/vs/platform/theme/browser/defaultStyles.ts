@@ -22,11 +22,12 @@ export type IStyleOverride<T> = {
 };
 
 function overrideStyles<T>(override: IStyleOverride<T>, styles: T): any {
+	const result = { ...styles } as { [P in keyof T]: string | undefined };
 	for (const key in override) {
 		const val = override[key];
-		(<any>styles)[key] = val !== undefined ? asCssVariable(val) : undefined;
+		result[key] = val !== undefined ? asCssVariable(val) : undefined;
 	}
-	return styles;
+	return result;
 }
 
 export const defaultKeybindingLabelStyles: IKeybindingLabelStyles = {

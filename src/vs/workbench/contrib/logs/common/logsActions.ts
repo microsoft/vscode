@@ -66,12 +66,12 @@ export class SetLogLevelAction extends Action {
 		const entries: (LogLevelQuickPickItem | LogChannelQuickPickItem | IQuickPickSeparator)[] = [];
 		entries.push({ type: 'separator', label: nls.localize('all', "All") });
 		entries.push(...this.getLogLevelEntries(defaultLogLevels.default, this.loggerService.getLogLevel()));
+		if (extensionLogs.length) {
+			entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
+			entries.push(...extensionLogs.sort((a, b) => a.label.localeCompare(b.label)));
+		}
 		entries.push({ type: 'separator', label: nls.localize('loggers', "Logs") });
 		entries.push(...logs.sort((a, b) => a.label.localeCompare(b.label)));
-		if (extensionLogs.length && logs.length) {
-			entries.push({ type: 'separator', label: nls.localize('extensionLogs', "Extension Logs") });
-		}
-		entries.push(...extensionLogs.sort((a, b) => a.label.localeCompare(b.label)));
 
 		return new Promise((resolve, reject) => {
 			const disposables = new DisposableStore();

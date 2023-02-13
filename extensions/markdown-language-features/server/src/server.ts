@@ -283,6 +283,15 @@ function registerCompletionsSupport(
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 ): IDisposable {
+	function getIncludeWorkspaceHeaderCompletions(): md.IncludeWorkspaceHeaderCompletions {
+		switch (config.getSettings()?.markdown.suggest.paths.includeWorkspaceHeaderCompletions) {
+			case 'onSingleOrDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onSingleOrDoubleHash;
+			case 'onDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onDoubleHash;
+			case 'never':
+			default: return md.IncludeWorkspaceHeaderCompletions.never;
+		}
+	}
+
 	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
 		const settings = config.getSettings();
 		if (!settings?.markdown.suggest.paths.enabled) {
@@ -292,7 +301,10 @@ function registerCompletionsSupport(
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
 			// TODO: remove any type after picking up new release with correct types
-			return ls.getCompletionItems(document, params.position, { ...params.context!, includeWorkspaceHeaderCompletions: md.IncludeWorkspaceHeaderCompletions.onDoubleHash, } as any, token);
+			return ls.getCompletionItems(document, params.position, {
+				...(params.context || {}),
+				includeWorkspaceHeaderCompletions: getIncludeWorkspaceHeaderCompletions(),
+			} as any, token);
 		}
 		return [];
 	});

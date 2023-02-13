@@ -124,9 +124,10 @@ class CodeMain {
 				// instance of VS Code running and so we would quit.
 				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
-				// Write a lockfile to indicate an instance is running (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
+				// Write a lockfile to indicate an instance is running
+				// (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
 				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
-					logService.warn(`Error writing main lockfile: ${err.stack}`);
+					logService.warn(`app#startup(): Error writing main lockfile: ${err.stack}`);
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
@@ -136,7 +137,7 @@ class CodeMain {
 				once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
-					evt.join(FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+					evt.join('instanceLockfile', FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();

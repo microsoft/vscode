@@ -298,7 +298,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			appRoot: URI.file(this._environmentService.appRoot),
 			settingsPath: this._environmentService.machineSettingsResource,
 			logsPath: URI.file(this._environmentService.logsPath),
-			extensionsPath: URI.file(this._environmentService.extensionsPath!),
 			extensionHostLogsPath: URI.file(join(this._environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
 			globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 			workspaceStorageHome: this._environmentService.workspaceStorageHome,

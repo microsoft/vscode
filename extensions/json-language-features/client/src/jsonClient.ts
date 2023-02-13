@@ -18,7 +18,7 @@ import {
 
 
 import { hash } from './utils/hash';
-import { createDocumentColorsLimitItem, createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
+import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -59,6 +59,8 @@ type Settings = {
 		resultLimit?: number;
 		jsonFoldingLimit?: number;
 		jsoncFoldingLimit?: number;
+		jsonColorDecoratorLimit?: number;
+		jsoncColorDecoratorLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -79,9 +81,12 @@ export namespace SettingIds {
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
+	export const editorFoldingMaximumRegions = 'editor.foldingMaximumRegions';
+	export const editorColorDecoratorsLimit = 'editor.colorDecoratorsLimit';
 
 	export const editorSection = 'editor';
 	export const foldingMaximumRegions = 'foldingMaximumRegions';
+	export const colorDecoratorsLimit = 'colorDecoratorsLimit';
 }
 
 export interface TelemetryReporter {
@@ -109,6 +114,8 @@ export const languageServerDescription = l10n.t('JSON Language Server');
 let resultLimit = 5000;
 let jsonFoldingLimit = 5000;
 let jsoncFoldingLimit = 5000;
+let jsonColorDecoratorLimit = 5000;
+let jsoncColorDecoratorLimit = 5000;
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
@@ -129,8 +136,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	let isClientReady = false;
 
 	const documentSymbolsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentSymbolsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	const documentColorsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentColorsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	toDispose.push(documentSymbolsLimitStatusbarItem, documentColorsLimitStatusbarItem);
+	toDispose.push(documentSymbolsLimitStatusbarItem);
 
 	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
@@ -225,20 +231,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return r;
 			},
 			provideDocumentColors(document: TextDocument, token: CancellationToken, next: ProvideDocumentColorsSignature) {
-				function checkLimit(r: ColorInformation[] | null | undefined): ColorInformation[] | null | undefined {
-					if (Array.isArray(r) && r.length > resultLimit) {
-						r.length = resultLimit; // truncate
-						documentColorsLimitStatusbarItem.update(document, resultLimit);
-					} else {
-						documentColorsLimitStatusbarItem.update(document, false);
-					}
-					return r;
-				}
 				const r = next(document, token);
 				if (isThenable<ColorInformation[] | null | undefined>(r)) {
-					return r.then(checkLimit);
+					return r;
 				}
-				return checkLimit(r);
+				return r;
 			},
 			provideDocumentSymbols(document: TextDocument, token: CancellationToken, next: ProvideDocumentSymbolsSignature) {
 				type T = SymbolInformation[] | DocumentSymbol[];
@@ -375,6 +372,8 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			updateFormatterRegistration();
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
 			updateSchemaDownloadSetting();
+		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
+			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() });
 		}
 	}));
 
@@ -470,8 +469,13 @@ function getSettings(): Settings {
 	const normalizeLimit = (settingValue: any) => Math.trunc(Math.max(0, Number(settingValue))) || 5000;
 
 	resultLimit = normalizeLimit(workspace.getConfiguration().get(SettingIds.maxItemsComputed));
-	jsonFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' }).get(SettingIds.foldingMaximumRegions));
-	jsoncFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' }).get(SettingIds.foldingMaximumRegions));
+	const editorJSONSettings = workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' });
+	const editorJSONCSettings = workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' });
+
+	jsonFoldingLimit = normalizeLimit(editorJSONSettings.get(SettingIds.foldingMaximumRegions));
+	jsoncFoldingLimit = normalizeLimit(editorJSONCSettings.get(SettingIds.foldingMaximumRegions));
+	jsonColorDecoratorLimit = normalizeLimit(editorJSONSettings.get(SettingIds.colorDecoratorsLimit));
+	jsoncColorDecoratorLimit = normalizeLimit(editorJSONCSettings.get(SettingIds.colorDecoratorsLimit));
 
 	const schemas: JSONSchemaSettings[] = [];
 
@@ -487,7 +491,9 @@ function getSettings(): Settings {
 			schemas,
 			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
 			jsonFoldingLimit: jsonFoldingLimit + 1,
-			jsoncFoldingLimit: jsoncFoldingLimit + 1
+			jsoncFoldingLimit: jsoncFoldingLimit + 1,
+			jsonColorDecoratorLimit: jsonColorDecoratorLimit + 1,
+			jsoncColorDecoratorLimit: jsoncColorDecoratorLimit + 1
 		}
 	};
 

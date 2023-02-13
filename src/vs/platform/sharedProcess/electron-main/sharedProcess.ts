@@ -131,6 +131,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private onWillShutdown(): void {
+		this.logService.trace('SharedProcess: onWillShutdown');
+
 		const window = this.window;
 		if (!window) {
 			return; // possibly too early before created
@@ -153,9 +155,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Electron seems to crash on Windows without this setTimeout :|
 		setTimeout(() => {
 			try {
+				this.logService.trace('SharedProcess: onWillShutdown window.close()');
 				window.close();
-			} catch (err) {
-				// ignore, as electron is already shutting down
+			} catch (error) {
+				this.logService.trace(`SharedProcess: onWillShutdown window.close() error: ${error}`); // ignore, as electron is already shutting down
 			}
 
 			this.window = undefined;
