@@ -46,8 +46,19 @@ export function registerCommandSearchActions() {
 }
 
 class FakeCommandSearchProvider implements ICommandSearchProvider {
+	private _map = new Map</*threadId*/number, number>();
 	async query(request: ICommandSearchRequest): Promise<string[]> {
 		await timeout(300);
-		return ['a', 'b', 'c'];
+		const count = this._map.get(request.threadId) ?? 0;
+		this._map.set(request.threadId, count + 1);
+		let firstOption = '';
+		for (let i = 0; i <= count; i++) {
+			firstOption = (i === 0 ? '' : firstOption + '\n') + `echo ${i + 1}`;
+		}
+		return [
+			firstOption,
+			'second option',
+			'third option'
+		];
 	}
 }

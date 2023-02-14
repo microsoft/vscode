@@ -61,8 +61,13 @@ export async function showCommandSearchPrompt(
 			e.style.background = '#3C3D3B';
 			e.style.fontFamily = 'Hack';
 			e.classList.add('xterm-view-zone');
-			const message = document.createElement('div');
-			message.style.fontFamily = 'Hack';
+
+			const message = document.createElement('pre');
+			const font = xterm.getFont();
+			message.style.margin = '0';
+			message.style.fontFamily = font.fontFamily;
+			message.style.fontSize = `${font.fontSize}px`;
+
 			const input = document.createElement('input');
 			input.type = 'text';
 			input.placeholder = localize('prompt', 'Ask me anything...');
