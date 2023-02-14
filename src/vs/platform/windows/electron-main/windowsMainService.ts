@@ -1388,7 +1388,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			preferUtilityProcess: filesConfig?.experimental?.watcherUseUtilityProcess ?? false
+			preferUtilityProcess: filesConfig?.experimental?.watcherUseUtilityProcess ?? windowConfig?.experimental?.sharedProcessUseUtilityProcess ?? false
 		};
 
 		// New window
