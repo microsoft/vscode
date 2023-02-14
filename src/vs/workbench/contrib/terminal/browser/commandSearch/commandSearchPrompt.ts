@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -64,7 +65,7 @@ export async function showCommandSearchPrompt(
 			message.style.fontFamily = 'Hack';
 			const input = document.createElement('input');
 			input.type = 'text';
-			input.placeholder = 'Ask me anything...';
+			input.placeholder = localize('prompt', 'Ask me anything...');
 			input.style.background = 'transparent';
 			const threadId = nextRequestId++;
 			e.addEventListener('keydown', async (e: KeyboardEvent) => {
@@ -93,7 +94,7 @@ export async function showCommandSearchPrompt(
 							// TODO: Handle multiple results
 							message.textContent = results[0];
 						}
-						input.placeholder = 'Press enter to run or type to clarify...';
+						input.placeholder = localize('refine', 'Press enter to run or type to clarify...');
 						break;
 					}
 					case 'Escape':
