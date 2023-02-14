@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
-const fileIconCoalescedGlobRegex = /\*(?:\.\*)+/;
+const fileIconWildcardChainRegex = /\*(?:\.\*)+/;
 
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
@@ -89,7 +89,6 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 	if (segments.length <= 4) {
 		const bitmask = Math.pow(2, segments.length) - 1;
 
-		// All globs excluding those with chained `*` dot segments
 		for (let permutation = 0; permutation < bitmask; permutation++) {
 			const buffer = [];
 			for (let exponent = 0; exponent < segments.length; exponent++) {
@@ -99,8 +98,8 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 			const glob = buffer.join('.');
 
 			// Globs with chained * filename segments coaelesced into **
-			if (glob.match(fileIconCoalescedGlobRegex)) {
-				const coaelescedGlob = glob.replace(fileIconCoalescedGlobRegex, '**');
+			if (glob.match(fileIconWildcardChainRegex)) {
+				const coaelescedGlob = glob.replace(fileIconWildcardChainRegex, '**');
 				classes.push(`${coaelescedGlob}-glob-${kind}-icon`);
 			}
 
