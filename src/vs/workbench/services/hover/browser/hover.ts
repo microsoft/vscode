@@ -7,7 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -129,9 +128,9 @@ export interface IHoverOptions {
 	trapFocus?: boolean;
 
 	/**
-	 * Whether to forward all click events to the target element.
+	 * A callback which will be executed when the hover is clicked
 	 */
-	forwardClickEvent?: boolean;
+	onClick?(e: MouseEvent): void;
 
 	/*
 	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover

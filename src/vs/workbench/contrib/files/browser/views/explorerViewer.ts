@@ -299,8 +299,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				element = options.target.targetElements[0];
 			}
 
-			const child = element.children[0] as Element | undefined;
-			const childOfChild = child?.children[0] as HTMLElement | undefined;
+			const row = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+
+			const child = element.querySelector('div.monaco-icon-label-container') as Element | undefined;
+			const childOfChild = child?.querySelector('span.monaco-icon-name-container') as HTMLElement | undefined;
 			let overflowed = false;
 			if (childOfChild && child) {
 				const width = child.clientWidth;
@@ -312,9 +314,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const hasDecoration = element.classList.toString().includes('monaco-decoration-iconBadge');
 			// If it's overflowing or has a decoration show the tooltip
 			overflowed = overflowed || hasDecoration;
-			// TODO @lramos15 find a better way to do this, grabs the indent element to position hover above the label
-			const indentGuideElement = element.parentElement?.parentElement?.children[0] as HTMLElement | undefined;
 
+			const indentGuideElement = row?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
 			if (!indentGuideElement) {
 				return;
 			}
@@ -326,7 +327,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				additionalClasses: ['explorer-item-hover'],
 				skipFadeInAnimation: true,
 				showPointer: false,
-				forwardClickEvent: true,
+				onClick: (e) => {
+					this.hoverService.hideHover();
+					element.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
+				},
 				hoverPosition: HoverPosition.RIGHT,
 			}, focus) : undefined;
 		}
@@ -474,7 +478,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			// We use null to indicate an explicit lack of tooltip vs undefined leaves it up to computation later in the rendering
 			title: isStringArray(label) ? label[0] : label,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,

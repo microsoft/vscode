@@ -64,18 +64,9 @@ export class HoverService implements IHoverService {
 			options.container
 		);
 		hover.onRequestLayout(() => provider.layout());
-		if (options.forwardClickEvent) {
+		if (options.onClick) {
 			hoverDisposables.add(addDisposableListener(hover.domNode, EventType.CLICK, e => {
-				// Forward the click to the target element(s)
-				if (options.target) {
-					if ('targetElements' in options.target) {
-						for (const element of options.target.targetElements) {
-							element.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
-						}
-					} else {
-						options.target.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
-					}
-				}
+				options.onClick!(e);
 			}));
 		}
 		if ('targetElements' in options.target) {
