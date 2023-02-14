@@ -65,7 +65,7 @@
     "@microsoft/1ds-post-js": "^3.2.2",
     "@parcel/watcher": "2.1.0",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/policy-watcher": "microsoft/vscode-policy-watcher#d0c5183c40add103876830d87f83d87db62227cd",
+    "@vscode/policy-watcher": "^1.1.4",
     "@vscode/ripgrep": "^1.14.2",
     "@vscode/sqlite3": "5.1.2-vscode",
     "@vscode/sudo-prompt": "9.3.1",
