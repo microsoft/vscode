@@ -892,7 +892,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
-		}
+		},
+		[NotebookSetting.outputWordWrap]: {
+			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
 	}
 });
 
