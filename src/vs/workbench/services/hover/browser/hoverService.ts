@@ -35,7 +35,7 @@ export class HoverService implements IHoverService {
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined {
-		if (getHoverOptionIdentity(this._currentHoverOptions) === getHoverOptionIdentity(options)) {
+		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
@@ -140,7 +140,7 @@ export class HoverService implements IHoverService {
 	}
 }
 
-function getHoverOptionIdentity(options: IHoverOptions | undefined): IHoverOptions | number | undefined {
+function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOptions | number | undefined {
 	if (options === undefined) {
 		return undefined;
 	}
