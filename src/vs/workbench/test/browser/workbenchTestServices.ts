@@ -165,6 +165,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1920,14 +1921,18 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> { return null; }
-	async whenExtensionsReady(): Promise<void> { }
-	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
-	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { throw new Error('Method not implemented.'); }
 	async getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> { return undefined; }
 	async updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void> { }
 	async logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> { }
 	async flushTelemetry(): Promise<void> { }
 	async getRoundTripTime(): Promise<number | undefined> { return undefined; }
+}
+
+export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
+	declare readonly _serviceBrand: undefined;
+	async whenExtensionsReady(): Promise<void> { }
+	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
+	scanSingleExtension(): Promise<IExtensionDescription | null> { throw new Error('Method not implemented.'); }
 }
 
 export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtensionEnablementService {
