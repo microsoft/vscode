@@ -114,7 +114,7 @@ import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService'
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
-import { ipcSharedProcessWorkerChannelName } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1076,7 +1076,7 @@ export class CodeApplication extends Disposable {
 
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService));
-		mainProcessElectronServer.registerChannel(ipcSharedProcessWorkerChannelName, utilityProcessWorkerChannel);
+		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

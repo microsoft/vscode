@@ -5,79 +5,14 @@
 
 import { hash as hashObject } from 'vs/base/common/hash';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export interface ISharedProcessWorkerProcess {
-
-	/**
-	 * The module to load as child process into the worker.
-	 */
-	moduleId: string;
-
-	/**
-	 * The type of the process appears in the arguments of the
-	 * forked process to identify it easier.
-	 */
-	type: string;
-}
-
-export interface IOnDidTerminateSharedProcessWorkerProcess {
-
-	/**
-	 * More information around how the shared process worker
-	 * process terminated. Will be `undefined` in case the
-	 * worker process was terminated normally via APIs
-	 * and will be defined in case the worker process
-	 * terminated on its own, either unexpectedly or
-	 * because it finished.
-	 */
-	reason?: ISharedProcessWorkerProcessExit;
-}
-
-export interface ISharedProcessWorkerProcessExit {
-
-	/**
-	 * The shared process worker process exit code if known.
-	 */
-	code?: number;
-
-	/**
-	 * The shared process worker process exit signal if known.
-	 */
-	signal?: string;
-}
-
-export interface ISharedProcessWorkerConfiguration {
-
-	/**
-	 * Configuration specific to the process to fork.
-	 */
-	process: ISharedProcessWorkerProcess;
-
-	/**
-	 * Configuration specific for how to respond with the
-	 * communication message port to the receiver window.
-	 */
-	reply: {
-		windowId: number;
-		channel?: string;
-		nonce?: string;
-	};
-}
-
-export interface ISharedProcessWorkerCreateConfiguration extends ISharedProcessWorkerConfiguration {
-	reply: {
-		windowId: number;
-		channel: string;
-		nonce: string;
-	};
-}
+import { IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerCreateConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 /**
  * Converts the process configuration into a hash to
  * identify processes of the same kind by taking those
  * components that make the process and reply unique.
  */
-export function hash(configuration: ISharedProcessWorkerConfiguration): number {
+export function hash(configuration: IUtilityProcessWorkerConfiguration): number {
 	return hashObject({
 		moduleId: configuration.process.moduleId,
 		windowId: configuration.reply.windowId
@@ -86,7 +21,7 @@ export function hash(configuration: ISharedProcessWorkerConfiguration): number {
 
 export const ISharedProcessWorkerService = createDecorator<ISharedProcessWorkerService>('sharedProcessWorkerService');
 
-export const ipcSharedProcessWorkerChannelName = 'sharedProcessWorker';
+export const ipcUtilityProcessWorkerChannelName = 'sharedProcessWorker';
 
 export interface ISharedProcessWorkerService {
 
@@ -116,10 +51,10 @@ export interface ISharedProcessWorkerService {
 	 * about the termination that can be used to figure out if the termination was unexpected
 	 * or not and whether the worker needs to be restarted.
 	 */
-	createWorker(configuration: ISharedProcessWorkerCreateConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess>;
+	createWorker(configuration: IUtilityProcessWorkerCreateConfiguration): Promise<IOnDidTerminateUtilityrocessWorkerProcess>;
 
 	/**
 	 * Terminates the process for the provided configuration if any.
 	 */
-	disposeWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void>;
+	disposeWorker(configuration: IUtilityProcessWorkerConfiguration): Promise<void>;
 }

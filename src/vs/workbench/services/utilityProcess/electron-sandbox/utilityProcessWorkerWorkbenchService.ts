@@ -8,10 +8,11 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOnDidTerminateSharedProcessWorkerProcess, ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcUtilityProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerProcess } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 export const IUtilityProcessWorkerWorkbenchService = createDecorator<IUtilityProcessWorkerWorkbenchService>('utilityProcessWorkerWorkbenchService');
 
@@ -31,7 +32,7 @@ export interface IUtilityProcessWorker extends IDisposable {
 	 * should be restarted in case of an unexpected
 	 * termination.
 	 */
-	onDidTerminate: Promise<IOnDidTerminateSharedProcessWorkerProcess>;
+	onDidTerminate: Promise<IOnDidTerminateUtilityrocessWorkerProcess>;
 }
 
 export interface IUtilityProcessWorkerWorkbenchService {
@@ -60,7 +61,7 @@ export interface IUtilityProcessWorkerWorkbenchService {
 	 * @returns the worker IPC client to communicate with. Provides a `dispose` method that
 	 * allows to terminate the worker if needed.
 	 */
-	createWorker(process: ISharedProcessWorkerProcess): Promise<IUtilityProcessWorker>;
+	createWorker(process: IUtilityProcessWorkerProcess): Promise<IUtilityProcessWorker>;
 }
 
 export class UtilityProcessWorkerWorkbenchService extends Disposable implements IUtilityProcessWorkerWorkbenchService {
@@ -70,7 +71,7 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 	private _utilityProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 	private get utilityProcessWorkerService(): ISharedProcessWorkerService {
 		if (!this._utilityProcessWorkerService) {
-			const channel = this.useUtilityProcess ? this.mainProcessService.getChannel(ipcSharedProcessWorkerChannelName) : this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName);
+			const channel = this.useUtilityProcess ? this.mainProcessService.getChannel(ipcUtilityProcessWorkerChannelName) : this.sharedProcessService.getChannel(ipcUtilityProcessWorkerChannelName);
 			this._utilityProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(channel);
 		}
 
@@ -87,7 +88,7 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 		super();
 	}
 
-	async createWorker(process: ISharedProcessWorkerProcess): Promise<IUtilityProcessWorker> {
+	async createWorker(process: IUtilityProcessWorkerProcess): Promise<IUtilityProcessWorker> {
 		this.logService.trace('Renderer->UtilityProcess#createWorker');
 
 		// Get ready to acquire the message port from the utility process worker

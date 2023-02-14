@@ -6,7 +6,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IOnDidTerminateSharedProcessWorkerProcess, ISharedProcessWorkerConfiguration, ISharedProcessWorkerCreateConfiguration, ISharedProcessWorkerProcessExit, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,7 +39,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		super();
 	}
 
-	async createWorker(configuration: ISharedProcessWorkerCreateConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess> {
+	async createWorker(configuration: IUtilityProcessWorkerCreateConfiguration): Promise<IOnDidTerminateUtilityrocessWorkerProcess> {
 		const workerLogId = `window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId}`;
 		this.logService.trace(`[UtilityProcessWorker]: createWorker(${workerLogId})`);
 
@@ -58,7 +59,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 
 		this.workers.set(workerId, worker);
 
-		const onDidTerminate = new DeferredPromise<IOnDidTerminateSharedProcessWorkerProcess>();
+		const onDidTerminate = new DeferredPromise<IOnDidTerminateUtilityrocessWorkerProcess>();
 		Event.once(worker.onDidTerminate)(e => {
 			this.workers.delete(workerId);
 			onDidTerminate.complete({ reason: e });
@@ -67,14 +68,14 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		return onDidTerminate.p;
 	}
 
-	private hash(configuration: ISharedProcessWorkerConfiguration): number {
+	private hash(configuration: IUtilityProcessWorkerConfiguration): number {
 		return hash({
 			...configuration.process,
 			windowId: configuration.reply.windowId
 		});
 	}
 
-	async disposeWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void> {
+	async disposeWorker(configuration: IUtilityProcessWorkerConfiguration): Promise<void> {
 		const workerId = this.hash(configuration);
 		const worker = this.workers.get(workerId);
 		if (!worker) {
@@ -90,7 +91,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 
 class UtilityProcessWorker extends Disposable {
 
-	private readonly _onDidTerminate = this._register(new Emitter<ISharedProcessWorkerProcessExit>());
+	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
 	private readonly utilityProcess = new UtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
@@ -100,7 +101,7 @@ class UtilityProcessWorker extends Disposable {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		private readonly configuration: ISharedProcessWorkerCreateConfiguration
+		private readonly configuration: IUtilityProcessWorkerCreateConfiguration
 	) {
 		super();
 

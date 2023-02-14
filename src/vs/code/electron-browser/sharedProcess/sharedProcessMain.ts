@@ -89,7 +89,7 @@ import { ISharedTunnelsService } from 'vs/platform/tunnel/common/tunnel';
 import { SharedTunnelsService } from 'vs/platform/tunnel/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
-import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcUtilityProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -116,6 +116,7 @@ import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
+import { IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -148,12 +149,12 @@ class SharedProcessMain extends Disposable {
 		// application is shutting down anyways.
 		//
 		const eventName = 'vscode:electron-main->shared-process=disposeWorker';
-		const onDisposeWorker = (event: unknown, configuration: ISharedProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
+		const onDisposeWorker = (event: unknown, configuration: IUtilityProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
 		ipcRenderer.on(eventName, onDisposeWorker);
 		this._register(toDisposable(() => ipcRenderer.removeListener(eventName, onDisposeWorker)));
 	}
 
-	private onDisposeWorker(configuration: ISharedProcessWorkerConfiguration): void {
+	private onDisposeWorker(configuration: IUtilityProcessWorkerConfiguration): void {
 		this.sharedProcessWorkerService?.disposeWorker(configuration);
 	}
 
@@ -446,7 +447,7 @@ class SharedProcessMain extends Disposable {
 
 		// Worker
 		const sharedProcessWorkerChannel = ProxyChannel.fromService(accessor.get(ISharedProcessWorkerService));
-		this.server.registerChannel(ipcSharedProcessWorkerChannelName, sharedProcessWorkerChannel);
+		this.server.registerChannel(ipcUtilityProcessWorkerChannelName, sharedProcessWorkerChannel);
 
 		// Remote Tunnel
 		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
