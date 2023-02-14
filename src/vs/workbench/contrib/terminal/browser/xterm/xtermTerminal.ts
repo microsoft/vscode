@@ -144,6 +144,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 	private _viewZoneAddon?: ViewZoneAddon;
+	get viewZoneAddon(): ViewZoneAddon {
+		if (!this._viewZoneAddon) {
+			this._viewZoneAddon = new ViewZoneAddon();
+			this.raw.loadAddon(this._viewZoneAddon);
+		}
+		return this._viewZoneAddon;
+	}
 
 	private _accessibileBuffer: AccessibleBuffer | undefined;
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ITerminalViewZoneController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 
 /**
@@ -12,7 +13,7 @@ import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
  * the view zone is removed, the space made in the buffer behind the view zone remains, this will
  * typically be harmless and will lead to a more consistent experience.
  */
-export class ViewZoneAddon extends Disposable implements ITerminalAddon {
+export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITerminalViewZoneController {
 	protected _terminal: Terminal | undefined;
 
 	private _decoration: IDecoration | undefined;

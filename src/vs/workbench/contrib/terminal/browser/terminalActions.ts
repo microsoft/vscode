@@ -63,6 +63,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { registerCommandSearchActions } from 'vs/workbench/contrib/terminal/browser/commandSearch/commandSearchActions';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -2533,6 +2534,8 @@ export function registerTerminalActions() {
 			return Promise.resolve();
 		}
 	});
+
+	registerCommandSearchActions();
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {

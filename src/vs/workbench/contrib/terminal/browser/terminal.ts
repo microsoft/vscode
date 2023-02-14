@@ -22,7 +22,7 @@ import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xt
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { IMarker } from 'xterm';
+import { IDecoration, IMarker } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -983,6 +983,8 @@ export interface IXtermTerminal {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
+	readonly viewZoneAddon: ITerminalViewZoneController;
+
 	readonly onDidChangeSelection: Event<void>;
 
 	/**
@@ -1093,4 +1095,8 @@ export interface ISuggestController {
 	 * `Terminal.onData` event.
 	 */
 	handleNonXtermData(data: string): void;
+}
+
+export interface ITerminalViewZoneController {
+	insert(): Promise<IDecoration>;
 }
