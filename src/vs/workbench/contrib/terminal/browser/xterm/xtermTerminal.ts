@@ -38,8 +38,6 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { isLinux } from 'vs/base/common/platform';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { URI } from 'vs/base/common/uri';
@@ -51,6 +49,7 @@ import { createCancelablePromise } from 'vs/base/common/async';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 const enum RenderConstants {
 	/**
@@ -777,20 +776,22 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 class AccessibleBuffer extends DisposableStore {
 
-	private _accessibleBuffer: HTMLElement | undefined;
-	private _bufferElementFragment: DocumentFragment | undefined;
+	private _accessibleBuffer: HTMLElement;
+	private _bufferEditor: BufferEditor;
+
 	constructor(
 		private readonly _terminal: RawXtermTerminal,
 		private readonly _font: ITerminalFont,
 		private readonly _capabilities: ITerminalCapabilityStore,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService textModelResolverService: ITextModelService,
 	) {
 		super();
 		textModelResolverService.registerTextModelContentProvider('terminal', this);
+		this._bufferEditor = this._instantiationService.createInstance(BufferEditor);
+		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
+		this._bufferEditor.create(this._accessibleBuffer);
 	}
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
@@ -802,87 +803,36 @@ class AccessibleBuffer extends DisposableStore {
 	}
 	focus(): void {
 
-		if (!this._bufferElementFragment) {
-			this._bufferElementFragment = document.createDocumentFragment();
-		}
-
-		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
-		if (!this._accessibleBuffer) {
-			// return this._bufferElementFragment;
-		}
-
-		const editor = this._instantiationService.createInstance(BufferEditor);
-		const input = this._instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'terminal' }), localize('accessible buffer title', "Accessible buffer"), localize('accessible buffer title', "Accessible buffer"), undefined, undefined);
-		createCancelablePromise(token => editor.setInput(input, { preserveFocus: true }, Object.create(null), token)
-			.then(() => editor));
-		// see https://github.com/microsoft/vscode/issues/173532
-		// editor.create(this._accessibleBuffer);
-		const accessibleBufferContentEditable = isLinux ? 'on' : this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
-		this._accessibleBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
-		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
 		const lineHeight = this._font?.charHeight ? this._font.charHeight * this._font.lineHeight + 'px' : '';
 		this._accessibleBuffer.style.lineHeight = lineHeight;
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		const sb = new StringBuilder(10000);
+		let content = '';
 		if (!commands?.length) {
-			const noContent = document.createElement('div');
-			const noContentLabel = localize('terminal.integrated.noContent', "No terminal content available for this session.");
-			noContent.textContent = noContentLabel;
-			this._bufferElementFragment.replaceChildren(noContent);
-			this._accessibleBuffer.focus();
-			// return this._bufferElementFragment;
-			this.provideTextContent(URI.from(
-				{
-					scheme: 'terminal',
-					path: `content`,
-					fragment: this._bufferElementFragment.textContent!,
-					query: `terminal`
-				}));
-			editor.create(this._accessibleBuffer);
-			editor.focus();
-			return;
-		}
-		let header;
-		let replaceChildren = true;
-		for (const command of commands) {
-			header = document.createElement('h2');
-			// without this, the text area gets focused when keyboard shortcuts are used
-			header.tabIndex = -1;
-			header.textContent = command.command.replace(new RegExp(' ', 'g'), '\xA0');
-			if (command.exitCode !== 0) {
-				header.textContent += ` exited with code ${command.exitCode}`;
+			content = localize('terminal.integrated.noContent', "No terminal content available for this session.");
+		} else {
+			for (const command of commands) {
+				sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
+				if (command.exitCode !== 0) {
+					sb.appendString(` exited with code ${command.exitCode}`);
+				}
+				sb.appendString('\n');
+				sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
 			}
-			header.textContent += '\n';
-			const output = document.createElement('div');
-			// without this, the text area gets focused when keyboard shortcuts are used
-			output.tabIndex = -1;
-			output.textContent = command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '';
-			if (replaceChildren) {
-				this._bufferElementFragment.replaceChildren(header, output);
-				replaceChildren = false;
-			} else {
-				this._bufferElementFragment.appendChild(header);
-				this._bufferElementFragment.appendChild(output);
-			}
+			content = sb.build();
 		}
+
 		this.provideTextContent(URI.from(
 			{
 				scheme: 'terminal',
 				path: `content`,
-				fragment: this._bufferElementFragment.textContent!,
+				fragment: content,
 				query: `terminal`
 			}));
-		editor.create(this._accessibleBuffer);
-		editor.focus();
-		this._accessibleBuffer.focus();
-		if (this._accessibleBuffer.contentEditable === 'true') {
-			document.execCommand('selectAll', false, undefined);
-			document.getSelection()?.collapseToEnd();
-		} else if (header) {
-			// focus the cursor line's header
-			header.tabIndex = 0;
-		}
-		// return this._bufferElementFragment;
-		input.setPreferredContents(this._bufferElementFragment.textContent!);
+		const input = this._instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'terminal' }), localize('accessible buffer title', "Accessible buffer"), localize('accessible buffer title', "Accessible buffer"), undefined, undefined);
+		createCancelablePromise(token => this._bufferEditor.setInput(input, { preserveFocus: true }, Object.create(null), token));
+		input.setPreferredContents(sb.build());
+		this._bufferEditor.focus();
 	}
 }
 
