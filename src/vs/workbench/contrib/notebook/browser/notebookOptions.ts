@@ -75,6 +75,7 @@ export interface NotebookLayoutConfiguration {
 	focusIndicatorGap: number;
 	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
 	outputScrolling: boolean;
+	outputWordWrap: boolean;
 	outputLineLimit: number;
 }
 
@@ -154,6 +155,7 @@ export class NotebookOptions extends Disposable {
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 		const outputLineHeight = this._computeOutputLineHeight();
 		const outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
+		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
 
 		this._layoutConfiguration = {
@@ -193,6 +195,7 @@ export class NotebookOptions extends Disposable {
 			interactiveWindowCollapseCodeCells,
 			markdownFoldHintHeight: 22,
 			outputScrolling: outputScrolling,
+			outputWordWrap: outputWordWrap,
 			outputLineLimit: outputLineLimit
 		};
 
@@ -582,6 +585,7 @@ export class NotebookOptions extends Disposable {
 			markupFontSize: this._layoutConfiguration.markupFontSize,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 			outputScrolling: this._layoutConfiguration.outputScrolling,
+			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
 		};
 	}
@@ -602,6 +606,7 @@ export class NotebookOptions extends Disposable {
 			markupFontSize: this._layoutConfiguration.markupFontSize,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 			outputScrolling: this._layoutConfiguration.outputScrolling,
+			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
 		};
 	}
