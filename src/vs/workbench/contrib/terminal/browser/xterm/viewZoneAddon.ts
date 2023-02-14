@@ -17,7 +17,6 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 	protected _terminal: Terminal | undefined;
 
 	private _decoration: IDecoration | undefined;
-	private _insertedLines: number = 0;
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -40,8 +39,9 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 		// TODO: Handle terminal input/output, hide the view zone when this happens? Do nothing?
 
 		// Save cursor, cursor next line, force new line, insert new line, restore cursor
-		this._insertedLines = 1;
 		await new Promise<void>(r => term.write('\x1b[s\x1b[1E\n\x1b[L\x1b[u', r));
+		let allowBufferChanges = true;
+		let insertedLines = 1;
 
 		// Insert a marker 1 line below the cursor, this uses ! as it should always succeed due to
 		// the sequence sent above.
@@ -62,26 +62,38 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 				// Prevent the main textarea from stealing focus
 				e.addEventListener('mousedown', (e: MouseEvent) => e.stopImmediatePropagation());
 				const resizeObserver = new ResizeObserver(entries => {
-					if (entries.length === 0) {
+					if (!allowBufferChanges || entries.length === 0) {
 						return;
 					}
 					const entry = entries[0];
 					const lineHeight = parseInt(e.style.lineHeight.replace('px', ''));
-					const availableHeight = lineHeight * this._insertedLines;
+					const availableHeight = lineHeight * insertedLines;
 					if (availableHeight < entry.contentRect.height) {
 						// TODO: .
-						const newLines = this._insertedLines + Math.ceil((entry.contentRect.height - availableHeight) / lineHeight);
-						for (let i = this._insertedLines; i < newLines; i++) {
+						const newLines = insertedLines + Math.ceil((entry.contentRect.height - availableHeight) / lineHeight);
+						for (let i = insertedLines; i < newLines; i++) {
 							term.write(`\x1b[s\x1b[${i}E\n\x1b[L\x1b[u`);
 						}
-						this._insertedLines = newLines;
+						insertedLines = newLines;
 					}
 				});
 				resizeObserver.observe(e);
 				this._register(toDisposable(() => resizeObserver.disconnect()));
 			}
 		});
-		this._decoration.onDispose(() => this._decoration = undefined);
+
+		// When any output occurs in the terminal, stop modifying the buffer. This is unexpected to
+		// occur in normal usage but it could happen at which point we accept the view zone may not
+		// by in the correct position in favor of not corrupting the buffer.
+		const onDataListener = term.onData(() => {
+			allowBufferChanges = false;
+		});
+
+		// Clean up
+		this._decoration.onDispose(() => {
+			onDataListener.dispose();
+			this._decoration = undefined;
+		});
 
 		return this._decoration;
 	}
