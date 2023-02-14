@@ -38,18 +38,17 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { URI } from 'vs/base/common/uri';
-import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createCancelablePromise } from 'vs/base/common/async';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { readonly } from 'vs/base/common/errors';
 
 const enum RenderConstants {
 	/**
@@ -291,7 +290,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		});
 	}
 
-	focusAccessibleBuffer(): void {
+	async focusAccessibleBuffer(): Promise<void> {
 		this._accessibileBuffer?.focus();
 	}
 
@@ -777,23 +776,55 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 class AccessibleBuffer extends DisposableStore {
 
 	private _accessibleBuffer: HTMLElement;
-	private _bufferEditor: BufferEditor;
+	private _bufferEditor: CodeEditorWidget;
 
 	constructor(
 		private readonly _terminal: RawXtermTerminal,
-		private readonly _font: ITerminalFont,
+		font: ITerminalFont,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService textModelResolverService: ITextModelService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
-		textModelResolverService.registerTextModelContentProvider('terminal', this);
-		this._bufferEditor = this._instantiationService.createInstance(BufferEditor);
-		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
-		this._bufferEditor.create(this._accessibleBuffer);
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
+		};
+
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 6,
+			dragAndDrop: true,
+			cursorWidth: 1,
+			fontSize: font.fontSize,
+			lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1,
+			fontFamily: font.fontFamily,
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 2, bottom: 2 },
+			quickSuggestions: false,
+			scrollbar: { alwaysConsumeMouseWheel: false },
+			renderWhitespace: 'none',
+			dropIntoEditor: { enabled: true },
+			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+			cursorBlinking: configurationService.getValue('terminal.integrated.cursorBlinking'),
+			readOnly: true
+		};
+		this._accessibleBuffer = this._terminal.element!.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
+		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._accessibleBuffer, editorOptions, codeEditorWidgetOptions);
 	}
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+
+	async focus(): Promise<void> {
+		const fragment = this._getContent();
+		const model = await this._getTextModel(URI.from({ scheme: 'terminal', fragment }));
+		if (model) {
+			this._bufferEditor.setModel(model);
+		}
+		this._bufferEditor.focus();
+	}
+
+	async _getTextModel(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
@@ -801,16 +832,12 @@ class AccessibleBuffer extends DisposableStore {
 
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
-	focus(): void {
 
-		const lineHeight = this._font?.charHeight ? this._font.charHeight * this._font.lineHeight + 'px' : '';
-		this._accessibleBuffer.style.lineHeight = lineHeight;
+	private _getContent(): string {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
-		let content = '';
-		if (!commands?.length) {
-			content = localize('terminal.integrated.noContent', "No terminal content available for this session.");
-		} else {
+		let content = localize('terminal.integrated.noContent', "No terminal content available for this session.");
+		if (commands?.length) {
 			for (const command of commands) {
 				sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
 				if (command.exitCode !== 0) {
@@ -821,44 +848,6 @@ class AccessibleBuffer extends DisposableStore {
 			}
 			content = sb.build();
 		}
-
-		this.provideTextContent(URI.from(
-			{
-				scheme: 'terminal',
-				path: `content`,
-				fragment: content,
-				query: `terminal`
-			}));
-		const input = this._instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'terminal' }), localize('accessible buffer title', "Accessible buffer"), localize('accessible buffer title', "Accessible buffer"), undefined, undefined);
-		createCancelablePromise(token => this._bufferEditor.setInput(input, { preserveFocus: true }, Object.create(null), token));
-		input.setPreferredContents(sb.build());
-		this._bufferEditor.focus();
-	}
-}
-
-class BufferEditor extends AbstractTextResourceEditor {
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-	) {
-		super(TERMINAL_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
-	}
-
-	override getId(): string {
-		return TERMINAL_VIEW_ID;
-	}
-
-	protected override createEditor(parent: HTMLElement): void {
-
-		parent.setAttribute('role', 'document');
-
-		super.createEditor(parent);
+		return content;
 	}
 }
