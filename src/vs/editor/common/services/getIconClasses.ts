@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
-const fileIconCoalescedGlobRegex = /(?<=\*)(?:\.\*)+/;
+const fileIconCoalescedGlobRegex = /\*(?:\.\*)+/;
 
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
