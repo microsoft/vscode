@@ -2290,7 +2290,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			(accessor.get(ITerminalService).activeInstance?.xterm as any).insertViewZone();
+			(accessor.get(ITerminalService).activeInstance?.xterm as any).insertCommandSearch();
 		}
 	});
 	registerAction2(class extends Action2 {
