@@ -126,6 +126,11 @@ export interface IHoverOptions {
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
 	 */
 	trapFocus?: boolean;
+
+	/**
+	 * The container to render the hover in.
+	 */
+	container?: HTMLElement;
 }
 
 export interface IHoverAction {
