@@ -15,6 +15,7 @@ import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { hash } from 'vs/base/common/hash';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DeferredPromise } from 'vs/base/common/async';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 export const IUtilityProcessWorkerMainService = createDecorator<IUtilityProcessWorkerMainService>('utilityProcessWorker');
 
@@ -31,7 +32,8 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 	}
@@ -49,7 +51,11 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		}
 
 		// Create new worker
-		const worker = new UtilityProcessWorker(this.logService, this.windowsMainService, this.telemetryService, configuration);
+		const worker = new UtilityProcessWorker(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService, configuration);
+		if (!worker.spawn()) {
+			return { reason: { code: 1, signal: 'EINVALID' } };
+		}
+
 		this.workers.set(workerId, worker);
 
 		const onDidTerminate = new DeferredPromise<IOnDidTerminateSharedProcessWorkerProcess>();
@@ -87,18 +93,18 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<ISharedProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = new UtilityProcess(this.logService, this.windowsMainService, this.telemetryService);
+	private readonly utilityProcess = new UtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		private readonly configuration: ISharedProcessWorkerCreateConfiguration
 	) {
 		super();
 
 		this.registerListeners();
-		this.spawn();
 	}
 
 	private registerListeners(): void {
@@ -106,8 +112,9 @@ class UtilityProcessWorker extends Disposable {
 		this._register(this.utilityProcess.onCrash(e => this._onDidTerminate.fire({ code: e.code, signal: 'unknown' })));
 	}
 
-	private spawn(): void {
-		this.utilityProcess.start({
+	spawn(): boolean {
+		return this.utilityProcess.start({
+			windowLifecycleBound: true,
 			correlationId: `${this.configuration.reply.windowId}`,
 			responseWindowId: this.configuration.reply.windowId,
 			responseChannel: this.configuration.reply.channel,

@@ -14,6 +14,7 @@ import { UtilityProcess as ElectronUtilityProcess, UtilityProcessProposedApi, ca
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 export interface IUtilityProcessConfiguration {
 
@@ -56,6 +57,12 @@ export interface IUtilityProcessConfiguration {
 	 * with other components.
 	 */
 	readonly correlationId?: string;
+
+	/**
+	 * If set to `true`, will terminate the utility process
+	 * when the associated browser window closes or reloads.
+	 */
+	readonly windowLifecycleBound?: boolean;
 }
 
 interface IUtilityProcessExitBaseEvent {
@@ -118,7 +125,8 @@ export class UtilityProcess extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 	}
@@ -163,10 +171,10 @@ export class UtilityProcess extends Disposable {
 		return responseWindow;
 	}
 
-	start(configuration: IUtilityProcessConfiguration): void {
+	start(configuration: IUtilityProcessConfiguration): boolean {
 		const responseWindow = this.validateCanStart(configuration);
 		if (!responseWindow) {
-			return;
+			return false;
 		}
 
 		this.configuration = configuration;
@@ -199,13 +207,22 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName);
+		this.registerListeners(responseWindow, this.process, this.configuration, serviceName);
 
 		// Exchange message ports
 		this.exchangeMessagePorts(this.process, this.configuration, responseWindow);
+
+		return true;
 	}
 
-	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
+	private registerListeners(window: BrowserWindow, process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
+
+		// If the lifecycle of the utility process is bound to the window,
+		// we kill the process if the window closes or changes
+		if (configuration.windowLifecycleBound) {
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
+			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
+		}
 
 		// Stdout
 		if (process.stdout) {
