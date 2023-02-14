@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessagePortMain, isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
+import { MessagePortMain, isUtilityProcess, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
