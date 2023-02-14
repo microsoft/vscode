@@ -243,10 +243,10 @@
 	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
 	"config.mergeEditor": "Open the merge editor for files that are currently under conflict.",
 	"config.optimisticUpdate": "Controls whether to optimistically update the state of the Source Control view after running git commands.",
-	"config.openRepositoryInParentFolders": "Control whether a repository in the parent folders of the workspace, open file(s) should be opened.",
-	"config.openRepositoryInParentFolders.always": "Always open a repository in the parent folders of the workspace, open file(s).",
-	"config.openRepositoryInParentFolders.never": "Never open a repository in the parent folders of the workspace, open file(s).",
-	"config.openRepositoryInParentFolders.prompt": "Prompt before opening a repository in the parent folders of the workspace, open file(s).",
+	"config.openRepositoryInParentFolders": "Control whether a repository in parent folders of workspaces or open files should be opened.",
+	"config.openRepositoryInParentFolders.always": "Always open a repository in parent folders of workspaces or open files.",
+	"config.openRepositoryInParentFolders.never": "Never open a repository in parent folders of workspaces or open files.",
+	"config.openRepositoryInParentFolders.prompt": "Prompt before opening a repository the parent folders of workspaces or open files.",
 	"config.publishBeforeContinueOn": "Controls whether to publish unpublished git state when using Continue Working On from a git repository.",
 	"config.publishBeforeContinueOn.always": "Always publish unpublished git state when using Continue Working On from a git repository",
 	"config.publishBeforeContinueOn.never": "Never publish unpublished git state when using Continue Working On from a git repository",
@@ -343,7 +343,7 @@
 		"message": "Scanning workspace for git repositories..."
 	},
 	"view.workbench.scm.repositoryInParentFolders": {
-		"message": "A git repository was found in one of the parent directories of the workspace, open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse [this setting](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) to control how git repositories in parent directories of the workspace, open file(s) are opened. To learn more [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"message": "A git repository was found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether git repositories in parent folders of workspaces or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
 		"comment": [
 			"{Locked='](command:git.openRepositoriesInParentFolders'}",
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D'}",
@@ -352,7 +352,7 @@
 		]
 	},
 	"view.workbench.scm.repositoriesInParentFolders": {
-		"message": "Git repositories were found in one of the parent directories of the workspace, open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse [this setting](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) to control how git repositories in parent directories of the workspace, open file(s) are opened. To learn more [read our docs](https://aka.ms/vscode-git-external-repository).",
+		"message": "Git repositories were found in the parent folders of the workspace or the open file(s).\n[Open Repository](command:git.openRepositoriesInParentFolders)\nUse the [git.openRepositoryInParentFolders](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D) setting to control whether git repositories in parent folders of workspace or open files are opened. To learn more [read our docs](https://aka.ms/vscode-git-repository-in-parent-folders).",
 		"comment": [
 			"{Locked='](command:git.openRepositoriesInParentFolders'}",
 			"{Locked='](command:workbench.action.openSettings?%5B%22git.openRepositoryInParentFolders%22%5D'}",

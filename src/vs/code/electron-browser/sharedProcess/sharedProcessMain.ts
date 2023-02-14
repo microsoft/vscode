@@ -89,7 +89,7 @@ import { ISharedTunnelsService } from 'vs/platform/tunnel/common/tunnel';
 import { SharedTunnelsService } from 'vs/platform/tunnel/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
-import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -116,6 +116,7 @@ import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
+import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -135,11 +136,7 @@ class SharedProcessMain extends Disposable {
 
 		// Shared process lifecycle
 		const onExit = async () => {
-			if (this.lifecycleService) {
-				await this.lifecycleService.fireOnWillShutdown();
-				this.lifecycleService.dispose();
-				this.lifecycleService = undefined;
-			}
+			this.lifecycleService?.fireOnWillShutdown();
 			this.dispose();
 		};
 		process.once('exit', onExit);
@@ -152,12 +149,12 @@ class SharedProcessMain extends Disposable {
 		// application is shutting down anyways.
 		//
 		const eventName = 'vscode:electron-main->shared-process=disposeWorker';
-		const onDisposeWorker = (event: unknown, configuration: ISharedProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
+		const onDisposeWorker = (event: unknown, configuration: IUtilityProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
 		ipcRenderer.on(eventName, onDisposeWorker);
 		this._register(toDisposable(() => ipcRenderer.removeListener(eventName, onDisposeWorker)));
 	}
 
-	private onDisposeWorker(configuration: ISharedProcessWorkerConfiguration): void {
+	private onDisposeWorker(configuration: IUtilityProcessWorkerConfiguration): void {
 		this.sharedProcessWorkerService?.disposeWorker(configuration);
 	}
 
@@ -197,8 +194,6 @@ class SharedProcessMain extends Disposable {
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
-		// Lifecycle
-
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
 		services.set(IProductService, productService);
@@ -222,12 +217,12 @@ class SharedProcessMain extends Disposable {
 
 		// Log
 		const logger = this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { id: 'sharedLog', name: localize('sharedLog', "Shared") }));
-		const consoleLogger = this._register(new ConsoleLogger(this.configuration.logLevel));
+		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
 		const logService = this._register(new LogService(logger, [consoleLogger]));
 		services.set(ILogService, logService);
 
 		// Lifecycle
-		this.lifecycleService = new SharedProcessLifecycleService(logService);
+		this.lifecycleService = this._register(new SharedProcessLifecycleService(logService));
 		services.set(ISharedProcessLifecycleService, this.lifecycleService);
 
 		// Worker
@@ -452,12 +447,11 @@ class SharedProcessMain extends Disposable {
 
 		// Worker
 		const sharedProcessWorkerChannel = ProxyChannel.fromService(accessor.get(ISharedProcessWorkerService));
-		this.server.registerChannel(ipcSharedProcessWorkerChannelName, sharedProcessWorkerChannel);
+		this.server.registerChannel(ipcUtilityProcessWorkerChannelName, sharedProcessWorkerChannel);
 
 		// Remote Tunnel
 		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
-
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

@@ -18,7 +18,7 @@ import {
 
 
 import { hash } from './utils/hash';
-import { createDocumentColorsLimitItem, createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
+import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -59,6 +59,8 @@ type Settings = {
 		resultLimit?: number;
 		jsonFoldingLimit?: number;
 		jsoncFoldingLimit?: number;
+		jsonColorDecoratorLimit?: number;
+		jsoncColorDecoratorLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -70,6 +72,7 @@ export type JSONSchemaSettings = {
 	fileMatch?: string[];
 	url?: string;
 	schema?: any;
+	folderUri?: string;
 };
 
 export namespace SettingIds {
@@ -78,9 +81,12 @@ export namespace SettingIds {
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
+	export const editorFoldingMaximumRegions = 'editor.foldingMaximumRegions';
+	export const editorColorDecoratorsLimit = 'editor.colorDecoratorsLimit';
 
 	export const editorSection = 'editor';
 	export const foldingMaximumRegions = 'foldingMaximumRegions';
+	export const colorDecoratorsLimit = 'colorDecoratorsLimit';
 }
 
 export interface TelemetryReporter {
@@ -108,6 +114,8 @@ export const languageServerDescription = l10n.t('JSON Language Server');
 let resultLimit = 5000;
 let jsonFoldingLimit = 5000;
 let jsoncFoldingLimit = 5000;
+let jsonColorDecoratorLimit = 5000;
+let jsoncColorDecoratorLimit = 5000;
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
@@ -128,8 +136,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	let isClientReady = false;
 
 	const documentSymbolsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentSymbolsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	const documentColorsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentColorsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	toDispose.push(documentSymbolsLimitStatusbarItem, documentColorsLimitStatusbarItem);
+	toDispose.push(documentSymbolsLimitStatusbarItem);
 
 	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
@@ -224,20 +231,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return r;
 			},
 			provideDocumentColors(document: TextDocument, token: CancellationToken, next: ProvideDocumentColorsSignature) {
-				function checkLimit(r: ColorInformation[] | null | undefined): ColorInformation[] | null | undefined {
-					if (Array.isArray(r) && r.length > resultLimit) {
-						r.length = resultLimit; // truncate
-						documentColorsLimitStatusbarItem.update(document, resultLimit);
-					} else {
-						documentColorsLimitStatusbarItem.update(document, false);
-					}
-					return r;
-				}
 				const r = next(document, token);
 				if (isThenable<ColorInformation[] | null | undefined>(r)) {
-					return r.then(checkLimit);
+					return r;
 				}
-				return checkLimit(r);
+				return r;
 			},
 			provideDocumentSymbols(document: TextDocument, token: CancellationToken, next: ProvideDocumentSymbolsSignature) {
 				type T = SymbolInformation[] | DocumentSymbol[];
@@ -374,6 +372,8 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			updateFormatterRegistration();
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
 			updateSchemaDownloadSetting();
+		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
+			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() });
 		}
 	}));
 
@@ -469,8 +469,15 @@ function getSettings(): Settings {
 	const normalizeLimit = (settingValue: any) => Math.trunc(Math.max(0, Number(settingValue))) || 5000;
 
 	resultLimit = normalizeLimit(workspace.getConfiguration().get(SettingIds.maxItemsComputed));
-	jsonFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' }).get(SettingIds.foldingMaximumRegions));
-	jsoncFoldingLimit = normalizeLimit(workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' }).get(SettingIds.foldingMaximumRegions));
+	const editorJSONSettings = workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' });
+	const editorJSONCSettings = workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' });
+
+	jsonFoldingLimit = normalizeLimit(editorJSONSettings.get(SettingIds.foldingMaximumRegions));
+	jsoncFoldingLimit = normalizeLimit(editorJSONCSettings.get(SettingIds.foldingMaximumRegions));
+	jsonColorDecoratorLimit = normalizeLimit(editorJSONSettings.get(SettingIds.colorDecoratorsLimit));
+	jsoncColorDecoratorLimit = normalizeLimit(editorJSONCSettings.get(SettingIds.colorDecoratorsLimit));
+
+	const schemas: JSONSchemaSettings[] = [];
 
 	const settings: Settings = {
 		http: {
@@ -481,85 +488,36 @@ function getSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
-			schemas: [],
+			schemas,
 			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
 			jsonFoldingLimit: jsonFoldingLimit + 1,
-			jsoncFoldingLimit: jsoncFoldingLimit + 1
+			jsoncFoldingLimit: jsoncFoldingLimit + 1,
+			jsonColorDecoratorLimit: jsonColorDecoratorLimit + 1,
+			jsoncColorDecoratorLimit: jsoncColorDecoratorLimit + 1
 		}
 	};
-	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri, isMultiRoot?: boolean) => {
 
-		let fileMatchPrefix = undefined;
-		if (folderUri && isMultiRoot) {
-			fileMatchPrefix = folderUri.toString();
-			if (fileMatchPrefix[fileMatchPrefix.length - 1] === '/') {
-				fileMatchPrefix = fileMatchPrefix.substr(0, fileMatchPrefix.length - 1);
-			}
-		}
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri) => {
 		for (const setting of schemaSettings) {
 			const url = getSchemaId(setting, folderUri);
-			if (!url) {
-				continue;
-			}
-			let schemaSetting = schemaSettingsById[url];
-			if (!schemaSetting) {
-				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
-				settings.json!.schemas!.push(schemaSetting);
-			}
-			const fileMatches = setting.fileMatch;
-			if (Array.isArray(fileMatches)) {
-				const resultingFileMatches = schemaSetting.fileMatch || [];
-				schemaSetting.fileMatch = resultingFileMatches;
-				const addMatch = (pattern: string) => { //  filter duplicates
-					if (resultingFileMatches.indexOf(pattern) === -1) {
-						resultingFileMatches.push(pattern);
-					}
-				};
-				for (const fileMatch of fileMatches) {
-					if (fileMatchPrefix) {
-						if (fileMatch[0] === '/') {
-							addMatch(fileMatchPrefix + fileMatch);
-							addMatch(fileMatchPrefix + '/*' + fileMatch);
-						} else {
-							addMatch(fileMatchPrefix + '/' + fileMatch);
-							addMatch(fileMatchPrefix + '/*/' + fileMatch);
-						}
-					} else {
-						addMatch(fileMatch);
-					}
-				}
-			}
-			if (setting.schema && !schemaSetting.schema) {
-				schemaSetting.schema = setting.schema;
+			if (url) {
+				const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
+				schemas.push(schemaSetting);
 			}
 		}
 	};
 
-	const folders = workspace.workspaceFolders;
-
-	// merge global and folder settings. Qualify all file matches with the folder path.
 	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
 	if (Array.isArray(globalSettings)) {
-		if (!folders) {
-			collectSchemaSettings(globalSettings);
-		}
+		collectSchemaSettings(globalSettings);
 	}
+	const folders = workspace.workspaceFolders;
 	if (folders) {
-		const isMultiRoot = folders.length > 1;
 		for (const folder of folders) {
-			const folderUri = folder.uri;
-
-			const schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-
-			const folderSchemas = schemaConfigInfo!.workspaceFolderValue;
-			if (Array.isArray(folderSchemas)) {
-				collectSchemaSettings(folderSchemas, folderUri, isMultiRoot);
+			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
+			if (schemaConfigInfo && Array.isArray(schemaConfigInfo.workspaceFolderValue)) {
+				collectSchemaSettings(schemaConfigInfo.workspaceFolderValue, folder.uri);
 			}
-			if (Array.isArray(globalSettings)) {
-				collectSchemaSettings(globalSettings, folderUri, isMultiRoot);
-			}
-
 		}
 	}
 	return settings;
@@ -572,7 +530,7 @@ function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | unde
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
 	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.joinPath(folderUri, url).toString();
+		url = Uri.joinPath(folderUri, url).toString(false);
 	}
 	return url;
 }

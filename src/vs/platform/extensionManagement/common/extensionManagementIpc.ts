@@ -79,6 +79,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'updateMetadata': return this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1], URI.revive(args[2])).then(e => transformOutgoingExtension(e, uriTransformer));
 			case 'getExtensionsControlManifest': return this.service.getExtensionsControlManifest();
 			case 'download': return this.service.download(args[0], args[1]);
+			case 'cleanUp': return this.service.cleanUp();
 		}
 
 		throw new Error('Invalid call');
@@ -187,6 +188,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
 		const result = await this.channel.call<UriComponents>('download', [extension, operation]);
 		return URI.revive(result);
+	}
+
+	async cleanUp(): Promise<void> {
+		return this.channel.call('cleanUp');
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }

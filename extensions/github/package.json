@@ -45,7 +45,7 @@
       },
       {
         "command": "github.openOnVscodeDev",
-        "title": "Open on vscode.dev",
+        "title": "Open in vscode.dev",
         "icon": "$(globe)"
       }
     ],
@@ -53,7 +53,8 @@
       {
         "command": "github.openOnVscodeDev",
         "when": "github.hasGitHubRepo",
-        "qualifiedName": "Continue Working in VS Code for the Web"
+        "qualifiedName": "Continue Working in vscode.dev",
+        "remoteGroup": "virtualfs_43_file_0_web@0"
       }
     ],
     "menus": {

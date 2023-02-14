@@ -579,6 +579,18 @@ function normalizeGlobPattern(pattern: string): string {
 }
 
 /**
+ * Escapes a path for use as a glob pattern that would match the input precisely.
+ * Characters '?', '*', '[', and ']' are escaped into character range glob syntax
+ * (for example, '?' becomes '[?]').
+ * NOTE: This implementation makes no special cases for UNC paths. For example,
+ * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
+ * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
+ */
+function escapeGlobPattern(path: string): string {
+	return path.replace(/([?*[\]])/g, '[$1]');
+}
+
+/**
  * Construct an include pattern from a list of folders uris to search in.
  */
 export function resolveResourcesForSearchIncludes(resources: URI[], contextService: IWorkspaceContextService): string[] {
@@ -616,7 +628,7 @@ export function resolveResourcesForSearchIncludes(resources: URI[], contextServi
 			}
 
 			if (folderPath) {
-				folderPaths.push(folderPath);
+				folderPaths.push(escapeGlobPattern(folderPath));
 			}
 		});
 	}

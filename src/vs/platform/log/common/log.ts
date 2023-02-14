@@ -725,11 +725,3 @@ export function parseLogLevel(logLevel: string): LogLevel | undefined {
 	}
 	return undefined;
 }
-
-export function setLogLevel(loggerService: ILoggerService, logLevel: LogLevel | [URI, LogLevel]): void {
-	if (isLogLevel(logLevel)) {
-		loggerService.setLogLevel(logLevel);
-	} else {
-		loggerService.setLogLevel(logLevel[0], logLevel[1]);
-	}
-}

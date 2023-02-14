@@ -28,6 +28,18 @@ trait PMInhibitor {
 	fn inhibit(&self, what: &str, why: &str) -> zbus::Result<u32>;
 }
 
+/// A slightly better documented version which seems commonly used.
+#[dbus_proxy(
+	interface = "org.freedesktop.ScreenSaver",
+	gen_blocking = false,
+	default_service = "org.freedesktop.ScreenSaver",
+	default_path = "/org/freedesktop/ScreenSaver"
+)]
+trait ScreenSaver {
+	#[dbus_proxy(name = "Inhibit")]
+	fn inhibit(&self, what: &str, why: &str) -> zbus::Result<u32>;
+}
+
 pub struct SleepInhibitor {
 	_connection: Connection, // Inhibition is released when the connection is closed
 }
@@ -38,14 +50,27 @@ impl SleepInhibitor {
 			.await
 			.map_err(|e| wrap(e, "error creating dbus session"))?;
 
-		let proxy = PMInhibitorProxy::new(&connection)
-			.await
-			.map_err(|e| wrap(e, "error getting proxy"))?;
+		macro_rules! try_inhibit {
+			($proxy:ident) => {
+				match $proxy::new(&connection).await {
+					Ok(proxy) => proxy.inhibit(APPLICATION_NAME, "running tunnel").await,
+					Err(e) => Err(e),
+				}
+			};
+		}
 
-		proxy
-			.inhibit(APPLICATION_NAME, "running tunnel")
-			.await
-			.map_err(|e| wrap(e, "error requesting sleep inhibition"))?;
+		if let Err(e1) = try_inhibit!(PMInhibitorProxy) {
+			if let Err(e2) = try_inhibit!(ScreenSaverProxy) {
+				return Err(wrap(
+					e2,
+					format!(
+						"error requesting sleep inhibition, pminhibitor gave {}, screensaver gave",
+						e1
+					),
+				)
+				.into());
+			}
+		}
 
 		Ok(SleepInhibitor {
 			_connection: connection,
