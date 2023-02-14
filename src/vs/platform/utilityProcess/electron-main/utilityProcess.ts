@@ -15,6 +15,7 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 
 export interface IUtilityProcessConfiguration {
 
@@ -150,7 +151,7 @@ export class UtilityProcess extends Disposable {
 		}
 	}
 
-	private validateCanStart(configuration: IUtilityProcessConfiguration): BrowserWindow | undefined {
+	private validateCanStart(configuration: IUtilityProcessConfiguration): ICodeWindow | undefined {
 		if (!canUseUtilityProcess) {
 			throw new Error('Cannot use UtilityProcess API from Electron!');
 		}
@@ -160,8 +161,8 @@ export class UtilityProcess extends Disposable {
 			return undefined;
 		}
 
-		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
-		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
+		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId);
+		if (!responseWindow?.win || responseWindow.win.isDestroyed() || responseWindow.win.webContents.isDestroyed()) {
 			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
 			return undefined;
 		}
@@ -171,7 +172,7 @@ export class UtilityProcess extends Disposable {
 
 	start(configuration: IUtilityProcessConfiguration): boolean {
 		const responseWindow = this.validateCanStart(configuration);
-		if (!responseWindow) {
+		if (!responseWindow?.win) {
 			return false;
 		}
 
@@ -205,15 +206,15 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(responseWindow, this.process, this.configuration, serviceName);
+		this.registerListeners(responseWindow.win, this.process, this.configuration, serviceName, responseWindow.isSandboxed);
 
 		// Exchange message ports
-		this.exchangeMessagePorts(this.process, this.configuration, responseWindow);
+		this.exchangeMessagePorts(this.process, this.configuration, responseWindow.win);
 
 		return true;
 	}
 
-	private registerListeners(window: BrowserWindow, process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
+	private registerListeners(window: BrowserWindow, process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
 
 		// If the lifecycle of the utility process is bound to the window,
 		// we kill the process if the window closes or changes
@@ -264,6 +265,7 @@ export class UtilityProcess extends Disposable {
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
+					sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window for the utility process was sandboxed or not.' };
 					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
@@ -272,8 +274,14 @@ export class UtilityProcess extends Disposable {
 					type: string;
 					reason: string;
 					code: number;
+					sandboxed: string;
 				};
-				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', { type: configuration.type, reason: details.reason, code: details.exitCode });
+				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', {
+					type: configuration.type,
+					reason: details.reason,
+					code: details.exitCode,
+					sandboxed: isWindowSandboxed ? '1' : '0' // TODO@bpasero remove this once sandbox is enabled by default
+				});
 
 				// Event
 				this._onCrash.fire({ pid: this.processPid!, code: details.exitCode, reason: details.reason });
