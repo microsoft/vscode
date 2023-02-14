@@ -133,6 +133,7 @@ export interface IHoverOptions {
 	 */
 	forwardClickEvent?: boolean;
 
+	/*
 	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
 	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is
 	 * created as the next tab index after the element being hovered and/or to workaround the
