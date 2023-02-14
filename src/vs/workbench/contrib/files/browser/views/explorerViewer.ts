@@ -1391,7 +1391,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	// @ts-ignore
 	private async mergeDirectories(sources: ExplorerItem[], targetResource: URI): Promise<ResourceFileEdit[]> {
 		const resourceFileEdits: ResourceFileEdit[] = [];
 		for (const source of sources) {
