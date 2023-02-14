@@ -13,8 +13,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { cellStatusIconError, cellStatusIconSuccess, cellStatusIconWarning } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon, warningStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -218,8 +218,6 @@ export class TimerCellStatusBarContrib extends Disposable implements INotebookEd
 registerNotebookContribution(TimerCellStatusBarContrib.id, TimerCellStatusBarContrib);
 
 const UPDATE_TIMER_GRACE_PERIOD = 200;
-const RENDER_GRACE_PERIOD = 0;
-const OVERHEAD_GRACE_PERIOD = 0;
 
 class TimerCellStatusBarItem extends Disposable {
 	private static UPDATE_INTERVAL = 100;
@@ -244,7 +242,6 @@ class TimerCellStatusBarItem extends Disposable {
 
 	private async _update() {
 		let timerItem: INotebookCellStatusBarItem | undefined;
-		let warningItem: INotebookCellStatusBarItem | undefined;
 		const runState = this._executionStateService.getCellExecution(this._cell.uri);
 		const state = runState?.state;
 		const startTime = this._cell.internalMetadata.runStartTime;
@@ -260,30 +257,19 @@ class TimerCellStatusBarItem extends Disposable {
 			}
 		} else if (!state) {
 			if (typeof startTime === 'number' && typeof endTime === 'number') {
-				timerItem = this._getTimeItem(startTime, endTime, undefined, true);
-
 				const timerDuration = Date.now() - startTime + adjustment;
 				const executionDuration = endTime - startTime;
 				const renderDuration = this._cell.internalMetadata.renderDuration ?? {};
 
-				let showDiagnosticWarning = timerDuration - executionDuration > OVERHEAD_GRACE_PERIOD;
-				for (const key in renderDuration) {
-					if (renderDuration[key] > RENDER_GRACE_PERIOD) {
-						showDiagnosticWarning = true;
-						break;
-					}
-				}
-
-				if (showDiagnosticWarning) {
-					warningItem = this._getWarningItem(renderDuration, executionDuration, timerDuration);
-				}
+				timerItem = this._getTimeItem(startTime, endTime, undefined, {
+					timerDuration,
+					executionDuration,
+					renderDuration
+				});
 			}
 		}
 
 		const items = timerItem ? [timerItem] : [];
-		if (warningItem) {
-			items.push(warningItem);
-		}
 
 		if (!items.length && !!runState) {
 			if (!this._deferredUpdate) {
@@ -299,35 +285,42 @@ class TimerCellStatusBarItem extends Disposable {
 		}
 	}
 
-	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0, isDone = false): INotebookCellStatusBarItem {
+	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0, runtimeInformation?: { renderDuration: { [key: string]: number }; executionDuration: number; timerDuration: number }): INotebookCellStatusBarItem {
 		const duration = endTime - startTime + adjustment;
+
+		let tooltip: IMarkdownString | undefined;
+
+		if (runtimeInformation) {
+			const lastExecution = new Date(endTime).toLocaleTimeString(language);
+			const { renderDuration, executionDuration, timerDuration } = runtimeInformation;
+
+			let renderTimes = '';
+			for (const key in renderDuration) {
+				const rendererInfo = this._notebookService.getRendererInfo(key);
+
+				const args = encodeURIComponent(JSON.stringify({
+					extensionId: rendererInfo?.extensionId.value ?? '',
+					issueBody:
+						`Auto-generated text from notebook cell performance. The duration for the renderer, ${rendererInfo?.displayName ?? key}, is slower than expected.\n` +
+						`Execution Time: ${formatCellDuration(executionDuration)}\n` +
+						`Renderer Duration: ${formatCellDuration(renderDuration[key])}\n`
+				}));
+
+				renderTimes += `- [${rendererInfo?.displayName ?? key}](command:workbench.action.openIssueReporter?${args}) ${formatCellDuration(renderDuration[key])}\n`;
+			}
+
+			tooltip = {
+				value: localize('notebook.cell.statusBar.timerTooltip', "**Last Execution** {0}\n\n**Execution Time** {1}\n\n**Overhead Time** {2}\n\n**Render Times**\n\n{3}", lastExecution, formatCellDuration(executionDuration), formatCellDuration(timerDuration - executionDuration), renderTimes),
+				isTrusted: true
+			};
+
+		}
+
 		return <INotebookCellStatusBarItem>{
 			text: formatCellDuration(duration),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1,
-			tooltip: isDone ? new Date(endTime).toLocaleString(language) : undefined
-		};
-	}
-
-	private _getWarningItem(renderDuration: { [key: string]: number }, executionDuration: number, timerDuration: number): INotebookCellStatusBarItem {
-		let renderTimes = '';
-		for (const key in renderDuration) {
-
-			const rendererInfo = this._notebookService.getRendererInfo(key);
-			renderTimes += `- [${rendererInfo?.displayName ?? key}](command:workbench.action.openIssueReporter?%5B%22${rendererInfo?.extensionId.value}%22%5D) ${formatCellDuration(renderDuration[key])}\n`;
-		}
-
-		const tooltip: IMarkdownString = {
-			value: localize('notebook.cell.statusBar.timerWarning', "The output renderer for this cell is slow.\n\n**Execution Time** {0}\n\n**Overhead Time** {2}\n\n**Render Times**\n\n{1}", formatCellDuration(executionDuration), renderTimes, formatCellDuration(timerDuration - executionDuration)),
-			isTrusted: true
-		};
-
-		return <INotebookCellStatusBarItem>{
-			text: `$(${warningStateIcon.id})`,
-			alignment: CellStatusbarAlignment.Left,
-			priority: Number.MAX_SAFE_INTEGER - 1,
-			color: themeColorFromId(cellStatusIconWarning),
-			tooltip: tooltip
+			tooltip
 		};
 	}
 
