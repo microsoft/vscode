@@ -316,7 +316,7 @@ export class UtilityProcess extends Disposable {
 
 	kill(): void {
 		if (!this.process) {
-			return; // already killed or never started
+			return; // already killed, crashed or never started
 		}
 
 		this.log('attempting to kill the process...', Severity.Info);

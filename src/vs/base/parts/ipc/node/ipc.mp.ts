@@ -9,7 +9,11 @@ import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from 'vs/ba
 import { Emitter, Event } from 'vs/base/common/event';
 import { assertType } from 'vs/base/common/types';
 
-class MessagePortMainProtocol implements IMessagePassingProtocol {
+/**
+ * The MessagePort `Protocol` leverages MessagePortMain style IPC communication
+ * for the implementation of the `IMessagePassingProtocol`.
+ */
+class Protocol implements IMessagePassingProtocol {
 
 	readonly onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
 
@@ -45,7 +49,7 @@ export class Server extends IPCServer {
 		});
 
 		return Event.map(onCreateMessageChannel.event, port => {
-			const protocol = new MessagePortMainProtocol(port);
+			const protocol = new Protocol(port);
 
 			const result: ClientConnectionEvent = {
 				protocol,

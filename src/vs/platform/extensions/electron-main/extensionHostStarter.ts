@@ -39,7 +39,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		this._extHosts = new Map<string, ExtensionHostProcess | UtilityProcess>();
 
 		// On shutdown: gracefully await extension host shutdowns
-		_lifecycleMainService.onWillShutdown((e) => {
+		this._lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
 			e.join('extHostStarter', this._waitForAllExit(6000));
 		});

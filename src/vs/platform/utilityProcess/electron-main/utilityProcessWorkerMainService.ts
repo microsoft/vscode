@@ -109,7 +109,7 @@ class UtilityProcessWorker extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.utilityProcess.onExit(e => this._onDidTerminate.fire({ code: e.code, signal: e.signal })));
-		this._register(this.utilityProcess.onCrash(e => this._onDidTerminate.fire({ code: e.code, signal: 'unknown' })));
+		this._register(this.utilityProcess.onCrash(e => this._onDidTerminate.fire({ code: e.code, signal: 'ECRASH' })));
 	}
 
 	spawn(): boolean {
