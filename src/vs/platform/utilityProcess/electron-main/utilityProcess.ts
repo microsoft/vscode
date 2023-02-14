@@ -120,8 +120,6 @@ export class UtilityProcess extends Disposable {
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
 
-	private didExit: boolean = false;
-
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -250,9 +248,11 @@ export class UtilityProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
 			this.log(`received exit event with code ${code}`, Severity.Info);
 
-			this.didExit = true;
-
+			// Event
 			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
+
+			// Cleanup
+			this.onDidExitOrCrashOrKill();
 		}));
 
 		// Child process gone
@@ -277,6 +277,9 @@ export class UtilityProcess extends Disposable {
 
 				// Event
 				this._onCrash.fire({ pid: this.processPid!, code: details.exitCode, reason: details.reason });
+
+				// Cleanup
+				this.onDidExitOrCrashOrKill();
 			}
 		}));
 	}
@@ -289,7 +292,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	enableInspectPort(): boolean {
-		if (typeof this.processPid !== 'number') {
+		if (!this.process || typeof this.processPid !== 'number') {
 			return false;
 		}
 
@@ -313,17 +316,21 @@ export class UtilityProcess extends Disposable {
 
 	kill(): void {
 		if (!this.process) {
-			this.log('no running process to kill', Severity.Warning);
-			return;
+			return; // already killed or never started
 		}
 
 		this.log('attempting to kill the process...', Severity.Info);
 		const killed = this.process.kill();
 		if (killed) {
 			this.log('successfully killed the process', Severity.Info);
+			this.onDidExitOrCrashOrKill();
 		} else {
 			this.log('unable to kill the process', Severity.Warning);
 		}
+	}
+
+	private onDidExitOrCrashOrKill(): void {
+		this.process = undefined;
 	}
 
 	async waitForExit(maxWaitTimeMs: number): Promise<void> {
@@ -332,14 +339,10 @@ export class UtilityProcess extends Disposable {
 			return;
 		}
 
-		if (this.didExit) {
-			return;
-		}
-
 		this.log('waiting to exit...', Severity.Info);
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
-		if (!this.didExit) {
+		if (this.process) {
 			this.log('did not exit within ${maxWaitTimeMs}ms, will kill it now...', Severity.Info);
 			this.kill();
 		}
