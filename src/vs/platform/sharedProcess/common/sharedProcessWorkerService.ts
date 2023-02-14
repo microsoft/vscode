@@ -64,6 +64,14 @@ export interface ISharedProcessWorkerConfiguration {
 	};
 }
 
+export interface ISharedProcessWorkerCreateConfiguration extends ISharedProcessWorkerConfiguration {
+	reply: {
+		windowId: number;
+		channel: string;
+		nonce: string;
+	};
+}
+
 /**
  * Converts the process configuration into a hash to
  * identify processes of the same kind by taking those
@@ -108,7 +116,7 @@ export interface ISharedProcessWorkerService {
 	 * about the termination that can be used to figure out if the termination was unexpected
 	 * or not and whether the worker needs to be restarted.
 	 */
-	createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess>;
+	createWorker(configuration: ISharedProcessWorkerCreateConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess>;
 
 	/**
 	 * Terminates the process for the provided configuration if any.

@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { hash, IOnDidTerminateSharedProcessWorkerProcess, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { hash, IOnDidTerminateSharedProcessWorkerProcess, ISharedProcessWorkerConfiguration, ISharedProcessWorkerCreateConfiguration, ISharedProcessWorkerProcessExit, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
 export class SharedProcessWorkerService implements ISharedProcessWorkerService {
@@ -28,7 +28,7 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 	) {
 	}
 
-	async createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess> {
+	async createWorker(configuration: ISharedProcessWorkerCreateConfiguration): Promise<IOnDidTerminateSharedProcessWorkerProcess> {
 		const workerLogId = `window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId}`;
 		this.logService.trace(`SharedProcess: createWorker (${workerLogId})`);
 
