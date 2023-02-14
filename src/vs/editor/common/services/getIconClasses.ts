@@ -41,6 +41,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
+			classes.push(`name-folder-icon`); // extra segment to increase folder-name score
 			if (name && name.length <= 255) {
 				pushGlobIconClassesForName(name, classes, 'folder'); // add globs targeting folder name
 			}

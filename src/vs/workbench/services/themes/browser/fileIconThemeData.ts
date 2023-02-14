@@ -293,9 +293,16 @@ export class FileIconThemeLoader {
 					for (const key in folderNames) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						const kind = name.indexOf('*') !== -1 ? 'glob' : 'name';
-						selectors.push(`.${escapeCSS(name)}-${kind}-folder-icon`);
-						addSelector(`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
+						const mode = name.indexOf('*') !== -1 ? 'glob' : 'name';
+
+						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
+
+						if (mode === 'name') {
+							selectors.push('.name-folder-icon');
+						}
+
+						addSelector(`${qualifier} ${selectors.join('')}::before`, folderNames[key]);
+
 						result.hasFolderIcons = true;
 					}
 				}
@@ -304,9 +311,15 @@ export class FileIconThemeLoader {
 					for (const key in folderNamesExpanded) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						const kind = name.indexOf('*') !== -1 ? 'glob' : 'name';
-						selectors.push(`.${escapeCSS(name)}-${kind}-folder-icon`);
-						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
+						const mode = name.indexOf('*') !== -1 ? 'glob' : 'name';
+
+						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
+
+						if (mode === 'name') {
+							selectors.push('.folder-icon');
+						}
+
+						addSelector(`${qualifier} ${expanded} ${selectors.join('')}::before`, folderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
 				}
@@ -328,6 +341,7 @@ export class FileIconThemeLoader {
 					for (const key in fileExtensions) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
+
 						const segments = name.split('.');
 						if (segments.length) {
 							for (let i = 0; i < segments.length; i++) {
@@ -335,7 +349,9 @@ export class FileIconThemeLoader {
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
+
 						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[key]);
+
 						result.hasFileIcons = true;
 						hasSpecificFileIcons = true;
 					}
@@ -345,9 +361,11 @@ export class FileIconThemeLoader {
 					for (const key in fileNames) {
 						const selectors: string[] = [];
 						const fileName = handleParentFolder(key.toLowerCase(), selectors);
-						const kind = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
-						selectors.push(`.${escapeCSS(fileName)}-${kind}-file-icon`);
+						const mode = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
+
+						selectors.push(`.${escapeCSS(fileName)}-${mode}-file-icon`);
 						selectors.push('.name-file-icon'); // extra segment to increase file-name score
+
 						const segments = fileName.split('.');
 						if (segments.length) {
 							for (let i = 1; i < segments.length; i++) {
@@ -355,7 +373,9 @@ export class FileIconThemeLoader {
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
+
 						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
+
 						result.hasFileIcons = true;
 						hasSpecificFileIcons = true;
 					}
