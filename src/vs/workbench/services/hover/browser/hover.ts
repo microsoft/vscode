@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -128,7 +129,10 @@ export interface IHoverOptions {
 	trapFocus?: boolean;
 
 	/**
-	 * The container to render the hover in.
+	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
+	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is
+	 * created as the next tab index after the element being hovered and/or to workaround the
+	 * element's container hiding on `focusout`.
 	 */
 	container?: HTMLElement;
 }
