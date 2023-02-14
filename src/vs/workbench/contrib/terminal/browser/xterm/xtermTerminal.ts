@@ -40,6 +40,17 @@ import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/sugges
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isLinux } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { URI } from 'vs/base/common/uri';
+import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { IFileService } from 'vs/platform/files/common/files';
+import { createCancelablePromise } from 'vs/base/common/async';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
 
 const enum RenderConstants {
 	/**
@@ -768,27 +779,44 @@ class AccessibleBuffer extends DisposableStore {
 
 	private _accessibleBuffer: HTMLElement | undefined;
 	private _bufferElementFragment: DocumentFragment | undefined;
-
 	constructor(
 		private readonly _terminal: RawXtermTerminal,
 		private readonly _font: ITerminalFont,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService textModelResolverService: ITextModelService,
 	) {
 		super();
-		this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this.focus() }));
+		textModelResolverService.registerTextModelContentProvider('terminal', this);
 	}
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
+		}
 
-	focus(): DocumentFragment {
+		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+	focus(): void {
+
 		if (!this._bufferElementFragment) {
 			this._bufferElementFragment = document.createDocumentFragment();
 		}
+
 		this._accessibleBuffer = this._terminal.element?.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
 		if (!this._accessibleBuffer) {
-			return this._bufferElementFragment;
+			// return this._bufferElementFragment;
 		}
+
+		const editor = this._instantiationService.createInstance(BufferEditor);
+		const input = this._instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'terminal' }), localize('accessible buffer title', "Accessible buffer"), localize('accessible buffer title', "Accessible buffer"), undefined, undefined);
+		createCancelablePromise(token => editor.setInput(input, { preserveFocus: true }, Object.create(null), token)
+			.then(() => editor));
 		// see https://github.com/microsoft/vscode/issues/173532
+		// editor.create(this._accessibleBuffer);
 		const accessibleBufferContentEditable = isLinux ? 'on' : this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
 		this._accessibleBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
 		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
@@ -801,7 +829,17 @@ class AccessibleBuffer extends DisposableStore {
 			noContent.textContent = noContentLabel;
 			this._bufferElementFragment.replaceChildren(noContent);
 			this._accessibleBuffer.focus();
-			return this._bufferElementFragment;
+			// return this._bufferElementFragment;
+			this.provideTextContent(URI.from(
+				{
+					scheme: 'terminal',
+					path: `content`,
+					fragment: this._bufferElementFragment.textContent!,
+					query: `terminal`
+				}));
+			editor.create(this._accessibleBuffer);
+			editor.focus();
+			return;
 		}
 		let header;
 		let replaceChildren = true;
@@ -813,6 +851,7 @@ class AccessibleBuffer extends DisposableStore {
 			if (command.exitCode !== 0) {
 				header.textContent += ` exited with code ${command.exitCode}`;
 			}
+			header.textContent += '\n';
 			const output = document.createElement('div');
 			// without this, the text area gets focused when keyboard shortcuts are used
 			output.tabIndex = -1;
@@ -825,6 +864,15 @@ class AccessibleBuffer extends DisposableStore {
 				this._bufferElementFragment.appendChild(output);
 			}
 		}
+		this.provideTextContent(URI.from(
+			{
+				scheme: 'terminal',
+				path: `content`,
+				fragment: this._bufferElementFragment.textContent!,
+				query: `terminal`
+			}));
+		editor.create(this._accessibleBuffer);
+		editor.focus();
 		this._accessibleBuffer.focus();
 		if (this._accessibleBuffer.contentEditable === 'true') {
 			document.execCommand('selectAll', false, undefined);
@@ -833,6 +881,34 @@ class AccessibleBuffer extends DisposableStore {
 			// focus the cursor line's header
 			header.tabIndex = 0;
 		}
-		return this._bufferElementFragment;
+		// return this._bufferElementFragment;
+		input.setPreferredContents(this._bufferElementFragment.textContent!);
+	}
+}
+
+class BufferEditor extends AbstractTextResourceEditor {
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IThemeService themeService: IThemeService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService,
+	) {
+		super(TERMINAL_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+	}
+
+	override getId(): string {
+		return TERMINAL_VIEW_ID;
+	}
+
+	protected override createEditor(parent: HTMLElement): void {
+
+		parent.setAttribute('role', 'document');
+
+		super.createEditor(parent);
 	}
 }
