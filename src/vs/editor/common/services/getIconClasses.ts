@@ -138,14 +138,6 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 		const basename = name.substring(name.lastIndexOf('.', dotLastIndex - 1), dotLastIndex);
 
 		let separator = basename.match(/_|-/)?.[0];
-		switch (true) {
-			case basename.indexOf('_') > -1:
-				separator = '_';
-				break;
-			case basename.indexOf('-') > -1:
-				separator = '-';
-				break;
-		}
 
 		if (separator) {
 			// Prefix basename glob e.g. `test_*.py`
