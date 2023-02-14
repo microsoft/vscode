@@ -84,7 +84,7 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 	// Remove ellipsis to defend against explosive combination
 	const segments = name.replace(/\.\.\.+/g, '').split('.');
 
-	// Limit permutative ("full") glob generation to 4 dot segments (<=3 file extensions).
+	// Permutative ("full") file glob generation, limited to 4 dot segments (<=3 file extensions)
 	if (segments.length <= 4) {
 		const bitmask = Math.pow(2, segments.length) - 1;
 
@@ -108,6 +108,7 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 		}
 	}
 
+	// Prefix matching and wildcard matching glob generation, for >=5 dot segments (>=4 file extensions)
 	if (segments.length >= 5) {
 		const lastDotIndex = segments.length - 1;
 
