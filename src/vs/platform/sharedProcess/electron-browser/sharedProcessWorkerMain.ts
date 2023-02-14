@@ -13,8 +13,9 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { deepClone } from 'vs/base/common/objects';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { hash, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { hash } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
+import { IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 /**
  * The `create` function needs to be there by convention because
@@ -65,7 +66,7 @@ class SharedProcessWorkerMain {
 		}
 	}
 
-	private spawn(port: MessagePort, configuration: ISharedProcessWorkerConfiguration, environment: ISharedProcessWorkerEnvironment): void {
+	private spawn(port: MessagePort, configuration: IUtilityProcessWorkerConfiguration, environment: ISharedProcessWorkerEnvironment): void {
 		try {
 
 			// Ensure to terminate any existing process for config
@@ -100,7 +101,7 @@ class SharedProcessWorkerMain {
 		}
 	}
 
-	private terminate(configuration: ISharedProcessWorkerConfiguration): void {
+	private terminate(configuration: IUtilityProcessWorkerConfiguration): void {
 		const processDisposable = this.processes.get(hash(configuration));
 		processDisposable?.dispose();
 	}
@@ -108,14 +109,14 @@ class SharedProcessWorkerMain {
 
 class SharedProcessWorkerProcess extends Disposable {
 
-	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<ISharedProcessWorkerProcessExit>());
+	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidProcessSelfTerminate = this._onDidProcessSelfTerminate.event;
 
 	private child: ChildProcess | undefined = undefined;
 
 	constructor(
 		private readonly port: MessagePort,
-		private readonly configuration: ISharedProcessWorkerConfiguration,
+		private readonly configuration: IUtilityProcessWorkerConfiguration,
 		private readonly environment: ISharedProcessWorkerEnvironment
 	) {
 		super();

@@ -113,6 +113,8 @@ import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
+import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -950,6 +952,9 @@ export class CodeApplication extends Disposable {
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
 
+		// Utility Process Worker
+		services.set(IUtilityProcessWorkerMainService, new SyncDescriptor(UtilityProcessWorkerMainService, undefined, true));
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1068,6 +1073,10 @@ export class CodeApplication extends Disposable {
 		// Extension Host Starter
 		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
+
+		// Utility Process Worker
+		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService));
+		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

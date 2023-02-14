@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { WindowError } from 'vs/platform/window/electron-main/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -59,7 +59,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		validatedIpcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
 
 		// Shared process worker relay
-		validatedIpcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: ISharedProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
+		validatedIpcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: IUtilityProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
 
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
@@ -93,7 +93,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
 	}
 
-	private onWorkerConnection(e: IpcMainEvent, configuration: ISharedProcessWorkerConfiguration): void {
+	private onWorkerConnection(e: IpcMainEvent, configuration: IUtilityProcessWorkerConfiguration): void {
 		this.logService.trace('SharedProcess: onWorkerConnection', configuration);
 
 		const disposables = new DisposableStore();
