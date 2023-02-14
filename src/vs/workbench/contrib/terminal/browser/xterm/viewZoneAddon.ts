@@ -32,7 +32,8 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 
 		}
 		if (this._decoration) {
-			throw new Error('NYI'); // TODO: Implement
+			this._decoration.dispose();
+			this._decoration = undefined;
 		}
 
 		// Save cursor, cursor next line, force new line, insert new line, restore cursor

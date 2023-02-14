@@ -58,10 +58,10 @@ export async function showCommandSearchPrompt(
 	const result = await new Promise<ICommandSearchResult | undefined>(r => {
 		// Keep the view zone around unless xterm.js is focused
 		store.add(Event.once(instance.onDidFocus)(() => r(undefined)));
-		store.add(Event.once(viewZone.onRender)(e => {
-			e.style.background = '#3C3D3B';
-			e.style.fontFamily = 'Hack';
-			e.classList.add('xterm-view-zone');
+		store.add(Event.once(viewZone.onRender)(container => {
+			container.style.background = '#3C3D3B';
+			container.style.fontFamily = 'Hack';
+			container.classList.add('xterm-view-zone');
 
 			const message = document.createElement('pre');
 			const font = xterm.getFont();
@@ -74,7 +74,7 @@ export async function showCommandSearchPrompt(
 			input.placeholder = localize('prompt', 'Ask me anything...');
 			input.style.background = 'transparent';
 			const threadId = nextRequestId++;
-			e.addEventListener('keydown', async (e: KeyboardEvent) => {
+			container.addEventListener('keydown', async (e: KeyboardEvent) => {
 				switch (e.key) {
 					case 'Enter': {
 						const prompt = input.value;
@@ -99,6 +99,9 @@ export async function showCommandSearchPrompt(
 						} else {
 							// TODO: Handle multiple results
 							message.textContent = results[0];
+							// Scroll to the bottom in case the content has overflowed into a scroll
+							// region
+							container.scrollTop = container.scrollHeight;
 						}
 						input.placeholder = localize('refine', 'Press enter to run or type to clarify...');
 						break;
@@ -109,7 +112,7 @@ export async function showCommandSearchPrompt(
 				}
 			});
 
-			e.append(message, input);
+			container.append(message, input);
 			input.focus();
 		}));
 	});
