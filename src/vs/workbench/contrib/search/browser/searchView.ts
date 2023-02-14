@@ -82,6 +82,7 @@ import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurati
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 
 const $ = dom.$;
 
@@ -1814,30 +1815,37 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			if (element instanceof Match) {
-				if (element instanceof NotebookMatch) {
-					element.parent().showMatch(element);
-				} else {
-					const editorWidget = editor.getControl();
-					if (editorWidget) {
-						// Ensure that the editor widget is binded. If if is, then this should return immediately.
-						// Otherwise, it will bind the widget.
-						await element.parent().bindNotebookEditorWidget(editorWidget);
+			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+			if (experimentalNotebooksEnabled) {
+				if (element instanceof Match) {
+					if (element instanceof NotebookMatch) {
+						element.parent().showMatch(element);
+					} else {
+						const editorWidget = editor.getControl();
+						if (editorWidget) {
+							// Ensure that the editor widget is binded. If if is, then this should return immediately.
+							// Otherwise, it will bind the widget.
+							await element.parent().bindNotebookEditorWidget(editorWidget);
 
-						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
-						const matches = element.parent().matches();
-						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
+							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
+							const matches = element.parent().matches();
+							const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
-						if (match instanceof NotebookMatch) {
-							element.parent().showMatch(match);
+							if (match instanceof NotebookMatch) {
+								element.parent().showMatch(match);
+							}
+
+							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+								this.tree.setSelection([match], getSelectionKeyboardEvent());
+							}
 						}
 
-						if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
-							this.tree.setSelection([match], getSelectionKeyboardEvent());
-						}
 					}
-
 				}
+			} else {
+				const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+				const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
+				controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
 			}
 
 		}
