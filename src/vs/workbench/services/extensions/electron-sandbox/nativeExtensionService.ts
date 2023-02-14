@@ -10,7 +10,6 @@ import * as performance from 'vs/base/common/performance';
 import { isCI } from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as nls from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
