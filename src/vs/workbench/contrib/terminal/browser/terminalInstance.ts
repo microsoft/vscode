@@ -970,10 +970,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
-			if (!xterm.beforeCustomKeyEventHandler()) {
-				return false;
-			}
-
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
 			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, IDecoration, ITheme, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, ITheme, Terminal as RawXtermTerminal } from 'xterm';
 import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
@@ -34,13 +34,12 @@ import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIn
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isLinux } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { timeout } from 'vs/base/common/async';
 import { ViewZoneAddon } from 'vs/workbench/contrib/terminal/browser/xterm/viewZoneAddon';
 
 const enum RenderConstants {
@@ -772,72 +771,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
-	}
-
-	beforeCustomKeyEventHandler(): boolean {
-		return !this._viewZone;
-	}
-
-	private _viewZone: IDecoration | undefined;
-
-	/**
-	 * Inserts a view zone into the terminal just below the cursor. A view zone allows inserting
-	 * arbitrary content into the terminal by making space in the actual buffer. When the view zone
-	 * is removed, the space made in the buffer behind the view zone remains, this will typically be
-	 * harmless and will lead to a more consistent experience.
-	 */
-	async insertCommandSearch(): Promise<void> {
-		if (!this._viewZoneAddon) {
-			this._viewZoneAddon = new ViewZoneAddon();
-			this.raw.loadAddon(this._viewZoneAddon);
-		}
-
-		const viewZone = await this._viewZoneAddon.insert();
-		Event.once(viewZone.onRender)(e => {
-			e.style.background = '#3C3D3B';
-			e.style.fontFamily = 'Hack';
-			e.classList.add('xterm-view-zone');
-			const message = document.createElement('div');
-			message.style.fontFamily = 'Hack';
-			const input = document.createElement('input');
-			input.type = 'text';
-			input.placeholder = 'Ask me anything...';
-			input.style.background = 'transparent';
-			e.addEventListener('keydown', async (e: KeyboardEvent) => {
-				switch (e.key) {
-					case 'Enter': {
-						if ((message.textContent?.length ?? 0) > 0 && input.value === '') {
-							// TODO: Call into term instance run command
-							this._core._onData.fire(`${message.textContent}\r`);
-							// HACK: Need to prevent the last enter from being executed somehow
-							await timeout(100);
-							viewZone.dispose();
-							this.raw.focus();
-							return;
-						}
-						const value = input.value;
-						input.value = '';
-						// Simulate network
-						setTimeout(() => {
-							input.placeholder = 'Press enter to run or type to clarify...';
-							if (value === 'echo') {
-								message.textContent = 'echo abc';
-							} else {
-								message.textContent += ((message.textContent?.length ?? 0) > 0 ? '\n' : '') + 'git log --grep="fix"';
-							}
-						}, 300);
-						break;
-					}
-					case 'Escape':
-						viewZone.dispose();
-						this.raw.focus();
-						break;
-				}
-			});
-
-			e.append(message, input);
-			input.focus();
-		});
 	}
 }
 
