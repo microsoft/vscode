@@ -35,9 +35,6 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 			throw new Error('NYI'); // TODO: Implement
 		}
 
-		// TODO: Prevent exceeding some max lines cap
-		// TODO: Handle terminal input/output, hide the view zone when this happens? Do nothing?
-
 		// Save cursor, cursor next line, force new line, insert new line, restore cursor
 		await new Promise<void>(r => term.write('\x1b[s\x1b[1E\n\x1b[L\x1b[u', r));
 		let allowBufferChanges = true;
@@ -58,6 +55,7 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 		let initialized = false;
 		this._decoration.onRender((e: HTMLElement) => {
 			if (!initialized) {
+				this._refreshMaxHeight();
 				initialized = true;
 				// Prevent the main textarea from stealing focus
 				e.addEventListener('mousedown', (e: MouseEvent) => e.stopImmediatePropagation());
@@ -69,7 +67,6 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 					const lineHeight = parseInt(e.style.lineHeight.replace('px', ''));
 					const availableHeight = lineHeight * insertedLines;
 					if (availableHeight < entry.contentRect.height) {
-						// TODO: .
 						const newLines = insertedLines + Math.ceil((entry.contentRect.height - availableHeight) / lineHeight);
 						for (let i = insertedLines; i < newLines; i++) {
 							term.write(`\x1b[s\x1b[${i}E\n\x1b[L\x1b[u`);
@@ -89,12 +86,27 @@ export class ViewZoneAddon extends Disposable implements ITerminalAddon, ITermin
 			allowBufferChanges = false;
 		});
 
+		// Update max height when xterm.js' dimensions change.
+		const onResizeListener = term.onResize(() => {
+			this._refreshMaxHeight();
+		});
+
 		// Clean up
 		this._decoration.onDispose(() => {
 			onDataListener.dispose();
+			onResizeListener.dispose();
 			this._decoration = undefined;
 		});
 
 		return this._decoration;
+	}
+
+	private _refreshMaxHeight(): void {
+		const element = this._decoration?.element;
+		if (!element || !this._terminal) {
+			return;
+		}
+		const lineHeight = parseInt(element.style.lineHeight.replace('px', ''));
+		element.style.maxHeight = `${Math.ceil(this._terminal.rows * lineHeight / 2)}px`;
 	}
 }

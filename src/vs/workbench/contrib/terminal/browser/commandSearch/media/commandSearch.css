@@ -9,6 +9,7 @@
 	padding: 2px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-panelInput-border, transparent);
+	overflow: auto;
 }
 
 .monaco-workbench .xterm-view-zone input {
