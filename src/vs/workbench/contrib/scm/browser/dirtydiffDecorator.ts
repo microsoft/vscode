@@ -186,6 +186,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
 	private dropdown: SwitchQuickDiffViewItem | undefined;
+	private dropdownContainer: HTMLElement | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -287,14 +288,20 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const providerIndex = providerChanges.indexOf(this._index);
 
 		let detail: string;
+		let display: 'none' | 'inherit';
 		if (!this.shouldUseDropdown()) {
 			detail = this.model.changes.length > 1
 				? nls.localize('changes', "{0} - {1} of {2} changes", label, providerIndex + 1, providerChanges.length)
 				: nls.localize('change', "{0} - {1} of {2} change", label, providerIndex + 1, providerChanges.length);
+			display = 'none';
 		} else {
 			detail = this.model.changes.length > 1
 				? nls.localize('multiChanges', "{0} of {1} changes", providerIndex + 1, providerChanges.length)
 				: nls.localize('multiChange', "{0} of {1} change", providerIndex + 1, providerChanges.length);
+			display = 'inherit';
+		}
+		if (this.dropdownContainer?.style) {
+			this.dropdownContainer.style.display = display;
 		}
 		this.setTitle(this.title, detail);
 	}
@@ -340,11 +347,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		if (this.shouldUseDropdown() && this._titleElement) {
-			const dropdownContainer = dom.prepend(this._titleElement, dom.$('.dropdown'));
+		if (this._titleElement) {
+			this.dropdownContainer = dom.prepend(this._titleElement, dom.$('.dropdown'));
 			this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffAction((event: unknown) => this.switchQuickDiff(event)),
 				this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
-			this.dropdown.render(dropdownContainer);
+			this.dropdown.render(this.dropdownContainer);
 		}
 
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
@@ -754,6 +761,10 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		return this.widget?.index === -1 || (!!this.model && this.model.changes.length > 1);
 	}
 
+	refresh(): void {
+		this.widget?.showChange(this.widget.index, false);
+	}
+
 	next(lineNumber?: number): void {
 		if (!this.assertWidget()) {
 			return;
@@ -766,7 +777,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges = this.model.mapChanges.get(this.widget.provider)!;
+			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex + 1, providerChanges.length)];
 		}
@@ -786,7 +797,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
 			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges = this.model.mapChanges.get(this.widget.provider)!;
+			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex - 1, providerChanges.length)];
 		}
@@ -864,8 +875,11 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		for (const splice of splices) {
 			if (splice.start <= this.widget.index) {
 				this.next();
+				return;
 			}
 		}
+
+		this.refresh();
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
