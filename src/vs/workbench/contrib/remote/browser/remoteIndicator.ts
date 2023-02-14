@@ -163,7 +163,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					const paneCompositeService = accessor.get(IPaneCompositePartService);
 					return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
 						if (viewlet) {
-							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
+							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@recommended:remotes`);
 							viewlet.focus();
 						}
 					});
