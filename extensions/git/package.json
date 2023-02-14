@@ -717,6 +717,18 @@
         "command": "git.openRepositoriesInParentFolders",
         "title": "%command.openRepositoriesInParentFolders%",
         "category": "Git"
+      },
+      {
+        "command": "git.viewChanges",
+        "title": "View Changes",
+        "icon": "$(wand)",
+        "category": "Git"
+      },
+      {
+        "command": "git.viewStagedChanges",
+        "title": "View Staged Changes",
+        "icon": "$(wand)",
+        "category": "Git"
       }
     ],
     "continueEditSession": [
@@ -1172,6 +1184,14 @@
         {
           "command": "git.openRepositoriesInParentFolders",
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1338,6 +1358,16 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline@1"
         }
       ],
       "scm/resourceFolder/context": [

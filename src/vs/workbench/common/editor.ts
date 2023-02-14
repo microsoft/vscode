@@ -488,6 +488,17 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource list diff editor input compares multiple resources side by side
+ * highlighting the differences.
+ */
+export interface IResourceDiffListEditorInput extends IBaseUntypedEditorInput {
+	/**
+	 * The list of resources to compare.
+	 */
+	readonly resources: (IResourceDiffEditorInput & { resource: URI })[];
+}
+
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
 
 /**
@@ -538,6 +549,16 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	const candidate = editor as IResourceDiffEditorInput | undefined;
 
 	return candidate?.original !== undefined && candidate.modified !== undefined;
+}
+
+export function isResourceDiffListEditorInput(editor: unknown): editor is IResourceDiffListEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceDiffListEditorInput | undefined;
+
+	return Array.isArray(candidate?.resources);
 }
 
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
@@ -753,7 +774,7 @@ export const enum EditorInputCapabilities {
 	MultipleEditors = 1 << 8
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceDiffListEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -1235,7 +1256,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 
@@ -1304,7 +1325,7 @@ class EditorResourceAccessorImpl {
 			}
 		}
 
-		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceDiffListEditorInput(editor) || isResourceSideBySideEditorInput(editor) || isResourceMergeEditorInput(editor)) {
 			return undefined;
 		}
 

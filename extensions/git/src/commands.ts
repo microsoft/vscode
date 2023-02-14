@@ -3425,6 +3425,26 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.viewChanges', { repository: true })
+	viewChanges(repository: Repository): void {
+		this._viewChanges('Changes', repository.workingTreeGroup.resourceStates);
+	}
+
+	@command('git.viewStagedChanges', { repository: true })
+	viewStagedChanges(repository: Repository): void {
+		this._viewChanges('Staged Changes', repository.indexGroup.resourceStates);
+	}
+
+	private _viewChanges(title: string, resources: Resource[]): void {
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+
+		for (const resource of resources) {
+			args.push([resource.resourceUri, resource.leftUri, resource.rightUri]);
+		}
+
+		commands.executeCommand('vscode.changes', title, args);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;

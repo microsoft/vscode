@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, IVisibleEditorPane, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, isEditorInputWithOptionsAndGroup, IUntitledTextResourceEditorInput, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, IVisibleEditorPane, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, isEditorInputWithOptionsAndGroup, IUntitledTextResourceEditorInput, isUntitledWithAssociatedResource, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { TextCompareEditorVisibleContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -558,24 +558,6 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	// partial, renderer-side API command to open diff editor
-	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
-	CommandsRegistry.registerCommand({
-		id: 'vscode.changes',
-		handler: (accessor, left, right, label) => {
-			console.log('handler');
-			//accessor.get(ICommandService).executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
-		},
-		description: {
-			description: 'Opens the provided resources in the diff editor to compare their contents.',
-			args: [
-				{ name: 'left', description: 'Left-hand side resource of the diff editor' },
-				{ name: 'right', description: 'Right-hand side resource of the diff editor' },
-				{ name: 'title', description: 'Human readable title for the diff editor' },
-			]
-		}
-	});
-
 	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, labelAndOrDescription?: string | { label: string; description: string }, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
@@ -610,6 +592,39 @@ function registerOpenEditorAPICommands(): void {
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
 		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+	});
+
+	// partial, renderer-side API command to open diff editor
+	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
+	CommandsRegistry.registerCommand({
+		id: 'vscode.changes',
+		handler: (accessor, title: string, resources: [UriComponents, UriComponents?, UriComponents?][]) => {
+			accessor.get(ICommandService).executeCommand('_workbench.changes', title, resources);
+		},
+		description: {
+			description: 'Opens a list of resources in the changes editor to compare their contents.',
+			args: [
+				{ name: 'title', description: 'Human readable title for the diff editor' },
+				{ name: 'resources', description: 'List of resources to open in the changes editor' }
+			]
+		}
+	});
+
+	CommandsRegistry.registerCommand('_workbench.changes', async (accessor: ServicesAccessor, title: string, resources: [UriComponents, UriComponents?, UriComponents?][]) => {
+		const editorService = accessor.get(IEditorService);
+		// const editorGroupService = accessor.get(IEditorGroupsService);
+		// const configurationService = accessor.get(IConfigurationService);
+
+		const editor: (IResourceDiffEditorInput & { resource: URI })[] = [];
+		for (const [label, original, modified] of resources) {
+			editor.push({
+				resource: URI.revive(label),
+				original: { resource: URI.revive(original) },
+				modified: { resource: URI.revive(modified) },
+			});
+		}
+
+		await editorService.openEditor({ resources: editor, label: title });
 	});
 }
 
