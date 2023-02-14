@@ -39,9 +39,11 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		}
 
 		// Folders
-		if (fileKind === FileKind.FOLDER && name) {
+		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
-			pushGlobIconClasses(classes, name, 'folder');
+			if (name && name.length <= 255) {
+				pushGlobIconClassesForName(name, classes, 'folder'); // add globs targeting file name
+			}
 		}
 
 		// Files
@@ -55,13 +57,13 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 				// (most file systems do not allow files > 255 length) with lots of `.` characters
 				// https://github.com/microsoft/vscode/issues/116199
 				if (name.length <= 255) {
+					pushGlobIconClassesForName(name, classes, 'file'); // add globs targeting file name
 					const segments = name.split('.');
 					for (let i = 1; i < segments.length; i++) {
 						classes.push(`${segments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
-				pushGlobIconClasses(classes, name, 'file');
 			}
 
 			// Detected Mode
@@ -78,13 +80,12 @@ export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }
 
-// Generate globs matching file icon themes
-function pushGlobIconClasses(classes: string[], name: string, kind: string) {
+function pushGlobIconClassesForName(name: string, classes: string[], kind: string) {
 	// Remove ellipsis to defend against explosive combination
 	const segments = name.replace(/\.\.\.+/g, '').split('.');
 
-	// Limit permutative ("full") glob generation to <=4 file extensions.
-	if (segments.length < 5) {
+	// Limit permutative ("full") glob generation to 4 dot segments (<=3 file extensions).
+	if (segments.length <= 4) {
 		const bitmask = Math.pow(2, segments.length) - 1;
 
 		// All globs excluding those with chained `*` dot segments
@@ -105,7 +106,9 @@ function pushGlobIconClasses(classes: string[], name: string, kind: string) {
 			// Globs including chained * dot segments
 			classes.push(`${glob}-glob-${kind}-icon`);
 		}
-	} else {
+	}
+
+	if (segments.length >= 5) {
 		const lastDotIndex = segments.length - 1;
 
 		for (let i = 0; i < lastDotIndex; i++) {
