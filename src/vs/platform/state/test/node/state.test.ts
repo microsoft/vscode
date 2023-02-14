@@ -15,9 +15,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { FileStorage } from 'vs/platform/state/node/stateService';
+import { FileStorage, SaveStrategy } from 'vs/platform/state/node/stateService';
 
-flakySuite('StateMainService', () => {
+flakySuite('StateService', () => {
 
 	let testDir: string;
 	let fileService: IFileService;
@@ -43,11 +43,11 @@ flakySuite('StateMainService', () => {
 		return Promises.rm(testDir);
 	});
 
-	test('Basics', async function () {
+	test('Basics (delayed strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), logService, fileService);
+		let service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 		await service.init();
 
 		service.setItem('some.key', 'some.value');
@@ -62,7 +62,69 @@ flakySuite('StateMainService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), logService, fileService);
+		service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		await service.init();
+
+		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
+
+		service.setItem('some.other.key', 'some.other.value');
+		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
+
+		service.setItem('some.undefined.key', undefined);
+		assert.strictEqual(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+
+		service.setItem('some.null.key', null);
+		assert.strictEqual(service.getItem('some.null.key', 'some.default'), 'some.default');
+
+		service.setItems([
+			{ key: 'some.setItems.key1', data: 'some.value' },
+			{ key: 'some.setItems.key2', data: 0 },
+			{ key: 'some.setItems.key3', data: true },
+			{ key: 'some.setItems.key4', data: null },
+			{ key: 'some.setItems.key5', data: undefined }
+		]);
+
+		assert.strictEqual(service.getItem('some.setItems.key1'), 'some.value');
+		assert.strictEqual(service.getItem('some.setItems.key2'), 0);
+		assert.strictEqual(service.getItem('some.setItems.key3'), true);
+		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+
+		service.setItems([
+			{ key: 'some.setItems.key1', data: undefined },
+			{ key: 'some.setItems.key2', data: undefined },
+			{ key: 'some.setItems.key3', data: undefined },
+			{ key: 'some.setItems.key4', data: null },
+			{ key: 'some.setItems.key5', data: undefined }
+		]);
+
+		assert.strictEqual(service.getItem('some.setItems.key1'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key2'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
+		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+	});
+
+	test('Basics (immediate strategy)', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		let service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
+		await service.init();
+
+		service.setItem('some.key', 'some.value');
+		assert.strictEqual(service.getItem('some.key'), 'some.value');
+
+		service.removeItem('some.key');
+		assert.strictEqual(service.getItem('some.key', 'some.default'), 'some.default');
+
+		assert.ok(!service.getItem('some.unknonw.key'));
+
+		service.setItem('some.other.key', 'some.other.value');
+
+		await service.close();
+
+		service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
@@ -109,7 +171,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), logService, fileService);
+		let service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 		await service.init();
 
 		service.setItem('some.key1', 'some.value1');
@@ -125,7 +187,36 @@ flakySuite('StateMainService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), logService, fileService);
+		service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		await service.init();
+
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+	});
+
+	test('Multiple ops (Immediate Strategy)', async function () {
+		const storageFile = join(testDir, 'storage.json');
+		writeFileSync(storageFile, '');
+
+		let service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
+		await service.init();
+
+		service.setItem('some.key1', 'some.value1');
+		service.setItem('some.key2', 'some.value2');
+		service.setItem('some.key3', 'some.value3');
+		service.setItem('some.key4', 'some.value4');
+		service.removeItem('some.key4');
+
+		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
+		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
+		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
+		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		await service.close();
+
+		service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
@@ -138,7 +229,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
@@ -163,7 +254,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 
 		await service.init();
 
@@ -187,7 +278,7 @@ flakySuite('StateMainService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), logService, fileService);
+		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
