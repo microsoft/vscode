@@ -42,7 +42,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
 			if (name && name.length <= 255) {
-				pushGlobIconClassesForName(name, classes, 'folder'); // add globs targeting file name
+				pushGlobIconClassesForName(name, classes, 'folder'); // add globs targeting folder name
 			}
 		}
 
