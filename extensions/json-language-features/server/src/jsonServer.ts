@@ -39,8 +39,19 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+export interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	uri: string;
+	/**
+	 * The format options
+	 */
+	options: FormattingOptions;
+}
+
 namespace DocumentSortingRequest {
-	export const type: RequestType<string, TextEdit[], any> = new RequestType('json/sort');
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
 }
 
 const workspaceContext = {
@@ -296,19 +307,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 	});
 
-	// Document sorting
-	connection.onRequest(DocumentSortingRequest.type, async uri => {
-		console.log('Entered into the server side onRequest');
+	connection.onRequest(DocumentSortingRequest.type, async params => {
+		const uri = params.uri;
+		const options = params.options;
 		const document = documents.get(uri);
-		// How to to get the options ?
-		const options = {
-			tabSize: 2,
-			insertSpaces: true
-		};
-		// How to get the options?
 		if (document) {
 			const sortedDocument = languageService.sort(document, options);
-			console.log('Inside of onRequest inside of server : ', [TextEdit.replace(getFullRange(document), sortedDocument)]);
 			return [TextEdit.replace(getFullRange(document), sortedDocument)];
 		}
 		return [];

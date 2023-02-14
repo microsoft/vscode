@@ -36,8 +36,19 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+export interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	uri: string;
+	/**
+	 * The format options
+	 */
+	options: FormattingOptions;
+}
+
 namespace DocumentSortingRequest {
-	export const type: RequestType<string, TextEdit[], any> = new RequestType('json/sort');
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
 }
 
 export interface ISchemaAssociations {
@@ -151,19 +162,29 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
-		// const params: DocumentSortingParams = {
-		//	textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-		//	range: client.code2ProtocolConverter.asRange(range),
-		//	options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
-		//};
-
 		if (isClientReady) {
-			console.log('Before send request');
+			const textEditor = window.activeTextEditor;
 			const document = window.activeTextEditor?.document;
-			if (document) {
-				const textEdits = await client.sendRequest(DocumentSortingRequest.type, document.uri.toString());
-				console.log('textEdits : ', textEdits);
-				// How to use the text-edits? Implement a sorting provider?
+
+			if (textEditor && document) {
+				const options: FormattingOptions = {
+					tabSize: window.activeTextEditor?.options.tabSize ? Number(window.activeTextEditor?.options.tabSize) : 4,
+					insertSpaces: window.activeTextEditor?.options.insertSpaces ? Boolean(window.activeTextEditor?.options.insertSpaces) : true
+				};
+				const params: DocumentSortingParams = {
+					uri: document.uri.toString(),
+					options: options
+				};
+				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				textEditor.edit(mutator => {
+					for (const edit of textEdits) {
+						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+					}
+				}).then(success => {
+					if (!success) {
+						window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
+					}
+				});
 			}
 		}
 	}));
