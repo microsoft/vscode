@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -27,7 +27,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { Promises } from 'vs/base/common/async';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 
 const REPLACE_PREVIEW = 'replacePreview';
@@ -116,10 +116,13 @@ export class ReplaceService implements IReplaceService {
 			if (e.resource.scheme === network.Schemas.vscodeNotebookCell) {
 				const notebookResource = CellUri.parse(e.resource)?.notebook;
 				if (notebookResource) {
-					// todo: find whether there is a common API for saving notebooks and text files
-					const ref = await this.notebookEditorModelResolverService.resolve(notebookResource);
-					await ref.object.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
-					ref.dispose();
+					let ref: IReference<IResolvedNotebookEditorModel> | undefined;
+					try {
+						ref = await this.notebookEditorModelResolverService.resolve(notebookResource);
+						await ref.object.save({ source: ReplaceService.REPLACE_SAVE_SOURCE });
+					} finally {
+						ref?.dispose();
+					}
 				}
 				return;
 			} else {

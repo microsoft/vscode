@@ -145,6 +145,9 @@ export interface IPatternInfo {
 	isMultiline?: boolean;
 	isUnicode?: boolean;
 	isCaseSensitive?: boolean;
+	isNotebookMarkdownInput?: boolean;
+	isNotebookCellInput?: boolean;
+	isNotebookCellOutput?: boolean;
 }
 
 export interface IExtendedExtensionSearchOptions {

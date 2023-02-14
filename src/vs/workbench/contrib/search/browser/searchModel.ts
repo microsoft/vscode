@@ -418,10 +418,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 				wholeWord: this._query.isWordMatch,
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
-				includeMarkupInput: true,
-				includeMarkupPreview: false,
-				includeCodeInput: true,
-				includeOutput: false,
+				includeMarkupInput: this._query.isNotebookMarkdownInput,
+				includeMarkupPreview: !this._query.isNotebookMarkdownInput,
+				includeCodeInput: this._query.isNotebookCellInput,
+				includeOutput: this._query.isNotebookCellOutput,
 			}, CancellationToken.None, true);
 
 		this.updateNotebookMatches(allMatches, true);
@@ -1738,10 +1738,10 @@ export class SearchModel extends Disposable {
 						regex: query.contentPattern.isRegExp,
 						wholeWord: query.contentPattern.isWordMatch,
 						caseSensitive: query.contentPattern.isCaseSensitive,
-						includeMarkupInput: true,
-						includeMarkupPreview: false,
-						includeCodeInput: true,
-						includeOutput: false,
+						includeMarkupInput: query.contentPattern.isNotebookMarkdownInput,
+						includeMarkupPreview: !query.contentPattern.isNotebookMarkdownInput,
+						includeCodeInput: query.contentPattern.isNotebookCellInput,
+						includeOutput: query.contentPattern.isNotebookCellOutput,
 					}, token);
 
 

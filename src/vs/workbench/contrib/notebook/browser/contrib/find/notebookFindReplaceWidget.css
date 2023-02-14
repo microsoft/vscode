@@ -11,7 +11,7 @@
 	right: 18px;
 	width: var(--notebook-find-width);
 	max-width: calc(100% - 28px - 28px - 8px);
-	padding:0 var(--notebook-find-horizontal-padding);
+	padding: 0 var(--notebook-find-horizontal-padding);
 	transition: top 200ms linear;
 	visibility: hidden;
 	background-color: var(--vscode-editorWidget-background) !important;
@@ -139,7 +139,8 @@
 	background-color: inherit !important;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .find-filter-button {
+.monaco-workbench .simple-fr-find-part-wrapper .find-filter-button,
+.monaco-workbench .search-container .find-filter-button {
 	color: inherit;
 	margin-left: 2px;
 	float: left;
@@ -167,6 +168,7 @@
 .monaco-workbench .simple-fr-replace-part .monaco-inputbox > .ibwrapper > .input {
 	height: 24px;
 }
+
 .monaco-workbench .simple-fr-find-part-wrapper .monaco-sash {
 	left: 0 !important;
 	background-color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));

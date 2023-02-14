@@ -150,7 +150,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-class NotebookFindInput extends FindInput {
+export class NotebookFindInput extends FindInput {
 	private _filterButtonContainer: HTMLElement;
 	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;

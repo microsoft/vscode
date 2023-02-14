@@ -1380,6 +1380,10 @@ export class SearchView extends ViewPane {
 		}
 
 		const isRegex = this.searchWidget.searchInput.getRegex();
+		const isNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
+		const isNotebookCellInput = this.searchWidget.getFilters().codeInput;
+		const isNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
+
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
@@ -1398,7 +1402,10 @@ export class SearchView extends ViewPane {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
-			isWordMatch: isWholeWords
+			isWordMatch: isWholeWords,
+			isNotebookMarkdownInput,
+			isNotebookCellInput,
+			isNotebookCellOutput
 		};
 
 		const excludePattern = this.inputPatternExcludes.getValue();
