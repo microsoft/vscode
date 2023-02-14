@@ -932,6 +932,7 @@ export const NotebookSetting = {
 	outputFontFamily: 'notebook.outputFontFamily',
 	kernelPickerType: 'notebook.kernelPicker.type',
 	outputScrolling: 'notebook.experimental.outputScrolling',
+	outputWordWrap: 'notebook.output.wordWrap',
 	logging: 'notebook.logging',
 } as const;
 

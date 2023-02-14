@@ -122,7 +122,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
-		Terminal.strings.accessibilityBuffer = nls.localize('terminal.integrated.accessibilityBuffer', 'Terminal buffer');
+		Terminal.strings.accessibleBuffer = nls.localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
@@ -218,7 +218,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
-	private _accessibilityBuffer: HTMLElement | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -1098,23 +1097,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._onDidBlur.fire(this);
 			this._refreshSelectionContextKey();
 		}
-	}
-
-	focusAccessibilityBuffer(): void {
-		if (!this.xterm?.raw.element) {
-			return;
-		}
-		this._accessibilityBuffer = this.xterm.raw.element.querySelector('.xterm-accessibility-buffer') as HTMLElement || undefined;
-		if (!this._accessibilityBuffer) {
-			return;
-		}
-		const accessibleBufferContentEditable = this._configurationService.getValue(TerminalSettingId.AccessibleBufferContentEditable);
-		this._accessibilityBuffer.contentEditable = accessibleBufferContentEditable === 'on' || (accessibleBufferContentEditable === 'auto' && !this._accessibilityService.isScreenReaderOptimized()) ? 'true' : 'false';
-		// The viewport is undefined when this is focused, so we cannot get the cell height from that. Instead, estimate using the font.
-		const font = this.xterm.getFont();
-		const lineHeight = font?.charHeight ? font.charHeight * font.lineHeight + 'px' : '';
-		this._accessibilityBuffer.style.lineHeight = lineHeight;
-		this._accessibilityBuffer.focus();
 	}
 
 	private _setShellIntegrationContextKey(): void {
@@ -2716,6 +2698,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
+				instance.focus();
 			}
 		}));
 		this._register(instance.onDidFocus(() => this.hide()));

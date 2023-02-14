@@ -32,16 +32,16 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._extHosts = new Map<string, ExtensionHostProcess | UtilityProcess>();
 
 		// On shutdown: gracefully await extension host shutdowns
-		lifecycleMainService.onWillShutdown((e) => {
+		this._lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
-			e.join(this._waitForAllExit(6000));
+			e.join('extHostStarter', this._waitForAllExit(6000));
 		});
 	}
 
@@ -96,7 +96,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			if (!canUseUtilityProcess) {
 				throw new Error(`Cannot use UtilityProcess!`);
 			}
-			extHost = new UtilityProcess(this._logService, this._windowsMainService, this._telemetryService);
+			extHost = new UtilityProcess(this._logService, this._windowsMainService, this._telemetryService, this._lifecycleMainService);
 		} else {
 			extHost = new ExtensionHostProcess(id, this._logService);
 		}
@@ -115,11 +115,11 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		if (this._shutdown) {
 			throw canceled();
 		}
-		return this._getExtHost(id).start({
+		this._getExtHost(id).start({
 			...opts,
 			type: 'extensionHost',
 			args: ['--skipWorkspaceStorageLock'],
-			execArgv: opts.execArgv ?? [],
+			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
 			correlationId: id
 		});

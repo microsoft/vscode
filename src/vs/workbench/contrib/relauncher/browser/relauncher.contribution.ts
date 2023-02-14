@@ -22,13 +22,13 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
+	files?: { experimental?: { watcherUseUtilityProcess?: boolean } };
 	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
 	workbench?: { enableExperiments?: boolean };
-	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
 
@@ -38,7 +38,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.titleBarStyle',
 		'window.experimental.windowControlsOverlay.enabled',
 		'window.experimental.useSandbox',
-		'extensions.experimental.useUtilityProcess',
+		'files.experimental.watcherUseUtilityProcess',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -52,7 +52,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
-	private readonly extensionHostUtilityProcessEnabled = new ChangeObserver('boolean');
+	private readonly fileWatcherUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -98,8 +98,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
 
-			// Extension Host: Utility Process
-			processChanged(this.extensionHostUtilityProcessEnabled.handleChange(config.extensions?.experimental?.useUtilityProcess));
+			// File Watcher: Utility Process
+			processChanged(this.fileWatcherUtilityProcessEnabled.handleChange(config.files?.experimental?.watcherUseUtilityProcess));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));

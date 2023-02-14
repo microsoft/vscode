@@ -144,7 +144,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb)
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
-			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Visible,
 			vertical: ScrollbarVisibility.Hidden
 		}, this._scrollable));

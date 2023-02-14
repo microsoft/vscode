@@ -317,6 +317,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	preferUtilityProcess: boolean; // TODO@bpasero remove me once full app sandbox landed
 }
 
 /**

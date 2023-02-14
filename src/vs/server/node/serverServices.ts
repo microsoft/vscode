@@ -123,14 +123,20 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const uriIdentityService = new UriIdentityService(fileService);
 	services.set(IUriIdentityService, uriIdentityService);
 
+	// Configuration
+	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
+	services.set(IConfigurationService, configurationService);
+
 	// User Data Profiles
 	const userDataProfilesService = new ServerUserDataProfilesService(uriIdentityService, environmentService, fileService, logService);
 	services.set(IUserDataProfilesService, userDataProfilesService);
 
-	// Configuration
-	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
-	services.set(IConfigurationService, configurationService);
-	await configurationService.initialize();
+	// Initialize
+	const [, , machineId] = await Promise.all([
+		configurationService.initialize(),
+		userDataProfilesService.init(),
+		getMachineId()
+	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
@@ -139,7 +145,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
-	const machineId = await getMachineId();
 	const isInternal = isInternalTelemetry(productService, configurationService);
 	if (supportsTelemetry(productService, environmentService)) {
 		if (productService.aiConfig && productService.aiConfig.ariaKey) {

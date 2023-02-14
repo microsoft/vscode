@@ -149,6 +149,17 @@ stages:
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
 
+          - task: AntiMalware@4
+            inputs:
+              InputType: Basic
+              ScanType: CustomScan
+              FileDirPath: '$(Build.SourcesDirectory)'
+              EnableServices: true
+              SupportLogOnError: false
+              TreatSignatureUpdateFailureAs: 'Warning'
+              SignatureFreshness: 'OneDay'
+              TreatStaleSignatureAs: 'Error'
+
           - task: TSAUpload@2
             inputs:
               GdnPublishTsaOnboard: true

@@ -75,9 +75,10 @@ const linkSuffixRegexEol = new Lazy<RegExp>(() => {
 		// foo(339,12)
 		// foo(339, 12)
 		// foo (339)
-		// foo (339,12)
-		// foo (339, 12)
-		` ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]$`,
+		//   ...
+		// foo: (339)
+		//   ...
+		`:? ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]$`,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
@@ -125,9 +126,10 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		// foo(339,12)
 		// foo(339, 12)
 		// foo (339)
-		// foo (339,12)
-		// foo (339, 12)
-		` ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]`,
+		//   ...
+		// foo: (339)
+		//   ...
+		`:? ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]`,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses

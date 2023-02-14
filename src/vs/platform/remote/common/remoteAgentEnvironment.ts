@@ -13,7 +13,6 @@ export interface IRemoteAgentEnvironment {
 	appRoot: URI;
 	settingsPath: URI;
 	logsPath: URI;
-	extensionsPath: URI;
 	extensionHostLogsPath: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
