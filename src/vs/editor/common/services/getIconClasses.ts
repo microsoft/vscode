@@ -39,7 +39,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		}
 
 		// Folders
-		if (fileKind === FileKind.FOLDER) {
+		if (fileKind === FileKind.FOLDER && name) {
 			classes.push(`${name}-name-folder-icon`);
 			pushGlobIconClasses(classes, name, 'folder');
 		}
