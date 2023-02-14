@@ -675,6 +675,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
+								'notebook.selectKernel',
 							],
 						});
 						return;
