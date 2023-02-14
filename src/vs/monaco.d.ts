@@ -875,10 +875,10 @@ declare namespace monaco {
 	}
 
 	export class Token {
-		_tokenBrand: void;
 		readonly offset: number;
 		readonly type: string;
 		readonly language: string;
+		_tokenBrand: void;
 		constructor(offset: number, type: string, language: string);
 		toString(): string;
 	}
@@ -6407,6 +6407,16 @@ declare namespace monaco.languages {
 		 * Describes the number of characters to remove from the new line's indentation.
 		 */
 		removeText?: number;
+	}
+
+	export interface IBackgroundTokenizer extends IDisposable {
+		/**
+		 * Instructs the background tokenizer to set the tokens for the given range again.
+		 *
+		 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
+		 * when the change does not even propagate to that viewport.
+		 */
+		requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
 	}
 
 	/**
