@@ -89,11 +89,11 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 		const bitmask = Math.pow(2, segments.length) - 1;
 
 		// All globs excluding those with chained `*` dot segments
-		for (let i = 0; i < bitmask; i++) {
+		for (let permutation = 0; permutation < bitmask; permutation++) {
 			let buffer = [];
-			for (let j = 0; j < segments.length; j++) {
-				const base = Math.pow(2, j);
-				buffer.push(i & base ? segments[j] : '*');
+			for (let exponent = 0; exponent < segments.length; exponent++) {
+				const base = Math.pow(2, exponent);
+				buffer.push(permutation & base ? segments[exponent] : '*');
 			}
 			const glob = buffer.join('.');
 
