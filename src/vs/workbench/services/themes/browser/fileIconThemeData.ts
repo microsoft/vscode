@@ -331,8 +331,7 @@ export class FileIconThemeLoader {
 						const segments = name.split('.');
 						if (segments.length) {
 							for (let i = 0; i < segments.length; i++) {
-								const kind = name.indexOf('*') !== -1 ? 'glob' : 'ext';
-								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-${kind}-file-icon`);
+								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
@@ -352,8 +351,7 @@ export class FileIconThemeLoader {
 						const segments = fileName.split('.');
 						if (segments.length) {
 							for (let i = 1; i < segments.length; i++) {
-								const kind = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
-								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-${kind}-file-icon`);
+								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
