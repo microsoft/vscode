@@ -334,8 +334,10 @@ export interface IViewContainerModel {
 
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
+	readonly areBadgesEnabled: boolean;
+
 	readonly keybindingId: string | undefined;
-	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean }>;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean; badgeEnablement?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
@@ -358,6 +360,7 @@ export interface IViewContainerModel {
 	setSizes(newSizes: readonly { id: string; size: number }[]): void;
 
 	move(from: string, to: string): void;
+	toggleBadgeEnablement(): void;
 }
 
 export enum ViewContentGroups {

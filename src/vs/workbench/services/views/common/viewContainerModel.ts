@@ -83,6 +83,7 @@ class CounterSet<T> implements IReadableSet<T> {
 interface IStoredWorkspaceViewState {
 	collapsed: boolean;
 	isHidden: boolean;
+	badgesEnabled: boolean;
 	size?: number;
 	order?: number;
 }
@@ -90,6 +91,7 @@ interface IStoredWorkspaceViewState {
 interface IStoredGlobalViewState {
 	id: string;
 	isHidden: boolean;
+	badgesEnabled: boolean;
 	order?: number;
 }
 
@@ -97,6 +99,7 @@ interface IViewDescriptorState {
 	visibleGlobal: boolean | undefined;
 	visibleWorkspace: boolean | undefined;
 	collapsed: boolean | undefined;
+	badgesEnabled: boolean;
 	active: boolean;
 	order?: number;
 	size?: number;
@@ -153,6 +156,7 @@ class ViewDescriptorsState extends Disposable {
 				storedViewsStates[viewDescriptor.id] = {
 					collapsed: !!viewState.collapsed,
 					isHidden: !viewState.visibleWorkspace,
+					badgesEnabled: viewState.badgesEnabled,
 					size: viewState.size,
 					order: viewDescriptor.workspace && viewState ? viewState.order : undefined
 				};
@@ -172,6 +176,7 @@ class ViewDescriptorsState extends Disposable {
 			const state = this.get(viewDescriptor.id);
 			storedGlobalState.set(viewDescriptor.id, {
 				id: viewDescriptor.id,
+				badgesEnabled: state ? state.badgesEnabled : true,
 				isHidden: state && viewDescriptor.canToggleVisibility ? !state.visibleGlobal : false,
 				order: !viewDescriptor.workspace && state ? state.order : undefined
 			});
@@ -199,6 +204,7 @@ class ViewDescriptorsState extends Disposable {
 					const workspaceViewState = <IStoredWorkspaceViewState | undefined>storedWorkspaceViewsStates[id];
 					this.set(id, {
 						active: false,
+						badgesEnabled: storedState.badgesEnabled,
 						visibleGlobal: !storedState.isHidden,
 						visibleWorkspace: isUndefined(workspaceViewState?.isHidden) ? undefined : !workspaceViewState?.isHidden,
 						collapsed: workspaceViewState?.collapsed,
@@ -229,6 +235,7 @@ class ViewDescriptorsState extends Disposable {
 			viewStates.set(id, {
 				active: false,
 				visibleGlobal: undefined,
+				badgesEnabled: workspaceViewState.badgesEnabled ?? true,
 				visibleWorkspace: isUndefined(workspaceViewState.isHidden) ? undefined : !workspaceViewState.isHidden,
 				collapsed: workspaceViewState.collapsed,
 				order: workspaceViewState.order,
@@ -251,6 +258,7 @@ class ViewDescriptorsState extends Disposable {
 					viewStates.set(id, {
 						active: false,
 						collapsed: undefined,
+						badgesEnabled: true,
 						visibleGlobal: undefined,
 						visibleWorkspace: !isHidden,
 					});
@@ -275,6 +283,7 @@ class ViewDescriptorsState extends Disposable {
 					active: false,
 					visibleGlobal: !isHidden,
 					order,
+					badgesEnabled: true,
 					collapsed: undefined,
 					visibleWorkspace: undefined,
 				});
@@ -301,7 +310,7 @@ class ViewDescriptorsState extends Disposable {
 		const state = storedValue.reduce((result, storedState) => {
 			if (typeof storedState === 'string' /* migration */) {
 				hasDuplicates = hasDuplicates || result.has(storedState);
-				result.set(storedState, { id: storedState, isHidden: true });
+				result.set(storedState, { id: storedState, isHidden: true, badgesEnabled: true });
 			} else {
 				hasDuplicates = hasDuplicates || result.has(storedState.id);
 				result.set(storedState.id, storedState);
@@ -545,6 +554,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this.viewDescriptorsState.updateState(this.allViewDescriptors);
 	}
 
+	get areBadgesEnabled(): boolean {
+		return this.viewDescriptorItems.every(v => v.state.badgesEnabled);
+	}
+
 	move(from: string, to: string): void {
 		const fromIndex = this.viewDescriptorItems.findIndex(v => v.viewDescriptor.id === from);
 		const toIndex = this.viewDescriptorItems.findIndex(v => v.viewDescriptor.id === to);
@@ -591,6 +604,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			} else {
 				state = {
 					active: false,
+					badgesEnabled: true,
 					visibleGlobal: isUndefinedOrNull(addedViewDescriptorState.visible) ? !viewDescriptor.hideByDefault : addedViewDescriptorState.visible,
 					visibleWorkspace: isUndefinedOrNull(addedViewDescriptorState.visible) ? !viewDescriptor.hideByDefault : addedViewDescriptorState.visible,
 					collapsed: isUndefinedOrNull(addedViewDescriptorState.collapsed) ? !!viewDescriptor.collapsed : addedViewDescriptorState.collapsed,
@@ -661,6 +675,12 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		if (removed.length) {
 			this._onDidChangeAllViewDescriptors.fire({ added: [], removed });
 		}
+	}
+
+	toggleBadgeEnablement(): void {
+		const newBadgeState = !this.areBadgesEnabled;
+		this.viewDescriptorItems.map(v => v.state.badgesEnabled = newBadgeState);
+		this.viewDescriptorsState.updateState(this.allViewDescriptors);
 	}
 
 	private onDidChangeContext(): void {

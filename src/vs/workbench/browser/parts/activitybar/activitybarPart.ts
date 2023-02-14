@@ -823,7 +823,6 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					id: cachedViewContainer.id,
 					name: cachedViewContainer.name,
 					order: cachedViewContainer.order,
-					badgeEnabled: cachedViewContainer.badgeEnabled,
 					pinned: cachedViewContainer.pinned,
 					visible: !!compositeItems.find(({ id }) => id === cachedViewContainer.id)
 				});
@@ -868,13 +867,13 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, /* Donot cache uri icons with remote connection */
 					views,
 					pinned: compositeItem.pinned,
-					badgeEnabled: compositeItem.badgeEnabled,
+					badgeEnabled: viewContainerModel.areBadgesEnabled,
 					order: compositeItem.order,
 					visible: compositeItem.visible,
 					isBuiltin: !viewContainer.extensionId
 				});
 			} else {
-				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: false, isBuiltin: false });
+				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, badgeEnabled: true, order: compositeItem.order, visible: false, isBuiltin: false });
 			}
 		}
 

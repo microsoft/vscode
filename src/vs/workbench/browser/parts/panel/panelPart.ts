@@ -798,7 +798,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 					name: cachedPanel.name,
 					order: cachedPanel.order,
 					pinned: cachedPanel.pinned,
-					badgeEnabled: cachedPanel.badgeEnabled,
 					visible: !!compositeItems.find(({ id }) => id === cachedPanel.id)
 				});
 			}
@@ -823,10 +822,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, badgeEnabled: viewContainerModel.areBadgesEnabled, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, badgeEnabled: compositeItem.badgeEnabled, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, badgeEnabled: true, order: compositeItem.order, visible: compositeItem.visible });
 			}
 		}
 
