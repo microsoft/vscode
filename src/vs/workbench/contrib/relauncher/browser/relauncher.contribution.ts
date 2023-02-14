@@ -29,7 +29,6 @@ interface IConfiguration extends IWindowsConfiguration {
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
 	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
 	workbench?: { enableExperiments?: boolean };
-	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
 
@@ -39,7 +38,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.titleBarStyle',
 		'window.experimental.windowControlsOverlay.enabled',
 		'window.experimental.useSandbox',
-		'extensions.experimental.useUtilityProcess',
 		'files.experimental.watcherUseUtilityProcess',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
@@ -54,7 +52,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
-	private readonly extensionHostUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly fileWatcherUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
@@ -100,9 +97,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
-
-			// Extension Host: Utility Process
-			processChanged(this.extensionHostUtilityProcessEnabled.handleChange(config.extensions?.experimental?.useUtilityProcess));
 
 			// File Watcher: Utility Process
 			processChanged(this.fileWatcherUtilityProcessEnabled.handleChange(config.files?.experimental?.watcherUseUtilityProcess));
