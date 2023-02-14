@@ -301,7 +301,7 @@ export class FileIconThemeLoader {
 							selectors.push('.name-folder-icon');
 						}
 
-						addSelector(`${qualifier} ${selectors.join('')}::before`, folderNames[key]);
+						addSelector(`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
 
 						result.hasFolderIcons = true;
 					}
@@ -316,10 +316,10 @@ export class FileIconThemeLoader {
 						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
 
 						if (mode === 'name') {
-							selectors.push('.folder-icon');
+							selectors.push('.name-folder-icon');
 						}
 
-						addSelector(`${qualifier} ${expanded} ${selectors.join('')}::before`, folderNamesExpanded[key]);
+						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
 				}
