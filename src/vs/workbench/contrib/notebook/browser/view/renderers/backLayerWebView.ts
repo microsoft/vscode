@@ -677,7 +677,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
-								'notebook.selectKernel',
+								'_notebook.selectKernel',
 								// TODO@rebornix explore open output channel with name command
 								'jupyter.viewOutput'
 							],
