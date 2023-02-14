@@ -112,11 +112,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
-	async getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
-		const scannedExtension = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
-		return scannedExtension?.metadata;
-	}
-
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
 		// unset if false
 		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
@@ -126,6 +121,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		const updatedLocalExtension = toLocalExtension(updatedExtension);
 		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
 		return updatedLocalExtension;
+	}
+
+	override async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		await this.webExtensionsScannerService.copyExtensions(fromProfileLocation, toProfileLocation, e => !e.metadata?.isApplicationScoped);
 	}
 
 	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
@@ -171,7 +170,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			throw new Error('This should not happen');
 		}
 		if (e.preserveData) {
-			await this.webExtensionsScannerService.copyExtensions(previousProfileLocation, currentProfileLocation, e => !e.metadata?.isApplicationScoped);
+			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
 			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
