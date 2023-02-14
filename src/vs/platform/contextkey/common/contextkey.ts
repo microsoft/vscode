@@ -124,50 +124,50 @@ export abstract class ContextKeyExpr {
 		return ContextKeySmallerEqualsExpr.create(key, value);
 	}
 
-	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpression | undefined {
+	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
 		if (!serialized) {
 			return undefined;
 		}
 
-		return this._deserializeOrExpression(serialized, strict);
+		return this._deserializeOrExpression(serialized);
 	}
 
-	private static _deserializeOrExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
+	private static _deserializeOrExpression(serialized: string): ContextKeyExpression | undefined {
 		const pieces = serialized.split('||');
-		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p, strict)), null, true);
+		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p)), null, true);
 	}
 
-	private static _deserializeAndExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
+	private static _deserializeAndExpression(serialized: string): ContextKeyExpression | undefined {
 		const pieces = serialized.split('&&');
-		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null, true);
+		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p)), null, true);
 	}
 
-	private static _deserializeOne(serializedOne: string, strict: boolean): ContextKeyExpression {
+	private static _deserializeOne(serializedOne: string): ContextKeyExpression {
 		serializedOne = serializedOne.trim();
 
 		if (serializedOne.indexOf('!=') >= 0) {
 			const pieces = serializedOne.split('!=');
-			return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+			return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
 		}
 
 		if (serializedOne.indexOf('==') >= 0) {
 			const pieces = serializedOne.split('==');
-			return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+			return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
 		}
 
 		if (serializedOne.indexOf('=~') >= 0) {
 			const pieces = serializedOne.split('=~');
-			return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1], strict));
+			return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1]));
 		}
 
-		if (serializedOne.indexOf(' not in ') >= 0) {
+		if (serializedOne.indexOf(' not in ') >= 0) { // careful: this must come before `in`
 			const pieces = serializedOne.split(' not in ');
-			return ContextKeyNotInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+			return ContextKeyNotInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
 		}
 
 		if (serializedOne.indexOf(' in ') >= 0) {
 			const pieces = serializedOne.split(' in ');
-			return ContextKeyInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+			return ContextKeyInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
 		}
 
 		if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
@@ -197,7 +197,7 @@ export abstract class ContextKeyExpr {
 		return ContextKeyDefinedExpr.create(serializedOne);
 	}
 
-	private static _deserializeValue(serializedValue: string, strict: boolean): any {
+	private static _deserializeValue(serializedValue: string): any {
 		serializedValue = serializedValue.trim();
 
 		if (serializedValue === 'true') {
@@ -216,25 +216,17 @@ export abstract class ContextKeyExpr {
 		return serializedValue;
 	}
 
-	private static _deserializeRegexValue(serializedValue: string, strict: boolean): RegExp | null {
+	private static _deserializeRegexValue(serializedValue: string): RegExp | null {
 
 		if (isFalsyOrWhitespace(serializedValue)) {
-			if (strict) {
-				throw new Error('missing regexp-value for =~-expression');
-			} else {
-				console.warn('missing regexp-value for =~-expression');
-			}
+			console.warn('missing regexp-value for =~-expression');
 			return null;
 		}
 
 		const start = serializedValue.indexOf('/');
 		const end = serializedValue.lastIndexOf('/');
 		if (start === end || start < 0 /* || to < 0 */) {
-			if (strict) {
-				throw new Error(`bad regexp-value '${serializedValue}', missing /-enclosure`);
-			} else {
-				console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
-			}
+			console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
 			return null;
 		}
 
@@ -243,11 +235,7 @@ export abstract class ContextKeyExpr {
 		try {
 			return new RegExp(value, caseIgnoreFlag);
 		} catch (e) {
-			if (strict) {
-				throw new Error(`bad regexp-value '${serializedValue}', parse error: ${e}`);
-			} else {
-				console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
-			}
+			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
 			return null;
 		}
 	}
