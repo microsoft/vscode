@@ -5,17 +5,16 @@
 
 import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandSearchProvider, ICommandSearchRequest, showCommandSearchPrompt } from 'vs/workbench/contrib/terminal/browser/commandSearch/commandSearchPrompt';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 export function registerCommandSearchActions() {
-	// TODO: Share
-	const category: ILocalizedString = { value: TERMINAL_ACTION_CATEGORY, original: 'Terminal' };
+	const category = terminalStrings.actionCategory;
 
 	registerAction2(class extends Action2 {
 		constructor() {

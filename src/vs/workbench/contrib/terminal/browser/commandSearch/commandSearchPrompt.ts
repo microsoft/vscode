@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
@@ -50,9 +51,12 @@ export async function showCommandSearchPrompt(
 		return undefined;
 	}
 
+	const store = new DisposableStore();
 	const viewZone = await xterm.viewZoneAddon.insert();
 	const result = await new Promise<ICommandSearchResult | undefined>(r => {
-		Event.once(viewZone.onRender)(e => {
+		// Keep the view zone around unless xterm.js is focused
+		store.add(Event.once(instance.onDidFocus)(() => r(undefined)));
+		store.add(Event.once(viewZone.onRender)(e => {
 			e.style.background = '#3C3D3B';
 			e.style.fontFamily = 'Hack';
 			e.classList.add('xterm-view-zone');
@@ -86,6 +90,7 @@ export async function showCommandSearchPrompt(
 							// TODO: How to handle no results?
 							message.textContent = '';
 						} else {
+							// TODO: Handle multiple results
 							message.textContent = results[0];
 						}
 						input.placeholder = 'Press enter to run or type to clarify...';
@@ -99,9 +104,11 @@ export async function showCommandSearchPrompt(
 
 			e.append(message, input);
 			input.focus();
-		});
+		}));
 	});
 
+	// Clean up, focus and return
+	store.dispose();
 	viewZone.dispose();
 	instance.focus();
 	return result;
