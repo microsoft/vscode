@@ -8,11 +8,10 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ipcUtilityProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerProcess } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { IOnDidTerminateUtilityrocessWorkerProcess, ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerProcess, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 export const IUtilityProcessWorkerWorkbenchService = createDecorator<IUtilityProcessWorkerWorkbenchService>('utilityProcessWorkerWorkbenchService');
 
@@ -68,11 +67,11 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 
 	declare readonly _serviceBrand: undefined;
 
-	private _utilityProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
-	private get utilityProcessWorkerService(): ISharedProcessWorkerService {
+	private _utilityProcessWorkerService: IUtilityProcessWorkerService | undefined = undefined;
+	private get utilityProcessWorkerService(): IUtilityProcessWorkerService {
 		if (!this._utilityProcessWorkerService) {
 			const channel = this.useUtilityProcess ? this.mainProcessService.getChannel(ipcUtilityProcessWorkerChannelName) : this.sharedProcessService.getChannel(ipcUtilityProcessWorkerChannelName);
-			this._utilityProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(channel);
+			this._utilityProcessWorkerService = ProxyChannel.toService<IUtilityProcessWorkerService>(channel);
 		}
 
 		return this._utilityProcessWorkerService;

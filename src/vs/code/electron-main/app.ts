@@ -114,7 +114,7 @@ import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService'
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
-import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 /**
  * The main VS Code application. There will only ever be one instance,

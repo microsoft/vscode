@@ -89,7 +89,7 @@ import { ISharedTunnelsService } from 'vs/platform/tunnel/common/tunnel';
 import { SharedTunnelsService } from 'vs/platform/tunnel/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
-import { ipcUtilityProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -116,7 +116,7 @@ import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
-import { IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -452,7 +452,6 @@ class SharedProcessMain extends Disposable {
 		// Remote Tunnel
 		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
-
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

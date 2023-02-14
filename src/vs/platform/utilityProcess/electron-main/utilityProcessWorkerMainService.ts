@@ -6,8 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,7 +19,8 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 
 export const IUtilityProcessWorkerMainService = createDecorator<IUtilityProcessWorkerMainService>('utilityProcessWorker');
 
-export interface IUtilityProcessWorkerMainService extends ISharedProcessWorkerService {
+export interface IUtilityProcessWorkerMainService extends IUtilityProcessWorkerService {
+
 	readonly _serviceBrand: undefined;
 }
 
@@ -70,7 +70,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 
 	private hash(configuration: IUtilityProcessWorkerConfiguration): number {
 		return hash({
-			...configuration.process,
+			moduleId: configuration.process.moduleId,
 			windowId: configuration.reply.windowId
 		});
 	}
