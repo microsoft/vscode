@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandSearchProvider, ICommandSearchRequest, showCommandSearchPrompt } from 'vs/workbench/contrib/terminal/browser/commandSearch/commandSearchPrompt';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -23,7 +25,11 @@ export function registerCommandSearchActions() {
 				title: { value: localize('showCommandSearch', "Show Command Search"), original: 'Show Command Search' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: TerminalContextKeys.focus,
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.Digit3,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {

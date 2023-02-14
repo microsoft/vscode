@@ -211,7 +211,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
-		(window as any).term = this;
 		this.target = location;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;

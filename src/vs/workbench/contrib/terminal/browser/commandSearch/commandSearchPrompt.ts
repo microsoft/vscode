@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import 'vs/css!./media/commandSearch';
 
 export interface ICommandSearchResult {
 	/**
