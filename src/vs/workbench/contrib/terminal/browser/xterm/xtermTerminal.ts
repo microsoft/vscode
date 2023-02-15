@@ -773,9 +773,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 }
 
 class AccessibleBuffer extends DisposableStore {
-
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
+	private _editorContainer: HTMLElement;
+	private _registered: boolean = false;
 
 	constructor(
 		private readonly _terminal: RawXtermTerminal,
@@ -810,18 +811,31 @@ class AccessibleBuffer extends DisposableStore {
 			cursorBlinking: configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
-		this._accessibleBuffer = this._terminal.element!.querySelector('.xterm-accessible-buffer') as HTMLElement || undefined;
-		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._accessibleBuffer, editorOptions, codeEditorWidgetOptions);
+		this._accessibleBuffer = this._terminal.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		this._editorContainer = document.createElement('div');
+		this._editorContainer.className = 'xterm-accessible-buffer-editor';
+		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 	}
 
 	async focus(): Promise<void> {
-		const fragment = this._getContent();
-		const model = await this._getTextModel(URI.from({ scheme: 'terminal', fragment }));
+		if (!this._registered) {
+			if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+				this.add(this._terminal.registerBufferElementProvider({
+					provideBufferElements: () => {
+						return this._editorContainer!;
+					}
+				}));
+			}
+			this._registered = true;
+		}
+		const content = this._getContent();
+		const model = await this._getTextModel(URI.from({ scheme: 'terminal', fragment: content }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._bufferEditor.focus();
+			this._accessibleBuffer.focus();
 		} else {
 			this._accessibleBuffer.focus();
 		}
