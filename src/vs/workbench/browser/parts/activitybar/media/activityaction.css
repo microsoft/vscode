@@ -183,6 +183,7 @@
 	border-radius: 3px;
 	background-color: var(--vscode-activityBar-background);
 	color: var(--vscode-activityBar-inactiveForeground);
+	border: 1px solid;
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:active .profile-badge-content,
