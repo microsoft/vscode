@@ -18,14 +18,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 
 export interface IUtilityProcessConfiguration {
 
-	// --- message port response related
-
-	readonly responseWindowId: number;
-	readonly responseChannel: string;
-	readonly responseNonce: string;
-
-	// --- utility process options
-
 	/**
 	 * A way to group utility processes of same type together.
 	 */
@@ -57,6 +49,17 @@ export interface IUtilityProcessConfiguration {
 	 * with other components.
 	 */
 	readonly correlationId?: string;
+}
+
+export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
+
+	// --- message port response related
+
+	readonly responseWindowId: number;
+	readonly responseChannel: string;
+	readonly responseNonce: string;
+
+	// --- utility process options
 
 	/**
 	 * If set to `true`, will terminate the utility process
@@ -122,14 +125,13 @@ export class UtilityProcess extends Disposable {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 	}
 
-	private log(msg: string, severity: Severity): void {
+	protected log(msg: string, severity: Severity): void {
 		let logMsg: string;
 		if (this.configuration?.correlationId) {
 			logMsg = `[UtilityProcess id: ${this.configuration?.correlationId}, type: ${this.configuration?.type}, pid: ${this.processPid ?? '<none>'}]: ${msg}`;
@@ -150,31 +152,31 @@ export class UtilityProcess extends Disposable {
 		}
 	}
 
-	private validateCanStart(configuration: IUtilityProcessConfiguration): BrowserWindow | undefined {
+	private validateCanStart(): boolean {
 		if (!canUseUtilityProcess) {
 			throw new Error('Cannot use UtilityProcess API from Electron!');
 		}
 
 		if (this.process) {
 			this.log('Cannot start utility process because it is already running...', Severity.Error);
-			return undefined;
-		}
 
-		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
-		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
-			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
-			return undefined;
-		}
-
-		return responseWindow;
-	}
-
-	start(configuration: IUtilityProcessConfiguration): boolean {
-		const responseWindow = this.validateCanStart(configuration);
-		if (!responseWindow) {
 			return false;
 		}
 
+		return true;
+	}
+
+	start(configuration: IUtilityProcessConfiguration): boolean {
+		if (!this.validateCanStart()) {
+			return false;
+		}
+
+		this.doStart(configuration);
+
+		return true;
+	}
+
+	protected doStart(configuration: IUtilityProcessConfiguration): UtilityProcessProposedApi.UtilityProcess {
 		this.configuration = configuration;
 
 		const serviceName = `${this.configuration.type}-${this.id}`;
@@ -205,22 +207,12 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(responseWindow, this.process, this.configuration, serviceName);
+		this.registerListeners(this.process, this.configuration, serviceName);
 
-		// Exchange message ports
-		this.exchangeMessagePorts(this.process, this.configuration, responseWindow);
-
-		return true;
+		return this.process;
 	}
 
-	private registerListeners(window: BrowserWindow, process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
-
-		// If the lifecycle of the utility process is bound to the window,
-		// we kill the process if the window closes or changes
-		if (configuration.windowLifecycleBound) {
-			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
-			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
-		}
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -284,13 +276,6 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
-	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
-		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
-
-		process.postMessage('null', [utilityProcessPort]);
-		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
-	}
-
 	enableInspectPort(): boolean {
 		if (!this.process || typeof this.processPid !== 'number') {
 			return false;
@@ -346,5 +331,55 @@ export class UtilityProcess extends Disposable {
 			this.log('did not exit within ${maxWaitTimeMs}ms, will kill it now...', Severity.Info);
 			this.kill();
 		}
+	}
+}
+
+export class WindowUtilityProcess extends UtilityProcess {
+
+	constructor(
+		@ILogService logService: ILogService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+	) {
+		super(logService, telemetryService, lifecycleMainService);
+	}
+
+	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
+		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
+		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
+			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
+
+			return false;
+		}
+
+		// Start utility process
+		const process = super.doStart(configuration);
+
+		// Register to window events
+		this.registerWindowListeners(responseWindow, configuration);
+
+		// Exchange message ports to window
+		this.exchangeMessagePorts(process, configuration, responseWindow);
+
+		return true;
+	}
+
+	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
+
+		// If the lifecycle of the utility process is bound to the window,
+		// we kill the process if the window closes or changes
+
+		if (configuration.windowLifecycleBound) {
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
+			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
+		}
+	}
+
+	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IWindowUtilityProcessConfiguration, responseWindow: BrowserWindow): void {
+		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
+
+		process.postMessage('null', [utilityProcessPort]);
+		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 	}
 }
