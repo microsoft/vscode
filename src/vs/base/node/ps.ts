@@ -48,15 +48,15 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/;
-			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/;
-			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/;
-			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/;
-			const UTILITY_EXTENSION_HOST_HINT = /--vscode-utility-kind=extensionHost/;
-			const UTILITY_FILE_WATCHER_HOST_HINT = /--vscode-utility-kind=fileWatcher/;
-			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
-			const WINDOWS_PTY = /\\pipe\\winpty-control/;
-			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
+			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/i;
+			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/i;
+			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/i;
+			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
+			const UTILITY_EXTENSION_HOST_HINT = /--vscode-utility-kind=extensionHost/i;
+			const UTILITY_FILE_WATCHER_HOST_HINT = /--vscode-utility-kind=fileWatcher/i;
+			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
+			const WINDOWS_PTY = /\\pipe\\winpty-control/i;
+			const WINDOWS_CONSOLE_HOST = /conhost\.exe/i;
 			const TYPE = /--type=([a-zA-Z-]+)/;
 
 			// find windows crash reporter
