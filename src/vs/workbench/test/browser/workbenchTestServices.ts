@@ -165,6 +165,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
+import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -316,7 +317,8 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
 	instantiationService.stub(IListService, new TestListService());
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
+	const hoverService = instantiationService.stub(IHoverService, instantiationService.createInstance(TestHoverService));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService, hoverService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
@@ -727,6 +729,24 @@ export class TestSideBarPart implements IPaneCompositePart {
 	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
 	layout(width: number, height: number, top: number, left: number): void { }
+}
+
+class TestHoverService implements IHoverService {
+	private currentHover: IHoverWidget | undefined;
+	_serviceBrand: undefined;
+	showHover(options: IHoverOptions, focus?: boolean | undefined): IHoverWidget | undefined {
+		this.currentHover = new class implements IHoverWidget {
+			private _isDisposed = false;
+			get isDisposed(): boolean { return this._isDisposed; }
+			dispose(): void {
+				this._isDisposed = true;
+			}
+		};
+		return this.currentHover;
+	}
+	hideHover(): void {
+		this.currentHover?.dispose();
+	}
 }
 
 export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
