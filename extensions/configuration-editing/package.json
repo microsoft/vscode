@@ -10,8 +10,6 @@
   },
   "icon": "images/icon.png",
   "activationEvents": [
-    "onLanguage:json",
-    "onLanguage:jsonc",
     "onProfile",
     "onProfile:github"
   ],

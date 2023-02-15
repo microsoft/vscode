@@ -17,7 +17,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService, toExtension, ExtensionHostKind, IExtensionHost, webWorkerExtHostConfig, ExtensionRunningLocation, WebWorkerExtHostConfigValue, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensions';
@@ -52,6 +52,8 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { LegacyNativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -76,6 +78,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
@@ -83,7 +86,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService
 	) {
 		super(
 			instantiationService,
@@ -99,6 +102,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			extensionManifestPropertiesService,
 			logService,
 			remoteAgentService,
+			remoteExtensionsScannerService,
 			lifecycleService,
 			userDataProfileService
 		);
@@ -145,7 +149,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
+			return this._remoteExtensionsScannerService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
 		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System);
@@ -294,16 +298,30 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._notificationService.status(nls.localize('extensionService.autoRestart', "The extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
 				this.startExtensionHosts();
 			} else {
-				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."),
-					[{
+				const choices: IPromptChoice[] = [];
+				if (this._environmentService.isBuilt) {
+					choices.push({
+						label: nls.localize('reportIssue', "Report Issue"),
+						run: () => {
+							this._instantiationService.invokeFunction(accessor => {
+								const issueService = accessor.get(IWorkbenchIssueService);
+								issueService.openReporter();
+							});
+						}
+					});
+				} else {
+					choices.push({
 						label: nls.localize('devTools', "Open Developer Tools"),
 						run: () => this._nativeHostService.openDevTools()
-					},
-					{
-						label: nls.localize('restart', "Restart Extension Host"),
-						run: () => this.startExtensionHosts()
-					}]
-				);
+					});
+				}
+
+				choices.push({
+					label: nls.localize('restart', "Restart Extension Host"),
+					run: () => this.startExtensionHosts()
+				});
+
+				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."), choices);
 			}
 		}
 	}
@@ -556,7 +574,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			// fetch the remote environment
 			[remoteEnv, remoteExtensions] = await Promise.all([
 				this._remoteAgentService.getEnvironment(),
-				this._remoteAgentService.scanExtensions()
+				this._remoteExtensionsScannerService.scanExtensions()
 			]);
 
 			if (!remoteEnv) {

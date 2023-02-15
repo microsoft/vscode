@@ -115,6 +115,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/limitIndicator",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/keybindings",
 			"project": "vscode-workbench"
 		},

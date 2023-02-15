@@ -10,8 +10,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';

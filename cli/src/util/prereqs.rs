@@ -64,7 +64,7 @@ impl PreReqChecker {
 		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
 			return Ok(if cfg!(target_arch = "x86_64") {
 				Platform::LinuxX64
-			} else if cfg!(target_arch = "armhf") {
+			} else if cfg!(target_arch = "arm") {
 				Platform::LinuxARM32
 			} else {
 				Platform::LinuxARM64

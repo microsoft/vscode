@@ -86,7 +86,9 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
+import 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
+import 'vs/workbench/services/remote/common/remoteExtensionsScanner';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -268,8 +270,11 @@ import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
-// Folding Limit Indicator
+// Folding
 import 'vs/workbench/contrib/folding/browser/folding.contribution';
+
+// Limit Indicator
+import 'vs/workbench/contrib/limitIndicator/browser/limitIndicator.contribution';
 
 // Inlay Hint Accessibility
 import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';

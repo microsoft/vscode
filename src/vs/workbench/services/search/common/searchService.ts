@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isNumber } from 'vs/base/common/types';
@@ -73,7 +73,7 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
 		// Get local results from dirty/untitled
 		const localResults = this.getLocalResults(query);
 
@@ -84,7 +84,7 @@ export class SearchService extends Disposable implements ISearchService {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			if (isFileMatch(progress)) {
 				// Match
-				if (!localResults.results.has(progress.resource) && onProgress) { // don't override local results
+				if (!localResults.results.has(progress.resource) && !(notebookURIs && notebookURIs.has(progress.resource)) && onProgress) { // don't override local results
 					onProgress(progress);
 				}
 			} else if (onProgress) {

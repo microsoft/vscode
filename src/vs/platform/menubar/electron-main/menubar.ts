@@ -12,14 +12,13 @@ import { isMacintosh, language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/window/common/window';
@@ -71,7 +70,7 @@ export class Menubar {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
@@ -101,7 +100,7 @@ export class Menubar {
 	}
 
 	private restoreCachedMenubarData() {
-		const menubarData = this.stateMainService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
 		if (menubarData) {
 			if (menubarData.menus) {
 				this.menubarMenus = menubarData.menus;
@@ -198,7 +197,7 @@ export class Menubar {
 		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateMainService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}
@@ -431,17 +430,16 @@ export class Menubar {
 
 		const confirmBeforeClose = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.isKeyboardEvent(event))) {
-			const { options, buttonIndeces } = massageMessageBoxOptions({
+			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
 					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
-					nls.localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					nls.localize('cancel', "Cancel")
 				],
 				message: nls.localize('quitMessage', "Are you sure you want to quit?")
-			}, this.productService);
+			});
 
-			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, options);
-			return buttonIndeces[response] === 0;
+			return response === 0;
 		}
 
 		return true;

@@ -1079,8 +1079,10 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.label = this.label;
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
+		result.conditionDescription = this.conditionDescription;
 		result.condition = this.condition;
 		result.fallback = this.fallback;
+		result.description = this.description;
 
 		return result;
 	}

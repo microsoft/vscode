@@ -78,11 +78,9 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
 
-		this._register(sharedProcessLifecycleService.onWillShutdown(e => {
-			if (this._tunnelProcess) {
-				this._tunnelProcess.cancel();
-				this._tunnelProcess = undefined;
-			}
+		this._register(sharedProcessLifecycleService.onWillShutdown(() => {
+			this._tunnelProcess?.cancel();
+			this._tunnelProcess = undefined;
 			this.dispose();
 		}));
 
