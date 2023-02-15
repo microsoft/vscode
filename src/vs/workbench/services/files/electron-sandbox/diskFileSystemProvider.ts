@@ -15,7 +15,7 @@ import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs
 import { IDiskFileChange, ILogMessage, AbstractUniversalWatcherClient } from 'vs/platform/files/common/watcher';
 import { UniversalWatcherClient } from 'vs/workbench/services/files/electron-sandbox/watcherClient';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 
 /**
  * A sandbox ready disk file system provider that delegates almost all calls
@@ -34,7 +34,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,
-		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
+		private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		logService: ILogService
 	) {
 		super(logService, { watcher: { forceUniversal: true /* send all requests to universal watcher process */ } });
@@ -136,7 +136,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient {
-		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging, this.sharedProcessWorkerWorkbenchService);
+		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging, this.utilityProcessWorkerWorkbenchService);
 	}
 
 	protected createNonRecursiveWatcher(): never {

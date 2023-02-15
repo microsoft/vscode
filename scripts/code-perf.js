@@ -22,9 +22,18 @@ async function main() {
 		let buildArgIndex = args.indexOf('--build');
 		buildArgIndex = buildArgIndex === -1 ? args.indexOf('-b') : buildArgIndex;
 		if (buildArgIndex === -1) {
+			let runtimeArgIndex = args.indexOf('--runtime');
+			runtimeArgIndex = runtimeArgIndex === -1 ? args.indexOf('-r') : runtimeArgIndex;
+			if (runtimeArgIndex !== -1 && args[runtimeArgIndex + 1] !== 'desktop') {
+				console.error('Please provide the --build argument. It is an executable file for desktop or a URL for web');
+				process.exit(1);
+			}
 			build = getLocalCLIPath();
 		} else {
-			build = getExePath(args[buildArgIndex + 1]);
+			build = args[buildArgIndex + 1];
+			if (build !== 'insider' && build !== 'stable' && build !== 'exploration') {
+				build = getExePath(args[buildArgIndex + 1]);
+			}
 			args.splice(buildArgIndex + 1, 1);
 		}
 
@@ -74,7 +83,7 @@ function getExePath(buildPath) {
  * @returns {string}
  */
 function getLocalCLIPath() {
-	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code-cli.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code-cli.sh');
+	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code.sh');
 }
 
 main();

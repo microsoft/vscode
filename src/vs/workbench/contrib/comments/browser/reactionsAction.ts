@@ -61,11 +61,25 @@ export class ReactionActionViewItem extends ActionViewItem {
 		const toggleMessage = action.enabled ? nls.localize('comment.toggleableReaction', "Toggle reaction, ") : '';
 
 		if (action.count === undefined) {
-			return nls.localize('comment.reactionLabelNone', "{0}{1} reaction", toggleMessage, action.label);
+			return nls.localize({
+				key: 'comment.reactionLabelNone', comment: [
+					'This is a tooltip for an emoji button so that the current user can toggle their reaction to a comment.',
+					'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is the name of the reaction.']
+			}, "{0}{1} reaction", toggleMessage, action.label);
 		} else if (action.count === 1) {
-			return nls.localize('comment.reactionLabelOne', "{0}1 reaction with {1}", toggleMessage, action.label);
+			return nls.localize({
+				key: 'comment.reactionLabelOne', comment: [
+					'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is 1.',
+					'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
+					'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is the name of the reaction.']
+			}, "{0}1 reaction with {1}", toggleMessage, action.label);
 		} else if (action.count > 1) {
-			return nls.localize('comment.reactionLabelMany', "{0}{1} reactions with {2}", toggleMessage, action.count, action.label);
+			return nls.localize({
+				key: 'comment.reactionLabelMany', comment: [
+					'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is greater than 1.',
+					'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
+					'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is number of users who have reacted with that reaction, and the third is the name of the reaction.']
+			}, "{0}{1} reactions with {2}", toggleMessage, action.count, action.label);
 		}
 		return undefined;
 	}

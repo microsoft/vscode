@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
 import { CompletionItemKind, InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
@@ -21,7 +22,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		new SuggestWidgetInlineCompletionProvider(
 			this.editor,
 			// Use the first cache item (if any) as preselection.
-			() => this.cache.value?.completions[0]?.toLiveInlineCompletion()
+			() => {
+				// We might get asked in a content change event before the cache has received that event.
+				this.cache.value?.updateRanges();
+				return this.cache.value?.completions[0]?.toLiveInlineCompletion();
+			}
 		)
 	);
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
@@ -151,8 +156,10 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 		const isAugmentedCompletionValid = augmentedCompletion
 			&& suggestInlineCompletion
+			// The intellisense completion must be a prefix of the augmented completion
 			&& augmentedCompletion.insertText.startsWith(suggestInlineCompletion.insertText)
-			&& augmentedCompletion.range.equalsRange(suggestInlineCompletion.range);
+			// The augmented completion must replace the intellisense completion range, but can replace even more
+			&& rangeExtends(augmentedCompletion.range, suggestInlineCompletion.range);
 
 		if (!isSuggestionPreviewEnabled && !isAugmentedCompletionValid) {
 			return undefined;
@@ -181,4 +188,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 function sum(arr: number[]): number {
 	return arr.reduce((a, b) => a + b, 0);
+}
+
+function rangeExtends(extendingRange: Range, rangeToExtend: Range): boolean {
+	return extendingRange.startLineNumber === rangeToExtend.startLineNumber &&
+		extendingRange.startColumn === rangeToExtend.startColumn &&
+		((extendingRange.endLineNumber === rangeToExtend.endLineNumber && extendingRange.endColumn >= rangeToExtend.endColumn)
+			|| extendingRange.endLineNumber > rangeToExtend.endLineNumber);
 }

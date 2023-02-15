@@ -5,11 +5,11 @@
 
 import { isMacintosh } from 'vs/base/common/platform';
 import { getMachineId } from 'vs/base/node/id';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateReadService } from 'vs/platform/state/node/state';
 import { machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 
 
-export async function resolveMachineId(stateService: IStateService) {
+export async function resolveMachineId(stateService: IStateReadService) {
 	// We cache the machineId for faster lookups
 	// and resolve it only once initially if not cached or we need to replace the macOS iBridge device
 	let machineId = stateService.getItem<string>(machineIdKey);

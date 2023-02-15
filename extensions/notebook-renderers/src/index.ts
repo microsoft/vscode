@@ -31,6 +31,7 @@ interface JavaScriptRenderingHook {
 interface RenderOptions {
 	readonly lineLimit: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 }
 
 function clearContainer(container: HTMLElement) {
@@ -149,6 +150,9 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 	if (err.stack) {
 		const stack = document.createElement('pre');
 		stack.classList.add('traceback');
+		if (ctx.settings.outputWordWrap) {
+			stack.classList.add('wordWrap');
+		}
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
 		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
@@ -190,6 +194,11 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			const text = outputInfo.text();
 			const element = existing ?? document.createElement('span');
 			element.classList.add('output-stream');
+			if (ctx.settings.outputWordWrap) {
+				element.classList.add('wordWrap');
+			} else {
+				element.classList.remove('wordWrap');
+			}
 			element.setAttribute('output-item-id', outputInfo.id);
 			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 			outputElement.appendChild(element);
@@ -199,6 +208,9 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const element = document.createElement('span');
 	element.classList.add('output-stream');
+	if (ctx.settings.outputWordWrap) {
+		element.classList.add('wordWrap');
+	}
 	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
@@ -217,6 +229,9 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
+	if (ctx.settings.outputWordWrap) {
+		contentNode.classList.add('wordWrap');
+	}
 	const text = outputInfo.text();
 	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
 	container.appendChild(contentNode);
@@ -243,6 +258,12 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
+	}
+	.output-plaintext.wordWrap span,
+	.output-stream.wordWrap span,
+	.traceback.wordWrap span {
+		white-space: pre-wrap !important;
+		word-break: break-all;
 	}
 	.output-plaintext,
 	.output-stream {
