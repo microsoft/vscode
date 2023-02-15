@@ -169,10 +169,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return local;
 	}
 
-	getMetadata(extension: ILocalExtension, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<Metadata | undefined> {
-		return this.extensionsScanner.scanMetadata(extension, profileLocation);
-	}
-
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
 		if (metadata.isPreReleaseVersion) {
@@ -207,6 +203,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
 		}
 		return this.installFromGallery(galleryExtension);
+	}
+
+	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		return this.extensionsScanner.copyExtensions(fromProfileLocation, toProfileLocation);
 	}
 
 	markAsUninstalled(...extensions: IExtension[]): Promise<void> {
@@ -528,6 +528,14 @@ export class ExtensionsScanner extends Disposable {
 	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {
 		await this.removeExtension(extension, 'uninstalled');
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[ExtensionKey.create(extension).toString()]);
+	}
+
+	async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		const fromExtensions = await this.scanExtensions(ExtensionType.User, fromProfileLocation);
+		const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(fromExtensions
+			.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
+			.map(async e => ([e, await this.scanMetadata(e, fromProfileLocation)])));
+		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, toProfileLocation);
 	}
 
 	private async withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {

@@ -31,6 +31,7 @@ import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -52,6 +53,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
@@ -70,6 +72,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManifestPropertiesService,
 			logService,
 			remoteAgentService,
+			remoteExtensionsScannerService,
 			lifecycleService,
 			userDataProfileService
 		);
@@ -86,7 +89,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected async _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
+			return this._remoteExtensionsScannerService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
 		const scannedExtension = await this._webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, this._userDataProfileService.currentProfile.extensionsResource);
@@ -205,7 +208,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
 			this._scanWebExtensions(),
 			this._remoteAgentService.getEnvironment(),
-			this._remoteAgentService.scanExtensions()
+			this._remoteExtensionsScannerService.scanExtensions()
 		]);
 		localExtensions = this._checkEnabledAndProposedAPI(localExtensions, false);
 		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
