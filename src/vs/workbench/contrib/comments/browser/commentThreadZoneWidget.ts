@@ -300,6 +300,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const lineNumber = this._commentThread.range.endLineNumber;
 		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
+			this._commentGlyph.setThreadState(commentThread.state);
 			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
 				shouldMoveWidget = true;
 				this._commentGlyph.setLineNumber(lineNumber);
@@ -327,6 +328,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	display(lineNumber: number) {
 		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
+		this._commentGlyph.setThreadState(this._commentThread.state);
 
 		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
