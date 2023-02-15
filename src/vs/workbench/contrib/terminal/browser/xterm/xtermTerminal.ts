@@ -48,7 +48,6 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { readonly } from 'vs/base/common/errors';
 
 const enum RenderConstants {
 	/**
@@ -821,6 +820,7 @@ class AccessibleBuffer extends DisposableStore {
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
+		this._accessibleBuffer.focus();
 		this._bufferEditor.focus();
 	}
 
