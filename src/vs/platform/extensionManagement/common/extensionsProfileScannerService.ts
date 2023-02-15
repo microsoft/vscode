@@ -14,7 +14,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
@@ -312,7 +312,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	private toRelativePath(extensionLocation: URI): string | undefined {
 		if (this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)) {
 			const relativePath = this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation);
-			if (this.extensionsLocation.scheme === Schemas.file) {
+			if (this.extensionsLocation.scheme === Schemas.file && this.logService.getLevel() === LogLevel.Trace) {
 				this.logService.trace('Relative path', extensionLocation.fsPath, this.extensionsLocation.fsPath, relativePath);
 			}
 			return relativePath;
