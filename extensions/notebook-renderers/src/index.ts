@@ -135,6 +135,8 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 }
 
 function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
+	clearContainer(container);
+
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
