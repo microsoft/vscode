@@ -153,20 +153,20 @@ registerAction2(class ReplaceAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.EditableItemFocused),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 			},
 			icon: searchReplaceIcon,
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.EditableItemFocused),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.EditableItemFocused),
 					group: 'inline',
 					order: 1
 				}
@@ -192,7 +192,7 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.EditableItemFocused),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -200,13 +200,13 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.EditableItemFocused),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.EditableItemFocused),
 					group: 'inline',
 					order: 1
 				}
@@ -231,7 +231,7 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.EditableItemFocused),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -239,13 +239,13 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.EditableItemFocused),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.EditableItemFocused),
 					group: 'inline',
 					order: 1
 				}
