@@ -820,8 +820,11 @@ class AccessibleBuffer extends DisposableStore {
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
-		this._accessibleBuffer.focus();
-		this._bufferEditor.focus();
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+			this._bufferEditor.focus();
+		} else {
+			this._accessibleBuffer.focus();
+		}
 	}
 
 	async _getTextModel(resource: URI): Promise<ITextModel | null> {
