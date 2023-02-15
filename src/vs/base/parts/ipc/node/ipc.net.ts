@@ -737,9 +737,8 @@ export function createRandomIPCHandle(): string {
 	// XDG_RUNTIME_DIR over tmpDir
 	let result: string;
 
-	const customSocketsDir = process.env['VSCODE_SOCKETS_DIR'] ?? XDG_RUNTIME_DIR ?? undefined;
-	if (customSocketsDir) {
-		result = join(customSocketsDir, `vscode-ipc-${randomSuffix}.sock`);
+	if (XDG_RUNTIME_DIR) {
+		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
 	} else {
 		result = join(getNodeDependencies().os.tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
 	}
