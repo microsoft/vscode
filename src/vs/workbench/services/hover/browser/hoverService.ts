@@ -140,7 +140,7 @@ export class HoverService implements IHoverService {
 	}
 }
 
-function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOptions | number | undefined {
+function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOptions | number | string | undefined {
 	if (options === undefined) {
 		return undefined;
 	}
