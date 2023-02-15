@@ -63,7 +63,7 @@ export interface IHoverOptions {
 	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
 	 */
-	id?: number;
+	id?: number | string;
 
 	/**
 	 * A set of actions for the hover's "status bar".
