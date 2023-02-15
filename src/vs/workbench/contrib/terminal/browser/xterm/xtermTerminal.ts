@@ -813,7 +813,6 @@ class AccessibleBuffer extends DisposableStore {
 		};
 		this._accessibleBuffer = this._terminal.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
 		this._editorContainer = document.createElement('div');
-		this._editorContainer.className = 'xterm-accessible-buffer-editor';
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 	}
 
@@ -822,20 +821,21 @@ class AccessibleBuffer extends DisposableStore {
 			if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 				this.add(this._terminal.registerBufferElementProvider({
 					provideBufferElements: () => {
-						return this._editorContainer!;
+						return this._editorContainer;
 					}
 				}));
 			}
 			this._registered = true;
 		}
+		this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
 		const content = this._getContent();
 		const model = await this._getTextModel(URI.from({ scheme: 'terminal', fragment: content }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._bufferEditor.focus();
 			this._accessibleBuffer.focus();
+			this._bufferEditor.focus();
 		} else {
 			this._accessibleBuffer.focus();
 		}
