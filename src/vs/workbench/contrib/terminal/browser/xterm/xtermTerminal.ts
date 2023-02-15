@@ -833,11 +833,12 @@ class AccessibleBuffer extends DisposableStore {
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
+		// Updates xterm's accessibleBufferActive property
+		// such that mouse events do not cause the terminal buffer
+		// to steal the focus
+		this._accessibleBuffer.focus();
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._accessibleBuffer.focus();
 			this._bufferEditor.focus();
-		} else {
-			this._accessibleBuffer.focus();
 		}
 	}
 
