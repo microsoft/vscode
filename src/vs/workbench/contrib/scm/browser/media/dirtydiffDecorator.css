@@ -94,15 +94,15 @@
 	transition: height 80ms linear;
 }
 
-.peekview-title .dropdown {
+.dirty-diff .peekview-title .dropdown {
 	margin-right: 10px;
 }
 
-.peekview-title .dropdown.select-container {
+.dirty-diff .peekview-title .dropdown.select-container {
 	cursor: default;
 }
 
-.peekview-title .dropdown .monaco-select-box {
+.dirty-diff .peekview-title .dropdown .monaco-select-box {
 	cursor: pointer;
 	min-width: 100px;
 	min-height: 18px;

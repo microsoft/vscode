@@ -13,11 +13,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { Color } from 'vs/base/common/color';
 
-interface IQuickDiffSelectItem extends ISelectOptionItem {
+export interface IQuickDiffSelectItem extends ISelectOptionItem {
 	provider: string;
 }
 
-export class SwitchQuickDiffViewItem extends SelectActionViewItem {
+export class SwitchQuickDiffViewItem extends SelectActionViewItem<IQuickDiffSelectItem> {
 	private readonly optionsItems: IQuickDiffSelectItem[];
 
 	constructor(
@@ -44,17 +44,21 @@ export class SwitchQuickDiffViewItem extends SelectActionViewItem {
 		this.select(index);
 	}
 
-	protected override getActionContext(_: string, index: number): any {
+	protected override getActionContext(_: string, index: number): IQuickDiffSelectItem {
 		return this.optionsItems[index];
 	}
 }
 
-export class SwitchQuickDiffAction extends Action {
+export class SwitchQuickDiffBaseAction extends Action {
 
 	public static readonly ID = 'quickDiff.base.switch';
 	public static readonly LABEL = nls.localize('quickDiff.base.switch', "Switch Quick Diff Base");
 
-	constructor(callback: (event?: unknown) => void) {
-		super(SwitchQuickDiffAction.ID, SwitchQuickDiffAction.LABEL, undefined, undefined, callback);
+	constructor(private readonly callback: (event?: IQuickDiffSelectItem) => void) {
+		super(SwitchQuickDiffBaseAction.ID, SwitchQuickDiffBaseAction.LABEL, undefined, undefined);
+	}
+
+	override async run(event?: IQuickDiffSelectItem): Promise<void> {
+		return this.callback(event);
 	}
 }

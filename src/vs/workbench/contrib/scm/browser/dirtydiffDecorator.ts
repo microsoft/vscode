@@ -59,7 +59,7 @@ import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { SwitchQuickDiffAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
+import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -196,7 +196,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
+		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
@@ -288,26 +288,23 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const providerIndex = providerChanges.indexOf(this._index);
 
 		let detail: string;
-		let display: 'none' | 'inherit';
 		if (!this.shouldUseDropdown()) {
 			detail = this.model.changes.length > 1
 				? nls.localize('changes', "{0} - {1} of {2} changes", label, providerIndex + 1, providerChanges.length)
 				: nls.localize('change', "{0} - {1} of {2} change", label, providerIndex + 1, providerChanges.length);
-			display = 'none';
+			this.dropdownContainer!.style.display = 'none';
 		} else {
 			detail = this.model.changes.length > 1
 				? nls.localize('multiChanges', "{0} of {1} changes", providerIndex + 1, providerChanges.length)
 				: nls.localize('multiChange', "{0} of {1} change", providerIndex + 1, providerChanges.length);
-			display = 'inherit';
+			this.dropdownContainer!.style.display = 'inherit';
 		}
-		if (this.dropdownContainer?.style) {
-			this.dropdownContainer.style.display = display;
-		}
+
 		this.setTitle(this.title, detail);
 	}
 
-	private switchQuickDiff(event: unknown) {
-		const newProvider = (event as { provider: string }).provider;
+	private switchQuickDiff(event?: IQuickDiffSelectItem) {
+		const newProvider = event?.provider;
 		if (newProvider === this.model.changes[this._index].label) {
 			return;
 		}
@@ -347,12 +344,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
-		if (this._titleElement) {
-			this.dropdownContainer = dom.prepend(this._titleElement, dom.$('.dropdown'));
-			this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffAction((event: unknown) => this.switchQuickDiff(event)),
-				this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
-			this.dropdown.render(this.dropdownContainer);
-		}
+		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
+		this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
+			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
+		this.dropdown.render(this.dropdownContainer);
 
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(this.editor), ThemeIcon.asClassName(gotoNextLocation));
