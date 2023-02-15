@@ -52,6 +52,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { LegacyNativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
@@ -77,6 +78,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
@@ -100,6 +102,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			extensionManifestPropertiesService,
 			logService,
 			remoteAgentService,
+			remoteExtensionsScannerService,
 			lifecycleService,
 			userDataProfileService
 		);
@@ -146,7 +149,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
+			return this._remoteExtensionsScannerService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
 		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System);
@@ -571,7 +574,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			// fetch the remote environment
 			[remoteEnv, remoteExtensions] = await Promise.all([
 				this._remoteAgentService.getEnvironment(),
-				this._remoteAgentService.scanExtensions()
+				this._remoteExtensionsScannerService.scanExtensions()
 			]);
 
 			if (!remoteEnv) {
