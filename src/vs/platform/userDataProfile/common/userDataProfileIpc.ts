@@ -5,21 +5,58 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { URI, UriDto } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from 'vs/base/common/uriIpc';
 
-export class UserDataProfilesNativeService extends Disposable implements IUserDataProfilesService {
+export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
+
+	constructor(
+		private readonly service: IUserDataProfilesService,
+		private readonly getUriTransformer: (requestContext: any) => IURITransformer
+	) { }
+
+	listen(context: any, event: string): Event<any> {
+		const uriTransformer = this.getUriTransformer(context);
+		switch (event) {
+			case 'onDidChangeProfiles': return Event.map<DidChangeProfilesEvent, DidChangeProfilesEvent>(this.service.onDidChangeProfiles, e => {
+				return {
+					all: e.all.map(p => transformOutgoingURIs({ ...p }, uriTransformer)),
+					added: e.added.map(p => transformOutgoingURIs({ ...p }, uriTransformer)),
+					removed: e.removed.map(p => transformOutgoingURIs({ ...p }, uriTransformer)),
+					updated: e.updated.map(p => transformOutgoingURIs({ ...p }, uriTransformer))
+				};
+			});
+		}
+		throw new Error(`Invalid listen ${event}`);
+	}
+
+	async call(context: any, command: string, args?: any): Promise<any> {
+		const uriTransformer = this.getUriTransformer(context);
+		switch (command) {
+			case 'createProfile': {
+				const profile = await this.service.createProfile(args[0], args[1], args[2]);
+				return transformOutgoingURIs({ ...profile }, uriTransformer);
+			}
+			case 'updateProfile': {
+				let profile = reviveProfile(transformIncomingURIs(args[0], uriTransformer), this.service.profilesHome.scheme);
+				profile = await this.service.updateProfile(profile, args[1]);
+				return transformOutgoingURIs({ ...profile }, uriTransformer);
+			}
+			case 'removeProfile': {
+				const profile = reviveProfile(transformIncomingURIs(args[0], uriTransformer), this.service.profilesHome.scheme);
+				return this.service.removeProfile(profile);
+			}
+		}
+		throw new Error(`Invalid call ${command}`);
+	}
+}
+
+export class UserDataProfilesService extends Disposable implements IUserDataProfilesService {
 
 	readonly _serviceBrand: undefined;
-
-	private readonly channel: IChannel;
-
-	readonly profilesHome: URI;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
 	private _profiles: IUserDataProfile[] = [];
@@ -34,12 +71,10 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 
 	constructor(
 		profiles: readonly UriDto<IUserDataProfile>[],
-		@IMainProcessService mainProcessService: IMainProcessService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		readonly profilesHome: URI,
+		private readonly channel: IChannel,
 	) {
 		super();
-		this.channel = mainProcessService.getChannel('userDataProfiles');
-		this.profilesHome = joinPath(environmentService.userRoamingDataHome, 'profiles');
 		this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 		this._register(this.channel.listen<DidChangeProfilesEvent>('onDidChangeProfiles')(e => {
 			const added = e.added.map(profile => reviveProfile(profile, this.profilesHome.scheme));
@@ -100,4 +135,3 @@ export class UserDataProfilesNativeService extends Disposable implements IUserDa
 	}
 
 }
-

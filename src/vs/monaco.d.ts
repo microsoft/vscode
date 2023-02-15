@@ -875,10 +875,10 @@ declare namespace monaco {
 	}
 
 	export class Token {
-		_tokenBrand: void;
 		readonly offset: number;
 		readonly type: string;
 		readonly language: string;
+		_tokenBrand: void;
 		constructor(offset: number, type: string, language: string);
 		toString(): string;
 	}
@@ -5612,7 +5612,8 @@ declare namespace monaco.editor {
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @deprecated
+		 * @deprecated Use `createDecorationsCollection`
+		 * @see createDecorationsCollection
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 		/**
