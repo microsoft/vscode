@@ -56,6 +56,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
 	private _candidateDefinitionsLength: number = -1;
 	private _colorSchemeType: ColorScheme | undefined;
+	private _widgetHeight: number = 0;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -75,7 +76,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._themeService.onDidColorThemeChange((colorTheme) => {
 			this._colorSchemeType = colorTheme.type;
 			// classList.toggle() is not used because if we move from HIGH_CONTRAST_DARK to HIGH_CONTRAST_LIGHT we want to keep the class name 'high-contrast'
-			if (this._colorSchemeType === ColorScheme.HIGH_CONTRAST_DARK || this._colorSchemeType === ColorScheme.HIGH_CONTRAST_LIGHT) {
+			if ((this._colorSchemeType === ColorScheme.HIGH_CONTRAST_DARK
+				|| this._colorSchemeType === ColorScheme.HIGH_CONTRAST_LIGHT)
+				&& this._widgetHeight > 0) {
 				this._rootDomNode.classList.add('high-contrast');
 			} else {
 				this._rootDomNode.classList.remove('high-contrast');
@@ -303,11 +306,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._rootDomNode.appendChild(this._renderChildNode(index, line));
 		}
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
-		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
+		this._widgetHeight = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		this._rootDomNode.style.height = this._widgetHeight.toString() + 'px';
 		if (this._colorSchemeType === ColorScheme.HIGH_CONTRAST_DARK || this._colorSchemeType === ColorScheme.HIGH_CONTRAST_LIGHT) {
 			// When the widget height is zero remove the bottom border, else there will be a double border below the breadcrumbs bar
-			if (widgetHeight === 0) {
+			if (this._widgetHeight === 0) {
 				this._rootDomNode.classList.remove('high-contrast');
 			}
 			// Otherwise if the widget height is bigger than 0 and previously the class name 'high-contrast' was removed, set it again
