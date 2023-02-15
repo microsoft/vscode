@@ -20,6 +20,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import 'vs/css!./stickyScroll';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+// import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -51,7 +52,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@IInstantiationService private readonly _instaService: IInstantiationService
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		// @IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		this._layoutInfo = this._editor.getLayoutInfo();
@@ -249,6 +251,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		child.appendChild(lineHTMLNode);
 
 		child.className = 'sticky-line-root';
+		// console.log('this._themeService.getColorTheme() : ', this._themeService.getColorTheme());
 		child.style.lineHeight = `${lineHeight}px`;
 		child.style.width = `${width}px`;
 		child.style.height = `${lineHeight}px`;

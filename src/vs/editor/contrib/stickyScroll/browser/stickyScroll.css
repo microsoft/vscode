@@ -22,6 +22,14 @@
 	width : 100%;
 }
 
+.monaco-editor .sticky-line-root-high-contrast-dark {
+	border-bottom: 1px solid white;
+}
+
+.monaco-editor .sticky-line-root-high-contrast-light {
+	border-bottom: 1px solid black;
+}
+
 .monaco-editor .sticky-line-root:hover {
 	background-color: var(--vscode-editorStickyScrollHover-background);
 	cursor : pointer;
