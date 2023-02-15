@@ -5,7 +5,7 @@
 
 import { ILocalExtension, IGalleryExtension, InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -13,7 +13,7 @@ import { Emitter } from 'vs/base/common/event';
 import { delta } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 export abstract class ProfileAwareExtensionManagementChannelClient extends BaseExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -85,7 +85,7 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		return super.updateMetadata(local, metadata, await this.getProfileLocation(extensionsProfileResource));
 	}
 
-	protected async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = await this.getProfileLocation(e.previous.extensionsResource);
 		const currentProfileLocation = await this.getProfileLocation(e.profile.extensionsResource);
 
@@ -93,14 +93,30 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 			return;
 		}
 
-		if (e.preserveData) {
+		const eventData = await this.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, e.preserveData);
+		this._onDidChangeProfile.fire(eventData);
+	}
+
+	protected async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserve: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		if (preserve === true) {
 			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
-			this._onDidChangeProfile.fire({ added: [], removed: [] });
+			return { added: [], removed: [] };
 		} else {
 			const oldExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
 			const newExtensions = await this.getInstalled(ExtensionType.User, currentProfileLocation);
-			const { added, removed } = delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
-			this._onDidChangeProfile.fire({ added, removed });
+			if (Array.isArray(preserve)) {
+				const extensionsToInstall: IExtensionIdentifier[] = [];
+				for (const extension of oldExtensions) {
+					if (preserve.some(id => ExtensionIdentifier.equals(extension.identifier.id, id)) &&
+						!newExtensions.some(e => ExtensionIdentifier.equals(e.identifier.id, extension.identifier.id))) {
+						extensionsToInstall.push(extension.identifier);
+					}
+				}
+				if (extensionsToInstall.length) {
+					await this.installExtensionsFromProfile(extensionsToInstall, previousProfileLocation, currentProfileLocation);
+				}
+			}
+			return delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
 		}
 	}
 

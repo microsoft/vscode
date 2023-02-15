@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ILocalExtension, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -15,8 +15,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IFileService } from 'vs/platform/files/common/files';
 import { generateUuid } from 'vs/base/common/uuid';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProfileAwareExtensionManagementChannelClient } from 'vs/workbench/services/extensionManagement/common/extensionManagementChannelClient';
+import { ExtensionIdentifier, ExtensionType, isResolverExtension } from 'vs/platform/extensions/common/extensions';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 export class NativeExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -26,7 +27,7 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
 		@IDownloadService private readonly downloadService: IDownloadService,
-		@INativeEnvironmentService private readonly nativeEnvironmentService: INativeEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly nativeEnvironmentService: INativeWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super(channel, userDataProfileService, uriIdentityService);
@@ -61,5 +62,14 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 			}
 		};
 		return { location, cleanup };
+	}
+
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveData: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		if (!preserveData && this.nativeEnvironmentService.remoteAuthority) {
+			const previousInstalledExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
+			const resolverExtension = previousInstalledExtensions.find(e => isResolverExtension(e.manifest, this.nativeEnvironmentService.remoteAuthority));
+			preserveData = resolverExtension ? [new ExtensionIdentifier(resolverExtension.identifier.id)] : preserveData;
+		}
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveData);
 	}
 }

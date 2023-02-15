@@ -527,4 +527,5 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	registerParticipant() { throw new Error('Not Supported'); }
 	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
+	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 }

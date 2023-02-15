@@ -653,6 +653,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
 	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
+	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;

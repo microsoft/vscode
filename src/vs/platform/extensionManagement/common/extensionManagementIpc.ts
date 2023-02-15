@@ -113,6 +113,9 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'installFromLocation': {
 				return this.service.installFromLocation(transformIncomingURI(args[0], uriTransformer), transformIncomingURI(args[1], uriTransformer));
 			}
+			case 'installExtensionsFromProfile': {
+				return this.service.installExtensionsFromProfile(args[0], transformIncomingURI(args[1], uriTransformer), transformIncomingURI(args[2], uriTransformer));
+			}
 			case 'getManifest': {
 				return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
 			}
@@ -232,6 +235,11 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('installFromLocation', [location, profileLocation])).then(local => transformIncomingExtension(local, null));
+	}
+
+	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
+		const result = await this.channel.call<ILocalExtension[]>('installExtensionsFromProfile', [extensions, fromProfileLocation, toProfileLocation]);
+		return result.map(local => transformIncomingExtension(local, null));
 	}
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
