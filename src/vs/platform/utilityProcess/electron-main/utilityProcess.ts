@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app, MessagePortMain } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -22,6 +22,12 @@ export interface IUtilityProcessConfiguration {
 	 * A way to group utility processes of same type together.
 	 */
 	readonly type: string;
+
+	/**
+	 * An optional serializable object to be sent into the utility process
+	 * as first message alongside the message port.
+	 */
+	readonly payload?: unknown;
 
 	/**
 	 * Environment key-value pairs. Default is `process.env`.
@@ -166,17 +172,11 @@ export class UtilityProcess extends Disposable {
 		return true;
 	}
 
-	start(configuration: IUtilityProcessConfiguration): boolean {
+	start(configuration: IUtilityProcessConfiguration): MessagePortMain | undefined {
 		if (!this.validateCanStart()) {
-			return false;
+			return undefined;
 		}
 
-		this.doStart(configuration);
-
-		return true;
-	}
-
-	protected doStart(configuration: IUtilityProcessConfiguration): UtilityProcessProposedApi.UtilityProcess {
 		this.configuration = configuration;
 
 		const serviceName = `${this.configuration.type}-${this.id}`;
@@ -209,7 +209,11 @@ export class UtilityProcess extends Disposable {
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
 
-		return this.process;
+		// Establish message ports
+		const { port1: outPort, port2: utilityProcessPort } = new MessageChannelMain();
+		this.process.postMessage(this.configuration.payload, [utilityProcessPort]);
+
+		return outPort;
 	}
 
 	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
@@ -320,15 +324,14 @@ export class UtilityProcess extends Disposable {
 
 	async waitForExit(maxWaitTimeMs: number): Promise<void> {
 		if (!this.process) {
-			this.log('no running process to wait for exit', Severity.Warning);
-			return;
+			return; // already killed, crashed or never started
 		}
 
 		this.log('waiting to exit...', Severity.Info);
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
 		if (this.process) {
-			this.log('did not exit within ${maxWaitTimeMs}ms, will kill it now...', Severity.Info);
+			this.log(`did not exit within ${maxWaitTimeMs}ms, will kill it now...`, Severity.Info);
 			this.kill();
 		}
 	}
@@ -345,24 +348,27 @@ export class WindowUtilityProcess extends UtilityProcess {
 		super(logService, telemetryService, lifecycleMainService);
 	}
 
-	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
+	override start(configuration: IWindowUtilityProcessConfiguration): MessagePortMain | undefined {
 		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
 		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
 			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
 
-			return false;
+			return undefined;
 		}
 
 		// Start utility process
-		const process = super.doStart(configuration);
+		const messagePort = super.start(configuration);
+		if (!messagePort) {
+			return undefined;
+		}
 
 		// Register to window events
 		this.registerWindowListeners(responseWindow, configuration);
 
 		// Exchange message ports to window
-		this.exchangeMessagePorts(process, configuration, responseWindow);
+		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [messagePort]);
 
-		return true;
+		return messagePort;
 	}
 
 	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
@@ -374,12 +380,5 @@ export class WindowUtilityProcess extends UtilityProcess {
 			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
 			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
 		}
-	}
-
-	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IWindowUtilityProcessConfiguration, responseWindow: BrowserWindow): void {
-		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
-
-		process.postMessage('null', [utilityProcessPort]);
-		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 	}
 }

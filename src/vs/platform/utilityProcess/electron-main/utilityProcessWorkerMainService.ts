@@ -114,7 +114,7 @@ class UtilityProcessWorker extends Disposable {
 	}
 
 	spawn(): boolean {
-		return this.utilityProcess.start({
+		const port = this.utilityProcess.start({
 			windowLifecycleBound: true,
 			correlationId: `${this.configuration.reply.windowId}`,
 			responseWindowId: this.configuration.reply.windowId,
@@ -123,6 +123,8 @@ class UtilityProcessWorker extends Disposable {
 			type: this.configuration.process.type,
 			env: this.getEnv()
 		});
+
+		return !!port;
 	}
 
 	private getEnv(): NodeJS.ProcessEnv {
