@@ -14,7 +14,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import { ITextMateTokenizationFeature } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { hash } from 'vs/base/common/hash';
@@ -95,7 +95,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 	private readonly _done = new Map<string, number>();
 
 	constructor(
-		@ITextMateService textMateService: ITextMateService,
+		@ITextMateTokenizationFeature textMateService: ITextMateTokenizationFeature,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
