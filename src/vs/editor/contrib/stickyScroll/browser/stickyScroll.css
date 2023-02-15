@@ -22,12 +22,8 @@
 	width : 100%;
 }
 
-.monaco-editor .sticky-line-root-high-contrast-dark {
-	border-bottom: 1px solid white;
-}
-
-.monaco-editor .sticky-line-root-high-contrast-light {
-	border-bottom: 1px solid black;
+.monaco-editor .sticky-widget.high-contrast{
+	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
 .monaco-editor .sticky-line-root:hover {
