@@ -17,14 +17,16 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export type Item = string | QuickPickItem;
 
 export interface ExtHostQuickOpen {
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
-	showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
+	showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+	showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
+	showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
+	showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
 
 	showInput(options?: InputBoxOptions, token?: CancellationToken): Promise<string | undefined>;
 
@@ -55,11 +57,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._commands = commands;
 		}
 
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
-		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
-		showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
-
+		showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+		showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
+		showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
+		showQuickPick(extension: IExtensionDescription, itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
 			// clear state from last invocation
 			this._onDidSelectItem = undefined;
 
@@ -84,6 +85,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					return undefined;
 				}
 
+				const allowedTooltips = isProposedApiEnabled(extension, 'quickPickItemTooltip');
+
 				return itemsPromise.then(items => {
 
 					const pickItems: TransferQuickPickItemOrSeparator[] = [];
@@ -94,12 +97,16 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						} else if (item.kind === QuickPickItemKind.Separator) {
 							pickItems.push({ type: 'separator', label: item.label });
 						} else {
+							if (item.tooltip && !allowedTooltips) {
+								console.warn(`Extension '${extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
+							}
 							pickItems.push({
 								label: item.label,
 								description: item.description,
 								detail: item.detail,
 								picked: item.picked,
 								alwaysShow: item.alwaysShow,
+								tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
 								handle
 							});
 						}
@@ -535,7 +542,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(extension: IExtensionDescription, onDispose: () => void) {
+		constructor(private extension: IExtensionDescription, onDispose: () => void) {
 			super(extension.identifier, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
@@ -558,12 +565,16 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				this._itemsToHandles.set(item, i);
 			});
 
+			const allowedTooltips = isProposedApiEnabled(this.extension, 'quickPickItemTooltip');
 			const pickItems: TransferQuickPickItemOrSeparator[] = [];
 			for (let handle = 0; handle < items.length; handle++) {
 				const item = items[handle];
 				if (item.kind === QuickPickItemKind.Separator) {
 					pickItems.push({ type: 'separator', label: item.label });
 				} else {
+					if (item.tooltip && !allowedTooltips) {
+						console.warn(`Extension '${this.extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
+					}
 					pickItems.push({
 						handle,
 						label: item.label,
@@ -571,6 +582,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						detail: item.detail,
 						picked: item.picked,
 						alwaysShow: item.alwaysShow,
+						tooltip: allowedTooltips ? MarkdownString.fromStrict(item.tooltip) : undefined,
 						buttons: item.buttons?.map<TransferQuickInputButton>((button, i) => {
 							return {
 								...getIconPathOrClass(button),
