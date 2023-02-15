@@ -280,9 +280,15 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private readonly hoverDelegate = new class implements IHoverDelegate {
 
+		private lastHoverHideTime = 0;
 		readonly placement = 'element';
 
 		get delay() {
+			// Delay implementation borrowed froms src/vs/workbench/browser/parts/statusbar/statusbarPart.ts
+			if (Date.now() - this.lastHoverHideTime < 200) {
+				return 0; // show instantly when a hover was recently shown
+			}
+
 			return this.configurationService.getValue<number>('workbench.hover.delay');
 		}
 
@@ -333,6 +339,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				},
 				hoverPosition: HoverPosition.RIGHT,
 			}, focus) : undefined;
+		}
+
+		onDidHideHover(): void {
+			this.lastHoverHideTime = Date.now();
 		}
 	}(this.configurationService, this.hoverService);
 
