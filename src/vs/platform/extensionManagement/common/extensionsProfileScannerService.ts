@@ -20,6 +20,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Schemas } from 'vs/base/common/network';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -309,9 +310,14 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 
 	private toRelativePath(extensionLocation: URI): string | undefined {
-		return this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)
-			? this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation)
-			: undefined;
+		if (this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)) {
+			const relativePath = this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation);
+			if (this.extensionsLocation.scheme === Schemas.file) {
+				this.logService.trace('Relative path', extensionLocation.fsPath, this.extensionsLocation.fsPath, relativePath);
+			}
+			return relativePath;
+		}
+		return undefined;
 	}
 
 	private resolveExtensionLocation(path: string): URI {
