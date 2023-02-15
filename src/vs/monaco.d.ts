@@ -6409,16 +6409,6 @@ declare namespace monaco.languages {
 		removeText?: number;
 	}
 
-	export interface IBackgroundTokenizer extends IDisposable {
-		/**
-		 * Instructs the background tokenizer to set the tokens for the given range again.
-		 *
-		 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
-		 * when the change does not even propagate to that viewport.
-		 */
-		requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
-	}
-
 	/**
 	 * The state of the tokenizer between two lines.
 	 * It is useful to store flags such as in multiline comment, etc.
