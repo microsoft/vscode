@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
@@ -59,7 +58,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			this._languageService.languageIdCodec
 		));
 
-		this._languageRegistryListener = this._register(this._languageConfigurationService.onDidChange(
+		this._register(this._languageConfigurationService.onDidChange(
 			e => {
 				if (e.affects(this._languageId)) {
 					this._onDidChangeLanguageConfiguration.fire({});
