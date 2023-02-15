@@ -5,13 +5,14 @@
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { URI } from 'vs/base/common/uri';
-import { IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import { ProfileAwareExtensionManagementChannelClient } from 'vs/workbench/services/extensionManagement/common/extensionManagementChannelClient';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class RemoteExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -20,7 +21,7 @@ export class RemoteExtensionManagementService extends ProfileAwareExtensionManag
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(channel, userDataProfileService, uriIdentityService);
 	}
@@ -55,11 +56,16 @@ export class RemoteExtensionManagementService extends ProfileAwareExtensionManag
 		return profile?.extensionsResource;
 	}
 
-	protected override async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
-		const previousRemoteProfile = await this.remoteUserDataProfilesService.getRemoteProfile(e.previous);
-		const currentRemoteProfile = await this.remoteUserDataProfilesService.getRemoteProfile(e.profile);
-		if (previousRemoteProfile.id !== currentRemoteProfile.id) {
-			return super.whenProfileChanged(e.preserveData && currentRemoteProfile.isDefault ? { ...e, preserveData: false } : e);
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveData: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		const remoteProfiles = await this.remoteUserDataProfilesService.getRemoteProfiles();
+		const previousProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, previousProfileLocation));
+		const currentProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, currentProfileLocation));
+		if (previousProfile?.id === currentProfile?.id) {
+			return { added: [], removed: [] };
 		}
+		if (preserveData === true && currentProfile?.isDefault) {
+			preserveData = false;
+		}
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveData);
 	}
 }

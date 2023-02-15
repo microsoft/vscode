@@ -112,6 +112,22 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
+	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
+		const result: ILocalExtension[] = [];
+		const extensionsToInstall = (await this.webExtensionsScannerService.scanUserExtensions(fromProfileLocation))
+			.filter(e => extensions.some(id => areSameExtensions(id, e.identifier)));
+		if (extensionsToInstall.length) {
+			await Promise.allSettled(extensionsToInstall.map(async e => {
+				let local = await this.installFromLocation(e.location, toProfileLocation);
+				if (e.metadata) {
+					local = await this.updateMetadata(local, e.metadata, fromProfileLocation);
+				}
+				result.push(local);
+			}));
+		}
+		return result;
+	}
+
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
 		// unset if false
 		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
