@@ -817,12 +817,6 @@ class AccessibleBuffer extends DisposableStore {
 	}
 
 	async focus(): Promise<void> {
-		const commandDetection = this._capabilities.has(TerminalCapability.CommandDetection);
-		if (!commandDetection) {
-			this._accessibleBuffer.focus();
-			this._accessibleBuffer.contentEditable = 'true';
-			return;
-		}
 		await this._updateBufferEditor();
 		// Updates xterm's accessibleBufferActive property
 		// such that mouse events do not cause the terminal buffer
@@ -839,7 +833,8 @@ class AccessibleBuffer extends DisposableStore {
 		}
 		// When this is created, the element isn't yet attached so the dimensions are tiny
 		this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
-		const fragment = this._getShellIntegrationContent();
+		const commandDetection = this._capabilities.has(TerminalCapability.CommandDetection);
+		const fragment = commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
 		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER_SCHEME, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
@@ -869,6 +864,25 @@ class AccessibleBuffer extends DisposableStore {
 				sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
 			}
 			content = sb.build();
+		}
+		return content;
+	}
+
+	private _getAllContent(): string {
+		let content = '';
+		let currentLine: string = '';
+		const end = this._terminal.buffer.active.length;
+		for (let i = 0; i < end; i++) {
+			const line = this._terminal.buffer.active.getLine(i);
+			if (!line) {
+				continue;
+			}
+			const isWrapped = this._terminal.buffer.active.getLine(i + 1)?.isWrapped;
+			currentLine += line.translateToString(!isWrapped);
+			if (!isWrapped || i === end - 1) {
+				content += currentLine.replace(new RegExp(' ', 'g'), '\xA0');
+				currentLine = '';
+			}
 		}
 		return content;
 	}
