@@ -817,28 +817,34 @@ class AccessibleBuffer extends DisposableStore {
 	}
 
 	async focus(): Promise<void> {
-		if (!this._registered) {
-			if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-				this.add(this._terminal.registerBufferElementProvider({
-					provideBufferElements: () => {
-						return this._editorContainer;
-					}
-				}));
-			}
-			this._registered = true;
+		const commandDetection = this._capabilities.has(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			this._accessibleBuffer.focus();
+			this._accessibleBuffer.contentEditable = 'true';
+			return;
 		}
-		this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
-		const content = this._getContent();
-		const model = await this._getTextModel(URI.from({ scheme: 'terminal', fragment: content }));
-		if (model) {
-			this._bufferEditor.setModel(model);
-		}
+		await this._updateBufferEditor();
 		// Updates xterm's accessibleBufferActive property
 		// such that mouse events do not cause the terminal buffer
 		// to steal the focus
 		this._accessibleBuffer.focus();
-		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			this._bufferEditor.focus();
+		this._bufferEditor.focus();
+	}
+
+	private async _updateBufferEditor(): Promise<void> {
+		if (!this._registered) {
+			this.add(this._terminal.registerBufferElementProvider({
+				provideBufferElements: () => {
+					return this._editorContainer;
+				}
+			}));
+			this._registered = true;
+		}
+		this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
+		const fragment = this._getShellIntegrationContent();
+		const model = await this._getTextModel(URI.from({ scheme: 'terminal', fragment }));
+		if (model) {
+			this._bufferEditor.setModel(model);
 		}
 	}
 
@@ -851,10 +857,10 @@ class AccessibleBuffer extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
-	private _getContent(): string {
+	private _getShellIntegrationContent(): string {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
-		let content = localize('terminal.integrated.noContent', "No terminal content available for this session.");
+		let content = localize('terminal.integrated.noContent', "No terminal content available for this session. Run some commands to create content.");
 		if (commands?.length) {
 			for (const command of commands) {
 				sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
