@@ -467,7 +467,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-thread:before {
+.monaco-editor .comment-thread:before,
+.monaco-editor .comment-thread-unresolved:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
@@ -489,28 +490,14 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
-.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread {
-	margin-left: 13px;
-}
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread,
 .monaco-editor .margin-view-overlays .comment-range-glyph.comment-thread-unresolved {
 	margin-left: 13px;
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
-.monaco-editor .comment-range-glyph.comment-thread:before {
-	position: absolute;
-	height: 100%;
-	width: 9px;
-	left: -6px;
-	z-index: 10;
-	color: var(--vscode-editorGutter-commentGlyphForground);
-	text-align: center;
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-}
+.monaco-editor .comment-range-glyph.comment-thread:before,
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	position: absolute;
 	height: 100%;
@@ -542,15 +529,13 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	padding-left: 1px;
 }
 
-.monaco-editor .comment-range-glyph.comment-thread {
-	z-index: 20;
-}
+.monaco-editor .comment-range-glyph.comment-thread,
 .monaco-editor .comment-range-glyph.comment-thread-unresolved {
 	z-index: 20;
 }
 
-.monaco-editor .comment-range-glyph.comment-thread:before {
-	content: "\ea6b";
+.monaco-editor .comment-range-glyph.comment-thread:before,
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	font-family: "codicon";
 	font-size: 13px;
 	width: 18px !important;
@@ -561,17 +546,13 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	padding-top: 1px;
 	padding-left: 1px;
 }
+
+.monaco-editor .comment-range-glyph.comment-thread:before {
+	content: "\ea6b";
+
+}
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
 	content: "\ec0a";
-	font-family: "codicon";
-	font-size: 13px;
-	width: 18px !important;
-	line-height: 100%;
-	border-radius: 3px;
-	z-index: 20;
-	margin-left: -5px;
-	padding-top: 1px;
-	padding-left: 1px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .codicon-folding-expanded,

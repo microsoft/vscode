@@ -50,21 +50,25 @@ export class CommentGlyphWidget {
 		if (this._threadState !== state) {
 			this._threadState = state;
 			this._commentsOptions = this.createDecorationOptions();
-			this.setLineNumber(this._lineNumber);
+			this._updateDecorations();
 		}
 	}
 
-	setLineNumber(lineNumber: number): void {
-		this._lineNumber = lineNumber;
+	private _updateDecorations(): void {
 		const commentsDecorations = [{
 			range: {
-				startLineNumber: lineNumber, startColumn: 1,
-				endLineNumber: lineNumber, endColumn: 1
+				startLineNumber: this._lineNumber, startColumn: 1,
+				endLineNumber: this._lineNumber, endColumn: 1
 			},
 			options: this._commentsOptions
 		}];
 
 		this._commentsDecorations.set(commentsDecorations);
+	}
+
+	setLineNumber(lineNumber: number): void {
+		this._lineNumber = lineNumber;
+		this._updateDecorations();
 	}
 
 	getPosition(): IContentWidgetPosition {
