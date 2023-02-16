@@ -393,7 +393,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean };
 }
 
 
@@ -424,7 +424,7 @@ export interface IFindMatch {
 	readonly cellId: string;
 	readonly id: string;
 	readonly index: number;
-	readonly searchPreviewInfo: ISearchPreviewInfo;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export interface IDidFindMessage extends BaseToWebviewMessage {

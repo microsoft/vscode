@@ -740,7 +740,7 @@ export interface ISearchPreviewInfo {
 
 export interface CellWebviewFindMatch {
 	readonly index: number;
-	readonly searchPreviewInfo: ISearchPreviewInfo;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export type CellContentFindMatch = FindMatch;

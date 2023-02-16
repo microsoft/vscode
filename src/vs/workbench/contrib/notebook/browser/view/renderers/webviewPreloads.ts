@@ -812,7 +812,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		container: Node;
 		originalRange: Range;
 		isShadow: boolean;
-		searchPreviewInfo: ISearchPreviewInfo;
+		searchPreviewInfo?: ISearchPreviewInfo;
 		highlightResult?: IHighlightResult;
 	}
 
@@ -1023,7 +1023,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
 
@@ -1069,7 +1069,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 								container: preview,
 								isShadow: true,
 								originalRange: shadowSelection.getRangeAt(0),
-								searchPreviewInfo: extractSelectionLine(shadowSelection),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
@@ -1090,7 +1090,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 								container: outputNode,
 								isShadow: true,
 								originalRange: shadowSelection.getRangeAt(0),
-								searchPreviewInfo: extractSelectionLine(shadowSelection)
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
@@ -1109,7 +1109,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 								container: lastEl.container,
 								isShadow: false,
 								originalRange: selection.getRangeAt(0),
-								searchPreviewInfo: extractSelectionLine(selection),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 							});
 
 						} else {
@@ -1130,7 +1130,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 											container: node,
 											isShadow: false,
 											originalRange: selection.getRangeAt(0),
-											searchPreviewInfo: extractSelectionLine(selection),
+											searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 										});
 									}
 									break;

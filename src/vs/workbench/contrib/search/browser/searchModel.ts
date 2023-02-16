@@ -310,6 +310,9 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._closestRoot;
 	}
 
+	hasWebviewMatches(): boolean {
+		return this.matches().some(m => m instanceof NotebookMatch && m.isWebviewMatch());
+	}
 	private async createMatches(): Promise<void> {
 		const model = this.modelService.getModel(this._resource);
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
@@ -422,7 +425,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				includeMarkupPreview: !this._query.isNotebookMarkdownInput,
 				includeCodeInput: this._query.isNotebookCellInput,
 				includeOutput: this._query.isNotebookCellOutput,
-			}, CancellationToken.None, true);
+			}, CancellationToken.None, false, true);
 
 		this.updateNotebookMatches(allMatches, true);
 	}
@@ -795,7 +798,7 @@ export class FolderMatch extends Disposable {
 
 	replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
-			this.doRemoveFile([match]);
+			this.doRemoveFile([match], true, true, true);
 		});
 	}
 
@@ -947,7 +950,7 @@ export class FolderMatch extends Disposable {
 		const allMatches = getFileMatches(matches);
 
 		await this.replaceService.replace(allMatches);
-		this.doRemoveFile(allMatches, true, true);
+		this.doRemoveFile(allMatches, true, true, true);
 	}
 
 	public onFileChange(fileMatch: FileMatch, removed = false): void {
@@ -978,11 +981,14 @@ export class FolderMatch extends Disposable {
 		this._onChange.fire(event);
 	}
 
-	private doRemoveFile(fileMatches: FileMatch[], dispose: boolean = true, trigger: boolean = true): void {
+	private doRemoveFile(fileMatches: FileMatch[], dispose: boolean = true, trigger: boolean = true, keepReadonly = false): void {
 
 		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
 			if (this._fileMatches.get(match.resource)) {
+				if (keepReadonly && match.hasWebviewMatches()) {
+					continue;
+				}
 				this._fileMatches.delete(match.resource);
 				if (dispose) {
 					match.dispose();
@@ -1742,7 +1748,7 @@ export class SearchModel extends Disposable {
 						includeMarkupPreview: !query.contentPattern.isNotebookMarkdownInput,
 						includeCodeInput: query.contentPattern.isNotebookCellInput,
 						includeOutput: query.contentPattern.isNotebookCellOutput,
-					}, token);
+					}, token, false, true);
 
 
 				if (matches.length) {

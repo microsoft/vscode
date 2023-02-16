@@ -115,7 +115,7 @@ export class SearchView extends ViewPane {
 	private folderMatchFocused: IContextKey<boolean>;
 	private folderMatchWithResourceFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
-	private editableItemFocused: IContextKey<boolean>;
+	private isEditableItem: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 	private lastFocusState: 'input' | 'tree' = 'input';
 
@@ -204,7 +204,7 @@ export class SearchView extends ViewPane {
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
-		this.editableItemFocused = Constants.EditableItemFocused.bindTo(this.contextKeyService);
+		this.isEditableItem = Constants.IsEditableItem.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -481,6 +481,7 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.getFilters().onDidChange(() => this.triggerQueryChange()));
 
 		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput.getValue().length > 0);
 		updateHasPatternKey();
@@ -816,21 +817,19 @@ export class SearchView extends ViewPane {
 		}));
 
 		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
-			if (this.tree.isDOMFocused()) {
-				const focus = this.tree.getFocus()[0];
-				this.firstMatchFocused.set(this.tree.navigate().first() === focus);
-				this.fileMatchOrMatchFocused.set(!!focus);
-				this.fileMatchFocused.set(focus instanceof FileMatch);
-				this.folderMatchFocused.set(focus instanceof FolderMatch);
+			const focus = this.tree.getFocus()[0];
+			this.firstMatchFocused.set(this.tree.navigate().first() === focus);
+			this.fileMatchOrMatchFocused.set(!!focus);
+			this.fileMatchFocused.set(focus instanceof FileMatch);
+			this.folderMatchFocused.set(focus instanceof FolderMatch);
 
-				const editable = (!(focus instanceof NotebookMatch)) || !focus.isWebviewMatch();
-				this.editableItemFocused.set(editable);
-				this.matchFocused.set(focus instanceof Match);
-				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
-				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
-				this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
-				this.lastFocusState = 'tree';
-			}
+			const editable = (!(focus instanceof NotebookMatch)) || !focus.isWebviewMatch();
+			this.isEditableItem.set(editable);
+			this.matchFocused.set(focus instanceof Match);
+			this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
+			this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
+			this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
+			this.lastFocusState = 'tree';
 		}));
 
 		this._register(this.tree.onDidBlur(() => {
@@ -842,7 +841,7 @@ export class SearchView extends ViewPane {
 			this.fileMatchOrFolderMatchFocus.reset();
 			this.fileMatchOrFolderMatchWithResourceFocus.reset();
 			this.folderMatchWithResourceFocused.reset();
-			this.editableItemFocused.reset();
+			this.isEditableItem.reset();
 		}));
 	}
 

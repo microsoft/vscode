@@ -199,8 +199,11 @@ export class ReplaceService implements IReplaceService {
 
 		if (arg instanceof Match) {
 			if (arg instanceof NotebookMatch) {
-				const match = <NotebookMatch>arg;
-				edits.push(this.createEdit(match, match.replaceString, match.cell.uri));
+				if (!arg.isWebviewMatch()) {
+					// only apply edits if it's not a webview match, since webview matches are read-only
+					const match = <NotebookMatch>arg;
+					edits.push(this.createEdit(match, match.replaceString, match.cell.uri));
+				}
 			} else {
 				const match = <Match>arg;
 				edits.push(this.createEdit(match, match.replaceString, resource));
@@ -215,13 +218,12 @@ export class ReplaceService implements IReplaceService {
 			arg.forEach(element => {
 				const fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
-					edits.push(...fileMatch.matches().map(
-						match => this.createEdit(match, match.replaceString, (match instanceof NotebookMatch) ? match.cell.uri : resource)
+					edits.push(...fileMatch.matches().flatMap(
+						match => this.createEdits(match, resource)
 					));
 				}
 			});
 		}
-
 		return edits;
 	}
 
