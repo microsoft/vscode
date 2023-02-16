@@ -14,6 +14,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -31,6 +32,7 @@ export interface IQuickPickItem {
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
+	tooltip?: string | IMarkdownString;
 	/**
 	 * Allows to show a keybinding next to the item to indicate
 	 * how the item can be triggered outside of the picker using
@@ -52,6 +54,7 @@ export interface IQuickPickSeparator {
 	label?: string;
 	ariaLabel?: string;
 	buttons?: readonly IQuickInputButton[];
+	tooltip?: string | IMarkdownString;
 }
 
 export interface IKeyMods {

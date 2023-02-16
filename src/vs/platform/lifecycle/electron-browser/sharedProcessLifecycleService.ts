@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export const ISharedProcessLifecycleService = createDecorator<ISharedProcessLifecycleService>('lifecycleSharedProcessService');
+export const ISharedProcessLifecycleService = createDecorator<ISharedProcessLifecycleService>('sharedProcessLifecycleService');
 
 export interface ISharedProcessLifecycleService {
 	readonly _serviceBrand: undefined;

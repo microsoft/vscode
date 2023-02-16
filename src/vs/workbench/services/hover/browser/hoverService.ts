@@ -35,7 +35,7 @@ export class HoverService implements IHoverService {
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined {
-		if (this._currentHoverOptions === options) {
+		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
@@ -64,6 +64,11 @@ export class HoverService implements IHoverService {
 			options.container
 		);
 		hover.onRequestLayout(() => provider.layout());
+		if (options.onClick) {
+			hoverDisposables.add(addDisposableListener(hover.domNode, EventType.CLICK, e => {
+				options.onClick!(e);
+			}));
+		}
 		if ('targetElements' in options.target) {
 			for (const element of options.target.targetElements) {
 				hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
@@ -133,6 +138,13 @@ export class HoverService implements IHoverService {
 			}
 		}
 	}
+}
+
+function getHoverOptionsIdentity(options: IHoverOptions | undefined): IHoverOptions | number | string | undefined {
+	if (options === undefined) {
+		return undefined;
+	}
+	return options?.id ?? options;
 }
 
 class HoverContextViewDelegate implements IDelegate {

@@ -5,13 +5,12 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/169012
+	// https://github.com/microsoft/vscode/issues/73904
 
-	export namespace window {
-		export function registerQuickDiffProvider(selector: DocumentSelector, quickDiffProvider: QuickDiffProvider, label: string, rootUri?: Uri): Disposable;
-	}
-
-	interface QuickDiffProvider {
-		label?: string;
+	export interface QuickPickItem {
+		/**
+		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
+		 */
+		tooltip?: string | MarkdownString;
 	}
 }
