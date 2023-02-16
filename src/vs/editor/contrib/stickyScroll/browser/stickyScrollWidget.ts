@@ -20,14 +20,6 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import 'vs/css!./stickyScroll';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-
-export enum ColorScheme {
-	DARK = 'dark',
-	LIGHT = 'light',
-	HIGH_CONTRAST_LIGHT = 'hcLight',
-	HIGH_CONTRAST_DARK = 'hcDark'
-}
 
 interface CustomMouseEvent {
 	detail: string;
@@ -55,14 +47,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _hoverOnColumn: number = -1;
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
 	private _candidateDefinitionsLength: number = -1;
-	private _colorSchemeType: ColorScheme | undefined;
-	private _widgetHeight: number = 0;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IInstantiationService private readonly _instaService: IInstantiationService
 	) {
 		super();
 		this._layoutInfo = this._editor.getLayoutInfo();
@@ -70,20 +59,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-		this._colorSchemeType = this._themeService.getColorTheme().type;
 
-		// Listener on the color theme is used in order to keep track of whether a border on the sticky widget is needed
-		this._themeService.onDidColorThemeChange((colorTheme) => {
-			this._colorSchemeType = colorTheme.type;
-			// classList.toggle() is not used because if we move from HIGH_CONTRAST_DARK to HIGH_CONTRAST_LIGHT we want to keep the class name 'high-contrast'
-			if ((this._colorSchemeType === ColorScheme.HIGH_CONTRAST_DARK
-				|| this._colorSchemeType === ColorScheme.HIGH_CONTRAST_LIGHT)
-				&& this._widgetHeight > 0) {
-				this._rootDomNode.classList.add('high-contrast');
-			} else {
-				this._rootDomNode.classList.remove('high-contrast');
-			}
-		});
 		this._register(this._updateLinkGesture());
 	}
 
@@ -306,18 +282,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._rootDomNode.appendChild(this._renderChildNode(index, line));
 		}
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		this._widgetHeight = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
-		this._rootDomNode.style.height = this._widgetHeight.toString() + 'px';
-		if (this._colorSchemeType === ColorScheme.HIGH_CONTRAST_DARK || this._colorSchemeType === ColorScheme.HIGH_CONTRAST_LIGHT) {
-			// When the widget height is zero remove the bottom border, else there will be a double border below the breadcrumbs bar
-			if (this._widgetHeight === 0) {
-				this._rootDomNode.classList.remove('high-contrast');
-			}
-			// Otherwise if the widget height is bigger than 0 and previously the class name 'high-contrast' was removed, set it again
-			else if (!this._rootDomNode.classList.contains('high-contrast')) {
-				this._rootDomNode.classList.add('high-contrast');
-			}
-		}
+		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
+		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
