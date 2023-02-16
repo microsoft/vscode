@@ -10,11 +10,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
 
 export interface IStickyScrollFocusService {
-	focus(): void;
+	focus(editor: ICodeEditor | null): void;
 }
 
 export class StickyScrollFocusService {
-	focus(editor: ICodeEditor): void {
+	focus(editor: ICodeEditor | null): void {
+		if (!editor) {
+			return;
+		}
 		const stickyScrollController = StickyScrollController.get(editor);
 		if (stickyScrollController) {
 			stickyScrollController.focus();

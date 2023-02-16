@@ -15,6 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -66,8 +67,35 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public focus(): void {
 		// Mark the last sticky line as being foused, by changing the background color
-		if (this._stickyScrollWidget.getDomNode().hasChildNodes()) {
-			const childNodes = this._stickyScrollWidget.getDomNode().childNodes;
+		const rootNode = this._stickyScrollWidget.getDomNode();
+		if (rootNode.children.length > 0) {
+			const childrenElements = rootNode.children;
+			const numberChildren = childrenElements.length;
+
+			let currentFousedChild = rootNode.lastElementChild;
+			currentFousedChild?.classList.add('focus');
+			let currentIndex = numberChildren - 1;
+
+			this._register(this._editor.onKeyDown(keyboardEvent => {
+				const keyCode = keyboardEvent.keyCode;
+				if (keyCode === KeyCode.UpArrow) {
+					if (currentIndex > 0) {
+						console.log('Entered into up arrow');
+						currentFousedChild?.classList.remove('focus');
+						currentIndex--;
+						currentFousedChild = childrenElements.item(currentIndex);
+						currentFousedChild?.classList.add('focus');
+					}
+				} else if (keyCode === KeyCode.DownArrow) {
+					if (currentIndex < numberChildren - 1) {
+						console.log('Entered into bottom arrow');
+						currentFousedChild?.classList.remove('focus');
+						currentIndex++;
+						currentFousedChild = childrenElements.item(currentIndex);
+						currentFousedChild?.classList.add('focus');
+					}
+				}
+			}));
 		}
 	}
 
