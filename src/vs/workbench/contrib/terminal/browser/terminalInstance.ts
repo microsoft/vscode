@@ -473,7 +473,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			return findWidget;
 		});
-
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
