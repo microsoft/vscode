@@ -1332,9 +1332,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Do not allow moving readonly items
-		sources = sources.filter(s => !s.isReadonly);
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		// const resourceFileEdits = await this.mergeDirectories(sources, target.resource);
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
@@ -1361,8 +1359,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const item = this.explorerService.findClosest(overwrite);
 					return item && item.isDirectory;
 				});
-
-				console.log(hasDirectory);
 
 				if (hasDirectory) {
 					// Create a dialog asking the user if they prefer to merge the directories or overwrite them
