@@ -200,6 +200,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		if (!this._whenReady) {
 			this._whenReady = (async () => {
 
+				// Wait for shared process being ready to accept connection
+				await this.whenIpcReady;
+
 				// Overall signal that the shared process was loaded and
 				// all services within have been created.
 
