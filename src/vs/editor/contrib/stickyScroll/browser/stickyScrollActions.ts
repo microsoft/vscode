@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
@@ -10,6 +11,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStickyScrollFocusService } from './stickyScrollServices';
 
 export class ToggleStickyScroll extends Action2 {
@@ -58,7 +60,11 @@ export class FocusStickyScroll extends Action2 {
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.StickyScrollContext }
-			]
+			],
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS
+			}
 		});
 	}
 

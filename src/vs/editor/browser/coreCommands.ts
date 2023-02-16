@@ -670,7 +670,6 @@ export namespace CoreNavigationCommands {
 					value: dynamicArgs.pageSize || viewModel.cursorConfig.pageSize
 				};
 			}
-
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
 				dynamicArgs.source,

@@ -304,6 +304,7 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onKeyUp((e: IKeyboardEvent) => {
+			console.log('this._textAreaInput.onKeyUp');
 			this._viewController.emitKeyUp(e);
 		}));
 

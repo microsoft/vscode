@@ -65,9 +65,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		return editor.getContribution<StickyScrollController>(StickyScrollController.ID);
 	}
 
-	public focus(): void {
+	public focus(focused: boolean): void {
 		// Mark the last sticky line as being foused, by changing the background color
 		const rootNode = this._stickyScrollWidget.getDomNode();
+
 		if (rootNode.children.length > 0) {
 			const childrenElements = rootNode.children;
 			const numberChildren = childrenElements.length;
@@ -76,26 +77,60 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			currentFousedChild?.classList.add('focus');
 			let currentIndex = numberChildren - 1;
 
-			this._register(this._editor.onKeyDown(keyboardEvent => {
+			// Using onKeyUp instead of onKeyDown because not called twice when the keys are pressed
+			// TODO: Why is sometimes the keyboard event fired twice?
+			const onUpOrDownArrow = this._editor.onKeyUp(keyboardEvent => {
 				const keyCode = keyboardEvent.keyCode;
 				if (keyCode === KeyCode.UpArrow) {
 					if (currentIndex > 0) {
 						console.log('Entered into up arrow');
 						currentFousedChild?.classList.remove('focus');
+						console.log('currentFocusedChild.chidren : ', currentFousedChild?.children);
+						console.log('currentFocusedChild : ', currentFousedChild?.children.item(1)?.children.item(0)?.children.item(1)?.innerHTML);
 						currentIndex--;
 						currentFousedChild = childrenElements.item(currentIndex);
+						console.log('currentFocusedChild : ', currentFousedChild?.children.item(1)?.children.item(0)?.children.item(1)?.innerHTML);
 						currentFousedChild?.classList.add('focus');
 					}
 				} else if (keyCode === KeyCode.DownArrow) {
 					if (currentIndex < numberChildren - 1) {
 						console.log('Entered into bottom arrow');
 						currentFousedChild?.classList.remove('focus');
+						console.log('currentFocusedChild.chidren : ', currentFousedChild?.children);
+						console.log('currentFocusedChild : ', currentFousedChild?.children.item(1)?.children.item(0)?.children.item(1)?.innerHTML);
 						currentIndex++;
 						currentFousedChild = childrenElements.item(currentIndex);
+						console.log('currentFocusedChild : ', currentFousedChild?.children.item(1)?.children.item(0)?.children.item(1)?.innerHTML);
 						currentFousedChild?.classList.add('focus');
 					}
 				}
-			}));
+				// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected
+				else if (keyCode === KeyCode.LeftArrow) {
+					const lineNumbers = this._stickyScrollWidget.lineNumbers;
+					console.log('currentIndex : ', currentIndex);
+					console.log('lineNumbers : ', lineNumbers);
+					this._editor.revealPosition({ lineNumber: lineNumbers[currentIndex], column: 1 });
+
+					// Once a range was revealed, the event listener is disposed
+					currentFousedChild?.classList.remove('focus');
+					onUpOrDownArrow.dispose();
+				}
+				// If also disposing upon pressing any other key then the service would never be used.
+
+				// When scrolling remove focus
+				this._editor.onDidScrollChange(() => {
+					currentFousedChild?.classList.remove('focus');
+					onUpOrDownArrow.dispose();
+				});
+				// When clicking anywere remove focus
+				this._editor.onMouseUp(() => {
+					console.log('Inside of onMouseUp');
+					currentFousedChild?.classList.remove('focus');
+					onUpOrDownArrow.dispose();
+				});
+			});
+
+			this._register(onUpOrDownArrow);
 		}
 	}
 
