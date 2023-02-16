@@ -7,7 +7,7 @@ import { Scanner, TokenType } from 'vs/platform/contextkey/common/scanner';
 
 suite('Context Key Scanner', () => {
 	function scan(input: string) {
-		return [...((new Scanner()).reset(input))];
+		return (new Scanner()).reset(input).scan();
 	}
 
 	suite('scanning a single token', () => {
@@ -181,8 +181,8 @@ suite('Context Key Scanner', () => {
 
 		test(`foo === bar'`, () => {
 			const input = `foo === bar'`;
-			const scanner = new Scanner().reset(input);
-			const r = [...scanner].filter(t => t.type === TokenType.Error).map(Scanner.reportError);
+			const tokens = new Scanner().reset(input).scan();
+			const r = tokens.filter(t => t.type === TokenType.Error).map(Scanner.reportError);
 			assert.deepStrictEqual(r, (["Unexpected token '=' at offset 6. Did you mean '==' or '=~'?", "Unexpected token ''' at offset 11"]));
 		});
 

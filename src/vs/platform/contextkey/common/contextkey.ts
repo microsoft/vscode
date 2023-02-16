@@ -338,7 +338,7 @@ export class Parser {
 
 		this._scanner.reset(input);
 
-		this._tokens = [...this._scanner];
+		this._tokens = this._scanner.scan();
 
 		if (this._scanner.errorTokens.length > 0) {
 			return undefined;
