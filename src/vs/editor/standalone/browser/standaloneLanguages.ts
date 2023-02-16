@@ -24,6 +24,7 @@ import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers'
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 
 /**
  * Register information about a new language.
@@ -579,6 +580,13 @@ export function registerCompletionItemProvider(languageSelector: LanguageSelecto
 }
 
 /**
+ * Set the snippet completion item provider.
+ */
+export function setSnippetCompletionItemProvider(provider: languages.CompletionItemProvider): void {
+	setSnippetSuggestSupport(provider);
+}
+
+/**
  * Register a document color provider (used by Color Picker, Color Decorator).
  */
 export function registerColorProvider(languageSelector: LanguageSelector, provider: languages.DocumentColorProvider): IDisposable {
@@ -726,6 +734,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerReferenceProvider: <any>registerReferenceProvider,
 		registerRenameProvider: <any>registerRenameProvider,
 		registerCompletionItemProvider: <any>registerCompletionItemProvider,
+		setSnippetCompletionItemProvider: <any>setSnippetCompletionItemProvider,
 		registerSignatureHelpProvider: <any>registerSignatureHelpProvider,
 		registerHoverProvider: <any>registerHoverProvider,
 		registerDocumentSymbolProvider: <any>registerDocumentSymbolProvider,

@@ -6087,6 +6087,11 @@ declare namespace monaco.languages {
 	export function registerCompletionItemProvider(languageSelector: LanguageSelector, provider: CompletionItemProvider): IDisposable;
 
 	/**
+	 * Set the snippet completion item provider.
+	 */
+	export function setSnippetCompletionItemProvider(provider: CompletionItemProvider): void;
+
+	/**
 	 * Register a document color provider (used by Color Picker, Color Decorator).
 	 */
 	export function registerColorProvider(languageSelector: LanguageSelector, provider: DocumentColorProvider): IDisposable;
