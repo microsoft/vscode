@@ -28,8 +28,6 @@ import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService'
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { deepClone } from 'vs/base/common/objects';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
@@ -271,25 +269,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		this.utilityProcess.start({
 			type: 'shared-process',
+			entryPoint: 'vs/code/electron-browser/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
-			env: this.getEnv(),
 			execArgv: (!this.environmentMainService.isBuilt || this.environmentMainService.verbose) ? ['--nolazy', '--inspect=5896'] : undefined, // TODO@bpasero this make configurable
 		});
-	}
-
-	private getEnv(): NodeJS.ProcessEnv {
-		const env: NodeJS.ProcessEnv = {
-			...deepClone(process.env),
-			VSCODE_AMD_ENTRYPOINT: 'vs/code/electron-browser/sharedProcess/sharedProcessMain',
-			VSCODE_PIPE_LOGGING: 'true',
-			VSCODE_VERBOSE_LOGGING: 'true',
-			VSCODE_PARENT_PID: String(process.pid)
-		};
-
-		// Sanitize environment
-		removeDangerousEnvVariables(env);
-
-		return env;
 	}
 
 	private createWindow(): void {

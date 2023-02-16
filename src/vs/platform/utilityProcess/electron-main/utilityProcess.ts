@@ -15,6 +15,8 @@ import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
+import { deepClone } from 'vs/base/common/objects';
 
 export interface IUtilityProcessConfiguration {
 
@@ -22,6 +24,11 @@ export interface IUtilityProcessConfiguration {
 	 * A way to group utility processes of same type together.
 	 */
 	readonly type: string;
+
+	/**
+	 * The entry point to load in the utility process.
+	 */
+	readonly entryPoint: string;
 
 	/**
 	 * An optional serializable object to be sent into the utility process
@@ -55,6 +62,13 @@ export interface IUtilityProcessConfiguration {
 	 * with other components.
 	 */
 	readonly correlationId?: string;
+
+	/**
+	 * Optional pid of the parent process. If set, the
+	 * utility process will be terminated when the parent
+	 * process exits.
+	 */
+	readonly parentLifecycleBound?: number;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -195,15 +209,7 @@ export class UtilityProcess extends Disposable {
 		const execArgv = [...this.configuration.execArgv ?? [], `--vscode-utility-kind=${this.configuration.type}`];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const stdio = 'pipe';
-
-		let env: { [key: string]: any } | undefined = this.configuration.env;
-		if (env) {
-			env = { ...env }; // make a copy since we may be going to mutate it
-
-			for (const key of Object.keys(env)) {
-				env[key] = String(env[key]); // make sure all values are strings, otherwise the process will not start
-			}
-		}
+		const env = this.createEnv(configuration);
 
 		this.log('creating new...', Severity.Info);
 
@@ -220,6 +226,26 @@ export class UtilityProcess extends Disposable {
 		this.registerListeners(this.process, this.configuration, serviceName, isWindowSandboxed);
 
 		return true;
+	}
+
+	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
+		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+
+		// Apply support environment variables from config
+		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		if (typeof configuration.parentLifecycleBound === 'number') {
+			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
+		}
+
+		// Remove any environment variables that are not allowed
+		removeDangerousEnvVariables(env);
+
+		// Ensure all values are strings, otherwise the process will not start
+		for (const key of Object.keys(env)) {
+			env[key] = String(env[key]);
+		}
+
+		return env;
 	}
 
 	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
