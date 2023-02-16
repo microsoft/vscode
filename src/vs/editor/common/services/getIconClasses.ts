@@ -38,12 +38,20 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			}
 		}
 
+		// Get dot segments for filename, and avoid doing an explosive combination of segments
+		// (from a filename with lots of `.` characters; most file systems do not allow files > 255 length)
+		// https://github.com/microsoft/vscode/issues/116199
+		let segments: string[] | undefined;
+		if (name && name.length <= 255) {
+			segments = name.replace(/\.\.\.+/g, '').split('.');
+		}
+
 		// Folders
 		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
 			classes.push(`name-folder-icon`); // extra segment to increase folder-name score
-			if (name && name.length <= 255) {
-				pushGlobIconClassesForName(name, classes, 'folder'); // add globs targeting folder name
+			if (name && segments) {
+				pushGlobIconClassesForName(name, classes, segments, 'folder'); // add globs targeting folder name
 			}
 		}
 
@@ -54,12 +62,8 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			if (name) {
 				classes.push(`${name}-name-file-icon`);
 				classes.push(`name-file-icon`); // extra segment to increase file-name score
-				// Avoid doing an explosive combination of extensions for very long filenames
-				// (most file systems do not allow files > 255 length) with lots of `.` characters
-				// https://github.com/microsoft/vscode/issues/116199
-				if (name.length <= 255) {
-					pushGlobIconClassesForName(name, classes, 'file'); // add globs targeting file name
-					const segments = name.split('.');
+				if (segments) {
+					pushGlobIconClassesForName(name, classes, segments, 'file'); // add globs targeting file name
 					for (let i = 1; i < segments.length; i++) {
 						classes.push(`${segments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 					}
@@ -81,10 +85,7 @@ export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }
 
-function pushGlobIconClassesForName(name: string, classes: string[], kind: string) {
-	// Remove ellipsis to defend against explosive combination
-	const segments = name.replace(/\.\.\.+/g, '').split('.');
-
+function pushGlobIconClassesForName(name: string, classes: string[], segments: string[], kind: string) {
 	// Permutative ("full") file glob generation, limited to 4 dot segments (<=3 file extensions)
 	if (segments.length <= 4) {
 		const bitmask = Math.pow(2, segments.length) - 1;
@@ -127,8 +128,8 @@ function pushGlobIconClassesForName(name: string, classes: string[], kind: strin
 		}
 	}
 
-	// Simplest-case globs for dashed file basenames.
-	// Targets tooling filename conventions.
+	// Globs for dashed file basenames (1 file extension)
+	// Targets prefix or suffix, e.g. the tooling filename conventions `test_*.py` & `*_test.go`
 	const dotLastIndex = name.lastIndexOf('.');
 	if (
 		dotLastIndex !== -1 && // >=1 file extensions

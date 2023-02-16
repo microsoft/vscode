@@ -298,7 +298,7 @@ export class FileIconThemeLoader {
 						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
 
 						if (mode === 'name') {
-							selectors.push('.name-folder-icon');
+							selectors.push('.name-folder-icon'); // extra segment to increase folder-name score
 						}
 
 						addSelector(`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
@@ -306,6 +306,7 @@ export class FileIconThemeLoader {
 						result.hasFolderIcons = true;
 					}
 				}
+
 				const folderNamesExpanded = associations.folderNamesExpanded;
 				if (folderNamesExpanded) {
 					for (const key in folderNamesExpanded) {
@@ -316,7 +317,7 @@ export class FileIconThemeLoader {
 						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
 
 						if (mode === 'name') {
-							selectors.push('.name-folder-icon');
+							selectors.push('.name-folder-icon'); // extra segment to increase folder-name score
 						}
 
 						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
@@ -364,7 +365,10 @@ export class FileIconThemeLoader {
 						const mode = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
 
 						selectors.push(`.${escapeCSS(fileName)}-${mode}-file-icon`);
-						selectors.push('.name-file-icon'); // extra segment to increase file-name score
+
+						if (mode === 'name') {
+							selectors.push('.name-file-icon'); // extra segment to increase file-name score
+						}
 
 						const segments = fileName.split('.');
 						if (segments.length) {
