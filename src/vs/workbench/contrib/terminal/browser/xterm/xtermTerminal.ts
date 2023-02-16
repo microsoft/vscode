@@ -320,7 +320,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
-		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this.raw, this.getFont(), this._capabilities);
+		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this, this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -771,16 +771,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.write(data);
 	}
 }
-const ACCESSIBLE_BUFFER_SCHEME = 'terminal-accessible-buffer';
+const enum ACCESSIBLE_BUFFER { Scheme = 'terminal-accessible-buffer' }
 class AccessibleBuffer extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 	private _registered: boolean = false;
+	private _font: ITerminalFont;
 
 	constructor(
-		private readonly _terminal: RawXtermTerminal,
-		font: ITerminalFont,
+		private readonly _terminal: XtermTerminal,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
@@ -791,15 +791,15 @@ class AccessibleBuffer extends DisposableStore {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
 		};
-
+		this._font = this._terminal.getFont();
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
 			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
-			fontSize: font.fontSize,
-			lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1,
-			fontFamily: font.fontFamily,
+			fontSize: this._font.fontSize,
+			lineHeight: this._font.charHeight ? this._font.charHeight * this._font.lineHeight : 1,
+			fontFamily: this._font.fontFamily,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
@@ -811,9 +811,14 @@ class AccessibleBuffer extends DisposableStore {
 			cursorBlinking: configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
-		this._accessibleBuffer = this._terminal.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
+				this._font = this._terminal.getFont();
+			}
+		}));
 	}
 
 	async focus(): Promise<void> {
@@ -828,14 +833,14 @@ class AccessibleBuffer extends DisposableStore {
 	private async _updateBufferEditor(): Promise<void> {
 		if (!this._registered) {
 			// Registration is delayed until focus so the capability has time to have been added
-			this.add(this._terminal.registerBufferElementProvider({ provideBufferElements: () => this._editorContainer }));
+			this.add(this._terminal.raw.registerBufferElementProvider({ provideBufferElements: () => this._editorContainer }));
 			this._registered = true;
 		}
 		// When this is created, the element isn't yet attached so the dimensions are tiny
 		this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
 		const commandDetection = this._capabilities.has(TerminalCapability.CommandDetection);
 		const fragment = commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
-		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER_SCHEME, fragment }));
+		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
@@ -854,36 +859,38 @@ class AccessibleBuffer extends DisposableStore {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
 		let content = localize('terminal.integrated.noContent', "No terminal content available for this session. Run some commands to create content.");
-		if (commands?.length) {
-			for (const command of commands) {
-				sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
-				if (command.exitCode !== 0) {
-					sb.appendString(` exited with code ${command.exitCode}`);
-				}
-				sb.appendString('\n');
-				sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
-			}
-			content = sb.build();
+		if (!commands?.length) {
+			return content;
 		}
+		for (const command of commands) {
+			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
+			if (command.exitCode !== 0) {
+				sb.appendString(` exited with code ${command.exitCode}`);
+			}
+			sb.appendString('\n');
+			sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
+		}
+		content = sb.build();
 		return content;
 	}
 
 	private _getAllContent(): string {
-		let content = '';
+		const lines: string[] = [];
 		let currentLine: string = '';
-		const end = this._terminal.buffer.active.length;
+		const buffer = this._terminal.raw.buffer.active;
+		const end = buffer.length;
 		for (let i = 0; i < end; i++) {
-			const line = this._terminal.buffer.active.getLine(i);
+			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
 			}
-			const isWrapped = this._terminal.buffer.active.getLine(i + 1)?.isWrapped;
+			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (!isWrapped || i === end - 1) {
-				content += currentLine.replace(new RegExp(' ', 'g'), '\xA0');
+				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
 				currentLine = '';
 			}
 		}
-		return content;
+		return lines.join('\n');
 	}
 }
