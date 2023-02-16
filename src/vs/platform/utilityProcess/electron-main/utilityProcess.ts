@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, app, MessageChannelMain } from 'electron';
+import { BrowserWindow, Details, app, MessageChannelMain, MessagePortMain } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -304,6 +304,13 @@ export class UtilityProcess extends Disposable {
 		this.process.postMessage(message, transfer);
 	}
 
+	connect(payload?: unknown): MessagePortMain {
+		const { port1: outPort, port2: utilityProcessPort } = new MessageChannelMain();
+		this.postMessage(payload, [utilityProcessPort]);
+
+		return outPort;
+	}
+
 	enableInspectPort(): boolean {
 		if (!this.process || typeof this.processPid !== 'number') {
 			return false;
@@ -389,11 +396,8 @@ export class WindowUtilityProcess extends UtilityProcess {
 		// Register to window events
 		this.registerWindowListeners(responseWindow, configuration);
 
-		// Establish message ports
-		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
-		this.postMessage(configuration.payload, [utilityProcessPort]);
-
-		// Exchange message ports to window
+		// Establish & exchange message ports
+		const windowPort = this.connect(configuration.payload);
 		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 
 		return true;

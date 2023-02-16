@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'electron';
 import { hostname, release } from 'os';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -11,8 +10,9 @@ import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lif
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { IPCServer, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
 import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
@@ -117,17 +117,24 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
 import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
 class SharedProcessMain extends Disposable {
 
-	private server = this._register(new MessagePortServer());
+	private readonly server: IPCServer;
 
 	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 
 	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;
 
-	constructor(private configuration: ISharedProcessConfiguration) {
+	constructor(private configuration: ISharedProcessConfiguration, private ipcRenderer?: typeof import('electron').ipcRenderer) {
 		super();
+
+		if (isUtilityProcess(process)) {
+			this.server = this._register(new UtilityProcessMessagePortServer());
+		} else {
+			this.server = this._register(new BrowserWindowMessagePortServer());
+		}
 
 		this.registerListeners();
 	}
@@ -140,25 +147,32 @@ class SharedProcessMain extends Disposable {
 			this.dispose();
 		};
 		process.once('exit', onExit);
-		ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
+		if (isUtilityProcess(process)) {
+			once(process.parentPort, 'vscode:electron-main->shared-process=exit', onExit);
+		} else {
+			this.ipcRenderer!.once('vscode:electron-main->shared-process=exit', onExit);
+		}
 
-		// Shared process worker lifecycle
-		//
-		// We dispose the listener when the shared process is
-		// disposed to avoid disposing workers when the entire
-		// application is shutting down anyways.
-		//
-		const eventName = 'vscode:electron-main->shared-process=disposeWorker';
-		const onDisposeWorker = (event: unknown, configuration: IUtilityProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
-		ipcRenderer.on(eventName, onDisposeWorker);
-		this._register(toDisposable(() => ipcRenderer.removeListener(eventName, onDisposeWorker)));
+		if (!isUtilityProcess(process)) {
+
+			// Shared process worker lifecycle
+			//
+			// We dispose the listener when the shared process is
+			// disposed to avoid disposing workers when the entire
+			// application is shutting down anyways.
+
+			const eventName = 'vscode:electron-main->shared-process=disposeWorker';
+			const onDisposeWorker = (event: unknown, configuration: IUtilityProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
+			this.ipcRenderer!.on(eventName, onDisposeWorker);
+			this._register(toDisposable(() => this.ipcRenderer!.removeListener(eventName, onDisposeWorker)));
+		}
 	}
 
 	private onDisposeWorker(configuration: IUtilityProcessWorkerConfiguration): void {
 		this.sharedProcessWorkerService?.disposeWorker(configuration);
 	}
 
-	async open(): Promise<void> {
+	async init(): Promise<void> {
 
 		// Services
 		const instantiationService = await this.initServices();
@@ -456,15 +470,20 @@ class SharedProcessMain extends Disposable {
 
 	private registerErrorHandler(logService: ILogService): void {
 
-		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+		// Listen on global error events
+		if (isUtilityProcess(process)) {
+			process.on('uncaughtException', error => onUnexpectedError(error));
+			process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
+		} else {
+			window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
 
-			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-			onUnexpectedError(event.reason);
+				// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
+				onUnexpectedError(event.reason);
 
-			// Prevent the printing of this event to the console
-			event.preventDefault();
-		});
+				// Prevent the printing of this event to the console
+				event.preventDefault();
+			});
+		}
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => {
@@ -482,10 +501,32 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 
 	// create shared process and signal back to main that we are
 	// ready to accept message ports as client connections
-	const sharedProcess = new SharedProcessMain(configuration);
-	ipcRenderer.send('vscode:shared-process->electron-main=ipc-ready');
+
+	let ipcRenderer: typeof import('electron').ipcRenderer | undefined = undefined;
+	if (!isUtilityProcess(process)) {
+		ipcRenderer = (await import('electron')).ipcRenderer;
+	}
+
+	const sharedProcess = new SharedProcessMain(configuration, ipcRenderer);
+
+	if (isUtilityProcess(process)) {
+		process.parentPort.postMessage('vscode:shared-process->electron-main=ipc-ready');
+	} else {
+		ipcRenderer!.send('vscode:shared-process->electron-main=ipc-ready');
+	}
 
 	// await initialization and signal this back to electron-main
-	await sharedProcess.open();
-	ipcRenderer.send('vscode:shared-process->electron-main=init-done');
+	await sharedProcess.init();
+
+	if (isUtilityProcess(process)) {
+		process.parentPort.postMessage('vscode:shared-process->electron-main=init-done');
+	} else {
+		ipcRenderer!.send('vscode:shared-process->electron-main=init-done');
+	}
+}
+
+if (isUtilityProcess(process)) {
+	process.parentPort.once('message', (e: Electron.MessageEvent) => {
+		main(e.data as ISharedProcessConfiguration);
+	});
 }
