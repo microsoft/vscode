@@ -362,11 +362,11 @@ export class Parser {
 		}
 	}
 
-	private _expr(): ContextKeyExpression {
+	private _expr(): ContextKeyExpression | undefined {
 		return this._or();
 	}
 
-	private _or(): ContextKeyExpression {
+	private _or(): ContextKeyExpression | undefined {
 		const expr = [this._and()];
 
 		while (this._match(TokenType.Or)) {
@@ -374,10 +374,10 @@ export class Parser {
 			expr.push(right);
 		}
 
-		return expr.length === 1 ? expr[0] : ContextKeyExpr.or(...expr)!; // FIXME: bang
+		return expr.length === 1 ? expr[0] : ContextKeyExpr.or(...expr);
 	}
 
-	private _and(): ContextKeyExpression {
+	private _and(): ContextKeyExpression | undefined {
 		const expr = [this._term()];
 
 		while (this._match(TokenType.And)) {
@@ -385,10 +385,10 @@ export class Parser {
 			expr.push(right);
 		}
 
-		return expr.length === 1 ? expr[0] : ContextKeyExpr.and(...expr)!; // FIXME: bang
+		return expr.length === 1 ? expr[0] : ContextKeyExpr.and(...expr);
 	}
 
-	private _term(): ContextKeyExpression {
+	private _term(): ContextKeyExpression | undefined {
 		if (this._match(TokenType.Neg)) {
 			if (this._match(TokenType.Str, TokenType.True, TokenType.False)) {
 				const expr = this._previous();
@@ -408,7 +408,7 @@ export class Parser {
 		return this._primary();
 	}
 
-	private _primary(): ContextKeyExpression {
+	private _primary(): ContextKeyExpression | undefined {
 
 		if (this._match(TokenType.True)) {
 			return ContextKeyExpr.true();
