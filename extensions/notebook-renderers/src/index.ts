@@ -260,20 +260,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
+		word-wrap: break-word;
+		/* text/stream output container should scroll but preserve newline character */
+		white-space: pre;
 	}
+	/* When wordwrap turned on, force it to pre-wrap */
 	.output-plaintext.wordWrap span,
 	.output-stream.wordWrap span,
 	.traceback.wordWrap span {
-		white-space: pre-wrap !important;
-		word-break: break-all;
-	}
-	.output-plaintext,
-	.output-stream {
 		white-space: pre-wrap;
-	}
-	output-plaintext,
-	.traceback {
-		word-wrap: break-word;
 	}
 	.output > .scrollable {
 		overflow-y: scroll;
