@@ -816,7 +816,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					break;
 				}
 				case 'notebookPerformanceMessage': {
-					console.log('notebookPerformanceMessage', data.executionId, data.duration, data.rendererId);
 					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
 					break;
 				}
