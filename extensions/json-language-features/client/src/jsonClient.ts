@@ -175,15 +175,16 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 					uri: document.uri.toString(),
 					options: options
 				};
-				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
-				textEditor.edit(mutator => {
-					for (const edit of textEdits) {
-						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
-					}
-				}).then(success => {
-					if (!success) {
-						window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
-					}
+				client.sendRequest(DocumentSortingRequest.type, params).then((textEdits) => {
+					textEditor.edit(mutator => {
+						for (const edit of textEdits) {
+							mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+						}
+					}).then(success => {
+						if (!success) {
+							window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
+						}
+					});
 				});
 			}
 		}
