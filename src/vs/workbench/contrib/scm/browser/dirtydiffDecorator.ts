@@ -235,7 +235,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const change = labeledChange.change;
 		this._index = index;
 		this._provider = labeledChange.label;
-		const previousVisibleRange = this.visibleRange;
 		this.change = change;
 
 		const originalModel = this.model.original;
@@ -248,7 +247,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		// TODO@joao TODO@alex need this setTimeout probably because the
 		// non-side-by-side diff still hasn't created the view zones
-		onFirstDiffUpdate(() => setTimeout(() => (usePosition || !previousVisibleRange) ? this.revealChange(change) : this.revealLines(previousVisibleRange), 0));
+		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
 
 		const diffEditorModel = this.model.getDiffEditorModel(labeledChange.uri.toString());
 		if (!diffEditorModel) {
@@ -435,10 +434,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}
 
 		this.diffEditor.revealLinesInCenter(start, end, ScrollType.Immediate);
-	}
-
-	private revealLines(range: Range): void {
-		this.diffEditor.revealLinesInCenter(range.startLineNumber, range.endLineNumber, ScrollType.Immediate);
 	}
 
 	private _applyTheme(theme: IColorTheme) {
