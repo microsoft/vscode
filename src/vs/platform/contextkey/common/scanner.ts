@@ -107,6 +107,7 @@ export class Scanner {
 	private _input: string = '';
 	private _start: number = 0;
 	private _current: number = 0;
+	private _tokens: Token[] = [];
 	private _errorTokens: Token[] = [];
 
 	get errorTokens(): Readonly<Token[]> {
@@ -118,75 +119,77 @@ export class Scanner {
 
 		this._start = 0;
 		this._current = 0;
+		this._tokens = [];
 		this._errorTokens = [];
 
 		return this;
 	}
 
-	next(): Token {
-		this._eatWhitespace();
+	scan() {
+		while (!this._isAtEnd()) {
+			this._eatWhitespace();
 
-		if (this._isAtEnd()) {
-			return { type: TokenType.EOF, offset: this._current };
+			this._start = this._current;
+
+			const ch = this._advance();
+			switch (ch) {
+				case '(': this._addToken(TokenType.LParen); break;
+				case ')': this._addToken(TokenType.RParen); break;
+
+				case '!':
+					this._addToken(this._match('=') ? TokenType.NotEq : TokenType.Neg);
+					break;
+
+				case '\'': this._quotedString(); break;
+				case '/': this._regex(); break;
+
+				case '=':
+					if (this._match('=')) { // support `==`
+						this._addToken(TokenType.Eq);
+					} else if (this._match('~')) {
+						this._addToken(TokenType.RegexOp);
+					} else {
+						this._error();
+					}
+					break;
+
+				case '<': this._addToken(this._match('=') ? TokenType.LtEq : TokenType.Lt); break;
+
+				case '>': this._addToken(this._match('=') ? TokenType.GtEq : TokenType.Gt); break;
+
+				case '&':
+					if (this._match('&')) {
+						this._addToken(TokenType.And);
+					} else {
+						this._error();
+					}
+					break;
+
+				case '|':
+					if (this._match('|')) {
+						this._addToken(TokenType.Or);
+					} else {
+						this._error();
+					}
+					break;
+
+				// TODO@ulugbekna: 1) I don't think we need to handle whitespace here, 2) if we do, we should reconsider what characters we consider whitespace, including unicode, nbsp, etc.
+				case ' ':
+				case '\r':
+				case '\t':
+				case '\n':
+				case '\u00A0': // &nbsp
+					break;
+
+				default:
+					this._string();
+			}
 		}
 
 		this._start = this._current;
+		this._addToken(TokenType.EOF);
 
-		const ch = this._advance();
-		switch (ch) {
-			case '(': return this._token(TokenType.LParen);
-			case ')': return this._token(TokenType.RParen);
-
-			case '!': {
-				if (this._match('=')) { // support `!=`
-					return this._token(TokenType.NotEq);
-				}
-				return this._token(TokenType.Neg);
-			}
-
-			case '\'': return this._quotedString();
-			case '/': return this._regex();
-
-			case '=':
-				if (this._match('=')) { // support `==`
-					return this._token(TokenType.Eq);
-				} else if (this._match('~')) {
-					return this._token(TokenType.RegexOp);
-				} else {
-					return this._error();
-				}
-
-			case '<': return this._token(this._match('=') ? TokenType.LtEq : TokenType.Lt);
-
-			case '>': return this._token(this._match('=') ? TokenType.GtEq : TokenType.Gt);
-
-			case '&':
-				if (this._match('&')) {
-					return this._token(TokenType.And);
-				} else {
-					return this._error();
-				}
-
-			case '|':
-				if (this._match('|')) {
-					return this._token(TokenType.Or);
-				} else {
-					return this._error();
-				}
-
-			// handle whitespace
-			case ' ':
-			case '\r':
-			case '\t':
-			case '\n': // TODO@ulugbekna: if we're allowing newlines, we should keep track of line # as well ?
-				return this.next();
-
-			case '\u00A0': // &nbsp
-				return this.next();
-
-			default:
-				return this._string();
-		}
+		return Array.from(this._tokens);
 	}
 
 	private _match(expected: string): boolean {
@@ -216,22 +219,22 @@ export class Scanner {
 		}
 	}
 
-	private _token(type: TokenType, captureLexeme: boolean = false): Token {
+	private _addToken(type: TokenType, captureLexeme: boolean = false) {
 		if (captureLexeme) {
 			const lexeme = this._input.substring(this._start, this._current);
-			return { type, lexeme, offset: this._start };
+			this._tokens.push({ type, lexeme, offset: this._start });
 		} else {
-			return { type, offset: this._start };
+			this._tokens.push({ type, offset: this._start });
 		}
 	}
 
-	private _error(): Token {
+	private _error() {
 		const errToken = { type: TokenType.Error, offset: this._start, lexeme: this._input.substring(this._start, this._current) };
 		this._errorTokens.push(errToken);
 		if (!this._isAtEnd()) {
 			++this._current;
 		}
-		return errToken;
+		this._tokens.push(errToken);
 	}
 
 	private _string() {
@@ -247,9 +250,11 @@ export class Scanner {
 		const keyword = Scanner._keywords.get(lexeme);
 
 		if (keyword) {
-			return this._token(keyword);
+			this._addToken(keyword);
 		} else {
-			return this._token(TokenType.Str, true);
+			if (lexeme.length > 0) {
+				this._tokens.push({ type: TokenType.Str, lexeme, offset: this._start });
+			}
 		}
 	}
 
@@ -304,19 +309,20 @@ export class Scanner {
 	}
 
 	// captures the lexeme without the leading and trailing '
-	private _quotedString(): Token {
+	private _quotedString() {
 		while (this._peek() !== `'` && !this._isAtEnd()) { // TODO@ulugbekna: add support for escaping ' ?
 			this._advance();
 		}
 
 		if (this._isAtEnd()) {
-			return this._error();
+			this._error();
+			return;
 		}
 
 		// consume the closing '
 		this._advance();
 
-		return { type: TokenType.QuotedStr, lexeme: this._input.substring(this._start + 1, this._current - 1), offset: this._start + 1 };
+		this._tokens.push({ type: TokenType.QuotedStr, lexeme: this._input.substring(this._start + 1, this._current - 1), offset: this._start + 1 });
 	}
 
 	/*
@@ -325,7 +331,7 @@ export class Scanner {
 	 *
 	 * Note that we want slashes within a regex to be escaped, e.g., /file:\\/\\/\\// should match `file:///`
 	 */
-	private _regex(): Token {
+	private _regex() {
 		let p = this._current;
 
 		let inEscape = false;
@@ -333,7 +339,8 @@ export class Scanner {
 		while (true) {
 			if (p >= this._input.length) {
 				this._current = p;
-				return this._error();
+				this._error();
+				return;
 			}
 
 			const ch = this._input.charCodeAt(p);
@@ -360,7 +367,7 @@ export class Scanner {
 
 		this._current = p;
 
-		return this._token(TokenType.RegexStr, true);
+		this._addToken(TokenType.RegexStr, true);
 	}
 
 	// invariant: this must not fail if at end of `this._value`
@@ -374,15 +381,5 @@ export class Scanner {
 
 	private _isAtEnd() {
 		return this._current >= this._input.length;
-	}
-
-	*[Symbol.iterator](): Iterator<Token> {
-		while (true) {
-			const token = this.next();
-			yield token;
-			if (token?.type === TokenType.EOF) {
-				break;
-			}
-		}
 	}
 }
