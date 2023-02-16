@@ -29,7 +29,7 @@ import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService
 import { ExtensionHostKind, ExtensionRunningLocation, IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { mock } from 'vs/base/test/common/mock';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -37,6 +37,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 
 suite('BrowserExtensionService', () => {
 	test('pickRunningLocation', () => {
@@ -183,6 +184,7 @@ suite('ExtensionService', () => {
 			[IUserDataProfilesService, UserDataProfilesService],
 			[IUserDataProfileService, TestUserDataProfileService],
 			[IUriIdentityService, UriIdentityService],
+			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
 		]);
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});

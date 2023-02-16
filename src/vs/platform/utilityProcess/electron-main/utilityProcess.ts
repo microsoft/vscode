@@ -173,7 +173,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	start(configuration: IUtilityProcessConfiguration): boolean {
-		const started = this.doStart(configuration);
+		const started = this.doStart(configuration, false);
 
 		if (started && configuration.payload) {
 			this.postMessage(configuration.payload);
@@ -182,7 +182,7 @@ export class UtilityProcess extends Disposable {
 		return started;
 	}
 
-	protected doStart(configuration: IUtilityProcessConfiguration): boolean {
+	protected doStart(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): boolean {
 		if (!this.validateCanStart()) {
 			return false;
 		}
@@ -217,12 +217,12 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName);
+		this.registerListeners(this.process, this.configuration, serviceName, isWindowSandboxed);
 
 		return true;
 	}
 
-	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -266,6 +266,7 @@ export class UtilityProcess extends Disposable {
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
+					sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window for the utility process was sandboxed or not.' };
 					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
@@ -274,8 +275,14 @@ export class UtilityProcess extends Disposable {
 					type: string;
 					reason: string;
 					code: number;
+					sandboxed: string;
 				};
-				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', { type: configuration.type, reason: details.reason, code: details.exitCode });
+				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', {
+					type: configuration.type,
+					reason: details.reason,
+					code: details.exitCode,
+					sandboxed: isWindowSandboxed ? '1' : '0' // TODO@bpasero remove this once sandbox is enabled by default
+				});
 
 				// Event
 				this._onCrash.fire({ pid: this.processPid!, code: details.exitCode, reason: details.reason });
@@ -380,25 +387,25 @@ export class WindowUtilityProcess extends UtilityProcess {
 	}
 
 	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
-		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
-		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
+		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId);
+		if (!responseWindow?.win || responseWindow.win.isDestroyed() || responseWindow.win.webContents.isDestroyed()) {
 			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
 
 			return true;
 		}
 
 		// Start utility process
-		const started = super.doStart(configuration);
+		const started = super.doStart(configuration, responseWindow.isSandboxed);
 		if (!started) {
 			return false;
 		}
 
 		// Register to window events
-		this.registerWindowListeners(responseWindow, configuration);
+		this.registerWindowListeners(responseWindow.win, configuration);
 
 		// Establish & exchange message ports
 		const windowPort = this.connect(configuration.payload);
-		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+		responseWindow.win.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
 
 		return true;
 	}
