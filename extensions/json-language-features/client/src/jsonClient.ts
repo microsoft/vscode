@@ -7,11 +7,11 @@ export type JSONLanguageStatus = { schemas: string[] };
 
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
-	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, SortingOptions, CancellationToken, FoldingRange,
+	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -36,15 +36,18 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
-export interface DocumentSortingParams {
+interface SortOptions extends LSPFormattingOptions {
+}
+
+interface DocumentSortingParams {
 	/**
 	 * The uri of the document to sort.
 	 */
-	uri: string;
+	readonly uri: string;
 	/**
 	 * The format options
 	 */
-	options: SortingOptions;
+	readonly options: SortOptions;
 }
 
 namespace DocumentSortingRequest {
@@ -164,16 +167,19 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
-			const document = textEditor?.document;
-
-			if (textEditor && document) {
-				const options: SortingOptions = {
+			if (textEditor) {
+				const document = textEditor.document;
+				const filesConfig = workspace.getConfiguration('files', document);
+				const options: SortOptions = {
 					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
-					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true
+					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
+					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
 				};
 				const params: DocumentSortingParams = {
 					uri: document.uri.toString(),
-					options: options
+					options
 				};
 				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
 				const success = await textEditor.edit(mutator => {

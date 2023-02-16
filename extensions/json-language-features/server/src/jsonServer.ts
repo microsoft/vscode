@@ -11,7 +11,7 @@ import {
 
 import { runSafe, runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
 
@@ -47,7 +47,7 @@ export interface DocumentSortingParams {
 	/**
 	 * The format options
 	 */
-	options: FormattingOptions;
+	options: SortOptions;
 }
 
 namespace DocumentSortingRequest {
