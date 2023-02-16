@@ -406,6 +406,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		return this.window?.isVisible() ?? false;
 	}
 
+	usingUtilityProcess(): boolean {
+		return !!this.utilityProcess;
+	}
+
 	private isWindowAlive(): boolean {
 		const window = this.window;
 		if (!window) {
