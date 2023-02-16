@@ -7,6 +7,7 @@ import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
 import * as performance from 'vs/base/common/performance';
+import type { UtilityNodeJSProcess, MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
 import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -27,10 +28,6 @@ import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/servi
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
-
-// TODO this is a layer breaker for types only provided in Electron
-import type { MessagePortMain } from 'electron';
-import type { UtilityNodeJSProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
 interface ParsedExtHostArgs {
 	transformURIs?: boolean;

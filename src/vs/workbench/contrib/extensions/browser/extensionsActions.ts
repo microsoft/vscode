@@ -177,7 +177,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return undefined;
 		}
 		let targetPlatform = this.extension.gallery.properties.targetPlatform;
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNDEFINED && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			try {
 				const manifest = await this.galleryService.getManifest(this.extension.gallery, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(manifest)) {

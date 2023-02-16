@@ -107,6 +107,7 @@ interface BacklayerWebviewOptions {
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
 }
 
@@ -264,7 +265,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
-			outputScrolling: this.options.outputScrolling
+			outputScrolling: this.options.outputScrolling,
+			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
@@ -675,6 +677,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
+								'_notebook.selectKernel',
+								// TODO@rebornix explore open output channel with name command
+								'jupyter.viewOutput'
 							],
 						});
 						return;
