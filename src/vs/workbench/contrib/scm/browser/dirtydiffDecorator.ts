@@ -1253,6 +1253,7 @@ export class DirtyDiffModel extends Disposable {
 			this.triggerDiff();
 		}));
 
+		this._register(this.quickDiffService.onDidChangeQuickDiffProviders(() => this.triggerDiff()));
 		this.triggerDiff();
 	}
 
