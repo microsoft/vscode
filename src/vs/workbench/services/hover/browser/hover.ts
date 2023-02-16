@@ -134,11 +134,6 @@ export interface IHoverOptions {
 	 */
 	trapFocus?: boolean;
 
-	/**
-	 * A callback which will be executed when the hover is clicked
-	 */
-	onClick?(e: MouseEvent): void;
-
 	/*
 	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
 	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is

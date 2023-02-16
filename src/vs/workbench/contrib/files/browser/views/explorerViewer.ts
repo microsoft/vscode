@@ -281,6 +281,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	private readonly hoverDelegate = new class implements IHoverDelegate {
 
 		private lastHoverHideTime = 0;
+		private hiddenFromClick = false;
 		readonly placement = 'element';
 
 		get delay() {
@@ -305,7 +306,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				element = options.target.targetElements[0];
 			}
 
-			const row = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const tlRow = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const listRow = tlRow?.closest('.monaco-list-row') as HTMLElement | undefined;
 
 			const child = element.querySelector('div.monaco-icon-label-container') as Element | undefined;
 			const childOfChild = child?.querySelector('span.monaco-icon-name-container') as HTMLElement | undefined;
@@ -322,7 +324,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			// If it's overflowing or has a decoration show the tooltip
 			overflowed = overflowed || hasDecoration;
 
-			const indentGuideElement = row?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
+			const indentGuideElement = tlRow?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
 			if (!indentGuideElement) {
 				return;
 			}
@@ -331,20 +333,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				...options,
 				target: indentGuideElement,
 				compact: true,
-				container: row,
+				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
 				skipFadeInAnimation: true,
 				showPointer: false,
-				onClick: (e) => {
-					this.hoverService.hideHover();
-					element.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
-				},
 				hoverPosition: HoverPosition.RIGHT,
 			}, focus) : undefined;
 		}
 
 		onDidHideHover(): void {
-			this.lastHoverHideTime = Date.now();
+			if (!this.hiddenFromClick) {
+				this.lastHoverHideTime = Date.now();
+			}
+			this.hiddenFromClick = false;
 		}
 	}(this.configurationService, this.hoverService);
 
