@@ -285,7 +285,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		get delay() {
 			// Delay implementation borrowed froms src/vs/workbench/browser/parts/statusbar/statusbarPart.ts
-			if (Date.now() - this.lastHoverHideTime < 200) {
+			if (Date.now() - this.lastHoverHideTime < 500) {
 				return 0; // show instantly when a hover was recently shown
 			}
 
@@ -317,7 +317,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				overflowed = width <= childWidth;
 			}
 
-			const hasDecoration = element.classList.toString().includes('monaco-decoration-iconBadge');
+			// Only count decorations that provide additional info, as hover overing decorations such as git excluded isn't helpful
+			const hasDecoration = options.content.toString().includes('•');
 			// If it's overflowing or has a decoration show the tooltip
 			overflowed = overflowed || hasDecoration;
 
@@ -330,6 +331,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				...options,
 				target: indentGuideElement,
 				compact: true,
+				container: row,
 				additionalClasses: ['explorer-item-hover'],
 				skipFadeInAnimation: true,
 				showPointer: false,
