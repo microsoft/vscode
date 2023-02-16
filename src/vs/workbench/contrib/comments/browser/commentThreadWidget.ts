@@ -105,13 +105,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._styleElement = dom.createStyleSheet(this.container);
 
 
-		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
 		this._commentThreadContextValue.set(_commentThread.contextValue);
 
-		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
+		const commentControllerKey = CommentContextKeys.commentControllerContext.bindTo(this._contextKeyService);
 		const controller = this.commentService.getCommentController(this._owner);
 
-		if (controller) {
+		if (controller?.contextValue) {
 			commentControllerKey.set(controller.contextValue);
 		}
 

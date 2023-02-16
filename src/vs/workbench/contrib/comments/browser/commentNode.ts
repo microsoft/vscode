@@ -44,6 +44,7 @@ import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { DomEmitter } from 'vs/base/browser/event';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -104,7 +105,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._domNode = dom.$('div.review-comment');
 		this._contextKeyService = contextKeyService.createScoped(this._domNode);
-		this._commentContextValue = this._contextKeyService.createKey('comment', comment.contextValue);
+		this._commentContextValue = CommentContextKeys.commentContext.bindTo(this._contextKeyService);
+		if (this.comment.contextValue) {
+			this._commentContextValue.set(this.comment.contextValue);
+		}
 		this._commentMenus = this.commentService.getCommentMenus(this.owner);
 
 		this._domNode.tabIndex = -1;
