@@ -22,6 +22,7 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -274,6 +275,10 @@ class DecorationsWidget implements IDisposable {
 		// Using change decorations ensures that we update the id's before some event handler is called.
 		this.editor.changeDecorations(accessor => {
 			this.decorationIds = accessor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
+				if (this.editor.getOption(EditorOption.ariaAssertiveInlineSuggestion)) {
+					this._alertWithContent(withNullAsUndefined(document.querySelector('.ghost-text-decoration')?.textContent));
+				}
+
 				return ({
 					range: Range.fromPositions(new Position(lineNumber, p.column)),
 					options: {
@@ -284,6 +289,12 @@ class DecorationsWidget implements IDisposable {
 				});
 			}).concat(hiddenTextDecorations));
 		});
+	}
+
+	private _alertWithContent(content?: string): void {
+		if (content) {
+			alert(`${content}`);
+		}
 	}
 }
 

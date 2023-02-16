@@ -4763,6 +4763,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	ariaAssertiveInlineSuggestion,
 	ariaLabel,
 	autoClosingBrackets,
 	autoClosingDelete,
@@ -4928,6 +4929,12 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	ariaAssertiveInlineSuggestion: register(new EditorBooleanOption(
+		EditorOption.ariaAssertiveInlineSuggestion, 'ariaAssertiveInlineSuggestion', false, {
+		description: nls.localize('ariaAssertiveInlineSuggestion', "Sets aria-live assertive & role alert on the inline suggestion element so that a screen reader detects it immediately."),
+		tags: ['accessibility']
+	}
 	)),
 	autoClosingBrackets: register(new EditorStringEnumOption(
 		EditorOption.autoClosingBrackets, 'autoClosingBrackets',
