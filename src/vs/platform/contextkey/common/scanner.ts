@@ -332,6 +332,7 @@ export class Scanner {
 		let inCharacterClass = false;
 		while (true) {
 			if (p >= this._input.length) {
+				this._current = p;
 				return this._error();
 			}
 
