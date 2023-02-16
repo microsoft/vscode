@@ -213,9 +213,8 @@ export class CodeApplication extends Disposable {
 		};
 
 		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
-			// Only restrict top level page of webviews: index.html
 			if (uri.path !== '/index.html') {
-				return true;
+				return true; // Only restrict top level page of webviews: index.html
 			}
 
 			const frame = details.frame;

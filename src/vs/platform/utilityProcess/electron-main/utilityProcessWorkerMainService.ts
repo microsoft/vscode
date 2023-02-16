@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { deepClone } from 'vs/base/common/objects';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
@@ -94,7 +94,7 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = new UtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
+	private readonly utilityProcess = new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
