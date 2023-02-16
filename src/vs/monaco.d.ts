@@ -3029,6 +3029,10 @@ declare namespace monaco.editor {
 		 */
 		ariaLabel?: string;
 		/**
+		 * Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately.
+		 */
+		ariaAssertiveInlineSuggestion?: boolean;
+		/**
 		 * The `tabindex` property of the editor's textarea
 		 */
 		tabIndex?: number;

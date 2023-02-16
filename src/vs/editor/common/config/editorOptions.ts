@@ -57,6 +57,11 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+
+	/**
+	 * Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately.
+	 */
+	ariaAssertiveInlineSuggestion?: boolean;
 	/**
 	 * The `tabindex` property of the editor's textarea
 	 */
@@ -4931,10 +4936,11 @@ export const EditorOptions = {
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
 	ariaAssertiveInlineSuggestion: register(new EditorBooleanOption(
-		EditorOption.ariaAssertiveInlineSuggestion, 'ariaAssertiveInlineSuggestion', false, {
-		description: nls.localize('ariaAssertiveInlineSuggestion', "Sets aria-live assertive & role alert on the inline suggestion element so that a screen reader detects it immediately."),
-		tags: ['accessibility']
-	}
+		EditorOption.ariaAssertiveInlineSuggestion, 'ariaAssertiveInlineSuggestion', false,
+		{
+			description: nls.localize('ariaAssertiveInlineSuggestion', "Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately."),
+			tags: ['accessibility']
+		}
 	)),
 	autoClosingBrackets: register(new EditorStringEnumOption(
 		EditorOption.autoClosingBrackets, 'autoClosingBrackets',
