@@ -69,6 +69,7 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 
 export class NativeWindow extends Disposable {
 
@@ -122,7 +123,8 @@ export class NativeWindow extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IBannerService private readonly bannerService: IBannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
 	) {
 		super();
 
@@ -623,7 +625,10 @@ export class NativeWindow extends Disposable {
 
 		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.sharedProcessService.notifyRestored();
+			this.utilityProcessWorkerWorkbenchService.notifyRestored();
+		});
 
 		// Check for situations that are worth warning the user about
 		this.handleWarnings();

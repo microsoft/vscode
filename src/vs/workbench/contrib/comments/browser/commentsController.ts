@@ -709,7 +709,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
-		zoneWidget.display(thread.range.endLineNumber);
+		zoneWidget.display(thread.range);
 		this._commentWidgets.push(zoneWidget);
 		this.openCommentsView(thread);
 	}
@@ -762,7 +762,7 @@ export class CommentController implements IEditorContribution {
 			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
 			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === commentRange.endLineNumber);
 			if (existingCommentsAtLine.length) {
-				existingCommentsAtLine.forEach(widget => widget.toggleExpand(commentRange.endLineNumber));
+				existingCommentsAtLine.forEach(widget => widget.toggleExpand());
 				this.processNextThreadToAdd();
 				return;
 			} else {

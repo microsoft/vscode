@@ -8,6 +8,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
 import { assertType } from 'vs/base/common/types';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
  * The MessagePort `Protocol` leverages MessagePortMain style IPC communication
@@ -44,8 +45,10 @@ export class Server extends IPCServer {
 		const onCreateMessageChannel = new Emitter<MessagePortMain>();
 
 		process.parentPort.on('message', (e: Electron.MessageEvent) => {
-			const ports = e.ports;
-			onCreateMessageChannel.fire(ports[0]);
+			const port = firstOrDefault(e.ports);
+			if (port) {
+				onCreateMessageChannel.fire(port);
+			}
 		});
 
 		return Event.map(onCreateMessageChannel.event, port => {
@@ -66,4 +69,20 @@ export class Server extends IPCServer {
 	constructor() {
 		super(Server.getOnDidClientConnect());
 	}
+}
+
+interface INodeMessagePortFragment {
+	on(event: 'message', listener: (messageEvent: MessageEvent) => void): this;
+	removeListener(event: 'message', listener: (messageEvent: MessageEvent) => void): this;
+}
+
+export function once(port: INodeMessagePortFragment, message: unknown, callback: () => void): void {
+	const listener = (e: MessageEvent) => {
+		if (e.data === message) {
+			port.removeListener('message', listener);
+			callback();
+		}
+	};
+
+	port.on('message', listener);
 }

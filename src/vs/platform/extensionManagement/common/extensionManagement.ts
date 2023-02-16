@@ -454,12 +454,12 @@ export interface IExtensionManagementService {
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
+	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
-
-	getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined>;
+	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
 	download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;

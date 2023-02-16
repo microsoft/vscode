@@ -68,7 +68,6 @@ export class ConfigureRuntimeArgumentsAction extends Action2 {
 	}
 }
 
-
 export class ToggleSharedProcessAction extends Action2 {
 
 	constructor() {
@@ -130,5 +129,3 @@ export class OpenUserDataFolderAction extends Action2 {
 		return nativeHostService.showItemInFolder(itemToShow.fsPath);
 	}
 }
-
-

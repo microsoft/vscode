@@ -960,6 +960,13 @@ export class Repository implements Disposable {
 		}
 	}
 
+	/**
+	 * Quick diff label
+	 */
+	get label(): string {
+		return l10n.t('Git local working changes');
+	}
+
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;

@@ -213,9 +213,8 @@ export class CodeApplication extends Disposable {
 		};
 
 		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
-			// Only restrict top level page of webviews: index.html
 			if (uri.path !== '/index.html') {
-				return true;
+				return true; // Only restrict top level page of webviews: index.html
 			}
 
 			const frame = details.frame;
@@ -1264,6 +1263,7 @@ export class CodeApplication extends Disposable {
 				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
 				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the shared process crash to understand the nature of the crash better.' };
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the shared process crash to understand the nature of the crash better.' };
+				utilityprocess: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the shared process is using utility process or a hidden window.' };
 				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the shared process window was visible or not.' };
 				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the application is shutting down when the crash happens.' };
 				owner: 'bpasero';
@@ -1275,6 +1275,7 @@ export class CodeApplication extends Disposable {
 				reason: string | undefined;
 				code: number | undefined;
 				visible: boolean;
+				utilityprocess: string;
 				shuttingdown: boolean;
 			};
 			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
@@ -1282,6 +1283,7 @@ export class CodeApplication extends Disposable {
 				reason: details?.reason,
 				code: details?.exitCode,
 				visible: sharedProcess.isVisible(),
+				utilityprocess: sharedProcess.usingUtilityProcess() ? '1' : '0', // TODO@bpasero remove this once sandbox is enabled by default
 				shuttingdown: willShutdown
 			});
 		}));

@@ -12,6 +12,7 @@ import { IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { IOnDidTerminateUtilityrocessWorkerProcess, ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerProcess, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { Barrier, timeout } from 'vs/base/common/async';
 
 export const IUtilityProcessWorkerWorkbenchService = createDecorator<IUtilityProcessWorkerWorkbenchService>('utilityProcessWorkerWorkbenchService');
 
@@ -61,6 +62,11 @@ export interface IUtilityProcessWorkerWorkbenchService {
 	 * allows to terminate the worker if needed.
 	 */
 	createWorker(process: IUtilityProcessWorkerProcess): Promise<IUtilityProcessWorker>;
+
+	/**
+	 * Notifies the service that the workbench window has restored.
+	 */
+	notifyRestored(): void;
 }
 
 export class UtilityProcessWorkerWorkbenchService extends Disposable implements IUtilityProcessWorkerWorkbenchService {
@@ -77,6 +83,8 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 		return this._utilityProcessWorkerService;
 	}
 
+	private readonly restoredBarrier = new Barrier();
+
 	constructor(
 		readonly windowId: number,
 		private readonly useUtilityProcess: boolean,
@@ -89,6 +97,13 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 
 	async createWorker(process: IUtilityProcessWorkerProcess): Promise<IUtilityProcessWorker> {
 		this.logService.trace('Renderer->UtilityProcess#createWorker');
+
+		// We want to avoid heavy utility process work to happen before
+		// the window has restored. As such, make sure we await the
+		// `Restored` phase before making a connection attempt, but also
+		// add a timeout to be safe against possible deadlocks.
+
+		await Promise.race([this.restoredBarrier.wait(), timeout(2000)]);
 
 		// Get ready to acquire the message port from the utility process worker
 		const nonce = generateUuid();
@@ -118,5 +133,11 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 		this.logService.trace('Renderer->UtilityProcess#createWorkerChannel: connection established');
 
 		return { client, onDidTerminate, dispose: () => disposables.dispose() };
+	}
+
+	notifyRestored(): void {
+		if (!this.restoredBarrier.isOpen()) {
+			this.restoredBarrier.open();
+		}
 	}
 }
