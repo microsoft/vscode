@@ -281,7 +281,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		this.utilityProcess.start({
 			type: 'shared-process',
-			entryPoint: 'vs/code/electron-browser/sharedProcess/sharedProcessMain',
+			entryPoint: 'vs/code/node/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
 			execArgv
 		});
@@ -312,7 +312,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		configObjectUrl.update(this.createSharedProcessConfiguration());
 
 		// Load with config
-		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/sharedProcess/sharedProcess${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/node/sharedProcess/sharedProcess${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 	}
 
 	private createSharedProcessConfiguration(): ISharedProcessConfiguration {
