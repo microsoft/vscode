@@ -164,12 +164,12 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
-			const document = window.activeTextEditor?.document;
+			const document = textEditor?.document;
 
 			if (textEditor && document) {
 				const options: FormattingOptions = {
-					tabSize: window.activeTextEditor?.options.tabSize ? Number(window.activeTextEditor?.options.tabSize) : 4,
-					insertSpaces: window.activeTextEditor?.options.insertSpaces ? Boolean(window.activeTextEditor?.options.insertSpaces) : true
+					tabSize: textEditor?.options.tabSize ? Number(textEditor?.options.tabSize) : 4,
+					insertSpaces: textEditor?.options.insertSpaces ? Boolean(textEditor?.options.insertSpaces) : true
 				};
 				const params: DocumentSortingParams = {
 					uri: document.uri.toString(),
