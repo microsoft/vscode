@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, MessagePortMain } from 'electron';
+import { BrowserWindow, Details, app, MessageChannelMain } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -172,9 +172,19 @@ export class UtilityProcess extends Disposable {
 		return true;
 	}
 
-	start(configuration: IUtilityProcessConfiguration): MessagePortMain | undefined {
+	start(configuration: IUtilityProcessConfiguration): boolean {
+		const started = this.doStart(configuration);
+
+		if (started && configuration.payload) {
+			this.postMessage(configuration.payload);
+		}
+
+		return started;
+	}
+
+	protected doStart(configuration: IUtilityProcessConfiguration): boolean {
 		if (!this.validateCanStart()) {
-			return undefined;
+			return false;
 		}
 
 		this.configuration = configuration;
@@ -209,11 +219,7 @@ export class UtilityProcess extends Disposable {
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
 
-		// Establish message ports
-		const { port1: outPort, port2: utilityProcessPort } = new MessageChannelMain();
-		this.process.postMessage(this.configuration.payload, [utilityProcessPort]);
-
-		return outPort;
+		return true;
 	}
 
 	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
@@ -230,7 +236,7 @@ export class UtilityProcess extends Disposable {
 			this._register(Event.fromNodeEventEmitter<string | Buffer>(process.stderr, 'data')(chunk => this._onStderr.fire(typeof chunk === 'string' ? chunk : stderrDecoder.write(chunk))));
 		}
 
-		//Messages
+		// Messages
 		this._register(Event.fromNodeEventEmitter(process, 'message')(msg => this._onMessage.fire(msg)));
 
 		// Spawn
@@ -278,6 +284,24 @@ export class UtilityProcess extends Disposable {
 				this.onDidExitOrCrashOrKill();
 			}
 		}));
+	}
+
+	once(message: unknown, callback: () => void): void {
+		const disposable = this._register(this._onMessage.event(msg => {
+			if (msg === message) {
+				disposable.dispose();
+
+				callback();
+			}
+		}));
+	}
+
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+		if (!this.process) {
+			return; // already killed, crashed or never started
+		}
+
+		this.process.postMessage(message, transfer);
 	}
 
 	enableInspectPort(): boolean {
@@ -348,27 +372,31 @@ export class WindowUtilityProcess extends UtilityProcess {
 		super(logService, telemetryService, lifecycleMainService);
 	}
 
-	override start(configuration: IWindowUtilityProcessConfiguration): MessagePortMain | undefined {
+	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
 		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
 		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
 			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
 
-			return undefined;
+			return true;
 		}
 
 		// Start utility process
-		const messagePort = super.start(configuration);
-		if (!messagePort) {
-			return undefined;
+		const started = super.doStart(configuration);
+		if (!started) {
+			return false;
 		}
 
 		// Register to window events
 		this.registerWindowListeners(responseWindow, configuration);
 
-		// Exchange message ports to window
-		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [messagePort]);
+		// Establish message ports
+		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
+		this.postMessage(configuration.payload, [utilityProcessPort]);
 
-		return messagePort;
+		// Exchange message ports to window
+		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+
+		return true;
 	}
 
 	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
