@@ -578,7 +578,7 @@ export class Parser {
 	}
 
 	private _nameToken(token: Token): string {
-		if (token.lexeme) { return token.lexeme!; }
+		if (token.lexeme !== undefined) { return token.lexeme!; }
 
 		switch (token.type) {
 			case TokenType.LParen:
