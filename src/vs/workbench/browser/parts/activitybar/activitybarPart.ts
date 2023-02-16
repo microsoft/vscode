@@ -867,7 +867,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, /* Donot cache uri icons with remote connection */
 					views,
 					pinned: compositeItem.pinned,
-					badgeEnabled: viewContainerModel.areBadgesEnabled,
+					badgeEnabled: this.viewDescriptorService.getViewContainerBadgeEnablementState(compositeItem.id),
 					order: compositeItem.order,
 					visible: compositeItem.visible,
 					isBuiltin: !viewContainer.extensionId

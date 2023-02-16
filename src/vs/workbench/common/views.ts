@@ -334,7 +334,6 @@ export interface IViewContainerModel {
 
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
-	readonly areBadgesEnabled: boolean;
 
 	readonly keybindingId: string | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean; badgeEnablement?: boolean }>;
@@ -360,7 +359,6 @@ export interface IViewContainerModel {
 	setSizes(newSizes: readonly { id: string; size: number }[]): void;
 
 	move(from: string, to: string): void;
-	toggleBadgeEnablement(): void;
 }
 
 export enum ViewContentGroups {
@@ -623,6 +621,9 @@ export interface IViewDescriptorService {
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
+
+	getViewContainerBadgeEnablementState(id: string): boolean;
+	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
 
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;

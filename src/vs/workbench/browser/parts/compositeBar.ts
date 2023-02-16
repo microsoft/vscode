@@ -414,23 +414,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	areBadgesEnabled(compositeId: string): boolean {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId);
-		const viewContainerModel = viewContainer && this.viewDescriptorService.getViewContainerModel(viewContainer);
-		// If no model, just default to enabled badges
-		if (!viewContainerModel) {
-			return true;
-		}
-		return viewContainerModel.areBadgesEnabled;
+		return this.viewDescriptorService.getViewContainerBadgeEnablementState(compositeId);
 	}
 
 	toggleBadgeEnablement(compositeId: string): void {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId);
-		const viewContainerModel = viewContainer && this.viewDescriptorService.getViewContainerModel(viewContainer);
-		// If no model, just default to enabled badges
-		if (!viewContainerModel) {
-			return;
-		}
-		viewContainerModel.toggleBadgeEnablement();
+		this.viewDescriptorService.setViewContainerBadgeEnablementState(compositeId, !this.areBadgesEnabled(compositeId));
 		this.updateCompositeSwitcher();
 		const item = this.model.findItem(compositeId);
 		if (item) {
