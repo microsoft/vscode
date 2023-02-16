@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IStickyScrollFocusService } from './stickyScrollServices';
 
 export class ToggleStickyScroll extends Action2 {
 
@@ -38,5 +40,32 @@ export class ToggleStickyScroll extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const newValue = !configurationService.getValue('editor.stickyScroll.enabled');
 		return configurationService.updateValue('editor.stickyScroll.enabled', newValue);
+	}
+}
+
+export class FocusStickyScroll extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.focusStickyScroll',
+			title: {
+				value: localize('focusStickyScroll', "Focus Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
+				original: 'Focus Sticky Scroll',
+			},
+			category: Categories.View,
+			// Add code in order to make the focus option appear only when sticky scroll is enabled
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.StickyScrollContext }
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		stickyScrollFocusService.focus(editor);
 	}
 }

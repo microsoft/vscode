@@ -60,6 +60,17 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		return this._widgetState;
 	}
 
+	public static get(editor: ICodeEditor): StickyScrollController | null {
+		return editor.getContribution<StickyScrollController>(StickyScrollController.ID);
+	}
+
+	public focus(): void {
+		// Mark the last sticky line as being foused, by changing the background color
+		if (this._stickyScrollWidget.getDomNode().hasChildNodes()) {
+			const childNodes = this._stickyScrollWidget.getDomNode().childNodes;
+		}
+	}
+
 	private _onContextMenu(event: MouseEvent) {
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,
@@ -108,7 +119,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const layoutInfo = this._editor.getLayoutInfo();
 		const width = layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth;
 		this._stickyScrollWidget.getDomNode().style.width = `${width}px`;
-
 		// make sure sticky scroll doesn't take up more than 25% of the editor
 		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
