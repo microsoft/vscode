@@ -76,6 +76,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// await the shared process to be overall ready
 		// we do not just wait for IPC ready because the
 		// workbench window will communicate directly
+
 		await this.whenReady();
 
 		// connect to the shared process window
@@ -85,6 +86,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Since shared process is delayed on startup there is
 		// a chance that the window close before the shared process
 		// was ready for a connection.
+
 		if (e.sender.isDestroyed()) {
 			return port.close();
 		}
@@ -167,7 +169,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	private send(channel: string, ...args: any[]): void {
 		if (!this.isAlive()) {
-			this.logService.warn(`Sending IPC message to channel '${channel}' for shared process window that is destroyed`);
+			this.logService.warn(`Sending IPC message to channel '${channel}' for shared process that is destroyed`);
 			return;
 		}
 

@@ -67,3 +67,14 @@ export class Server extends IPCServer {
 		super(Server.getOnDidClientConnect());
 	}
 }
+
+export function once(port: MessagePortMain, message: unknown, callback: Function): void {
+	const listener = (e: MessageEvent) => {
+		if (e.data === message) {
+			port.removeListener('message', listener);
+			callback();
+		}
+	};
+
+	port.on('message', listener);
+}
