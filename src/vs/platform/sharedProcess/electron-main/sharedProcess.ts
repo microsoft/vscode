@@ -28,8 +28,8 @@ import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService'
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { deepClone } from 'vs/base/common/objects';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
+import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
+import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -42,7 +42,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
-	private readonly useUtilityProcess = this.configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
+	private readonly useUtilityProcess = canUseUtilityProcess && this.configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
 
 	constructor(
 		private readonly machineId: string,
@@ -60,6 +60,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		super();
 
 		this.registerListeners();
+
+		if (this.useUtilityProcess) {
+			this.logService.info('[SharedProcess] using utility process');
+		}
 	}
 
 	private registerListeners(): void {
@@ -75,7 +79,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
-		this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+		this.logService.trace('[SharedProcess] on vscode:createSharedProcessMessageChannel');
 
 		// release barrier if this is the first window connection
 		if (!this.firstWindowConnectionBarrier.isOpen()) {
@@ -105,7 +109,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private onWorkerConnection(e: IpcMainEvent, configuration: IUtilityProcessWorkerConfiguration): void {
-		this.logService.trace('SharedProcess: onWorkerConnection', configuration);
+		this.logService.trace('[SharedProcess] onWorkerConnection', configuration);
 
 		const disposables = new DisposableStore();
 
@@ -114,7 +118,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				return; // the shared process is already gone, no need to dispose anything
 			}
 
-			this.logService.trace(`SharedProcess: disposing worker (reason: '${reason}')`, configuration);
+			this.logService.trace(`[SharedProcess] disposing worker (reason: '${reason}')`, configuration);
 
 			// Only once!
 			disposables.dispose();
@@ -142,7 +146,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private onWillShutdown(): void {
-		this.logService.trace('SharedProcess: onWillShutdown');
+		this.logService.trace('[SharedProcess] onWillShutdown');
 
 		if (this.utilityProcess) {
 			this.utilityProcess.postMessage('vscode:electron-main->shared-process=exit');
@@ -171,10 +175,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
 				try {
-					this.logService.trace('SharedProcess: onWillShutdown window.close()');
+					this.logService.trace('[SharedProcess] onWillShutdown window.close()');
 					window.close();
 				} catch (error) {
-					this.logService.trace(`SharedProcess: onWillShutdown window.close() error: ${error}`); // ignore, as electron is already shutting down
+					this.logService.trace(`[SharedProcess] onWillShutdown window.close() error: ${error}`); // ignore, as electron is already shutting down
 				}
 
 				this.window = undefined;
@@ -214,7 +218,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				}
 
 				await whenReady.p;
-				this.logService.info('SharedProcess: IPC ready');
+				this.logService.trace('[SharedProcess] Overall ready');
 			})();
 		}
 
@@ -241,7 +245,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				}
 
 				await sharedProcessIpcReady.p;
-				this.logService.info('SharedProcess: IPC ready');
+				this.logService.trace('[SharedProcess] IPC ready');
 			})();
 		}
 
@@ -264,27 +268,23 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private createUtilityProcess(): void {
 		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService));
 
+		const inspectParams = parseSharedProcessDebugPort(this.environmentMainService.args, this.environmentMainService.isBuilt);
+		let execArgv: string[] | undefined = undefined;
+		if (inspectParams.port) {
+			execArgv = ['--nolazy'];
+			if (inspectParams.break) {
+				execArgv.push(`--inspect-brk=${inspectParams.port}`);
+			} else {
+				execArgv.push(`--inspect=${inspectParams.port}`);
+			}
+		}
+
 		this.utilityProcess.start({
 			type: 'shared-process',
+			entryPoint: 'vs/code/electron-browser/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
-			env: this.getEnv(),
-			execArgv: (!this.environmentMainService.isBuilt || this.environmentMainService.verbose) ? ['--nolazy', '--inspect=5896'] : undefined, // TODO@bpasero this make configurable
+			execArgv
 		});
-	}
-
-	private getEnv(): NodeJS.ProcessEnv {
-		const env: NodeJS.ProcessEnv = {
-			...deepClone(process.env),
-			VSCODE_AMD_ENTRYPOINT: 'vs/code/electron-browser/sharedProcess/sharedProcessMain',
-			VSCODE_PIPE_LOGGING: 'true',
-			VSCODE_VERBOSE_LOGGING: 'true',
-			VSCODE_PARENT_PID: String(process.pid)
-		};
-
-		// Sanitize environment
-		removeDangerousEnvVariables(env);
-
-		return env;
 	}
 
 	private createWindow(): void {
@@ -399,6 +399,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	isVisible(): boolean {
 		return this.window?.isVisible() ?? false;
+	}
+
+	usingUtilityProcess(): boolean {
+		return !!this.utilityProcess;
 	}
 
 	private isWindowAlive(): boolean {
