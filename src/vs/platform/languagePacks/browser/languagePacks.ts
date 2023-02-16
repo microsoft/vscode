@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Language } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
@@ -20,7 +20,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		super(extensionGalleryService);
 	}
 
-	async getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined> {
+	async getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined> {
 
 		const queryTimeout = new CancellationTokenSource();
 		setTimeout(() => queryTimeout.cancel(), 1000);
@@ -29,7 +29,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		let result;
 		try {
 			result = await this.extensionGalleryService.query({
-				text: `tag:"lp-${Language.value()}"`,
+				text: `tag:"lp-${language}"`,
 				pageSize: 5
 			}, queryTimeout.token);
 		} catch (err) {
@@ -39,7 +39,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 
 		const languagePackExtensions = result.firstPage.find(e => e.properties.localizedLanguages?.length);
 		if (!languagePackExtensions) {
-			this.logService.trace(`No language pack found for language ${Language.value()}`);
+			this.logService.trace(`No language pack found for language ${language}`);
 			return undefined;
 		}
 
@@ -49,7 +49,7 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 		const manifest = await this.extensionGalleryService.getManifest(languagePackExtensions, manifestTimeout.token);
 
 		// Find the translation from the language pack
-		const localization = manifest?.contributes?.localizations?.find(l => l.languageId === Language.value());
+		const localization = manifest?.contributes?.localizations?.find(l => l.languageId === language);
 		const translation = localization?.translations.find(t => t.id === id);
 		if (!translation) {
 			this.logService.trace(`No translation found for id '${id}, in ${manifest?.name}`);
@@ -74,5 +74,15 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 	// Web doesn't have a concept of language packs, so we just return an empty array
 	getInstalledLanguages(): Promise<ILanguagePackItem[]> {
 		return Promise.resolve([]);
+	}
+
+	/**
+	 *
+	 * @returns The current language pack extension
+	 */
+	getCurrentLanguagePackExtensionId(): Promise<string | undefined> {
+		// HACK: Since the locale service in workbench is responsible for setting the language pack extension id
+		// we just read it from the local storage. Ideally we get it from a wellknown service instead.
+		return Promise.resolve(withNullAsUndefined(window.localStorage.getItem('vscode.nls.languagePackExtensionId')));
 	}
 }
