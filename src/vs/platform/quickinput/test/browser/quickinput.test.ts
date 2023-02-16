@@ -58,6 +58,12 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				renderers: IListRenderer<T, any>[],
 				options: IListOptions<T>,
 			) => new List<T>(user, container, delegate, renderers, options),
+			hoverDelegate: {
+				showHover(options, focus) {
+					return undefined;
+				},
+				delay: 200
+			},
 			styles: {
 				button: unthemedButtonStyles,
 				countBadge: unthemedCountStyles,
