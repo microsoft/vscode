@@ -178,3 +178,4 @@ steps:
         inputs:
           sourceScanPath: $(Build.SourcesDirectory)
         continueOnError: true
+        alertWarningLevel: 'Medium'
