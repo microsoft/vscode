@@ -29,6 +29,7 @@ import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utility
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
+import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -217,7 +218,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				}
 
 				await whenReady.p;
-				this.logService.trace('[SharedProcess] IPC ready');
+				this.logService.trace('[SharedProcess] Overall ready');
 			})();
 		}
 
@@ -267,11 +268,22 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private createUtilityProcess(): void {
 		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService));
 
+		const inspectParams = parseSharedProcessDebugPort(this.environmentMainService.args, this.environmentMainService.isBuilt);
+		let execArgv: string[] | undefined = undefined;
+		if (inspectParams.port) {
+			execArgv = ['--nolazy'];
+			if (inspectParams.break) {
+				execArgv.push(`--inspect-brk=${inspectParams.port}`);
+			} else {
+				execArgv.push(`--inspect=${inspectParams.port}`);
+			}
+		}
+
 		this.utilityProcess.start({
 			type: 'shared-process',
 			entryPoint: 'vs/code/electron-browser/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
-			execArgv: (!this.environmentMainService.isBuilt || this.environmentMainService.verbose) ? ['--nolazy', '--inspect=5896'] : undefined, // TODO@bpasero this make configurable
+			execArgv
 		});
 	}
 
