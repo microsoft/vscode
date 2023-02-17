@@ -311,7 +311,7 @@ class ParseError extends Error { }
 export class Parser {
 
 	private _tokens: Token[] = [];
-	private _current = 0;
+	private _current = 0; 					// invariant: 0 <= this._current < this._tokens.length ; any incrementation of this value must first call `_isAtEnd`
 	private _parsingErrors: string[] = [];
 	private _scanner = new Scanner();
 
@@ -575,9 +575,12 @@ export class Parser {
 	}
 
 	private _check(type: TokenType) {
-		return !this._isAtEnd() && this._peek().type === type;
+		return this._peek().type === type;
 	}
 
+	/*
+		Careful: the function doesn't check array bounds.
+	*/
 	private _peek() {
 		return this._tokens[this._current];
 	}
