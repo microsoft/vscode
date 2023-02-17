@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, illegalState } from 'vs/base/common/errors';
 
 export enum TokenType {
 	LParen = '(',
@@ -90,6 +90,49 @@ export class Scanner {
 
 				return `Unexpected token '${token.lexeme}' at offset ${token.offset}`;
 			}
+		}
+	}
+
+	static getLexeme(token: Token): string {
+		if (token.lexeme !== undefined) { return token.lexeme!; }
+
+		switch (token.type) {
+			case TokenType.LParen:
+				return '(';
+			case TokenType.RParen:
+				return ')';
+			case TokenType.Neg:
+				return '!';
+			case TokenType.Eq:
+				return '==';
+			case TokenType.NotEq:
+				return '!=';
+			case TokenType.Lt:
+				return '<';
+			case TokenType.LtEq:
+				return '<=';
+			case TokenType.Gt:
+				return '>=';
+			case TokenType.GtEq:
+				return '>=';
+			case TokenType.RegexOp:
+				return '=~';
+			case TokenType.True:
+				return 'true';
+			case TokenType.False:
+				return 'false';
+			case TokenType.In:
+				return 'in';
+			case TokenType.Not:
+				return 'not';
+			case TokenType.And:
+				return '&&';
+			case TokenType.Or:
+				return '||';
+			case TokenType.EOF:
+				return 'EOF';
+			default:
+				throw illegalState(`all other tokens must have a lexeme : ${JSON.stringify(token)}`);
 		}
 	}
 
