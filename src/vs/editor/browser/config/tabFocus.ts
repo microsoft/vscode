@@ -5,6 +5,11 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 
+export const enum TabFocusContext {
+	Terminal = 'terminalFocus',
+	Editor = 'editorFocus'
+}
+
 class TabFocusImpl {
 	private _tabFocusTerminal: boolean = false;
 	private _tabFocusEditor: boolean = false;
@@ -12,15 +17,15 @@ class TabFocusImpl {
 	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
 	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
-	public getTabFocusMode(context: 'terminal' | 'editor'): boolean {
-		return context === 'terminal' ? this._tabFocusTerminal : this._tabFocusEditor;
+	public getTabFocusMode(context: TabFocusContext): boolean {
+		return context === TabFocusContext.Terminal ? this._tabFocusTerminal : this._tabFocusEditor;
 	}
 
-	public setTabFocusMode(tabFocusMode: boolean, context: 'terminal' | 'editor'): void {
-		if ((context === 'terminal' && this._tabFocusTerminal === tabFocusMode) || (context === 'editor' && this._tabFocusEditor === tabFocusMode)) {
+	public setTabFocusMode(tabFocusMode: boolean, context: TabFocusContext): void {
+		if ((context === TabFocusContext.Terminal && this._tabFocusTerminal === tabFocusMode) || (context === TabFocusContext.Editor && this._tabFocusEditor === tabFocusMode)) {
 			return;
 		}
-		if (context === 'terminal') {
+		if (context === TabFocusContext.Terminal) {
 			this._tabFocusTerminal = tabFocusMode;
 		} else {
 			this._tabFocusEditor = tabFocusMode;

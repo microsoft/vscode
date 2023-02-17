@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -77,14 +77,14 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 
 		const viewKey = new Set<string>();
 		viewKey.add('focusedView');
-		TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), 'editor');
-		TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), 'terminal');
+		TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
+		TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
 		this._register(contextKeyService.onDidChangeContext((c) => {
 			if (c.affectsSome(viewKey)) {
 				if (contextKeyService.getContextKeyValue('focusedView') === 'terminal') {
-					TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), 'terminal');
+					TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
 				} else {
-					TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), 'editor');
+					TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
 				}
 			}
 		}));

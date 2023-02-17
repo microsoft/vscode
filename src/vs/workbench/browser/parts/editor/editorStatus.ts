@@ -28,7 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -819,7 +819,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onTabFocusModeChange(): void {
-		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode(this.contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? 'terminal' : 'editor') };
+		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode(this.contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? TabFocusContext.Terminal : TabFocusContext.Editor) };
 
 		this.updateState(info);
 	}
