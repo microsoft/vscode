@@ -253,7 +253,6 @@ export interface ITerminalConfiguration {
 	};
 	useWslProfiles: boolean;
 	altClickMovesCursor: boolean;
-	accessibleBufferContentEditable: 'auto' | 'on' | 'off';
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';

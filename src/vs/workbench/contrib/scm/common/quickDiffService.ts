@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickDiffService, QuickDiff, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { score } from 'vs/editor/common/languageSelector';
+import { Emitter } from 'vs/base/common/event';
 
 function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffProvider) => number {
 	return (a, b) => {
@@ -34,16 +35,20 @@ function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffPr
 	};
 }
 
-export class QuickDiffService implements IQuickDiffService {
+export class QuickDiffService extends Disposable implements IQuickDiffService {
 	declare readonly _serviceBrand: undefined;
 
 	private quickDiffProviders: Set<QuickDiffProvider> = new Set();
+	private readonly _onDidChangeQuickDiffProviders = this._register(new Emitter<void>());
+	readonly onDidChangeQuickDiffProviders = this._onDidChangeQuickDiffProviders.event;
 
 	addQuickDiffProvider(quickDiff: QuickDiffProvider): IDisposable {
 		this.quickDiffProviders.add(quickDiff);
+		this._onDidChangeQuickDiffProviders.fire();
 		return {
 			dispose: () => {
 				this.quickDiffProviders.delete(quickDiff);
+				this._onDidChangeQuickDiffProviders.fire();
 			}
 		};
 	}

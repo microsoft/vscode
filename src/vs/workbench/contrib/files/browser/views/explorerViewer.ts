@@ -280,9 +280,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private readonly hoverDelegate = new class implements IHoverDelegate {
 
+		private lastHoverHideTime = 0;
+		private hiddenFromClick = false;
 		readonly placement = 'element';
 
 		get delay() {
+			// Delay implementation borrowed froms src/vs/workbench/browser/parts/statusbar/statusbarPart.ts
+			if (Date.now() - this.lastHoverHideTime < 500) {
+				return 0; // show instantly when a hover was recently shown
+			}
+
 			return this.configurationService.getValue<number>('workbench.hover.delay');
 		}
 
@@ -299,7 +306,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				element = options.target.targetElements[0];
 			}
 
-			const row = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const tlRow = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const listRow = tlRow?.closest('.monaco-list-row') as HTMLElement | undefined;
 
 			const child = element.querySelector('div.monaco-icon-label-container') as Element | undefined;
 			const childOfChild = child?.querySelector('span.monaco-icon-name-container') as HTMLElement | undefined;
@@ -311,11 +319,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				overflowed = width <= childWidth;
 			}
 
-			const hasDecoration = element.classList.toString().includes('monaco-decoration-iconBadge');
+			// Only count decorations that provide additional info, as hover overing decorations such as git excluded isn't helpful
+			const hasDecoration = options.content.toString().includes('•');
 			// If it's overflowing or has a decoration show the tooltip
 			overflowed = overflowed || hasDecoration;
 
-			const indentGuideElement = row?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
+			const indentGuideElement = tlRow?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
 			if (!indentGuideElement) {
 				return;
 			}
@@ -324,15 +333,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				...options,
 				target: indentGuideElement,
 				compact: true,
+				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
 				skipFadeInAnimation: true,
 				showPointer: false,
-				onClick: (e) => {
-					this.hoverService.hideHover();
-					element.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
-				},
 				hoverPosition: HoverPosition.RIGHT,
 			}, focus) : undefined;
+		}
+
+		onDidHideHover(): void {
+			if (!this.hiddenFromClick) {
+				this.lastHoverHideTime = Date.now();
+			}
+			this.hiddenFromClick = false;
 		}
 	}(this.configurationService, this.hoverService);
 

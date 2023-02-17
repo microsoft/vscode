@@ -284,6 +284,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
+		codeEditorService.willCreateCodeEditor();
 
 		const options = { ..._options };
 

@@ -27,7 +27,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -41,8 +40,6 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 // declare var __dirname: string;
 
@@ -85,13 +82,9 @@ suite.skip('TextSearch performance (integration)', () => {
 					new ModelService(
 						configurationService,
 						textResourcePropertiesService,
-						new TestThemeService(),
-						logService,
 						undoRedoService,
 						new LanguageService(),
 						new TestLanguageConfigurationService(),
-						new LanguageFeatureDebounceService(logService),
-						new LanguageFeaturesService()
 					),
 				],
 				[

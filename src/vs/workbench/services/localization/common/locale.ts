@@ -13,3 +13,10 @@ export interface ILocaleService {
 	setLocale(languagePackItem: ILanguagePackItem, skipDialog?: boolean): Promise<void>;
 	clearLocalePreference(): Promise<void>;
 }
+
+export const IActiveLanguagePackService = createDecorator<IActiveLanguagePackService>('activeLanguageService');
+
+export interface IActiveLanguagePackService {
+	readonly _serviceBrand: undefined;
+	getExtensionIdProvidingCurrentLocale(): Promise<string | undefined>;
+}
