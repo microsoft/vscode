@@ -319,7 +319,7 @@ export class Parser {
 		return this._scanner.errorTokens;
 	}
 
-	get parsingErrors(): string[] {
+	get parsingErrors(): Readonly<string[]> {
 		return this._parsingErrors;
 	}
 
