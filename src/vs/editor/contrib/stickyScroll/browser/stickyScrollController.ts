@@ -82,6 +82,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			// Using onKeyUp instead of onKeyDown because not called twice when the keys are pressed
 			// TODO: Why is sometimes the keyboard event fired twice?
 			const focusedOnStickyScroll = this._editor.onKeyUp(keyboardEvent => {
+
+				const disposeFocusOnStickyScroll = () => {
+					currentFousedChild.classList.remove('focus');
+					EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService).set(false);
+					focusedOnStickyScroll.dispose();
+				};
+
 				const keyCode = keyboardEvent.keyCode;
 				if (keyCode === KeyCode.UpArrow && currentIndex > 0 || keyCode === KeyCode.DownArrow && currentIndex < numberChildren - 1) {
 					currentFousedChild?.classList.remove('focus');
@@ -89,6 +96,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					currentFousedChild = childrenElements.item(currentIndex)!;
 					currentFousedChild.classList.add('focus');
 				}
+
 				// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
 				// TODO: Is there a way to prevent this?
 				else if (keyCode === KeyCode.LeftArrow) {
@@ -105,12 +113,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					disposeFocusOnStickyScroll();
 				});
 
-				const that = this;
-				function disposeFocusOnStickyScroll() {
-					currentFousedChild.classList.remove('focus');
-					EditorContextKeys.stickyScrollFocused.bindTo(that._contextKeyService).set(false);
-					focusedOnStickyScroll.dispose();
-				}
 			});
 
 			this._register(focusedOnStickyScroll);
