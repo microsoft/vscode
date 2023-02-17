@@ -167,7 +167,7 @@ export class GhostTextWidget extends Disposable {
 
 
 		this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
-			if (this.editor.getOption(EditorOption.screenReaderDetectInlineSuggestion)) {
+			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 				alert(this._ariaStringBuilder.build());
 				this._ariaStringBuilder.reset();
 			}
