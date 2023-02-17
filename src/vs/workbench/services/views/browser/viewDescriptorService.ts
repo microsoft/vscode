@@ -361,7 +361,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this.viewContainersCustomLocations.clear();
 		this.viewDescriptorsCustomLocations.clear();
-		this.viewContainerBadgeEnablementStates.clear();
 		this.saveViewCustomizations();
 	}
 
