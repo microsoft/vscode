@@ -15,17 +15,12 @@ export interface IStickyScrollFocusService {
 
 export class StickyScrollFocusService {
 
-	focused: boolean;
-
-	constructor() {
-		this.focused = false;
-	}
+	constructor() { }
 
 	focus(editor: ICodeEditor | null): void {
 		if (!editor) {
 			return;
 		}
-		this.focused = true;
 		const stickyScrollController = StickyScrollController.get(editor);
 		if (stickyScrollController) {
 			stickyScrollController.focus();
