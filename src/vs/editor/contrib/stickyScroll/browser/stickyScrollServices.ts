@@ -28,7 +28,7 @@ export class StickyScrollFocusService {
 		this.focused = true;
 		const stickyScrollController = StickyScrollController.get(editor);
 		if (stickyScrollController) {
-			stickyScrollController.focus(this.focused);
+			stickyScrollController.focus();
 		}
 	}
 }

@@ -16,6 +16,10 @@ import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const CONTEXT_STICKY_SCROLL_ENABLED = new RawContextKey<boolean>('stickyScrollEnabled', true);
+export const CONTEXT_STICKY_SCROLL_FOCUSED = new RawContextKey<boolean>('stickyScrollFocused', true);
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -33,9 +37,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService instaService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor, languageFeaturesService, instaService);
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
@@ -65,8 +69,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		return editor.getContribution<StickyScrollController>(StickyScrollController.ID);
 	}
 
-	public focus(focused: boolean): void {
+	public focus(): void {
 		// Mark the last sticky line as being foused, by changing the background color
+		CONTEXT_STICKY_SCROLL_ENABLED.bindTo(this._contextKeyService).set(true);
 		const rootNode = this._stickyScrollWidget.getDomNode();
 
 		if (rootNode.children.length > 0) {
@@ -113,6 +118,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 					// Once a range was revealed, the event listener is disposed
 					currentFousedChild?.classList.remove('focus');
+					CONTEXT_STICKY_SCROLL_ENABLED.bindTo(this._contextKeyService).set(false);
 					onUpOrDownArrow.dispose();
 				}
 				// If also disposing upon pressing any other key then the service would never be used.
@@ -120,12 +126,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				// When scrolling remove focus
 				this._editor.onDidScrollChange(() => {
 					currentFousedChild?.classList.remove('focus');
+					CONTEXT_STICKY_SCROLL_ENABLED.bindTo(this._contextKeyService).set(false);
 					onUpOrDownArrow.dispose();
 				});
 				// When clicking anywere remove focus
 				this._editor.onMouseUp(() => {
 					console.log('Inside of onMouseUp');
 					currentFousedChild?.classList.remove('focus');
+					CONTEXT_STICKY_SCROLL_ENABLED.bindTo(this._contextKeyService).set(false);
 					onUpOrDownArrow.dispose();
 				});
 			});
@@ -143,6 +151,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
+
+		// Setting the context key for sticky-scroll
+		CONTEXT_STICKY_SCROLL_ENABLED.bindTo(this._contextKeyService).set(options.enabled);
+
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
