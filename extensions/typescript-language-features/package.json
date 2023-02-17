@@ -33,7 +33,7 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "jsonc-parser": "^3.2.0",
     "semver": "5.5.1",
     "vscode-tas-client": "^0.1.63",
@@ -57,17 +57,10 @@
     "onLanguage:typescript",
     "onLanguage:typescriptreact",
     "onLanguage:jsx-tags",
-    "onCommand:typescript.reloadProjects",
-    "onCommand:javascript.reloadProjects",
-    "onCommand:typescript.selectTypeScriptVersion",
-    "onCommand:javascript.goToProjectConfig",
-    "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog",
     "onCommand:typescript.tsserverRequest",
     "onCommand:_typescript.configurePlugin",
     "onCommand:_typescript.learnMoreAboutRefactorings",
     "onCommand:typescript.fileReferences",
-    "onCommand:typescript.goToSourceDefinition",
     "onTaskType:typescript",
     "onLanguage:jsonc",
     "onWalkthrough:nodejsWelcome"

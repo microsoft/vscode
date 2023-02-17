@@ -266,6 +266,12 @@ export async function provideSuggestionItems(
 		if (!_snippetSuggestSupport || options.kindFilter.has(languages.CompletionItemKind.Snippet)) {
 			return;
 		}
+		// we have items from a previous session that we can reuse
+		const reuseItems = options.providerItemsToReuse.get(_snippetSuggestSupport);
+		if (reuseItems) {
+			reuseItems.forEach(item => result.push(item));
+			return;
+		}
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
 			return;
 		}

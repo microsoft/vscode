@@ -904,9 +904,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private storeCachedViewContainersState(cachedViewContainers: ICachedViewContainer[]): void {
-		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, visible, order }) => (<IPinnedViewContainer>{
+		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, badgeEnabled, visible, order }) => (<IPinnedViewContainer>{
 			id,
 			pinned,
+			badgeEnabled,
 			visible,
 			order
 		})));

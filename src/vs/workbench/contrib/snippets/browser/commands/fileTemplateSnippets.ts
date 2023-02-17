@@ -25,8 +25,8 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 		super({
 			id: ApplyFileSnippetAction.Id,
 			title: {
-				value: localize('label', 'Populate File from Snippet'),
-				original: 'Populate File from Snippet'
+				value: localize('label', 'Fill File with Snippet'),
+				original: 'Fill File with Snippet'
 			},
 			f1: true,
 		});
@@ -63,6 +63,8 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 
 			// set language if possible
 			modelService.setMode(editor.getModel(), langService.createById(selection.langId), ApplyFileSnippetAction.Id);
+
+			editor.focus();
 		}
 	}
 

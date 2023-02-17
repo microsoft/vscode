@@ -30,7 +30,10 @@ export interface ITestingDecorationsService {
 	 * Ensures decorations in the given document URI are up to date,
 	 * and returns them.
 	 */
-	syncDecorations(resource: URI): ReadonlyMap<string, ITestDecoration>;
+	syncDecorations(resource: URI): Iterable<ITestDecoration> & {
+		readonly size: number;
+		getById(decorationId: string): ITestDecoration | undefined;
+	};
 
 	/**
 	 * Gets the range where a test ID is displayed, in the given URI.

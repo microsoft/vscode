@@ -21,10 +21,14 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -33,6 +37,8 @@ suite('Search - Viewlet', () => {
 		instantiation = new TestInstantiationService();
 		instantiation.stub(ILanguageConfigurationService, TestLanguageConfigurationService);
 		instantiation.stub(IModelService, stubModelService(instantiation));
+		instantiation.stub(INotebookEditorService, stubNotebookEditorService(instantiation));
+
 		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 		instantiation.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiation.stub(ILabelService, new MockLabelService());
@@ -194,9 +200,18 @@ suite('Search - Viewlet', () => {
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		instantiationService.stub(IConfigurationService, config);
+
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 
 	function createFileUriFromPathFromRoot(path?: string): URI {

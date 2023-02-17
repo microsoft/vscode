@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
@@ -255,10 +254,10 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
 			detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
-			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
-			type: 'warning'
+			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore")
 		});
 
 		if (!confirmed) {
@@ -285,7 +284,7 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 			// In that case tell the user and return, it is still possible for
 			// the user to manually copy the changes over from the diff editor.
 
-			await dialogService.show(Severity.Error, localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), undefined, { detail: toErrorMessage(error) });
+			await dialogService.error(localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), toErrorMessage(error));
 
 			return;
 		}
@@ -469,10 +468,10 @@ registerAction2(class extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
 				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, toLocalHistoryEntryDateLabel(entry.timestamp)),
 				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
-				type: 'warning'
 			});
 
 			if (!confirmed) {
@@ -507,10 +506,10 @@ registerAction2(class extends Action2 {
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of all files in local history?"),
 			detail: localize('confirmDeleteAllDetail', "This action is irreversible!"),
 			primaryButton: localize({ key: 'deleteAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete All"),
-			type: 'warning'
 		});
 
 		if (!confirmed) {

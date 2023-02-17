@@ -411,11 +411,20 @@ export interface IFindStopMessage {
 	readonly type: 'findStop';
 }
 
+export interface ISearchPreviewInfo {
+	line: string;
+	range: {
+		start: number;
+		end: number;
+	};
+}
+
 export interface IFindMatch {
 	readonly type: 'preview' | 'output';
 	readonly cellId: string;
 	readonly id: string;
 	readonly index: number;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export interface IDidFindMessage extends BaseToWebviewMessage {
