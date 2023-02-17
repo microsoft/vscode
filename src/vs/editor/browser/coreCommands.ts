@@ -592,39 +592,34 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions & CursorMove_.RawArguments>, stickyScrollFocused?: boolean): void {
+		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions & CursorMove_.RawArguments>): void {
 			const parsed = CursorMove_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runCursorMove(viewModel, args.source, parsed, stickyScrollFocused);
+			this._runCursorMove(viewModel, args.source, parsed);
 		}
 
-		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments, stickyScrollFocused?: boolean): void {
+		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
 				source,
 				CursorChangeReason.Explicit,
-				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args, stickyScrollFocused)
+				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
 			);
 			viewModel.revealPrimaryCursor(source, true);
 		}
 
-		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments, stickyScrollFocused?: boolean): PartialCursorState[] | null {
+		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
 			const inSelectionMode = args.select;
 			const value = args.value;
 
 			switch (args.direction) {
-				case CursorMove_.Direction.Up:
-				case CursorMove_.Direction.Down:
-					if (stickyScrollFocused) {
-						return null;
-					} else {
-						return CursorMoveCommands.simpleMove(viewModel, cursors, args.direction, inSelectionMode, value, args.unit);
-					}
 				case CursorMove_.Direction.Left:
 				case CursorMove_.Direction.Right:
+				case CursorMove_.Direction.Up:
+				case CursorMove_.Direction.Down:
 				case CursorMove_.Direction.PrevBlankLine:
 				case CursorMove_.Direction.NextBlankLine:
 				case CursorMove_.Direction.WrappedLineStart:
