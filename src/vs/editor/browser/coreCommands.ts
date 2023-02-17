@@ -755,7 +755,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUp',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(false),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -772,7 +772,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUpSelect',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(false),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -823,7 +823,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDown',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(false),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -840,7 +840,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDownSelect',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(false),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
