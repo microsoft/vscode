@@ -336,10 +336,7 @@ export class Parser {
 			return undefined;
 		}
 
-		this._scanner.reset(input);
-
-		this._tokens = this._scanner.scan();
-
+		this._tokens = this._scanner.reset(input).scan();
 		if (this._scanner.errorTokens.length > 0) {
 			return undefined;
 		}
