@@ -51,7 +51,6 @@ import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/e
 import { IRemoteExtensionHostDataProvider, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
-import { LegacyNativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -599,10 +598,6 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 						? ExtensionHostStartup.EagerManualStart
 						: ExtensionHostStartup.EagerAutoStart
 				);
-				if (!process.sandboxed) {
-					// TODO@bpasero remove me once electron utility process has landed
-					return this._instantiationService.createInstance(LegacyNativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
-				}
 				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
