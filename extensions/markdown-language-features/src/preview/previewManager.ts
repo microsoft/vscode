@@ -236,6 +236,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			lineNumber
 		);
 		this._registerStaticPreview(preview);
+		this._activePreview = preview;
 	}
 
 	private _createNewDynamicPreview(
