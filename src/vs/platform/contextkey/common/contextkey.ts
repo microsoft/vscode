@@ -319,7 +319,6 @@ export class Parser {
 		return this._scanner.errorTokens;
 	}
 
-	// TODO: this could use a prettier return
 	get parsingErrors(): string[] {
 		return this._parsingErrors;
 	}
