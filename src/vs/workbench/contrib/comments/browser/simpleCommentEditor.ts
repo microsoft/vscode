@@ -37,11 +37,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
+		scopedContextKeyService: IContextKeyService,
 		parentThread: ICommentThreadWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -58,10 +58,10 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
-		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(contextKeyService);
-		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeyService);
+		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
+		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);
 		this._commentEditorEmpty.set(!this.getValue());
 		this._parentThread = parentThread;
 
