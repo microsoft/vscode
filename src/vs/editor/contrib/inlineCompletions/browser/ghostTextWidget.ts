@@ -22,6 +22,7 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -37,6 +38,7 @@ export class GhostTextWidget extends Disposable {
 		private readonly model: GhostTextWidgetModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 		super();
 
@@ -75,6 +77,9 @@ export class GhostTextWidget extends Disposable {
 	private readonly replacementDecoration = this._register(new DisposableDecorations(this.editor));
 
 	private update(): void {
+		if (this._ariaStringBuilder.build().length) {
+			return;
+		}
 		const ghostText = this.model.ghostText;
 
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
@@ -160,10 +165,14 @@ export class GhostTextWidget extends Disposable {
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
 
-		if (this.editor.getOption(EditorOption.screenReaderDetectInlineSuggestion)) {
-			alert(this._ariaStringBuilder.build());
-		}
-		this._ariaStringBuilder.reset();
+
+		this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
+			if (this.editor.getOption(EditorOption.screenReaderDetectInlineSuggestion)) {
+				alert(this._ariaStringBuilder.build());
+				this._ariaStringBuilder.reset();
+			}
+		});
+
 		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
