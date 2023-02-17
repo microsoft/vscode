@@ -689,7 +689,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeft',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -706,7 +706,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeftSelect',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -722,7 +722,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRight',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -739,7 +739,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRightSelect',
-		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
+		precondition: undefined,
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
