@@ -9,6 +9,7 @@ import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class ToggleTabFocusModeAction extends Action2 {
@@ -30,9 +31,10 @@ export class ToggleTabFocusModeAction extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		const oldValue = TabFocus.getTabFocusMode();
+		const context = accessor.get(IContextKeyService).getContextKeyValue('focusedView') === 'terminal' ? 'terminal' : 'editor';
+		const oldValue = TabFocus.getTabFocusMode(context);
 		const newValue = !oldValue;
-		TabFocus.setTabFocusMode(newValue);
+		TabFocus.setTabFocusMode(newValue, context);
 		if (newValue) {
 			alert(nls.localize('toggle.tabMovesFocus.on', "Pressing Tab will now move focus to the next focusable element"));
 		} else {

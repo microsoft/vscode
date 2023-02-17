@@ -21,8 +21,6 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
  * be more relevant).
  */
 export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
-	private _editorTabFocus: boolean | undefined;
-	private _terminalTabFocus: boolean | undefined;
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ILabelService labelService: ILabelService,
@@ -79,29 +77,15 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 
 		const viewKey = new Set<string>();
 		viewKey.add('focusedView');
-		TabFocus.onDidChangeTabFocus(tabFocus => {
-			if (contextKeyService.getContextKeyValue('focusedView') === 'terminal') {
-				this._terminalTabFocus = tabFocus;
-			} else {
-				this._editorTabFocus = tabFocus;
-			}
-		});
+		TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), 'editor');
+		TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), 'terminal');
 		this._register(contextKeyService.onDidChangeContext((c) => {
 			if (c.affectsSome(viewKey)) {
 				if (contextKeyService.getContextKeyValue('focusedView') === 'terminal') {
-					this._editorTabFocus = TabFocus.getTabFocusMode();
-					TabFocus.setTabFocusMode(this._terminalTabFocus ?? configurationService.getValue(TerminalSettingId.TabFocusMode));
+					TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), 'terminal');
 				} else {
-					this._terminalTabFocus = TabFocus.getTabFocusMode();
-					TabFocus.setTabFocusMode(this._editorTabFocus ?? configurationService.getValue('editor.tabFocusMode'));
+					TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), 'editor');
 				}
-			}
-		}));
-		this._register(configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration('editor.tabFocusMode')) {
-				this._editorTabFocus = undefined;
-			} else if (e.affectsConfiguration(TerminalSettingId.TabFocusMode)) {
-				this._terminalTabFocus = undefined;
 			}
 		}));
 	}

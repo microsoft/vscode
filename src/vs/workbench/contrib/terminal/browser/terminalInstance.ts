@@ -1024,7 +1024,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode('terminal') && event.keyCode === 9) {
 				return false;
 			}
 

@@ -52,6 +52,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -306,7 +307,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -817,7 +819,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private onTabFocusModeChange(): void {
-		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode() };
+		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode(this.contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? 'terminal' : 'editor') };
 
 		this.updateState(info);
 	}

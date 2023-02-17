@@ -86,7 +86,6 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
 		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
-		TabFocus.setTabFocusMode(this.options.get(EditorOption.tabFocusMode));
 	}
 
 	private _recomputeOptions(): void {
@@ -117,7 +116,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode(),
+			tabFocusMode: TabFocus.getTabFocusMode('editor'),
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
