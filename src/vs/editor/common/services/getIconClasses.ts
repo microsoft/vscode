@@ -130,13 +130,10 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 
 	// Globs for dashed file basenames (1 file extension)
 	// Targets prefix or suffix, e.g. the tooling filename conventions `test_*.py` & `*_test.go`
-	const dotLastIndex = name.lastIndexOf('.');
-	if (
-		dotLastIndex !== -1 && // >=1 file extensions
-		dotLastIndex === name.indexOf('.') // <=1 file extension
-	) {
-		const extname = name.substring(dotLastIndex);
-		const basename = name.substring(name.lastIndexOf('.', dotLastIndex - 1), dotLastIndex);
+	if (segments.length === 1) {
+		const dotIndex = name.indexOf('.');
+		const extname = name.substring(dotIndex);
+		const basename = name.substring(0, dotIndex);
 
 		const separator = basename.match(/_|-/)?.[0];
 
