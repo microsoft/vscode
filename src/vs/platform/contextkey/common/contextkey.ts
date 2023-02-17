@@ -306,14 +306,34 @@ value ::=
 
 class ParseError extends Error { }
 
-// Note: this doesn't produce an exact syntax tree but a normalized one
-// ContextKeyExpression's that we use as AST nodes do not expose constructors that do not normalize
+/**
+ * A parser for context key expressions.
+ *
+ * Example:
+ * ```ts
+ * const parser = new Parser();
+ * const expr = parser.parse('foo == "bar" && baz == true');
+ *
+ * if (expr === undefined) {
+ * 	// there were lexing or parsing errors
+ * 	// process lexing errors with `parser.lexingErrors`
+ *  // process parsing errors with `parser.parsingErrors`
+ * } else {
+ * 	// expr is a valid expression
+ * }
+ * ```
+ */
 export class Parser {
+	// Note: this doesn't produce an exact syntax tree but a normalized one
+	// ContextKeyExpression's that we use as AST nodes do not expose constructors that do not normalize
 
+	// lifetime note: `_scanner` lives as long as the parser does, i.e., is not reset between calls to `parse`
+	private _scanner = new Scanner();
+
+	// lifetime note: `_tokens`, `_current`, and `_parsingErrors` must be reset between calls to `parse`
 	private _tokens: Token[] = [];
 	private _current = 0; 					// invariant: 0 <= this._current < this._tokens.length ; any incrementation of this value must first call `_isAtEnd`
 	private _parsingErrors: string[] = [];
-	private _scanner = new Scanner();
 
 	get lexingErrors(): Readonly<Token[]> {
 		return this._scanner.errorTokens;
@@ -327,7 +347,7 @@ export class Parser {
 	 * Parse a context key expression.
 	 *
 	 * @param input the expression to parse
-	 * @returns the parsed expression or `undefined` if the input is empty
+	 * @returns the parsed expression or `undefined` if there's an error - call `lexingErrors` and `parsingErrors` to see the errors
 	 */
 	parse(input: string): ContextKeyExpression | undefined {
 
@@ -366,7 +386,7 @@ export class Parser {
 	private _or(): ContextKeyExpression | undefined {
 		const expr = [this._and()];
 
-		while (this._match(TokenType.Or)) {
+		while (this._matchOne(TokenType.Or)) {
 			const right = this._and();
 			expr.push(right);
 		}
@@ -377,7 +397,7 @@ export class Parser {
 	private _and(): ContextKeyExpression | undefined {
 		const expr = [this._term()];
 
-		while (this._match(TokenType.And)) {
+		while (this._matchOne(TokenType.And)) {
 			const right = this._term();
 			expr.push(right);
 		}
@@ -386,8 +406,8 @@ export class Parser {
 	}
 
 	private _term(): ContextKeyExpression | undefined {
-		if (this._match(TokenType.Neg)) {
-			if (this._match(TokenType.Str, TokenType.True, TokenType.False)) {
+		if (this._matchOne(TokenType.Neg)) {
+			if (this._matchAny(TokenType.Str, TokenType.True, TokenType.False)) {
 				const expr = this._previous();
 				switch (expr.type) {
 					case TokenType.Str:
@@ -407,30 +427,30 @@ export class Parser {
 
 	private _primary(): ContextKeyExpression | undefined {
 
-		if (this._match(TokenType.True)) {
+		if (this._matchOne(TokenType.True)) {
 			return ContextKeyExpr.true();
 
-		} else if (this._match(TokenType.False)) {
+		} else if (this._matchOne(TokenType.False)) {
 			return ContextKeyExpr.false();
 
-		} else if (this._match(TokenType.LParen)) {
+		} else if (this._matchOne(TokenType.LParen)) {
 			const expr = this._expr();
 			this._consume(TokenType.RParen, `')'`);
 			return expr;
 
-		} else if (this._match(TokenType.Str)) {
+		} else if (this._matchOne(TokenType.Str)) {
 			// KEY
 			const key = this._previous().lexeme!;
 
 			// =~ regex
-			if (this._match(TokenType.RegexOp)) {
+			if (this._matchOne(TokenType.RegexOp)) {
 
-				if (this._match(TokenType.RegexStr)) { // expected tokens
+				if (this._matchOne(TokenType.RegexStr)) { // expected tokens
 					const regexLexeme = this._previous().lexeme!; // /REGEX/ or /REGEX/FLAGS
 					const closingSlashIndex = regexLexeme.lastIndexOf('/');
 					const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
 					return ContextKeyExpr.regex(key, new RegExp(regexLexeme.substring(1, closingSlashIndex), flags));
-				} if (this._match(TokenType.QuotedStr)) {
+				} if (this._matchOne(TokenType.QuotedStr)) {
 					// replicate old regex parsing behavior
 
 					const serializedValue = this._previous().lexeme!;
@@ -463,14 +483,14 @@ export class Parser {
 			}
 
 			// [ 'not' 'in' value ]
-			if (this._match(TokenType.Not)) {
+			if (this._matchOne(TokenType.Not)) {
 				this._consume(TokenType.In, `'in' after 'not'`);
 				const right = this._value();
 				return ContextKeyExpr.notIn(key, right);
 			}
 
 			// [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in') value ]
-			if (this._match(TokenType.Eq, TokenType.NotEq, TokenType.Lt, TokenType.LtEq, TokenType.Gt, TokenType.GtEq, TokenType.In)) {
+			if (this._matchAny(TokenType.Eq, TokenType.NotEq, TokenType.Lt, TokenType.LtEq, TokenType.Gt, TokenType.GtEq, TokenType.In)) {
 				const op = this._previous().type;
 				const right = this._value();
 				switch (op) {
@@ -516,13 +536,13 @@ export class Parser {
 	}
 
 	private _value(): string { // TODO@ulugbekna: match all at once and then `switch` on the type
-		if (this._match(TokenType.Str, TokenType.QuotedStr)) {
+		if (this._matchAny(TokenType.Str, TokenType.QuotedStr)) {
 			return this._previous().lexeme!;
-		} if (this._match(TokenType.True)) {
+		} if (this._matchOne(TokenType.True)) {
 			return 'true';
-		} if (this._match(TokenType.False)) {
+		} if (this._matchOne(TokenType.False)) {
 			return 'false';
-		} if (this._match(TokenType.In)) { // we support `in` as a value, e.g., "when": "languageId == in" - exists in existing extensions
+		} if (this._matchOne(TokenType.In)) { // we support `in` as a value, e.g., "when": "languageId == in" - exists in existing extensions
 			return 'in';
 		} else {
 			return ''; // this allows "when": "foo == " which's used by existing extensions
@@ -534,7 +554,16 @@ export class Parser {
 		return this._tokens[this._current - 1];
 	}
 
-	private _match(...tokens: TokenType[]) {
+	private _matchOne(token: TokenType) {
+		if (this._check(token)) {
+			this._advance();
+			return true;
+		}
+
+		return false;
+	}
+
+	private _matchAny(...tokens: TokenType[]) {
 		for (const token of tokens) {
 			if (this._check(token)) {
 				this._advance();
