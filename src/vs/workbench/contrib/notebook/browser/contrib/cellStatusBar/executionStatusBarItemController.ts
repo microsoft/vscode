@@ -20,8 +20,8 @@ import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workb
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
-export function formatCellDuration(duration: number): string {
-	if (duration < 1000) {
+export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
+	if (showMilliseconds && duration < 1000) {
 		return `${duration}ms`;
 	}
 
@@ -317,7 +317,7 @@ class TimerCellStatusBarItem extends Disposable {
 		}
 
 		return <INotebookCellStatusBarItem>{
-			text: formatCellDuration(duration),
+			text: formatCellDuration(duration, false),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1,
 			tooltip
