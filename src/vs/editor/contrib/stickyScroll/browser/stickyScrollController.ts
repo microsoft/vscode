@@ -95,12 +95,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				currentFousedChild = childrenElements.item(currentIndex)!;
 				currentFousedChild.classList.add('focus');
 			}
-
 			// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
 			// TODO: Is there a way to prevent this?
 			else if (keyCode === KeyCode.LeftArrow) {
 				const lineNumbers = this._stickyScrollWidget.lineNumbers;
 				this._editor.revealPosition({ lineNumber: lineNumbers[currentIndex], column: 1 });
+				disposeFocusOnStickyScroll();
+			}
+			// Cancel the focus when clicking on escape
+			else if (keyCode === KeyCode.Escape) {
 				disposeFocusOnStickyScroll();
 			}
 		});
