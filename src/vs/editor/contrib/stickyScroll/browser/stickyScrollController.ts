@@ -136,8 +136,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 	}
 
-	// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
-	// TODO: Is there a way to prevent this?
 	public focusPrevious(): void {
 		if (this._focusedStickyElement && this._focusedStickyElementIndex! > 0) {
 			this._focusedStickyElement.classList.remove('focus');

@@ -132,7 +132,7 @@ export class GoToStickyScrollLine extends Action2 {
 			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
 			keybinding: {
 				weight,
-				primary: KeyCode.LeftArrow
+				primary: KeyCode.Enter
 			}
 		});
 	}
