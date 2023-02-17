@@ -11,7 +11,7 @@ import {
 
 import { runSafe, runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position, SortOptions } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
 
@@ -39,6 +39,20 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+export interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	uri: string;
+	/**
+	 * The format options
+	 */
+	options: SortOptions;
+}
+
+namespace DocumentSortingRequest {
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+}
 
 const workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
@@ -112,9 +126,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let jsonColorDecoratorLimit = Number.MAX_VALUE;
 	let jsoncColorDecoratorLimit = Number.MAX_VALUE;
 
-
 	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
-
 	let diagnosticsSupport: DiagnosticsSupport | undefined;
 
 
@@ -295,6 +307,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 	});
 
+	connection.onRequest(DocumentSortingRequest.type, async params => {
+		const uri = params.uri;
+		const options = params.options;
+		const document = documents.get(uri);
+		if (document) {
+			return languageService.sort(document, options);
+		}
+		return [];
+	});
+
 	function updateConfiguration() {
 		const languageSettings = {
 			validate: validateEnabled,
@@ -403,6 +425,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
+
 		options.keepLines = keepLinesEnabled;
 		const document = documents.get(textDocument.uri);
 		if (document) {

@@ -375,7 +375,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		this.updateProfileBadge();
 	}
 
-	protected updateProfileBadge(): void {
+	private updateProfileBadge(): void {
 		if (!this.profileBadge || !this.profileBadgeContent) {
 			return;
 		}
@@ -387,8 +387,17 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 			return;
 		}
 
+		if ((this.action as ActivityAction).getBadge()) {
+			return;
+		}
+
 		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 		show(this.profileBadge);
+	}
+
+	protected override updateBadge(): void {
+		super.updateBadge();
+		this.updateProfileBadge();
 	}
 
 	protected override computeTitle(): string {
