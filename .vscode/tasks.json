@@ -187,13 +187,7 @@
 			"windows": {
 				"command": ".\\scripts\\code-server.bat"
 			},
-			"args": [
-				"--no-launch",
-				"--connection-token",
-				"dev-token",
-				"--port",
-				"8080"
-			],
+			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
 			"label": "Run code server",
 			"isBackground": true,
 			"problemMatcher": {
@@ -215,12 +209,7 @@
 			"windows": {
 				"command": ".\\scripts\\code-web.bat"
 			},
-			"args": [
-				"--port",
-				"8080",
-				"--browser",
-				"none"
-			],
+			"args": ["--port", "8080", "--browser", "none"],
 			"label": "Run code web",
 			"isBackground": true,
 			"problemMatcher": {
