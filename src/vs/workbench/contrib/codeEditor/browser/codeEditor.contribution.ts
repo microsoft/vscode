@@ -6,6 +6,7 @@
 import './menuPreventer';
 import './accessibility/accessibility';
 import './diffEditorHelper';
+import './editorFeatures';
 import './editorSettingsMigration';
 import './inspectKeybindings';
 import './largeFileOptimizations';
