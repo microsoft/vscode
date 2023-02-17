@@ -106,6 +106,11 @@ suite('Context Key Scanner', () => {
 			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "foo", offset: 0 }, { type: "=~", offset: 4 }, { type: "RegexStr", lexeme: "/zee/gm", offset: 7 }, { type: "EOF", offset: 14 }]));
 		});
 
+		test('foo in barrr  ', () => {
+			const input = 'foo in barrr  ';
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "foo", offset: 0 }, { type: "in", offset: 4 }, { type: "Str", lexeme: "barrr", offset: 7 }, { type: "EOF", offset: 14 }]));
+		});
+
 		test('editorLangId in testely.supportedLangIds && resourceFilename =~ /^.+(.test.(\w+))$/gm', () => {
 			const input = 'editorLangId in testely.supportedLangIds && resourceFilename =~ /^.+(.test.(\w+))$/gm';
 			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "editorLangId", offset: 0 }, { type: "in", offset: 13 }, { type: "Str", lexeme: "testely.supportedLangIds", offset: 16 }, { type: "&&", offset: 41 }, { type: "Str", lexeme: "resourceFilename", offset: 44 }, { type: "=~", offset: 61 }, { type: "RegexStr", lexeme: "/^.+(.test.(w+))$/gm", offset: 64 }, { type: "EOF", offset: 84 }]));
@@ -193,7 +198,7 @@ suite('Context Key Scanner', () => {
 
 		test('vim<c-r>==1 && vim<2<=3', () => {
 			const input = 'vim<c-r>==1 && vim<2<=3';
-			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "vim<c-r", offset: 0 }, { type: ">=", offset: 7 }, { type: "ErrorToken", offset: 9, lexeme: "=" }, { type: "&&", offset: 12 }, { type: "Str", lexeme: "vim<2", offset: 15 }, { type: "<=", offset: 20 }, { type: "Str", lexeme: "3", offset: 22 }, { type: "EOF", offset: 23 }]));
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "vim<c-r>", offset: 0 }, { type: "==", offset: 8 }, { type: "Str", lexeme: "1", offset: 10 }, { type: "&&", offset: 12 }, { type: "Str", lexeme: "vim<2<", offset: 15 }, { type: "ErrorToken", offset: 21, lexeme: "=" }, { type: "EOF", offset: 23 }]));
 		});
 	});
 });

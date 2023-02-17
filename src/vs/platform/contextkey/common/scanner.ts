@@ -208,14 +208,6 @@ export class Scanner {
 		return this._isAtEnd() ? '\0' : this._input[this._current];
 	}
 
-	private _peekNext(): string {
-		if (this._current + 1 >= this._input.length) {
-			return '\0';
-		} else {
-			return this._input[this._current + 1];
-		}
-	}
-
 	private _addToken(type: TokenType, captureLexeme: boolean = false) {
 		if (captureLexeme) {
 			const lexeme = this._input.substring(this._start, this._current);
@@ -234,75 +226,20 @@ export class Scanner {
 		this._tokens.push(errToken);
 	}
 
+	private stringRe = /[a-zA-Z0-9_<>\-\./\\:\*\?\+\[\]\^,#@;"%\$\p{L}-]+/uy;
 	private _string() {
-		let peek = this._peek();
-
-		while (this._isStringChar(peek) && !this._isAtEnd()) {
-			this._advance();
-			peek = this._peek();
-		}
-
-		const lexeme = this._input.substring(this._start, this._current);
-
-		const keyword = Scanner._keywords.get(lexeme);
-
-		if (keyword) {
-			this._addToken(keyword);
-		} else {
-			if (lexeme.length > 0) {
+		this.stringRe.lastIndex = this._start;
+		const match = this.stringRe.exec(this._input);
+		if (match) {
+			this._current = this._start + match[0].length;
+			const lexeme = this._input.substring(this._start, this._current);
+			const keyword = Scanner._keywords.get(lexeme);
+			if (keyword) {
+				this._addToken(keyword);
+			} else {
 				this._tokens.push({ type: TokenType.Str, lexeme, offset: this._start });
 			}
 		}
-	}
-
-	private _isStringChar(peek: string) {
-		if (this._isAlphaNumeric(peek)) { return true; }
-		if (this._isWhitespace(peek)) { return false; }
-
-		switch (peek) {
-			case ')':
-			case '=':
-			case '!':
-			case '&':
-			case '|':
-			case '~':
-				return false;
-			case '<':
-			case '>':
-				return (this._peekNext() === '=') ? false : true; // so that we support `foo<=1` as `foo <= 1`, but also support `vim.use<C-r>` as a single KEY
-			case '_':
-			case '-':
-			case '.':
-			case '/':
-			case '\\':
-			case ':':
-			case '*':
-			case '?': // do we have to?
-			case '%':
-			case '+':
-			case '[':
-			case ']':
-			case '^':
-			case ',':
-			case '#':
-			case '@':
-			case ';':
-			case '"':
-				return true;
-			default:
-				if (peek.charCodeAt(0) > 127) { // handle unicode, eg Chinese hieroglyphs used in extensions
-					return true;
-				}
-				return false;
-		}
-	}
-
-	private _isAlphaNumeric(ch: string) {
-		return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9');
-	}
-
-	private _isWhitespace(ch: string) {
-		return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === /* &nbsp */ '\u00A0';
 	}
 
 	// captures the lexeme without the leading and trailing '

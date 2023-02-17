@@ -169,7 +169,7 @@ suite('Context Key Scanner', () => {
 
 		test('vim<c-r> == 1 && vim<2<=3', () => {
 			const input = 'vim<c-r> == 1 && vim<2<=3';
-			assert.deepStrictEqual(parseToStr(input), "vim<c-r> == '1' && vim<2 <= 3"); // FIXME
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '=' at offset 23. Did you mean '==' or '=~'?\n"); // FIXME
 		});
 
 		test(`foo && 'bar`, () => {
