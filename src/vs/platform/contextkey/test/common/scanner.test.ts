@@ -3,70 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Scanner, TokenType } from 'vs/platform/contextkey/common/scanner';
+import { Scanner, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
 
 suite('Context Key Scanner', () => {
-	function scan(input: string) {
-		return (new Scanner()).reset(input).scan();
-	}
-
-	suite('scanning a single token', () => {
-		function assertTokenTypes(str: string, ...expected: TokenType[]) {
-			const tokens = scan(str);
-			expected.push(TokenType.EOF);
-			assert.deepStrictEqual(tokens.length, expected.length, 'len: ' + str);
-			tokens.forEach((token, i) => {
-				assert.deepStrictEqual(token.type, expected[i], token.lexeme ? token.lexeme : token.type);
-			});
+	function tokenTypeToStr(token: Token) {
+		switch (token.type) {
+			case TokenType.LParen:
+				return '(';
+			case TokenType.RParen:
+				return ')';
+			case TokenType.Neg:
+				return '!';
+			case TokenType.Eq:
+				return '==';
+			case TokenType.NotEq:
+				return '!=';
+			case TokenType.Lt:
+				return '<';
+			case TokenType.LtEq:
+				return '<=';
+			case TokenType.Gt:
+				return '>';
+			case TokenType.GtEq:
+				return '>=';
+			case TokenType.RegexOp:
+				return '=~';
+			case TokenType.RegexStr:
+				return 'RegexStr';
+			case TokenType.True:
+				return 'true';
+			case TokenType.False:
+				return 'false';
+			case TokenType.In:
+				return 'in';
+			case TokenType.Not:
+				return 'not';
+			case TokenType.And:
+				return '&&';
+			case TokenType.Or:
+				return '||';
+			case TokenType.Str:
+				return 'Str';
+			case TokenType.QuotedStr:
+				return 'QuotedStr';
+			case TokenType.Error:
+				return 'ErrorToken';
+			case TokenType.EOF:
+				return 'EOF';
 		}
 
-		test('single', () => {
-			assertTokenTypes('(', TokenType.LParen);
-			assertTokenTypes(')', TokenType.RParen);
-
-			assertTokenTypes('!', TokenType.Neg);
-
-			assertTokenTypes('==', TokenType.Eq);
-			assertTokenTypes('!=', TokenType.NotEq);
-
-			assertTokenTypes('<', TokenType.Lt);
-			assertTokenTypes('<=', TokenType.LtEq);
-			assertTokenTypes('>', TokenType.Gt);
-			assertTokenTypes('>=', TokenType.GtEq);
-
-			assertTokenTypes('=~', TokenType.RegexOp);
-
-			assertTokenTypes('=~', TokenType.RegexOp);
-
-			assertTokenTypes('/foo/', TokenType.RegexStr);
-			assertTokenTypes('/foo/i', TokenType.RegexStr);
-			assertTokenTypes('/foo/gm', TokenType.RegexStr);
-
-			assertTokenTypes('true', TokenType.True);
-			assertTokenTypes('false', TokenType.False);
-
-			assertTokenTypes('in', TokenType.In);
-			assertTokenTypes('not', TokenType.Not);
-			assertTokenTypes('not in', TokenType.Not, TokenType.In);
-
-			assertTokenTypes('&&', TokenType.And);
-			assertTokenTypes('||', TokenType.Or);
-
-			assertTokenTypes('a', TokenType.Str);
-			assertTokenTypes('a.b', TokenType.Str);
-			assertTokenTypes('.b.c', TokenType.Str);
-			assertTokenTypes('Foo<C-r>', TokenType.Str);
-			assertTokenTypes('foo.bar<C-shift+2>', TokenType.Str);
-			assertTokenTypes('foo.bar:zee', TokenType.Str);
-
-			assertTokenTypes('\'hello world\'', TokenType.QuotedStr);
-
-			assertTokenTypes(' ');
-			assertTokenTypes('\n');
-			assertTokenTypes('  ');
-			assertTokenTypes(' \n ');
+	}
+	function scan(input: string) {
+		return (new Scanner()).reset(input).scan().map((token: Token) => {
+			return 'lexeme' in token
+				? {
+					type: tokenTypeToStr(token),
+					offset: token.offset,
+					lexeme: token.lexeme
+				} : {
+					type: tokenTypeToStr(token),
+					offset: token.offset
+				};
 		});
-	});
+	}
 
 	suite('scanning various cases of context keys', () => {
 
