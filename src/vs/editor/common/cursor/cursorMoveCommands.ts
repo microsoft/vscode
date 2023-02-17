@@ -11,8 +11,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class CursorMoveCommands {
 
@@ -271,12 +269,7 @@ export class CursorMoveCommands {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
 	}
 
-	public static simpleMove(viewModel: IViewModel, cursors: CursorState[], direction: CursorMove.SimpleMoveDirection, inSelectionMode: boolean, value: number, unit: CursorMove.Unit, contextKeyService: IContextKeyService): PartialCursorState[] | null {
-		console.log('contextKeyService : ', contextKeyService);
-		if (contextKeyService) {
-			console.log('simpleMove stickyScrollEnabled :', EditorContextKeys.stickyScrollEnabled.getValue(contextKeyService));
-			console.log('simpleMove stickyScrollFocused :', EditorContextKeys.stickyScrollFocused.getValue(contextKeyService));
-		}
+	public static simpleMove(viewModel: IViewModel, cursors: CursorState[], direction: CursorMove.SimpleMoveDirection, inSelectionMode: boolean, value: number, unit: CursorMove.Unit): PartialCursorState[] | null {
 
 		switch (direction) {
 			case CursorMove.Direction.Left: {
@@ -299,12 +292,6 @@ export class CursorMoveCommands {
 				}
 			}
 			case CursorMove.Direction.Up: {
-
-				if (contextKeyService !== undefined
-					&& EditorContextKeys.stickyScrollEnabled.getValue(contextKeyService)
-					&& EditorContextKeys.stickyScrollFocused.getValue(contextKeyService)) {
-					return null;
-				}
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move up by view lines
 					return this._moveUpByViewLines(viewModel, cursors, inSelectionMode, value);
@@ -314,13 +301,6 @@ export class CursorMoveCommands {
 				}
 			}
 			case CursorMove.Direction.Down: {
-
-				if (contextKeyService !== undefined
-					&& EditorContextKeys.stickyScrollEnabled.getValue(contextKeyService)
-					&& EditorContextKeys.stickyScrollFocused.getValue(contextKeyService)) {
-					return null;
-				}
-
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move down by view lines
 					return this._moveDownByViewLines(viewModel, cursors, inSelectionMode, value);

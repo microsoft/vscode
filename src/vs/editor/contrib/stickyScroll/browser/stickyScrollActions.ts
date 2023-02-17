@@ -12,7 +12,6 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStickyScrollFocusService } from './stickyScrollServices';
-// import { CONTEXT_STICKY_SCROLL_ENABLED } from './stickyScrollController';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class ToggleStickyScroll extends Action2 {
@@ -27,7 +26,7 @@ export class ToggleStickyScroll extends Action2 {
 			},
 			category: Categories.View,
 			toggled: {
-				condition: EditorContextKeys.stickyScrollEnabled, // CONTEXT_STICKY_SCROLL_ENABLED, // ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
+				condition: EditorContextKeys.stickyScrollEnabled,
 				title: localize('stickyScroll', "Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
 			},
@@ -56,12 +55,9 @@ export class FocusStickyScroll extends Action2 {
 				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
 				original: 'Focus Sticky Scroll',
 			},
-			category: Categories.View,
-			// Add code in order to make the focus option appear only when sticky scroll is enabled
-			precondition: EditorContextKeys.stickyScrollEnabled.isEqualTo(true), // CONTEXT_STICKY_SCROLL_ENABLED.isEqualTo(true),
+			precondition: EditorContextKeys.stickyScrollEnabled.isEqualTo(true),
 			menu: [
 				{ id: MenuId.CommandPalette },
-				{ id: MenuId.StickyScrollContext }
 			],
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,

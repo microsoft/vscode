@@ -39,11 +39,10 @@ export abstract class CoreEditorCommand<T> extends EditorCommand {
 			// the editor has no view => has no cursors
 			return;
 		}
-		const contextKeyService = accessor?.get(IContextKeyService);
-		this.runCoreEditorCommand(viewModel, args || {}, contextKeyService);
+		this.runCoreEditorCommand(viewModel, args || {});
 	}
 
-	public abstract runCoreEditorCommand(viewModel: IViewModel, args: Partial<T>, contextKeyService?: IContextKeyService): void;
+	public abstract runCoreEditorCommand(viewModel: IViewModel, args: Partial<T>): void;
 }
 
 export namespace EditorScroll_ {
@@ -593,34 +592,39 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions & CursorMove_.RawArguments>, contextKeyService: IContextKeyService): void {
+		public runCoreEditorCommand(viewModel: IViewModel, args: Partial<BaseCommandOptions & CursorMove_.RawArguments>, stickyScrollFocused?: boolean): void {
 			const parsed = CursorMove_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runCursorMove(viewModel, args.source, parsed, contextKeyService);
+			this._runCursorMove(viewModel, args.source, parsed, stickyScrollFocused);
 		}
 
-		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments, contextKeyService: IContextKeyService): void {
+		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments, stickyScrollFocused?: boolean): void {
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
 				source,
 				CursorChangeReason.Explicit,
-				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args, contextKeyService)
+				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args, stickyScrollFocused)
 			);
 			viewModel.revealPrimaryCursor(source, true);
 		}
 
-		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments, contextKeyService: IContextKeyService): PartialCursorState[] | null {
+		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments, stickyScrollFocused?: boolean): PartialCursorState[] | null {
 			const inSelectionMode = args.select;
 			const value = args.value;
 
 			switch (args.direction) {
-				case CursorMove_.Direction.Left:
-				case CursorMove_.Direction.Right:
 				case CursorMove_.Direction.Up:
 				case CursorMove_.Direction.Down:
+					if (stickyScrollFocused) {
+						return null;
+					} else {
+						return CursorMoveCommands.simpleMove(viewModel, cursors, args.direction, inSelectionMode, value, args.unit);
+					}
+				case CursorMove_.Direction.Left:
+				case CursorMove_.Direction.Right:
 				case CursorMove_.Direction.PrevBlankLine:
 				case CursorMove_.Direction.NextBlankLine:
 				case CursorMove_.Direction.WrappedLineStart:
@@ -628,7 +632,7 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.WrappedLineColumnCenter:
 				case CursorMove_.Direction.WrappedLineEnd:
 				case CursorMove_.Direction.WrappedLineLastNonWhitespaceCharacter:
-					return CursorMoveCommands.simpleMove(viewModel, cursors, args.direction, inSelectionMode, value, args.unit, contextKeyService);
+					return CursorMoveCommands.simpleMove(viewModel, cursors, args.direction, inSelectionMode, value, args.unit);
 
 				case CursorMove_.Direction.ViewPortTop:
 				case CursorMove_.Direction.ViewPortBottom:
@@ -660,7 +664,7 @@ export namespace CoreNavigationCommands {
 			this._staticArgs = opts.args;
 		}
 
-		public runCoreEditorCommand(viewModel: IViewModel, dynamicArgs: Partial<CursorMoveCommandOptions>, contextKeyService: IContextKeyService): void {
+		public runCoreEditorCommand(viewModel: IViewModel, dynamicArgs: Partial<CursorMoveCommandOptions>): void {
 			let args = this._staticArgs;
 			if (this._staticArgs.value === Constants.PAGE_SIZE_MARKER) {
 				// -1 is a marker for page size
@@ -675,7 +679,7 @@ export namespace CoreNavigationCommands {
 			viewModel.setCursorStates(
 				dynamicArgs.source,
 				CursorChangeReason.Explicit,
-				CursorMoveCommands.simpleMove(viewModel, viewModel.getCursorStates(), args.direction, args.select, args.value, args.unit, contextKeyService)
+				CursorMoveCommands.simpleMove(viewModel, viewModel.getCursorStates(), args.direction, args.select, args.value, args.unit)
 			);
 			viewModel.revealPrimaryCursor(dynamicArgs.source, true);
 		}
@@ -755,7 +759,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUp',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -823,7 +827,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDown',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,

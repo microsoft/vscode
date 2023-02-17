@@ -34,7 +34,5 @@ export class StickyScrollFocusService {
 }
 
 export const IStickyScrollFocusService = createDecorator<IStickyScrollFocusService>('IStickyScrollFocusService');
-
-// Unsure what instantiation type to use
 registerSingleton(IStickyScrollFocusService, StickyScrollFocusService, InstantiationType.Eager);
 
