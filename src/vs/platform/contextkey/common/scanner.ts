@@ -93,8 +93,6 @@ export class Scanner {
 		}
 	}
 
-	private static _whitespace = /^\s*/;
-
 	private static _regexFlags = new Set(['i', 'g', 's', 'm', 'y', 'u'].map(ch => ch.charCodeAt(0)));
 
 	private static _keywords = new Map<string, TokenType>([
@@ -127,7 +125,6 @@ export class Scanner {
 
 	scan() {
 		while (!this._isAtEnd()) {
-			this._eatWhitespace();
 
 			this._start = this._current;
 
@@ -368,15 +365,6 @@ export class Scanner {
 		this._current = p;
 
 		this._addToken(TokenType.RegexStr, true);
-	}
-
-	// invariant: this must not fail if at end of `this._value`
-	private _eatWhitespace() {
-		Scanner._whitespace.lastIndex = this._current;
-		const match = Scanner._whitespace.exec(this._input);
-		if (match) {
-			this._current += match[0].length;
-		}
 	}
 
 	private _isAtEnd() {
