@@ -6,40 +6,28 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { illegalArgument, illegalState } from 'vs/base/common/errors';
 
-export enum TokenType {
-	LParen = '(',
-	RParen = ')',
-
-	Neg = '!',
-
-	Eq = '==',
-	NotEq = '!=',
-
-	Lt = '<',
-	LtEq = '<=',
-	Gt = '>',
-	GtEq = '>=',
-
-	RegexOp = '=~',
-
-	RegexStr = 'RegexStr',
-
-	True = 'true',
-	False = 'false',
-
-	In = 'in',
-	Not = 'not',
-
-	And = '&&',
-	Or = '||',
-
-	Str = 'Str',
-
-	QuotedStr = 'QuotedStr',
-
-	Error = 'ErrorToken',
-
-	EOF = 'EOF'
+export const enum TokenType {
+	LParen,
+	RParen,
+	Neg,
+	Eq,
+	NotEq,
+	Lt,
+	LtEq,
+	Gt,
+	GtEq,
+	RegexOp,
+	RegexStr,
+	True,
+	False,
+	In,
+	Not,
+	And,
+	Or,
+	Str,
+	QuotedStr,
+	Error,
+	EOF,
 }
 
 export type Token = {
