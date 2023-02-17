@@ -20,6 +20,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import 'vs/css!./stickyScroll';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { Emitter, Event } from 'vs/base/common/event';
 
 interface CustomMouseEvent {
 	detail: string;
@@ -59,9 +60,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-
+		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OVER, () => this._onHover.fire()));
 		this._register(this._updateLinkGesture());
 	}
+
+	private readonly _onHover = this._register(new Emitter<void>());
+	public readonly onHover: Event<void> = this._onHover.event;
 
 	private _updateLinkGesture(): IDisposable {
 
@@ -77,7 +81,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				return;
 			}
 			const targetMouseEvent = mouseEvent.target as unknown as CustomMouseEvent;
-			if (targetMouseEvent.detail === this.getId() && targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+			if (targetMouseEvent.detail === this.getId()
+				&& targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+
 				const text = targetMouseEvent.element.innerText;
 				if (this._hoverOnColumn === -1) {
 					return;

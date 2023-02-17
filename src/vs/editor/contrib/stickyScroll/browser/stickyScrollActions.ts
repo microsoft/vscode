@@ -12,7 +12,7 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStickyScrollFocusService } from './stickyScrollServices';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class ToggleStickyScroll extends Action2 {
 
@@ -26,7 +26,7 @@ export class ToggleStickyScroll extends Action2 {
 			},
 			category: Categories.View,
 			toggled: {
-				condition: EditorContextKeys.stickyScrollEnabled,
+				condition: ContextKeyExpr.equals('config.editor.stickyScroll.enabled', true),
 				title: localize('stickyScroll', "Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
 			},
@@ -51,11 +51,11 @@ export class FocusStickyScroll extends Action2 {
 		super({
 			id: 'editor.action.focusStickyScroll',
 			title: {
-				value: localize('focusStickyScroll', "Focus Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
-				original: 'Focus Sticky Scroll',
+				value: localize('focusStickyScroll', "Toggle Focus Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Focus Sticky Scroll"),
+				original: 'Toggle Focus Sticky Scroll',
 			},
-			precondition: EditorContextKeys.stickyScrollEnabled.isEqualTo(true),
+			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
 			menu: [
 				{ id: MenuId.CommandPalette },
 			],

@@ -68,55 +68,70 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	public focus(): void {
-		EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService).set(true);
+		const stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused;
+		const focusState = stickyScrollFocusedContextKey.getValue(this._contextKeyService);
 		const rootNode = this._stickyScrollWidget.getDomNode();
 		const childrenElements = rootNode.children;
 		const numberChildren = childrenElements.length;
 
-		if (numberChildren > 0) {
-
-			let currentFousedChild = rootNode.lastElementChild!;
-			currentFousedChild.classList.add('focus');
-			let currentIndex = numberChildren - 1;
-
-			// Using onKeyUp instead of onKeyDown because not called twice when the keys are pressed
-			// TODO: Why is sometimes the keyboard event fired twice?
-			const focusedOnStickyScroll = this._editor.onKeyUp(keyboardEvent => {
-
-				const disposeFocusOnStickyScroll = () => {
-					currentFousedChild.classList.remove('focus');
-					EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService).set(false);
-					focusedOnStickyScroll.dispose();
-				};
-
-				const keyCode = keyboardEvent.keyCode;
-				if (keyCode === KeyCode.UpArrow && currentIndex > 0 || keyCode === KeyCode.DownArrow && currentIndex < numberChildren - 1) {
-					currentFousedChild?.classList.remove('focus');
-					currentIndex = keyCode === KeyCode.UpArrow ? currentIndex - 1 : currentIndex + 1;
-					currentFousedChild = childrenElements.item(currentIndex)!;
-					currentFousedChild.classList.add('focus');
-				}
-
-				// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
-				// TODO: Is there a way to prevent this?
-				else if (keyCode === KeyCode.LeftArrow) {
-					const lineNumbers = this._stickyScrollWidget.lineNumbers;
-					this._editor.revealPosition({ lineNumber: lineNumbers[currentIndex], column: 1 });
-					disposeFocusOnStickyScroll();
-				}
-				// When scrolling remove focus
-				this._editor.onDidScrollChange(() => {
-					disposeFocusOnStickyScroll();
-				});
-				// When clicking anywere remove focus
-				this._editor.onMouseUp(() => {
-					disposeFocusOnStickyScroll();
-				});
-
-			});
-
-			this._register(focusedOnStickyScroll);
+		if (focusState === true || numberChildren === 0) {
+			// Already focused so return
+			// Or no line to focus on
+			return;
 		}
+
+		stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(true);
+		let currentFousedChild = rootNode.lastElementChild!;
+		currentFousedChild.classList.add('focus');
+		let currentIndex = numberChildren - 1;
+
+		// TODO: Why is sometimes the keyboard event fired twice?
+		const onKeyboardNavigation = this._editor.onKeyUp(keyboardEvent => {
+
+			const keyCode = keyboardEvent.keyCode;
+			if (keyCode === KeyCode.UpArrow && currentIndex > 0 || keyCode === KeyCode.DownArrow && currentIndex < numberChildren - 1) {
+				currentFousedChild?.classList.remove('focus');
+				currentIndex = keyCode === KeyCode.UpArrow ? currentIndex - 1 : currentIndex + 1;
+				currentFousedChild = childrenElements.item(currentIndex)!;
+				currentFousedChild.classList.add('focus');
+			}
+
+			// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
+			// TODO: Is there a way to prevent this?
+			else if (keyCode === KeyCode.LeftArrow) {
+				const lineNumbers = this._stickyScrollWidget.lineNumbers;
+				this._editor.revealPosition({ lineNumber: lineNumbers[currentIndex], column: 1 });
+				disposeFocusOnStickyScroll();
+			}
+		});
+
+		// When scrolling remove focus
+		const onScroll = this._editor.onDidScrollChange(() => {
+			disposeFocusOnStickyScroll();
+		});
+		// When clicking anywere remove focus
+		const onMouseUp = this._editor.onMouseUp(() => {
+			disposeFocusOnStickyScroll();
+		});
+		// Whenver the mouse hovers on the sticky scroll remove the keyboard focus
+		const onStickyScrollWidgetHover = this._stickyScrollWidget.onHover(() => {
+			console.log('On hover');
+			disposeFocusOnStickyScroll();
+		});
+
+		this._register(onKeyboardNavigation);
+		this._register(onScroll);
+		this._register(onMouseUp);
+		this._register(onStickyScrollWidgetHover);
+
+		const disposeFocusOnStickyScroll = () => {
+			currentFousedChild.classList.remove('focus');
+			stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(false);
+			onKeyboardNavigation.dispose();
+			onScroll.dispose();
+			onMouseUp.dispose();
+			onStickyScrollWidgetHover.dispose();
+		};
 	}
 
 	private _onContextMenu(event: MouseEvent) {
@@ -128,7 +143,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
-		EditorContextKeys.stickyScrollEnabled.bindTo(this._contextKeyService).set(options.enabled);
 
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);

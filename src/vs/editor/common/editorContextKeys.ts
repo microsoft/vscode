@@ -40,7 +40,6 @@ export namespace EditorContextKeys {
 
 	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false, nls.localize('editorHoverVisible', "Whether the editor hover is visible"));
 
-	export const stickyScrollEnabled = new RawContextKey<boolean>('stickyScrollEnabled', true, nls.localize('stickyScrollEnabled', "Whether the sticky scroll is enabled"));
 	export const stickyScrollFocused = new RawContextKey<boolean>('stickyScrollFocused', true, nls.localize('stickyScrollFocused', "Whether the sticky scroll is focused"));
 
 	/**
