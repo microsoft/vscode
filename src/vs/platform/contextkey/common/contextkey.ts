@@ -356,7 +356,7 @@ export class Parser {
 		} catch (e) {
 			if (!(e instanceof ParseError)) {
 				const token = this._peek();
-				this._parsingErrors.push(`Unexpected error: ${e} for token ${this._nameToken(token)} at offset ${token.offset}.`);
+				this._parsingErrors.push(`Unexpected error: ${e} for token ${Scanner.getLexeme(token)} at offset ${token.offset}.`);
 			}
 			return undefined;
 		}
@@ -564,60 +564,17 @@ export class Parser {
 	}
 
 	private _errExpectedButGot(expected: string, got: Token) {
-		return this._error(`Expected ${expected} but got '${this._nameToken(got)}' at offset ${got.offset}.`);
+		return this._error(`Expected ${expected} but got '${Scanner.getLexeme(got)}' at offset ${got.offset}.`);
 	}
 
 	private _errUnexpected(token: Token) {
-		return this._error(`Unexpected '${this._nameToken(token)}' at offset ${token.offset}.`);
+		return this._error(`Unexpected '${Scanner.getLexeme(token)}' at offset ${token.offset}.`);
 	}
 
 	// TODO@ulugbekna: the whole error reporting needs reworking - especially, when we introduce it to package.json linting
 	private _error(errMsg: string) {
 		this._parsingErrors.push(errMsg);
 		return new ParseError();
-	}
-
-	private _nameToken(token: Token): string {
-		if (token.lexeme !== undefined) { return token.lexeme!; }
-
-		switch (token.type) {
-			case TokenType.LParen:
-				return '(';
-			case TokenType.RParen:
-				return ')';
-			case TokenType.Neg:
-				return '!';
-			case TokenType.Eq:
-				return '==';
-			case TokenType.NotEq:
-				return '!=';
-			case TokenType.Lt:
-				return '<';
-			case TokenType.LtEq:
-				return '<=';
-			case TokenType.Gt:
-				return '>=';
-			case TokenType.GtEq:
-				return '>=';
-			case TokenType.RegexOp:
-				return '=~';
-			case TokenType.True:
-				return 'true';
-			case TokenType.False:
-				return 'false';
-			case TokenType.In:
-				return 'in';
-			case TokenType.Not:
-				return 'not';
-			case TokenType.And:
-				return '&&';
-			case TokenType.Or:
-				return '||';
-			case TokenType.EOF:
-				return 'EOF';
-			default:
-				throw illegalState(`all other tokens must have a lexeme : ${JSON.stringify(token)}`);
-		}
 	}
 
 	private _check(type: TokenType) {
