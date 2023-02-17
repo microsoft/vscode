@@ -9,26 +9,43 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
-import { StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
+import { IStickyLineCandidateProvider, StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
-export class StickyScrollController extends Disposable implements IEditorContribution {
+export interface IStickyScrollController {
+	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
+	get stickyScrollWidgetState(): StickyScrollWidgetState;
+	focus(): void;
+	focusNext(): void;
+	focusPrevious(): void;
+	goToFocused(): void;
+	cancelFocus(): void;
+	findScrollWidgetState(): StickyScrollWidgetState;
+	dispose(): void;
+}
+
+export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 
 	private readonly _stickyScrollWidget: StickyScrollWidget;
-	private readonly _stickyLineCandidateProvider: StickyLineCandidateProvider;
+	private readonly _stickyLineCandidateProvider: IStickyLineCandidateProvider;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
 	private _widgetState: StickyScrollWidgetState;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
+
+	private _focusDisposableStore: DisposableStore | undefined;
+	private _focusedStickyElement: Element | undefined;
+	private _focusedStickyElementIndex: number | undefined;
+	private _stickyElements: HTMLCollection | undefined;
+	private _numberStickyElements: number | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -55,86 +72,89 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 	}
 
-	get stickyScrollCandidateProvider() {
+	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
 		return this._stickyLineCandidateProvider;
 	}
 
-	get stickyScrollWidgetState() {
+	get stickyScrollWidgetState(): StickyScrollWidgetState {
 		return this._widgetState;
 	}
 
-	public static get(editor: ICodeEditor): StickyScrollController | null {
+	public static get(editor: ICodeEditor): IStickyScrollController | null {
 		return editor.getContribution<StickyScrollController>(StickyScrollController.ID);
+	}
+
+	private _disposeFocusStickyScrollStore() {
+		this._focusedStickyElement!.classList.remove('focus');
+		const stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused;
+		stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(false);
+		this._focusDisposableStore!.dispose();
 	}
 
 	public focus(): void {
 		const stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused;
 		const focusState = stickyScrollFocusedContextKey.getValue(this._contextKeyService);
 		const rootNode = this._stickyScrollWidget.getDomNode();
-		const childrenElements = rootNode.children;
-		const numberChildren = childrenElements.length;
+		this._stickyElements = rootNode.children;
+		this._numberStickyElements = this._stickyElements.length;
 
-		if (focusState === true || numberChildren === 0) {
+		if (focusState === true || this._numberStickyElements === 0) {
 			// Already focused so return
 			// Or no line to focus on
 			return;
 		}
-
+		this._focusDisposableStore = new DisposableStore();
 		stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(true);
-		let currentFousedChild = rootNode.lastElementChild!;
-		currentFousedChild.classList.add('focus');
-		let currentIndex = numberChildren - 1;
-
-		// TODO: Why is sometimes the keyboard event fired twice?
-		const onKeyboardNavigation = this._editor.onKeyUp(keyboardEvent => {
-
-			const keyCode = keyboardEvent.keyCode;
-			if (keyCode === KeyCode.UpArrow && currentIndex > 0 || keyCode === KeyCode.DownArrow && currentIndex < numberChildren - 1) {
-				currentFousedChild?.classList.remove('focus');
-				currentIndex = keyCode === KeyCode.UpArrow ? currentIndex - 1 : currentIndex + 1;
-				currentFousedChild = childrenElements.item(currentIndex)!;
-				currentFousedChild.classList.add('focus');
-			}
-			// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
-			// TODO: Is there a way to prevent this?
-			else if (keyCode === KeyCode.LeftArrow) {
-				const lineNumbers = this._stickyScrollWidget.lineNumbers;
-				this._editor.revealPosition({ lineNumber: lineNumbers[currentIndex], column: 1 });
-				disposeFocusOnStickyScroll();
-			}
-			// Cancel the focus when clicking on escape
-			else if (keyCode === KeyCode.Escape) {
-				disposeFocusOnStickyScroll();
-			}
-		});
+		this._focusedStickyElement = rootNode.lastElementChild!;
+		this._focusedStickyElement.classList.add('focus');
+		this._focusedStickyElementIndex = this._numberStickyElements - 1;
 
 		// When scrolling remove focus
 		const onScroll = this._editor.onDidScrollChange(() => {
-			disposeFocusOnStickyScroll();
+			this._disposeFocusStickyScrollStore();
 		});
 		// When clicking anywere remove focus
 		const onMouseUp = this._editor.onMouseUp(() => {
-			disposeFocusOnStickyScroll();
+			this._disposeFocusStickyScrollStore();
 		});
-		// Whenver the mouse hovers on the sticky scroll remove the keyboard focus
+		// Whenever the mouse hovers on the sticky scroll remove the keyboard focus
 		const onStickyScrollWidgetHover = this._stickyScrollWidget.onHover(() => {
-			console.log('On hover');
-			disposeFocusOnStickyScroll();
+			this._disposeFocusStickyScrollStore();
 		});
 
-		this._register(onKeyboardNavigation);
-		this._register(onScroll);
-		this._register(onMouseUp);
-		this._register(onStickyScrollWidgetHover);
+		this._focusDisposableStore.add(onScroll);
+		this._focusDisposableStore.add(onMouseUp);
+		this._focusDisposableStore.add(onStickyScrollWidgetHover);
+	}
 
-		const disposeFocusOnStickyScroll = () => {
-			currentFousedChild.classList.remove('focus');
-			stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(false);
-			onKeyboardNavigation.dispose();
-			onScroll.dispose();
-			onMouseUp.dispose();
-			onStickyScrollWidgetHover.dispose();
-		};
+	public focusNext(): void {
+		if (this._focusedStickyElement && this._focusedStickyElementIndex! < this._numberStickyElements! - 1) {
+			this._focusedStickyElement.classList.remove('focus');
+			this._focusedStickyElementIndex!++;
+			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)!;
+			this._focusedStickyElement.classList.add('focus');
+		}
+	}
+
+	// TODO: Using the left arrow because when using enter, on focus sticky scroll, the enter is directly detected and the last sticky line is revealed
+	// TODO: Is there a way to prevent this?
+	public focusPrevious(): void {
+		if (this._focusedStickyElement && this._focusedStickyElementIndex! > 0) {
+			this._focusedStickyElement.classList.remove('focus');
+			this._focusedStickyElementIndex!--;
+			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)!;
+			this._focusedStickyElement.classList.add('focus');
+		}
+	}
+
+	public goToFocused(): void {
+		const lineNumbers = this._stickyScrollWidget.lineNumbers;
+		this._editor.revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex!], column: 1 });
+		this._disposeFocusStickyScrollStore();
+	}
+
+	public cancelFocus(): void {
+		this._disposeFocusStickyScrollStore();
 	}
 
 	private _onContextMenu(event: MouseEvent) {
@@ -198,12 +218,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const model = this._editor.getModel();
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
-			this._widgetState = this.getScrollWidgetState();
+			this._widgetState = this.findScrollWidgetState();
 			this._stickyScrollWidget.setState(this._widgetState);
 		}
 	}
 
-	getScrollWidgetState(): StickyScrollWidgetState {
+	findScrollWidgetState(): StickyScrollWidgetState {
 		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();

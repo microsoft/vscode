@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStickyScrollFocusService } from './stickyScrollServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class ToggleStickyScroll extends Action2 {
 
@@ -45,6 +46,8 @@ export class ToggleStickyScroll extends Action2 {
 	}
 }
 
+const weight = KeybindingWeight.EditorContrib + 1000;
+
 export class FocusStickyScroll extends Action2 {
 
 	constructor() {
@@ -60,7 +63,7 @@ export class FocusStickyScroll extends Action2 {
 				{ id: MenuId.CommandPalette },
 			],
 			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
+				weight: weight,
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS
 			}
 		});
@@ -71,5 +74,94 @@ export class FocusStickyScroll extends Action2 {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
 		stickyScrollFocusService.focus(editor);
+	}
+}
+
+export class SelectNextStickyScrollLine extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.selectNextStickyScrollLine',
+			title: {
+				value: localize('selectNextStickyScrollLine.title', "Select next sticky scroll line"),
+				original: 'Select next sticky scroll line'
+			},
+			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
+			keybinding: {
+				weight,
+				primary: KeyCode.DownArrow
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
+		stickyScrollFocusService.focusNext();
+	}
+}
+
+export class SelectPreviousStickyScrollLine extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.selectPreviousStickyScrollLine',
+			title: {
+				value: localize('selectPreviousStickyScrollLine.title', "Select previous sticky scroll line"),
+				original: 'Select previous sticky scroll line'
+			},
+			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
+			keybinding: {
+				weight,
+				primary: KeyCode.UpArrow
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
+		stickyScrollFocusService.focusPrevious();
+	}
+}
+
+export class GoToStickyScrollLine extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.goToFocusedStickyScrollLine',
+			title: {
+				value: localize('goToFocusedStickyScrollLine.title', "Go to focused sticky scroll line"),
+				original: 'Go to focused sticky scroll line'
+			},
+			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
+			keybinding: {
+				weight,
+				primary: KeyCode.LeftArrow
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
+		stickyScrollFocusService.goToFocused();
+	}
+}
+
+
+export class CancelFocusStickyScroll extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.cancelFocusStickyScroll',
+			title: {
+				value: localize('cancelFocusStickyScroll.title', "Cancel focus sticky scroll"),
+				original: 'Cancel focus sticky scroll'
+			},
+			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
+			keybinding: {
+				weight,
+				primary: KeyCode.LeftArrow
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
+		stickyScrollFocusService.cancelFocus();
 	}
 }

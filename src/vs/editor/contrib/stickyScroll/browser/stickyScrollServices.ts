@@ -7,13 +7,19 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
+import { IStickyScrollController, StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
 
 export interface IStickyScrollFocusService {
 	focus(editor: ICodeEditor | null): void;
+	focusNext(): void;
+	focusPrevious(): void;
+	goToFocused(): void;
+	cancelFocus(): void;
 }
 
 export class StickyScrollFocusService {
+
+	stickyScrollController: IStickyScrollController | undefined;
 
 	constructor() { }
 
@@ -23,7 +29,32 @@ export class StickyScrollFocusService {
 		}
 		const stickyScrollController = StickyScrollController.get(editor);
 		if (stickyScrollController) {
-			stickyScrollController.focus();
+			this.stickyScrollController = stickyScrollController;
+			this.stickyScrollController.focus();
+		}
+	}
+
+	focusNext(): void {
+		if (this.stickyScrollController) {
+			this.stickyScrollController.focusNext();
+		}
+	}
+
+	focusPrevious(): void {
+		if (this.stickyScrollController) {
+			this.stickyScrollController.focusPrevious();
+		}
+	}
+
+	goToFocused(): void {
+		if (this.stickyScrollController) {
+			this.stickyScrollController.goToFocused();
+		}
+	}
+
+	cancelFocus(): void {
+		if (this.stickyScrollController) {
+			this.stickyScrollController.cancelFocus();
 		}
 	}
 }
