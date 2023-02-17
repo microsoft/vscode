@@ -303,6 +303,10 @@ class CellContentProvider implements ITextModelContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
+		if (!ref.object.isResolved()) {
+			return null;
+		}
+
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {

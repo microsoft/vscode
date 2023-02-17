@@ -53,6 +53,7 @@ import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
+import 'vs/workbench/services/localization/browser/localeService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';

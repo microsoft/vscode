@@ -10,7 +10,7 @@
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load shared process into window
-	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
+	bootstrapWindow.load(['vs/code/node/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
 		return sharedProcess.main(configuration);
 	},
 		{

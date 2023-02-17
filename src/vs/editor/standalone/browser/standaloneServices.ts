@@ -8,6 +8,8 @@ import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/services/languageFeatureDebounce';
+import 'vs/editor/common/services/semanticTokensStylingService';
+import 'vs/editor/common/services/languageFeaturesService';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -84,12 +86,12 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-
-import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { LogService } from 'vs/platform/log/common/logService';
+import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1122,6 +1124,16 @@ export module StandaloneServices {
 				if (r instanceof SyncDescriptor) {
 					serviceCollection.set(serviceIdentifier, overrides[serviceId]);
 				}
+			}
+		}
+
+		// Instantiate all editor features
+		const editorFeatures = getEditorFeatures();
+		for (const feature of editorFeatures) {
+			try {
+				instantiationService.createInstance(feature);
+			} catch (err) {
+				onUnexpectedError(err);
 			}
 		}
 

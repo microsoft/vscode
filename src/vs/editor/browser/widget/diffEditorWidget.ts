@@ -252,6 +252,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
 	) {
 		super();
+		codeEditorService.willCreateDiffEditor();
 
 		this._documentDiffProvider = this._register(instantiationService.createInstance(WorkerBasedDocumentDiffProvider, options));
 		this._register(this._documentDiffProvider.onDidChange(e => this._beginUpdateDecorationsSoon()));

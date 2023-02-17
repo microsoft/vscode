@@ -3670,6 +3670,10 @@ declare namespace monaco.editor {
 		 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 		 */
 		dropIntoEditor?: IDropIntoEditorOptions;
+		/**
+		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+		 */
+		tabFocusMode?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {

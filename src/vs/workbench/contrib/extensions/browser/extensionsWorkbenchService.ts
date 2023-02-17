@@ -47,7 +47,7 @@ import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescripti
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb, language } from 'vs/base/common/platform';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 

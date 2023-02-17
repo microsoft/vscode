@@ -11,13 +11,12 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IPCServer, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
-import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
-import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
-import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/contrib/localizationsUpdater';
-import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { UnusedWorkspaceStorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
+import { CodeCacheCleaner } from 'vs/code/node/sharedProcess/contrib/codeCacheCleaner';
+import { LanguagePackCachedDataCleaner } from 'vs/code/node/sharedProcess/contrib/languagePackCachedDataCleaner';
+import { LocalizationsUpdater } from 'vs/code/node/sharedProcess/contrib/localizationsUpdater';
+import { LogsDataCleaner } from 'vs/code/node/sharedProcess/contrib/logsDataCleaner';
+import { UnusedWorkspaceStorageDataCleaner } from 'vs/code/node/sharedProcess/contrib/storageDataCleaner';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,10 +32,8 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -44,19 +41,15 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
 import { ConsoleLogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -65,7 +58,6 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -79,8 +71,6 @@ import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/u
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -90,7 +80,6 @@ import { SharedTunnelsService } from 'vs/platform/tunnel/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
 import { ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { isLinux } from 'vs/base/common/platform';
@@ -105,19 +94,33 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
-import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
-import { UserDataProfilesCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/userDataProfilesCleaner';
-import { RemoteTunnelService } from 'vs/platform/remoteTunnel/electron-browser/remoteTunnelService';
+import { UserDataProfilesCleaner } from 'vs/code/node/sharedProcess/contrib/userDataProfilesCleaner';
 import { IRemoteTunnelService } from 'vs/platform/remoteTunnel/common/remoteTunnel';
-import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
-import { ExtensionsContributions } from 'vs/code/electron-browser/sharedProcess/contrib/extensions';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
+import { ExtensionsContributions } from 'vs/code/node/sharedProcess/contrib/extensions';
 import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
 import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
+
+/* eslint-disable local/code-layering, local/code-import-patterns */
+// TODO@bpasero layer is not allowed in utility process
+import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
+import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
+import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
+import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
+import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
+import { RemoteTunnelService } from 'vs/platform/remoteTunnel/electron-browser/remoteTunnelService';
+import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -475,7 +478,7 @@ class SharedProcessMain extends Disposable {
 			process.on('uncaughtException', error => onUnexpectedError(error));
 			process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 		} else {
-			window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+			(globalThis as any).addEventListener('unhandledrejection', (event: any) => {
 
 				// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
 				onUnexpectedError(event.reason);
