@@ -23,7 +23,7 @@ import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -776,7 +776,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorUpSelect',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -844,7 +844,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorDownSelect',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
