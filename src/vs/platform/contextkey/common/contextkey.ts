@@ -332,6 +332,7 @@ export class Parser {
 	parse(input: string): ContextKeyExpression | undefined {
 
 		if (input === '') {
+			this._parsingErrors.push('Expected an expression but got an empty string');
 			return undefined;
 		}
 
