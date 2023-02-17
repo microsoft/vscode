@@ -3029,9 +3029,9 @@ declare namespace monaco.editor {
 		 */
 		ariaLabel?: string;
 		/**
-		 * Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately.
+		 * Control whether a screen reader detects and announces inline suggestion content immediately.
 		 */
-		ariaAssertiveInlineSuggestion?: boolean;
+		screenReaderDetectInlineSuggestion?: boolean;
 		/**
 		 * The `tabindex` property of the editor's textarea
 		 */
@@ -4590,7 +4590,7 @@ declare namespace monaco.editor {
 		acceptSuggestionOnEnter = 1,
 		accessibilitySupport = 2,
 		accessibilityPageSize = 3,
-		ariaAssertiveInlineSuggestion = 4,
+		screenReaderDetectInlineSuggestion = 4,
 		ariaLabel = 5,
 		autoClosingBrackets = 6,
 		autoClosingDelete = 7,
@@ -4735,7 +4735,7 @@ declare namespace monaco.editor {
 		accessibilitySupport: IEditorOption<EditorOption.accessibilitySupport, AccessibilitySupport>;
 		accessibilityPageSize: IEditorOption<EditorOption.accessibilityPageSize, number>;
 		ariaLabel: IEditorOption<EditorOption.ariaLabel, string>;
-		ariaAssertiveInlineSuggestion: IEditorOption<EditorOption.ariaAssertiveInlineSuggestion, boolean>;
+		screenReaderDetectInlineSuggestion: IEditorOption<EditorOption.screenReaderDetectInlineSuggestion, boolean>;
 		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'always' | 'never' | 'auto'>;
 		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'always' | 'never' | 'auto'>;

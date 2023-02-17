@@ -59,9 +59,9 @@ export interface IEditorOptions {
 	ariaLabel?: string;
 
 	/**
-	 * Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately.
+	 * Control whether a screen reader detects and announces inline suggestion content immediately.
 	 */
-	ariaAssertiveInlineSuggestion?: boolean;
+	screenReaderDetectInlineSuggestion?: boolean;
 	/**
 	 * The `tabindex` property of the editor's textarea
 	 */
@@ -4757,7 +4757,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
-	ariaAssertiveInlineSuggestion,
+	screenReaderDetectInlineSuggestion,
 	ariaLabel,
 	autoClosingBrackets,
 	autoClosingDelete,
@@ -4924,8 +4924,8 @@ export const EditorOptions = {
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
-	ariaAssertiveInlineSuggestion: register(new EditorBooleanOption(
-		EditorOption.ariaAssertiveInlineSuggestion, 'ariaAssertiveInlineSuggestion', false,
+	screenReaderDetectInlineSuggestion: register(new EditorBooleanOption(
+		EditorOption.screenReaderDetectInlineSuggestion, 'screenReaderDetectInlineSuggestion', false,
 		{
 			description: nls.localize('ariaAssertiveInlineSuggestion', "Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately."),
 			tags: ['accessibility']

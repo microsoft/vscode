@@ -177,7 +177,7 @@ export enum EditorOption {
 	acceptSuggestionOnEnter = 1,
 	accessibilitySupport = 2,
 	accessibilityPageSize = 3,
-	ariaAssertiveInlineSuggestion = 4,
+	screenReaderDetectInlineSuggestion = 4,
 	ariaLabel = 5,
 	autoClosingBrackets = 6,
 	autoClosingDelete = 7,

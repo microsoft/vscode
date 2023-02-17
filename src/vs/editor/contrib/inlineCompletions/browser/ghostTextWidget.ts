@@ -22,7 +22,6 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -31,6 +30,7 @@ export class GhostTextWidget extends Disposable {
 	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.languageService.languageIdCodec));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
+	private _ariaStringBuilder: StringBuilder = new StringBuilder(10000);
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -87,7 +87,7 @@ export class GhostTextWidget extends Disposable {
 		const inlineTexts = new Array<InsertedInlineText>();
 		const additionalLines = new Array<LineData>();
 
-		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
+		function addToAdditionalLines(lines: readonly string[], className: string | undefined, ariaText: StringBuilder) {
 			if (additionalLines.length > 0) {
 				const lastLine = additionalLines[additionalLines.length - 1];
 				if (className) {
@@ -102,6 +102,7 @@ export class GhostTextWidget extends Disposable {
 					content: line,
 					decorations: className ? [new LineDecoration(1, line.length + 1, className, InlineDecorationType.Regular)] : []
 				});
+				ariaText.appendString(line);
 			}
 		}
 
@@ -136,13 +137,14 @@ export class GhostTextWidget extends Disposable {
 					text: lines[0],
 					preview: part.preview,
 				});
+				this._ariaStringBuilder.appendString(lines[0]);
 				lines = lines.slice(1);
 			} else {
-				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
+				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined, this._ariaStringBuilder);
 			}
 
 			if (lines.length > 0) {
-				addToAdditionalLines(lines, 'ghost-text');
+				addToAdditionalLines(lines, 'ghost-text', this._ariaStringBuilder);
 				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 					hiddenTextStartColumn = part.column;
 				}
@@ -151,13 +153,17 @@ export class GhostTextWidget extends Disposable {
 			lastIdx = part.column - 1;
 		}
 		if (hiddenTextStartColumn !== undefined) {
-			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined, this._ariaStringBuilder);
 		}
 
 		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
 
+		if (this.editor.getOption(EditorOption.screenReaderDetectInlineSuggestion)) {
+			alert(this._ariaStringBuilder.build());
+		}
+		this._ariaStringBuilder.reset();
 		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
@@ -275,10 +281,6 @@ class DecorationsWidget implements IDisposable {
 		// Using change decorations ensures that we update the id's before some event handler is called.
 		this.editor.changeDecorations(accessor => {
 			this.decorationIds = accessor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-				if (this.editor.getOption(EditorOption.ariaAssertiveInlineSuggestion)) {
-					this._alertWithContent(withNullAsUndefined(document.querySelector('.ghost-text-decoration')?.textContent));
-				}
-
 				return ({
 					range: Range.fromPositions(new Position(lineNumber, p.column)),
 					options: {
@@ -289,12 +291,6 @@ class DecorationsWidget implements IDisposable {
 				});
 			}).concat(hiddenTextDecorations));
 		});
-	}
-
-	private _alertWithContent(content?: string): void {
-		if (content) {
-			alert(`${content}`);
-		}
 	}
 }
 
