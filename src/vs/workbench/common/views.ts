@@ -334,7 +334,6 @@ export interface IViewContainerModel {
 
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
-
 	readonly keybindingId: string | undefined;
 	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean; badgeEnablement?: boolean }>;
 

@@ -56,7 +56,6 @@ interface IPlaceholderViewContainer {
 interface IPinnedViewContainer {
 	readonly id: string;
 	readonly pinned: boolean;
-	readonly badgeEnabled: boolean;
 	readonly order?: number;
 	readonly visible: boolean;
 }
@@ -66,7 +65,6 @@ interface ICachedViewContainer {
 	name?: string;
 	icon?: URI | ThemeIcon;
 	readonly pinned: boolean;
-	readonly badgeEnabled: boolean;
 	readonly order?: number;
 	visible: boolean;
 	isBuiltin?: boolean;
@@ -153,7 +151,6 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				name: container.name,
 				visible: container.visible,
 				order: container.order,
-				badgeEnabled: container.badgeEnabled,
 				pinned: container.pinned,
 			}));
 
@@ -867,13 +864,12 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority ? undefined : viewContainerModel.icon, /* Donot cache uri icons with remote connection */
 					views,
 					pinned: compositeItem.pinned,
-					badgeEnabled: this.viewDescriptorService.getViewContainerBadgeEnablementState(compositeItem.id),
 					order: compositeItem.order,
 					visible: compositeItem.visible,
 					isBuiltin: !viewContainer.extensionId
 				});
 			} else {
-				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, badgeEnabled: true, order: compositeItem.order, visible: false, isBuiltin: false });
+				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
 			}
 		}
 
@@ -903,10 +899,9 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private storeCachedViewContainersState(cachedViewContainers: ICachedViewContainer[]): void {
-		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, badgeEnabled, visible, order }) => (<IPinnedViewContainer>{
+		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, visible, order }) => (<IPinnedViewContainer>{
 			id,
 			pinned,
-			badgeEnabled,
 			visible,
 			order
 		})));

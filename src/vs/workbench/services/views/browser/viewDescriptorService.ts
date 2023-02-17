@@ -24,7 +24,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
 	viewLocations: IStringDictionary<string>;
-	badgeEnablementStates: IStringDictionary<boolean>;
+	viewContainerBadgeEnablementStates: IStringDictionary<boolean>;
 }
 
 function getViewContainerStorageId(viewContainerId: string): string { return `${viewContainerId}.state`; }
@@ -83,7 +83,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.migrateToViewsCustomizationsStorage();
 		this.viewContainersCustomLocations = new Map<string, ViewContainerLocation>(Object.entries(this.viewCustomizations.viewContainerLocations));
 		this.viewDescriptorsCustomLocations = new Map<string, string>(Object.entries(this.viewCustomizations.viewLocations));
-		this.viewContainerBadgeEnablementStates = new Map<string, boolean>(Object.entries(this.viewCustomizations.badgeEnablementStates));
+		this.viewContainerBadgeEnablementStates = new Map<string, boolean>(Object.entries(this.viewCustomizations.viewContainerBadgeEnablementStates));
 
 		// Register all containers that were registered before this ctor
 		this.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
@@ -125,7 +125,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const viewsCustomizations: IViewsCustomizations = {
 			viewContainerLocations: viewContainerLocations.reduce<IStringDictionary<ViewContainerLocation>>((result, [id, location]) => { result[id] = location; return result; }, {}),
 			viewLocations: viewDescriptorLocations.reduce<IStringDictionary<string>>((result, [id, { containerId }]) => { result[id] = containerId; return result; }, {}),
-			badgeEnablementStates: {}
+			viewContainerBadgeEnablementStates: {}
 		};
 		this.storageService.store(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
 		this.storageService.remove('views.cachedViewContainerLocations', StorageScope.PROFILE);
@@ -518,7 +518,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		const newViewContainerCustomizations = new Map<string, ViewContainerLocation>(Object.entries(this.viewCustomizations.viewContainerLocations));
 		const newViewDescriptorCustomizations = new Map<string, string>(Object.entries(this.viewCustomizations.viewLocations));
-
 		const viewContainersToMove: [ViewContainer, ViewContainerLocation][] = [];
 		const viewsToMove: { views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }[] = [];
 
@@ -592,7 +591,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private saveViewCustomizations(): void {
-		const viewCustomizations: IViewsCustomizations = { viewContainerLocations: {}, viewLocations: {}, badgeEnablementStates: {} };
+		const viewCustomizations: IViewsCustomizations = { viewContainerLocations: {}, viewLocations: {}, viewContainerBadgeEnablementStates: {} };
 
 		for (const [containerId, location] of this.viewContainersCustomLocations) {
 			const container = this.getViewContainerById(containerId);
@@ -619,7 +618,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// Loop through viewContainerBadgeEnablementStates and save only the ones that are disabled
 		for (const [viewContainerId, badgeEnablementState] of this.viewContainerBadgeEnablementStates) {
 			if (badgeEnablementState === false) {
-				viewCustomizations.badgeEnablementStates[viewContainerId] = badgeEnablementState;
+				viewCustomizations.viewContainerBadgeEnablementStates[viewContainerId] = badgeEnablementState;
 			}
 		}
 		this.viewCustomizations = viewCustomizations;
@@ -631,7 +630,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._viewCustomizations = JSON.parse(this.getStoredViewCustomizationsValue()) as IViewsCustomizations;
 			this._viewCustomizations.viewContainerLocations = this._viewCustomizations.viewContainerLocations ?? {};
 			this._viewCustomizations.viewLocations = this._viewCustomizations.viewLocations ?? {};
-			this._viewCustomizations.badgeEnablementStates = this._viewCustomizations.badgeEnablementStates ?? {};
+			this._viewCustomizations.viewContainerBadgeEnablementStates = this._viewCustomizations.viewContainerBadgeEnablementStates ?? {};
 		}
 		return this._viewCustomizations;
 	}
