@@ -17,13 +17,12 @@ import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor
 import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/model';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { isEditStackElement } from 'vs/editor/common/model/editStack';
@@ -36,6 +35,8 @@ import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
+import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled: true | false | 'configuredByTheme';
@@ -153,30 +154,22 @@ export class ModelService extends Disposable implements IModelService {
 	private readonly _models: { [modelId: string]: ModelData };
 	private readonly _disposedModels: Map<string, DisposedModelInfo>;
 	private _disposedModelsHeapSize: number;
-	private readonly _semanticStyling: SemanticStyling;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly _resourcePropertiesService: ITextResourcePropertiesService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@ILogService private readonly _logService: ILogService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 		this._models = {};
 		this._disposedModels = new Map<string, DisposedModelInfo>();
 		this._disposedModelsHeapSize = 0;
-		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._languageService, this._logService));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions(e)));
 		this._updateModelOptions(undefined);
-
-		this._register(new SemanticColoringFeature(this._semanticStyling, this, this._themeService, this._configurationService, this._languageFeatureDebounceService, languageFeaturesService));
 	}
 
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -554,10 +547,6 @@ export class ModelService extends Disposable implements IModelService {
 		return modelData.model;
 	}
 
-	public getSemanticTokensProviderStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling {
-		return this._semanticStyling.get(provider);
-	}
-
 	// --- end IModelService
 
 	protected _schemaShouldMaintainUndoRedoElements(resource: URI) {
@@ -647,13 +636,12 @@ export function isSemanticColoringEnabled(model: ITextModel, themeService: IThem
 	return themeService.getColorTheme().semanticHighlighting;
 }
 
-class SemanticColoringFeature extends Disposable {
+export class SemanticColoringFeature extends Disposable {
 
 	private readonly _watchers: Record<string, ModelSemanticColoring>;
-	private readonly _semanticStyling: SemanticStyling;
 
 	constructor(
-		semanticStyling: SemanticStyling,
+		@ISemanticTokensStylingService semanticTokensStylingService: ISemanticTokensStylingService,
 		@IModelService modelService: IModelService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -662,10 +650,9 @@ class SemanticColoringFeature extends Disposable {
 	) {
 		super();
 		this._watchers = Object.create(null);
-		this._semanticStyling = semanticStyling;
 
 		const register = (model: ITextModel) => {
-			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, this._semanticStyling, themeService, languageFeatureDebounceService, languageFeaturesService);
+			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, semanticTokensStylingService, themeService, languageFeatureDebounceService, languageFeaturesService);
 		};
 		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
 			modelSemanticColoring.dispose();
@@ -713,30 +700,6 @@ class SemanticColoringFeature extends Disposable {
 	}
 }
 
-class SemanticStyling extends Disposable {
-
-	private _caches: WeakMap<DocumentTokensProvider, SemanticTokensProviderStyling>;
-
-	constructor(
-		private readonly _themeService: IThemeService,
-		private readonly _languageService: ILanguageService,
-		private readonly _logService: ILogService
-	) {
-		super();
-		this._caches = new WeakMap<DocumentTokensProvider, SemanticTokensProviderStyling>();
-		this._register(this._themeService.onDidColorThemeChange(() => {
-			this._caches = new WeakMap<DocumentTokensProvider, SemanticTokensProviderStyling>();
-		}));
-	}
-
-	public get(provider: DocumentTokensProvider): SemanticTokensProviderStyling {
-		if (!this._caches.has(provider)) {
-			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._languageService, this._logService));
-		}
-		return this._caches.get(provider)!;
-	}
-}
-
 class SemanticTokensResponse {
 	constructor(
 		public readonly provider: DocumentSemanticTokensProvider,
@@ -756,7 +719,6 @@ class ModelSemanticColoring extends Disposable {
 
 	private _isDisposed: boolean;
 	private readonly _model: ITextModel;
-	private readonly _semanticStyling: SemanticStyling;
 	private readonly _provider: LanguageFeatureRegistry<DocumentSemanticTokensProvider>;
 	private readonly _debounceInformation: IFeatureDebounceInformation;
 	private readonly _fetchDocumentSemanticTokens: RunOnceScheduler;
@@ -767,7 +729,7 @@ class ModelSemanticColoring extends Disposable {
 
 	constructor(
 		model: ITextModel,
-		stylingProvider: SemanticStyling,
+		@ISemanticTokensStylingService private readonly _semanticTokensStylingService: ISemanticTokensStylingService,
 		@IThemeService themeService: IThemeService,
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
@@ -776,7 +738,6 @@ class ModelSemanticColoring extends Disposable {
 
 		this._isDisposed = false;
 		this._model = model;
-		this._semanticStyling = stylingProvider;
 		this._provider = languageFeaturesService.documentSemanticTokensProvider;
 		this._debounceInformation = languageFeatureDebounceService.for(this._provider, 'DocumentSemanticTokens', { min: ModelSemanticColoring.REQUEST_MIN_DELAY, max: ModelSemanticColoring.REQUEST_MAX_DELAY });
 		this._fetchDocumentSemanticTokens = this._register(new RunOnceScheduler(() => this._fetchDocumentSemanticTokensNow(), ModelSemanticColoring.REQUEST_MIN_DELAY));
@@ -887,7 +848,7 @@ class ModelSemanticColoring extends Disposable {
 				this._setDocumentSemanticTokens(null, null, null, pendingChanges);
 			} else {
 				const { provider, tokens } = res;
-				const styling = this._semanticStyling.get(provider);
+				const styling = this._semanticTokensStylingService.getStyling(provider);
 				this._setDocumentSemanticTokens(provider, tokens || null, styling, pendingChanges);
 			}
 		}, (err) => {
@@ -1034,3 +995,5 @@ class ModelSemanticColoring extends Disposable {
 		rescheduleIfNeeded();
 	}
 }
+
+registerEditorFeature(SemanticColoringFeature);
