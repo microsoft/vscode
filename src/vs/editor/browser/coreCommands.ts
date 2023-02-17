@@ -670,6 +670,7 @@ export namespace CoreNavigationCommands {
 					value: dynamicArgs.pageSize || viewModel.cursorConfig.pageSize
 				};
 			}
+
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
 				dynamicArgs.source,
@@ -688,7 +689,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeft',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -705,7 +706,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorLeftSelect',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -721,7 +722,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRight',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
@@ -738,7 +739,7 @@ export namespace CoreNavigationCommands {
 			value: 1
 		},
 		id: 'cursorRightSelect',
-		precondition: undefined,
+		precondition: EditorContextKeys.stickyScrollFocused.notEqualsTo(true),
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
