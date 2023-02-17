@@ -49,7 +49,8 @@ export class TextMateWorkerModel extends MirrorTextModel {
 	override onEvents(e: IModelChangedEvent): void {
 		super.onEvents(e);
 		if (this._tokenizationStateStore) {
-			for (let i = e.changes.length - 1; i >= 0; i--) {
+			// Changes are sorted in descending order
+			for (let i = 0; i < e.changes.length; i++) {
 				const change = e.changes[i];
 				const [eolCount] = countEOL(change.text);
 				this._tokenizationStateStore.applyEdits(change.range, eolCount);
@@ -88,7 +89,7 @@ export class TextMateWorkerModel extends MirrorTextModel {
 	}
 
 	private _tokenize(): void {
-		if (!this._tokenizationStateStore) {
+		if (this._isDisposed || !this._tokenizationStateStore) {
 			return;
 		}
 
@@ -123,6 +124,12 @@ export class TextMateWorkerModel extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(tokenizeResult.tokens, text.length);
 				builder.add(lineIndex + 1, tokenizeResult.tokens);
+
+				const deltaMs = new Date().getTime() - startTime;
+				if (deltaMs > 20) {
+					// yield to check for changes
+					break;
+				}
 			}
 
 			if (tokenizedLines === 0) {
@@ -136,7 +143,7 @@ export class TextMateWorkerModel extends MirrorTextModel {
 			if (deltaMs > 20) {
 				// yield to check for changes
 				setTimeout(() => this._tokenize(), 3);
-				break;
+				return;
 			}
 		}
 	}

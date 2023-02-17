@@ -25,6 +25,13 @@ export class ArrayEdit {
 			array.insert(c.offset, c.newLength);
 		}
 	}
+
+	applyToArray(array: any[]): void {
+		for (let i = this.edits.length - 1; i >= 0; i--) {
+			const c = this.edits[i];
+			array.splice(c.offset, c.length, ...new Array(c.newLength));
+		}
+	}
 }
 
 export class SingleArrayEdit {
@@ -43,6 +50,9 @@ export interface IIndexTransformer {
 	transform(index: number): number | undefined;
 }
 
+/**
+ * Can only be called with increasing values of `index`.
+*/
 export class MonotonousIndexTransformer implements IIndexTransformer {
 	public static fromMany(transformations: ArrayEdit[]): IIndexTransformer {
 		// TODO improve performance by combining transformations first

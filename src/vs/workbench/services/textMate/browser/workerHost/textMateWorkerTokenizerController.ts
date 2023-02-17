@@ -70,9 +70,9 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	 * This method is called from the worker through the worker host.
 	 */
 	public setTokensAndStates(versionId: number, rawTokens: ArrayBuffer, stateDeltas: StateDeltas[]): void {
-		// _states state, change{k}, ..., change{versionId}, state delta base, change{j}, ..., change{m}, current renderer state
-		//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                    ^^^^^^^^^^^^^^^^^^^^^^^^^
-		//                | past changes                                       | future states
+		// _states state, change{k}, ..., change{versionId}, state delta base & rawTokens, change{j}, ..., change{m}, current renderer state
+		//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                ^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                | past changes                                                   | future states
 
 		// Apply past changes to _states
 		while (
@@ -84,37 +84,53 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			op.applyTo(this._states);
 		}
 
-		const curToFutureTransformer1 = MonotonousIndexTransformer.fromMany(
-			this._pendingChanges.map((c) => lineArrayEditFromModelContentChange(c.changes))
-		);
-
-		const tokens = ContiguousMultilineTokensBuilder.deserialize(
+		let tokens = ContiguousMultilineTokensBuilder.deserialize(
 			new Uint8Array(rawTokens)
 		);
 
-		// Apply future changes to tokens
-		for (const change of this._pendingChanges) {
-			for (const innerChanges of change.changes) {
-				for (let j = 0; j < tokens.length; j++) {
-					tokens[j].applyEdit(innerChanges.range, innerChanges.text);
+		if (this._pendingChanges.length > 0) {
+			const curToFutureTransformerTokens = MonotonousIndexTransformer.fromMany(
+				this._pendingChanges.map((c) => new ArrayEdit(
+					c.changes.map(
+						(c) =>
+							new SingleArrayEdit(
+								c.range.startLineNumber - 1,
+								// Expand the edit range to include the entire line
+								(c.range.endLineNumber - c.range.startLineNumber) + 1,
+								countEOL(c.text)[0] + 1
+							)
+					)
+				))
+			);
+
+			// Filter tokens in lines that got changed in the future to prevent flickering
+			// These tokens are recomputed anyway.
+			const b = new ContiguousMultilineTokensBuilder();
+			for (const t of tokens) {
+				for (let i = t.startLineNumber; i <= t.endLineNumber; i++) {
+					const result = curToFutureTransformerTokens.transform(i - 1);
+					// If result is undefined, the current line got touched by an edit.
+					// The webworker will send us new tokens for all the new/touched lines after it received the edits.
+					if (result !== undefined) {
+						b.add(i, t.getLineTokens(i) as Uint32Array);
+					}
+				}
+			}
+			tokens = b.finalize();
+
+			// Apply future changes to tokens
+			for (const change of this._pendingChanges) {
+				for (const innerChanges of change.changes) {
+					for (let j = 0; j < tokens.length; j++) {
+						tokens[j].applyEdit(innerChanges.range, innerChanges.text);
+					}
 				}
 			}
 		}
 
-		// Filter tokens in lines that got changed in the future to prevent flickering
-		// These tokens are recomputed anyway.
-		const b = new ContiguousMultilineTokensBuilder();
-		for (const t of tokens) {
-			for (let i = t.startLineNumber; i <= t.endLineNumber; i++) {
-				const result = curToFutureTransformer1.transform(i - 1);
-				if (result !== undefined) {
-					b.add(i, t.getLineTokens(i) as Uint32Array);
-				}
-			}
-		}
-		this._backgroundTokenizationStore.setTokens(b.finalize());
+		this._backgroundTokenizationStore.setTokens(tokens);
 
-		const curToFutureTransformer = MonotonousIndexTransformer.fromMany(
+		const curToFutureTransformerStates = MonotonousIndexTransformer.fromMany(
 			this._pendingChanges.map((c) => lineArrayEditFromModelContentChange(c.changes))
 		);
 
@@ -126,7 +142,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 				const state = applyStateStackDiff(prevState, delta)!;
 				this._states.set(d.startLineNumber + i - 1, state);
 
-				const offset = curToFutureTransformer.transform(d.startLineNumber + i - 1);
+				const offset = curToFutureTransformerStates.transform(d.startLineNumber + i - 1);
 				if (offset !== undefined) {
 					this._backgroundTokenizationStore.setEndState(offset + 1, state);
 				}

@@ -6,6 +6,7 @@
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
@@ -14,6 +15,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ICreateData, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/worker/textMate.worker';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerTokenizerController';
@@ -36,6 +38,7 @@ export class TextMateWorkerHost implements IDisposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 	}
 
@@ -69,8 +72,9 @@ export class TextMateWorkerHost implements IDisposable {
 		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
 		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
-		const textmateLocation: AppResourcePath = true ? textmateModuleLocation : textmateModuleLocationAsar;
-		const onigurumaLocation: AppResourcePath = true ? onigurumaModuleLocation : onigurumaModuleLocationAsar;
+		const useAsar = this._environmentService.isBuilt && !isWeb;
+		const textmateLocation: AppResourcePath = useAsar ? textmateModuleLocationAsar : textmateModuleLocation;
+		const onigurumaLocation: AppResourcePath = useAsar ? onigurumaModuleLocationAsar : onigurumaModuleLocation;
 		const textmateMain: AppResourcePath = `${textmateLocation}/release/main.js`;
 		const onigurumaMain: AppResourcePath = `${onigurumaLocation}/release/main.js`;
 		const onigurumaWASM: AppResourcePath = `${onigurumaLocation}/release/onig.wasm`;

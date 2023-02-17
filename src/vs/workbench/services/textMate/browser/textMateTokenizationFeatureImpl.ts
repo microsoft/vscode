@@ -27,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ExtensionMessageCollector, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITextMateTokenizationFeature } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import { TextMateTokenizationSupport } from 'vs/workbench/services/textMate/browser/tokenizationSupport/textMateTokenizationSupport';
 import { TokenizationSupportWithLineLimit } from 'vs/workbench/services/textMate/browser/tokenizationSupport/tokenizationSupportWithLineLimit';
 import { TextMateWorkerHost } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
@@ -37,7 +37,7 @@ import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap
 import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
 
-export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationFeature {
+export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	public _serviceBrand: undefined;
 
 	private readonly _onDidEncounterLanguage: Emitter<string> = this._register(new Emitter<string>());

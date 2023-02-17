@@ -7,9 +7,9 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import type { IGrammar } from 'vscode-textmate';
 
-export const ITextMateTokenizationFeature = createDecorator<ITextMateTokenizationFeature>('textMateTokenizationFeature');
+export const ITextMateTokenizationService = createDecorator<ITextMateTokenizationService>('textMateTokenizationFeature');
 
-export interface ITextMateTokenizationFeature {
+export interface ITextMateTokenizationService {
 	readonly _serviceBrand: undefined;
 
 	onDidEncounterLanguage: Event<string>;

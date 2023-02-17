@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
-import { ITextMateTokenizationFeature } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import { TextMateTokenizationFeature } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl';
 
-registerSingleton(ITextMateTokenizationFeature, TextMateTokenizationFeature, InstantiationType.Eager);
+registerSingleton(ITextMateTokenizationService, TextMateTokenizationFeature, InstantiationType.Eager);
