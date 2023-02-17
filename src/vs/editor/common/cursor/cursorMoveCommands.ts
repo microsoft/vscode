@@ -273,7 +273,6 @@ export class CursorMoveCommands {
 
 		switch (direction) {
 			case CursorMove.Direction.Left: {
-				// EditorContextKeys.stickyScrollFocused.getValue()
 				if (unit === CursorMove.Unit.HalfLine) {
 					// Move left by half the current line length
 					return this._moveHalfLineLeft(viewModel, cursors, inSelectionMode);
