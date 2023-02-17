@@ -9,7 +9,7 @@ import { canceled } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
-import { getDocumentSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
+import { getDocumentSemanticTokens } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
