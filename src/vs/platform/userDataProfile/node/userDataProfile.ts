@@ -13,6 +13,7 @@ import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfil
 import { IStringDictionary } from 'vs/base/common/collections';
 import { isString } from 'vs/base/common/types';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 type StoredUserDataProfileState = StoredUserDataProfile & { location: URI | string };
 
@@ -28,6 +29,14 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 		@ILogService logService: ILogService,
 	) {
 		super(nativeEnvironmentService, fileService, uriIdentityService, logService);
+	}
+
+	override async init(): Promise<void> {
+		super.init();
+		// Initialize default profile extensions file if the extensions folder does not exist
+		if (!(await this.fileService.exists(this.uriIdentityService.extUri.dirname(this.defaultProfile.extensionsResource)))) {
+			await this.fileService.createFile(this.defaultProfile.extensionsResource, VSBuffer.fromString('[]'));
+		}
 	}
 
 	protected override getStoredProfiles(): StoredUserDataProfile[] {

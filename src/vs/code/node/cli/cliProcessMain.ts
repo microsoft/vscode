@@ -170,7 +170,7 @@ class CliMain extends Disposable {
 		]);
 
 		// Initialize user data profiles after initializing the state
-		userDataProfilesService.init();
+		await userDataProfilesService.init();
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));

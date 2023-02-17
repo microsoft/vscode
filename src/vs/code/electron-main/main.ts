@@ -244,7 +244,6 @@ class CodeMain {
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
-				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
 				environmentMainService.logsPath,
 				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
@@ -261,7 +260,7 @@ class CodeMain {
 		]);
 
 		// Initialize user data profiles after initializing the state
-		userDataProfilesMainService.init();
+		await userDataProfilesMainService.init();
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
