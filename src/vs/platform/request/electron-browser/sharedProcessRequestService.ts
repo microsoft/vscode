@@ -9,7 +9,6 @@ import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/r
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
@@ -24,7 +23,6 @@ export class SharedProcessRequestService implements IRequestService {
 	constructor(
 		mainProcessService: IMainProcessService,
 		private readonly configurationService: IConfigurationService,
-		private readonly productService: IProductService,
 		private readonly logService: ILogService,
 	) {
 		this.browserRequestService = new RequestService(configurationService, logService);
@@ -53,6 +51,6 @@ export class SharedProcessRequestService implements IRequestService {
 		if (isBoolean(value)) {
 			return value;
 		}
-		return this.productService.quality !== 'stable';
+		return true;
 	}
 }

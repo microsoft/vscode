@@ -294,6 +294,12 @@ export class AudioCue {
 		settingsKey: 'audioCues.taskFailed'
 	});
 
+	public static readonly terminalCommandFailed = AudioCue.register({
+		name: localize('audioCues.terminalCommandFailed', 'Terminal Command Failed'),
+		sound: Sound.taskFailed,
+		settingsKey: 'audioCues.terminalCommandFailed'
+	});
+
 	public static readonly terminalBell = AudioCue.register({
 		name: localize('audioCues.terminalBell', 'Terminal Bell'),
 		sound: Sound.terminalBell,

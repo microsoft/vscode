@@ -521,6 +521,17 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/debug-auto-launch"
 			]
+		},
+		{
+			"name": "Monaco Editor Playground",
+			"type": "chrome",
+			"request": "launch",
+			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5001%2Fout%2Fvs",
+			"preLaunchTask": "Launch Http Server",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
 		}
 	],
 	"compounds": [
