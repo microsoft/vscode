@@ -7,12 +7,16 @@ import { localize } from 'vs/nls';
 import { Language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILanguagePackItem } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { IActiveLanguagePackService, ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class WebLocaleService implements ILocaleService {
 	declare readonly _serviceBrand: undefined;
+	static readonly _LOCAL_STORAGE_EXTENSION_ID_KEY = 'vscode.nls.languagePackExtensionId';
+	static readonly _LOCAL_STORAGE_LOCALE_KEY = 'vscode.nls.locale';
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
@@ -26,13 +30,13 @@ export class WebLocaleService implements ILocaleService {
 			return;
 		}
 		if (locale) {
-			window.localStorage.setItem('vscode.nls.locale', locale);
+			window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY, locale);
 			if (languagePackItem.extensionId) {
-				window.localStorage.setItem('vscode.nls.languagePackExtensionId', languagePackItem.extensionId);
+				window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, languagePackItem.extensionId);
 			}
 		} else {
-			window.localStorage.removeItem('vscode.nls.locale');
-			window.localStorage.removeItem('vscode.nls.languagePackExtensionId');
+			window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY);
+			window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
 		}
 
 		const restartDialog = await this.dialogService.confirm({
@@ -48,8 +52,8 @@ export class WebLocaleService implements ILocaleService {
 	}
 
 	async clearLocalePreference(): Promise<void> {
-		window.localStorage.removeItem('vscode.nls.locale');
-		window.localStorage.removeItem('vscode.nls.languagePackExtensionId');
+		window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_LOCALE_KEY);
+		window.localStorage.removeItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
 
 		if (Language.value() === navigator.language) {
 			return;
@@ -66,20 +70,20 @@ export class WebLocaleService implements ILocaleService {
 			this.hostService.restart();
 		}
 	}
+}
 
-	private async _ensureExtensionIdIsSet(): Promise<void> {
+class WebActiveLanguagePackService implements IActiveLanguagePackService {
+	_serviceBrand: undefined;
+
+	async getExtensionIdProvidingCurrentLocale(): Promise<string | undefined> {
 		const language = Language.value();
-		const extensionId = window.localStorage.getItem('vscode.nls.languagePackExtensionId');
 		if (language === LANGUAGE_DEFAULT) {
-			if (extensionId) {
-				window.localStorage.removeItem('vscode.nls.languagePackExtensionId');
-			}
-			return;
+			return undefined;
 		}
-		if (extensionId) {
-			return;
-		}
-
-
+		const extensionId = window.localStorage.getItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY);
+		return withNullAsUndefined(extensionId);
 	}
 }
+
+registerSingleton(ILocaleService, WebLocaleService, InstantiationType.Delayed);
+registerSingleton(IActiveLanguagePackService, WebActiveLanguagePackService, InstantiationType.Delayed);

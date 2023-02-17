@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
@@ -74,15 +73,5 @@ export class WebLanguagePacksService extends LanguagePackBaseService {
 	// Web doesn't have a concept of language packs, so we just return an empty array
 	getInstalledLanguages(): Promise<ILanguagePackItem[]> {
 		return Promise.resolve([]);
-	}
-
-	/**
-	 *
-	 * @returns The current language pack extension
-	 */
-	getCurrentLanguagePackExtensionId(): Promise<string | undefined> {
-		// HACK: Since the locale service in workbench is responsible for setting the language pack extension id
-		// we just read it from the local storage. Ideally we get it from a wellknown service instead.
-		return Promise.resolve(withNullAsUndefined(window.localStorage.getItem('vscode.nls.languagePackExtensionId')));
 	}
 }

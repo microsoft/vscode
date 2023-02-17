@@ -27,7 +27,6 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
-	getCurrentLanguagePackExtensionId(): Promise<string | undefined>;
 	getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 }
 
@@ -41,7 +40,6 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 	abstract getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 
 	abstract getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
-	abstract getCurrentLanguagePackExtensionId(): Promise<string | undefined>;
 
 	async getAvailableLanguages(): Promise<ILanguagePackItem[]> {
 		const timeout = new CancellationTokenSource();

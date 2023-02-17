@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Language } from 'vs/base/common/platform';
+import { Language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { IActiveLanguagePackService, ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewPaneContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
@@ -22,8 +21,19 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class NativeLocaleService implements ILocaleService {
+// duplicate of IExtensionsViewPaneContainer in contrib
+interface IExtensionsViewPaneContainer extends IViewPaneContainer {
+	readonly searchValue: string | undefined;
+	search(text: string): void;
+	refresh(): Promise<void>;
+}
+
+// duplicate of VIEWLET_ID in contrib/extensions
+const EXTENSIONS_VIEWLET_ID = 'workbench.view.extensions';
+
+class NativeLocaleService implements ILocaleService {
 	_serviceBrand: undefined;
 
 	constructor(
@@ -144,3 +154,26 @@ export class NativeLocaleService implements ILocaleService {
 		return confirmed;
 	}
 }
+
+// This is its own service because the localeService depends on IJSONEditingService which causes a circular dependency
+// Once that's ironed out, we can fold this into the localeService.
+class NativeActiveLanguagePackService implements IActiveLanguagePackService {
+	_serviceBrand: undefined;
+
+	constructor(
+		@ILanguagePackService private readonly languagePackService: ILanguagePackService
+	) { }
+
+	async getExtensionIdProvidingCurrentLocale(): Promise<string | undefined> {
+		const language = Language.value();
+		if (language === LANGUAGE_DEFAULT) {
+			return undefined;
+		}
+		const languages = await this.languagePackService.getInstalledLanguages();
+		const languagePack = languages.find(l => l.id === language);
+		return languagePack?.extensionId;
+	}
+}
+
+registerSingleton(ILocaleService, NativeLocaleService, InstantiationType.Delayed);
+registerSingleton(IActiveLanguagePackService, NativeActiveLanguagePackService, InstantiationType.Delayed);
