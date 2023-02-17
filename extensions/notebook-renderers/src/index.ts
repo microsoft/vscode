@@ -270,7 +270,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.traceback.wordWrap span {
 		white-space: pre-wrap;
 	}
-	.output > .scrollable {
+	.output .scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
 		border: var(--vscode-editorWidget-border);
