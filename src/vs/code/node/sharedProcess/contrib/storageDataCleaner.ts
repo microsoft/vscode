@@ -9,12 +9,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { StorageClient } from 'vs/platform/storage/common/storageIpc';
 import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
 import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
+
+/* eslint-disable local/code-layering, local/code-import-patterns */
+// TODO@bpasero layer is not allowed in utility process
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 
