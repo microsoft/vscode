@@ -78,6 +78,9 @@ export class EncodedTokenizationResult {
 	}
 }
 
+/**
+ * @internal
+ */
 export interface IBackgroundTokenizer extends IDisposable {
 	/**
 	 * Instructs the background tokenizer to set the tokens for the given range again.

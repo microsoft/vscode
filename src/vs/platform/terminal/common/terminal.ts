@@ -84,6 +84,7 @@ export const enum TerminalSettingId {
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
+	TabFocusMode = 'terminal.integrated.tabFocusMode',
 	EnvMacOs = 'terminal.integrated.env.osx',
 	EnvLinux = 'terminal.integrated.env.linux',
 	EnvWindows = 'terminal.integrated.env.windows',
@@ -112,8 +113,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling',
-	AccessibleBufferContentEditable = 'terminal.integrated.accessibleBufferContentEditable'
+	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
 export const enum TerminalLogConstants {

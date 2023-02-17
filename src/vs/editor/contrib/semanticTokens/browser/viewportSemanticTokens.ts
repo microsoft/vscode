@@ -10,9 +10,8 @@ import { EditorContributionInstantiation, registerEditorContribution } from 'vs/
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
-import { IModelService } from 'vs/editor/common/services/model';
-import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelService';
+import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
+import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
 import { toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -21,6 +20,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
@@ -38,7 +38,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 
 	constructor(
 		editor: ICodeEditor,
-		@IModelService private readonly _modelService: IModelService,
+		@ISemanticTokensStylingService private readonly _semanticTokensStylingService: ISemanticTokensStylingService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
@@ -134,7 +134,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 				return;
 			}
 			const { provider, tokens: result } = r;
-			const styling = this._modelService.getSemanticTokensProviderStyling(provider);
+			const styling = this._semanticTokensStylingService.getStyling(provider);
 			model.tokenization.setPartialSemanticTokens(range, toMultilineTokens2(result, styling, model.getLanguageId()));
 		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
 		return request;

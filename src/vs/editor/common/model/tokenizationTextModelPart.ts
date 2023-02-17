@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
@@ -34,7 +33,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: ContiguousTokensStore;
 	private readonly _semanticTokens: SparseTokensStore;
 	private readonly _tokenization: TextModelTokenization;
@@ -54,25 +52,19 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._semanticTokens = new SparseTokensStore(
 			this._languageService.languageIdCodec
 		);
-		this._tokenization = new TextModelTokenization(
+		this._tokenization = this._register(new TextModelTokenization(
 			_textModel,
 			this,
 			this._languageService.languageIdCodec
-		);
+		));
 
-		this._languageRegistryListener = this._languageConfigurationService.onDidChange(
+		this._register(this._languageConfigurationService.onDidChange(
 			e => {
 				if (e.affects(this._languageId)) {
 					this._onDidChangeLanguageConfiguration.fire({});
 				}
 			}
-		);
-	}
-
-	public override dispose(): void {
-		this._languageRegistryListener.dispose();
-		this._tokenization.dispose();
-		super.dispose();
+		));
 	}
 
 	_hasListeners(): boolean {

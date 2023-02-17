@@ -863,7 +863,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @deprecated
+	 * @deprecated Use `createDecorationsCollection`
+	 * @see createDecorationsCollection
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 

@@ -264,7 +264,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('watcherUseUtilityProcess', "When enabled, the file watcher will be launched using the new UtilityProcess Electron API."),
 			default: false, //typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
-			ignoreSync: true
+			ignoreSync: true,
+			'scope': ConfigurationScope.APPLICATION
 		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {

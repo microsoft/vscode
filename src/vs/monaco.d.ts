@@ -3666,6 +3666,10 @@ declare namespace monaco.editor {
 		 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 		 */
 		dropIntoEditor?: IDropIntoEditorOptions;
+		/**
+		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+		 */
+		tabFocusMode?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5612,7 +5616,8 @@ declare namespace monaco.editor {
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @deprecated
+		 * @deprecated Use `createDecorationsCollection`
+		 * @see createDecorationsCollection
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 		/**
@@ -6407,16 +6412,6 @@ declare namespace monaco.languages {
 		 * Describes the number of characters to remove from the new line's indentation.
 		 */
 		removeText?: number;
-	}
-
-	export interface IBackgroundTokenizer extends IDisposable {
-		/**
-		 * Instructs the background tokenizer to set the tokens for the given range again.
-		 *
-		 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
-		 * when the change does not even propagate to that viewport.
-		 */
-		requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
 	}
 
 	/**

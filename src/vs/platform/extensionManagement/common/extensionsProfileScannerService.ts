@@ -14,12 +14,13 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Schemas } from 'vs/base/common/network';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -248,7 +249,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						this.reportAndThrowInvalidConentError(file);
 					}
 					let location: URI;
-					if (isString(e.relativeLocation)) {
+					if (isString(e.relativeLocation) && e.relativeLocation) {
 						// Extension in new format. No migration needed.
 						location = this.resolveExtensionLocation(e.relativeLocation);
 					} else if (isString(e.location)) {
@@ -309,9 +310,14 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 
 	private toRelativePath(extensionLocation: URI): string | undefined {
-		return this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)
-			? this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation)
-			: undefined;
+		if (this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)) {
+			const relativePath = this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation);
+			if (this.extensionsLocation.scheme === Schemas.file && this.logService.getLevel() === LogLevel.Trace) {
+				this.logService.trace('Relative path', extensionLocation.fsPath, this.extensionsLocation.fsPath, relativePath);
+			}
+			return relativePath;
+		}
+		return undefined;
 	}
 
 	private resolveExtensionLocation(path: string): URI {
@@ -396,7 +402,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
-		&& (isUriComponents(candidate.location) || isString(candidate.location))
+		&& (isUriComponents(candidate.location) || (isString(candidate.location) && candidate.location))
 		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
 		&& candidate.version && isString(candidate.version);
 }

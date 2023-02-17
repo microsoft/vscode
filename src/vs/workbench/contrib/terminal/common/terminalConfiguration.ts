@@ -106,6 +106,11 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
+		[TerminalSettingId.TabFocusMode]: {
+			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation. this overrides {0} when the terminal is focused.", '`#editor.tabFocusMode#`'),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
 			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
@@ -579,17 +584,6 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
-		},
-		[TerminalSettingId.AccessibleBufferContentEditable]: {
-			markdownDescription: localize('terminal.integrated.accessibleBufferContentEditable', "Controls whether the accessible buffer is marks as a `contenteditable` element. This adds a text cursor to the buffer, allowing selection with the keyboard without a screen reader. Screen reader users will typically want to leave this as `auto` or `off` which will treat the buffer similar to a document. By default, on Linux, this will be set to `on` so that it works when using Orca."),
-			type: 'string',
-			enum: ['auto', 'on', 'off'],
-			enumDescriptions: [
-				localize('accessibleBufferContentEditable.auto', "Automatically enable when a screen reader is not detected."),
-				localize('accessibleBufferContentEditable.on', "Always on."),
-				localize('accessibleBufferContentEditable.off', "Always off.")
-			],
-			default: 'auto'
 		}
 	}
 };

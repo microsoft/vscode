@@ -128,6 +128,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
+	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },

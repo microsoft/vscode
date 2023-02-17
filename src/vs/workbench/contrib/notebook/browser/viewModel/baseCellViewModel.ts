@@ -256,7 +256,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor.changeDecorations((accessor) => {
+		this._textEditor?.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones

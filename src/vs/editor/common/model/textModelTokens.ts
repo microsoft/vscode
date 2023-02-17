@@ -176,8 +176,8 @@ export class TokenizationStateStore {
 		}
 	}
 
-	isTokenizationComplete(_textModel: ITextModel): boolean {
-		return this.invalidLineStartIndex >= _textModel.getLineCount();
+	isTokenizationComplete(textModel: ITextModel): boolean {
+		return this.invalidLineStartIndex >= textModel.getLineCount();
 	}
 }
 
@@ -264,8 +264,6 @@ export class TextModelTokenization extends Disposable {
 				},
 			};
 
-			this.backgroundTokenizer.clear();
-
 			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer) {
 				this.backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
@@ -273,14 +271,12 @@ export class TextModelTokenization extends Disposable {
 				this.backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(
 						this._textModel,
-						this._tokenizationStateStore!,
+						this._tokenizationStateStore,
 						b,
 						this._languageIdCodec
 					);
 				this._defaultBackgroundTokenizer.handleChanges();
 			}
-		} else {
-			this.backgroundTokenizer.clear();
 		}
 	}
 
