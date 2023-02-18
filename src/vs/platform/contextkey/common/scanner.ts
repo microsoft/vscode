@@ -30,11 +30,49 @@ export const enum TokenType {
 	EOF,
 }
 
-export type Token = {
-	type: TokenType;
-	offset: number;
-	lexeme?: string;
-};
+export type Token =
+	| { type: TokenType.LParen; offset: number }
+	| { type: TokenType.RParen; offset: number }
+	| { type: TokenType.Neg; offset: number }
+	| { type: TokenType.Eq; offset: number }
+	| { type: TokenType.NotEq; offset: number }
+	| { type: TokenType.Lt; offset: number }
+	| { type: TokenType.LtEq; offset: number }
+	| { type: TokenType.Gt; offset: number }
+	| { type: TokenType.GtEq; offset: number }
+	| { type: TokenType.RegexOp; offset: number }
+	| { type: TokenType.RegexStr; offset: number; lexeme: string }
+	| { type: TokenType.True; offset: number }
+	| { type: TokenType.False; offset: number }
+	| { type: TokenType.In; offset: number }
+	| { type: TokenType.Not; offset: number }
+	| { type: TokenType.And; offset: number }
+	| { type: TokenType.Or; offset: number }
+	| { type: TokenType.Str; offset: number; lexeme: string }
+	| { type: TokenType.QuotedStr; offset: number; lexeme: string }
+	| { type: TokenType.Error; offset: number; lexeme: string }
+	| { type: TokenType.EOF; offset: number };
+
+type KeywordTokenType = TokenType.Not | TokenType.In | TokenType.False | TokenType.True;
+type TokenTypeWithoutLexeme =
+	TokenType.LParen |
+	TokenType.RParen |
+	TokenType.Neg |
+	TokenType.Eq |
+	TokenType.NotEq |
+	TokenType.Lt |
+	TokenType.LtEq |
+	TokenType.Gt |
+	TokenType.GtEq |
+	TokenType.RegexOp |
+	TokenType.True |
+	TokenType.False |
+	TokenType.In |
+	TokenType.Not |
+	TokenType.And |
+	TokenType.Or |
+	TokenType.EOF;
+
 
 /**
  * A simple scanner for context keys.
@@ -82,8 +120,6 @@ export class Scanner {
 	}
 
 	static getLexeme(token: Token): string {
-		if (token.lexeme !== undefined) { return token.lexeme!; }
-
 		switch (token.type) {
 			case TokenType.LParen:
 				return '(';
@@ -105,6 +141,8 @@ export class Scanner {
 				return '>=';
 			case TokenType.RegexOp:
 				return '=~';
+			case TokenType.RegexStr:
+				return token.lexeme;
 			case TokenType.True:
 				return 'true';
 			case TokenType.False:
@@ -117,16 +155,22 @@ export class Scanner {
 				return '&&';
 			case TokenType.Or:
 				return '||';
+			case TokenType.Str:
+				return token.lexeme;
+			case TokenType.QuotedStr:
+				return token.lexeme;
+			case TokenType.Error:
+				return token.lexeme;
 			case TokenType.EOF:
 				return 'EOF';
 			default:
-				throw illegalState(`all other tokens must have a lexeme : ${JSON.stringify(token)}`);
+				throw illegalState(`unhandled token type: ${JSON.stringify(token)}; have you forgotten to add a case?`);
 		}
 	}
 
 	private static _regexFlags = new Set(['i', 'g', 's', 'm', 'y', 'u'].map(ch => ch.charCodeAt(0)));
 
-	private static _keywords = new Map<string, TokenType>([
+	private static _keywords = new Map<string, KeywordTokenType>([
 		['not', TokenType.Not],
 		['in', TokenType.In],
 		['false', TokenType.False],
@@ -239,13 +283,8 @@ export class Scanner {
 		return this._isAtEnd() ? '\0' : this._input[this._current];
 	}
 
-	private _addToken(type: TokenType, captureLexeme: boolean = false) {
-		if (captureLexeme) {
-			const lexeme = this._input.substring(this._start, this._current);
-			this._tokens.push({ type, lexeme, offset: this._start });
-		} else {
-			this._tokens.push({ type, offset: this._start });
-		}
+	private _addToken(type: TokenTypeWithoutLexeme) {
+		this._tokens.push({ type, offset: this._start });
 	}
 
 	private _error() {
@@ -257,6 +296,7 @@ export class Scanner {
 		this._tokens.push(errToken);
 	}
 
+	// u - unicode, y - sticky
 	private stringRe = /[a-zA-Z0-9_<>\-\./\\:\*\?\+\[\]\^,#@;"%\$\p{L}-]+/uy;
 	private _string() {
 		this.stringRe.lastIndex = this._start;
@@ -332,7 +372,8 @@ export class Scanner {
 
 		this._current = p;
 
-		this._addToken(TokenType.RegexStr, true);
+		const lexeme = this._input.substring(this._start, this._current);
+		this._tokens.push({ type: TokenType.RegexStr, lexeme, offset: this._start });
 	}
 
 	private _isAtEnd() {
