@@ -81,6 +81,30 @@
 		}
 
 		/**
+		 * @param {object} config
+		 * @param {string | undefined} locale
+		 */
+		function resolveLanguagePackLocale(config, locale) {
+			try {
+				while (locale) {
+					if (config[locale]) {
+						return locale;
+					} else {
+						const index = locale.lastIndexOf('-');
+						if (index > 0) {
+							locale = locale.substring(0, index);
+						} else {
+							return undefined;
+						}
+					}
+				}
+			} catch (err) {
+				console.error('Resolving language pack configuration failed.', err);
+			}
+			return undefined;
+		}
+
+		/**
 		 * @param {string | undefined} commit
 		 * @param {string} userDataPath
 		 * @param {string} metaDataFile
@@ -115,7 +139,11 @@
 					if (!configs) {
 						return defaultResult(locale);
 					}
-					const packConfig = configs[locale];
+					language = resolveLanguagePackLocale(configs, language);
+					if (!language) {
+						return defaultResult(locale);
+					}
+					const packConfig = configs[language];
 					let mainPack;
 					if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
 						return defaultResult(locale);
