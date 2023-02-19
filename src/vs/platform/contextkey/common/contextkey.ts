@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { Event } from 'vs/base/common/event';
 import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -356,9 +357,7 @@ export class Parser {
 		}
 
 		this._tokens = this._scanner.reset(input).scan();
-		if (this._scanner.errorTokens.length > 0) {
-			return undefined;
-		}
+		// @ulugbekna: we do not stop parsing if there are lexing errors to be able to reconstruct regexes with unescaped slashes
 
 		this._current = 0;
 		this._parsingErrors = [];
@@ -451,14 +450,55 @@ export class Parser {
 				// =~ regex
 				if (this._matchOne(TokenType.RegexOp)) {
 
+					// @ulugbekna: we need to reconstruct the regex from the tokens because some extensions use unescaped slashes in regexes
 					const expr = this._peek();
 					switch (expr.type) {
-						case TokenType.RegexStr: {
-							const regexLexeme = expr.lexeme; // /REGEX/ or /REGEX/FLAGS
+						case TokenType.RegexStr:
+						case TokenType.Error: { // also handle an ErrorToken in case of smth such as /(/file)/
+							const lexemeReconstruction = [expr.lexeme]; // /REGEX/ or /REGEX/FLAGS
 							this._advance();
+
+							let followingToken = this._peek();
+							let parenBalance = 0;
+							for (let i = 0; i < expr.lexeme.length; i++) {
+								if (expr.lexeme.charCodeAt(i) === CharCode.OpenParen) {
+									parenBalance++;
+								} else if (expr.lexeme.charCodeAt(i) === CharCode.CloseParen) {
+									parenBalance--;
+								}
+							}
+
+							while (!this._isAtEnd() && followingToken.type !== TokenType.And && followingToken.type !== TokenType.Or) {
+								switch (followingToken.type) {
+									case TokenType.LParen:
+										parenBalance++;
+										break;
+									case TokenType.RParen:
+										parenBalance--;
+										break;
+									case TokenType.RegexStr:
+									case TokenType.QuotedStr:
+										for (let i = 0; i < followingToken.lexeme.length; i++) {
+											if (followingToken.lexeme.charCodeAt(i) === CharCode.OpenParen) {
+												parenBalance++;
+											} else if (expr.lexeme.charCodeAt(i) === CharCode.CloseParen) {
+												parenBalance--;
+											}
+										}
+								}
+								if (parenBalance < 0) {
+									break;
+								}
+								lexemeReconstruction.push(Scanner.getLexeme(followingToken));
+								this._advance();
+								followingToken = this._peek();
+							}
+
+							const regexLexeme = lexemeReconstruction.join('');
 							const closingSlashIndex = regexLexeme.lastIndexOf('/');
 							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
-							return ContextKeyExpr.regex(key, new RegExp(regexLexeme.substring(1, closingSlashIndex), flags));
+							const regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+							return ContextKeyExpr.regex(key, regexp);
 						}
 
 						case TokenType.QuotedStr: {
@@ -635,9 +675,6 @@ export class Parser {
 		return this._peek().type === type;
 	}
 
-	/*
-		Careful: the function doesn't check array bounds.
-	*/
 	private _peek() {
 		return this._tokens[this._current];
 	}

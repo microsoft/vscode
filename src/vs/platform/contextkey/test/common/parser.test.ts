@@ -150,7 +150,36 @@ suite('Context Key Scanner', () => {
 
 	});
 
+	suite('regex', () => {
+
+		test(`resource =~ //foo/(barr|door/(Foo-Bar%20Templates|Soo%20Looo)|Web%20Site%Jjj%20Llll)(/.*)*$/`, () => {
+			const input = `resource =~ //foo/(barr|door/(Foo-Bar%20Templates|Soo%20Looo)|Web%20Site%Jjj%20Llll)(/.*)*$/`;
+			assert.deepStrictEqual(parseToStr(input), "resource =~ /\\/FileCabinet\\/(SuiteScripts|Templates\\/(E-mail%20Templates|Marketing%20Templates)|Web%20Site%20Hosting%20Files)(\\/.*)*$/");
+		});
+
+		test(`resource =~ /((/scratch/(?!update)(.*)/)|((/src/).*/)).*$/`, () => {
+			const input = `resource =~ /((/scratch/(?!update)(.*)/)|((/src/).*/)).*$/`;
+			assert.deepStrictEqual(parseToStr(input), "resource =~ /((\\/scratch\\/(?!update)(.*)\\/)|((\\/src\\/).*\\/)).*$/");
+		});
+
+		test(`FIXME resourcePath =~ //foo/barr// || resourcePath =~ //view/(foo|frontend|base)/(foo|barr)// && resourceExtname in fooBar`, () => {
+			const input = `resourcePath =~ //foo/barr// || resourcePath =~ //view/(foo|frontend|base)/(foo|barr)// && resourceExtname in fooBar`;
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '|' at offset 59. Did you mean '||'?\nUnexpected token '|' at offset 68. Did you mean '||'?\nUnexpected token '/ && resourceExtname in fooBar' at offset 86\n\n --- \nParsing errors:\n\nUnexpected error: SyntaxError: Invalid flags supplied to RegExp constructor ' && resourceExtname in fooBar' for token EOF at offset 116.\n");
+		});
+
+		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/gim`, () => {
+			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/gim`;
+			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/gim");
+		});
+
+	});
+
 	suite('error handling', () => {
+
+		test(`/foo`, () => {
+			const input = `/foo`;
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '/foo' at offset 0\n\n --- \nParsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got '/foo' at offset 0.\n");
+		});
 
 		test(`!b == 'true'`, () => {
 			const input = `!b == 'true'`;
@@ -164,17 +193,17 @@ suite('Context Key Scanner', () => {
 
 		test(`view =~ '/(servers)/' && viewItem =~ /^(Starting|Started|Debugging|Stopping|Stopped|Unknown)/'`, () => {
 			const input = `view =~ '/(servers)/' && viewItem =~ /^(Starting|Started|Debugging|Stopping|Stopped|Unknown)/'`;
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''' at offset 93\n");
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''' at offset 93\n\n --- \nParsing errors:\n\nUnexpected error: SyntaxError: Invalid flags supplied to RegExp constructor ''' for token EOF at offset 94.\n");
 		});
 
 		test('vim<c-r> == 1 && vim<2<=3', () => {
 			const input = 'vim<c-r> == 1 && vim<2<=3';
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '=' at offset 23. Did you mean '==' or '=~'?\n"); // FIXME
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '=' at offset 23. Did you mean '==' or '=~'?\n\n --- \nParsing errors:\n\nUnexpected '=' at offset 23.\n"); // FIXME
 		});
 
 		test(`foo && 'bar`, () => {
 			const input = `foo && 'bar`;
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''bar' at offset 7. Did you forget to close the string?\n");
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''bar' at offset 7. Did you forget to close the string?\n\n --- \nParsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got ''bar' at offset 7.\n");
 		});
 
 		/*
