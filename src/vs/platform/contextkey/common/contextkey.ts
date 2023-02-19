@@ -1451,7 +1451,7 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 
 	public serialize(): string {
 		const value = this.regexp
-			? `/${this.regexp.source}/${this.regexp.ignoreCase ? 'i' : ''}`
+			? `/${this.regexp.source}/${this.regexp.flags}`
 			: '/invalid/';
 		return `${this.key} =~ ${value}`;
 	}
