@@ -81,6 +81,30 @@
 		}
 
 		/**
+		 * @param {object} config
+		 * @param {string | undefined} locale
+		 */
+		function resolveLanguagePackLocale(config, locale) {
+			try {
+				while (locale) {
+					if (config[locale]) {
+						return locale;
+					} else {
+						const index = locale.lastIndexOf('-');
+						if (index > 0) {
+							locale = locale.substring(0, index);
+						} else {
+							return undefined;
+						}
+					}
+				}
+			} catch (err) {
+				console.error('Resolving language pack configuration failed.', err);
+			}
+			return undefined;
+		}
+
+		/**
 		 * @param {string | undefined} commit
 		 * @param {string} userDataPath
 		 * @param {string} metaDataFile
@@ -95,10 +119,14 @@
 			// We have a built version so we have extracted nls file. Try to find
 			// the right file to use.
 
-			// Check if we have an English or English US locale. If so fall to default since that is our
-			// English translation (we don't ship *.nls.en.json files)
-			if (locale && (locale === 'en' || locale === 'en-us')) {
+			// If we didn't specify a language, use the default
+			if (!language) {
 				return Promise.resolve({ locale, availableLanguages: {} });
+			}
+
+			// If we specified English or English US, return that as the available language.
+			if (language === 'en' || language === 'en-us') {
+				return Promise.resolve({ locale, availableLanguages: { '*': 'en' } });
 			}
 
 			perf.mark('code/willGenerateNls');
@@ -115,7 +143,11 @@
 					if (!configs) {
 						return defaultResult(locale);
 					}
-					const packConfig = configs[locale];
+					language = resolveLanguagePackLocale(configs, language);
+					if (!language) {
+						return defaultResult(locale);
+					}
+					const packConfig = configs[language];
 					let mainPack;
 					if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
 						return defaultResult(locale);
@@ -124,7 +156,7 @@
 						if (!fileExists) {
 							return defaultResult(locale);
 						}
-						const _languagePackId = packConfig.hash + '.' + locale;
+						const _languagePackId = packConfig.hash + '.' + language;
 						const cacheRoot = path.join(userDataPath, 'clp', _languagePackId);
 						const coreLocation = path.join(cacheRoot, commit);
 						const _translationsConfigFile = path.join(cacheRoot, 'tcf.json');
