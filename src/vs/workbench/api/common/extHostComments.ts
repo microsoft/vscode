@@ -19,14 +19,20 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
+import { Schemas } from 'vs/base/common/network';
 
 type ProviderHandle = number;
+
+interface CommentRemoteInfo {
+	readonly isRemote: boolean;
+	readonly authority: string | undefined;
+}
 
 interface ExtHostComments {
 	createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController;
 }
 
-export function createExtHostComments(mainContext: IMainContext, commands: ExtHostCommands, documents: ExtHostDocuments): ExtHostCommentsShape & ExtHostComments {
+export function createExtHostComments(mainContext: IMainContext, remoteInfo: CommentRemoteInfo, commands: ExtHostCommands, documents: ExtHostDocuments): ExtHostCommentsShape & ExtHostComments {
 	const proxy = mainContext.getProxy(MainContext.MainThreadComments);
 
 	class ExtHostCommentsImpl implements ExtHostCommentsShape, ExtHostComments, IDisposable {
@@ -465,7 +471,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 			if (modified('comments')) {
 				formattedModifications.comments =
-					this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap));
+					this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap, remoteInfo));
 			}
 			if (modified('collapsibleState')) {
 				formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
@@ -644,14 +650,18 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 	}
 
-	function convertToDTOComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>): CommentChanges {
+	function convertToDTOComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>, remoteInfo: CommentRemoteInfo): CommentChanges {
 		let commentUniqueId = commentsMap.get(vscodeComment)!;
 		if (!commentUniqueId) {
 			commentUniqueId = ++thread.commentHandle;
 			commentsMap.set(vscodeComment, commentUniqueId);
 		}
 
-		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
+		let uri = vscodeComment.author?.iconPath;
+		if (uri && uri.scheme === Schemas.file && remoteInfo.isRemote) {
+			uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteInfo.authority });
+		}
+		const iconPath = uri ? uri.toString() : undefined;
 
 		return {
 			mode: vscodeComment.mode,
