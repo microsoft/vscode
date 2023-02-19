@@ -197,7 +197,12 @@ suite('Context Key Scanner', () => {
 
 		test('vim<c-r>==1 && vim<2<=3', () => {
 			const input = 'vim<c-r>==1 && vim<2<=3';
-			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "vim<c-r>", offset: 0 }, { type: "==", offset: 8 }, { type: "Str", lexeme: "1", offset: 10 }, { type: "&&", offset: 12 }, { type: "Str", lexeme: "vim<2<", offset: 15 }, { type: "ErrorToken", offset: 21, lexeme: "=" }, { type: "EOF", offset: 23 }]));
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "vim<c-r>" }, { type: "==", offset: 8 }, { type: "Str", offset: 10, lexeme: "1" }, { type: "&&", offset: 12 }, { type: "Str", offset: 15, lexeme: "vim<2<" }, { type: "ErrorToken", offset: 21, lexeme: "=" }, { type: "Str", offset: 22, lexeme: "3" }, { type: "EOF", offset: 23 }]));
+		});
+
+		test(`foo|bar`, () => {
+			const input = `foo|bar`;
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "ErrorToken", offset: 3, lexeme: "|" }, { type: "Str", offset: 4, lexeme: "bar" }, { type: "EOF", offset: 7 }]));
 		});
 	});
 });

@@ -290,9 +290,6 @@ export class Scanner {
 	private _error() {
 		const errToken = { type: TokenType.Error, offset: this._start, lexeme: this._input.substring(this._start, this._current) };
 		this._errorTokens.push(errToken);
-		if (!this._isAtEnd()) {
-			++this._current;
-		}
 		this._tokens.push(errToken);
 	}
 
