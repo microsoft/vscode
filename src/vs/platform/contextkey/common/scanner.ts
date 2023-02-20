@@ -205,40 +205,40 @@ export class Scanner {
 
 			const ch = this._advance();
 			switch (ch) {
-				case '(': this._addToken(TokenType.LParen); break;
-				case ')': this._addToken(TokenType.RParen); break;
+				case CharCode.OpenParen: this._addToken(TokenType.LParen); break;
+				case CharCode.CloseParen: this._addToken(TokenType.RParen); break;
 
-				case '!':
-					this._addToken(this._match('=') ? TokenType.NotEq : TokenType.Neg);
+				case CharCode.ExclamationMark:
+					this._addToken(this._match(CharCode.Equals) ? TokenType.NotEq : TokenType.Neg);
 					break;
 
-				case '\'': this._quotedString(); break;
-				case '/': this._regex(); break;
+				case CharCode.SingleQuote: this._quotedString(); break;
+				case CharCode.Slash: this._regex(); break;
 
-				case '=':
-					if (this._match('=')) { // support `==`
+				case CharCode.Equals:
+					if (this._match(CharCode.Equals)) { // support `==`
 						this._addToken(TokenType.Eq);
-					} else if (this._match('~')) {
+					} else if (this._match(CharCode.Tilde)) {
 						this._addToken(TokenType.RegexOp);
 					} else {
 						this._error();
 					}
 					break;
 
-				case '<': this._addToken(this._match('=') ? TokenType.LtEq : TokenType.Lt); break;
+				case CharCode.LessThan: this._addToken(this._match(CharCode.Equals) ? TokenType.LtEq : TokenType.Lt); break;
 
-				case '>': this._addToken(this._match('=') ? TokenType.GtEq : TokenType.Gt); break;
+				case CharCode.GreaterThan: this._addToken(this._match(CharCode.Equals) ? TokenType.GtEq : TokenType.Gt); break;
 
-				case '&':
-					if (this._match('&')) {
+				case CharCode.Ampersand:
+					if (this._match(CharCode.Ampersand)) {
 						this._addToken(TokenType.And);
 					} else {
 						this._error();
 					}
 					break;
 
-				case '|':
-					if (this._match('|')) {
+				case CharCode.Pipe:
+					if (this._match(CharCode.Pipe)) {
 						this._addToken(TokenType.Or);
 					} else {
 						this._error();
@@ -246,11 +246,11 @@ export class Scanner {
 					break;
 
 				// TODO@ulugbekna: 1) I don't think we need to handle whitespace here, 2) if we do, we should reconsider what characters we consider whitespace, including unicode, nbsp, etc.
-				case ' ':
-				case '\r':
-				case '\t':
-				case '\n':
-				case '\u00A0': // &nbsp
+				case CharCode.Space:
+				case CharCode.CarriageReturn:
+				case CharCode.Tab:
+				case CharCode.LineFeed:
+				case CharCode.NoBreakSpace: // &nbsp
 					break;
 
 				default:
@@ -264,23 +264,23 @@ export class Scanner {
 		return Array.from(this._tokens);
 	}
 
-	private _match(expected: string): boolean {
+	private _match(expected: number): boolean {
 		if (this._isAtEnd()) {
 			return false;
 		}
-		if (this._input[this._current] !== expected) {
+		if (this._input.charCodeAt(this._current) !== expected) {
 			return false;
 		}
 		this._current++;
 		return true;
 	}
 
-	private _advance(): string {
-		return this._input[this._current++];
+	private _advance(): number {
+		return this._input.charCodeAt(this._current++);
 	}
 
-	private _peek(): string {
-		return this._isAtEnd() ? '\0' : this._input[this._current];
+	private _peek(): number {
+		return this._isAtEnd() ? CharCode.Null : this._input.charCodeAt(this._current);
 	}
 
 	private _addToken(type: TokenTypeWithoutLexeme) {
@@ -312,7 +312,7 @@ export class Scanner {
 
 	// captures the lexeme without the leading and trailing '
 	private _quotedString() {
-		while (this._peek() !== `'` && !this._isAtEnd()) { // TODO@ulugbekna: add support for escaping ' ?
+		while (this._peek() !== CharCode.SingleQuote && !this._isAtEnd()) { // TODO@ulugbekna: add support for escaping ' ?
 			this._advance();
 		}
 
