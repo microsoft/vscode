@@ -126,7 +126,7 @@ export abstract class ContextKeyExpr {
 		return ContextKeySmallerEqualsExpr.create(key, value);
 	}
 
-	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
+	public static deserializeNew(serialized: string | null | undefined): ContextKeyExpression | undefined {
 		if (!serialized) {
 			return undefined;
 		}
@@ -152,7 +152,7 @@ export abstract class ContextKeyExpr {
 		return expr;
 	}
 
-	public static deserializeOld(serialized: string | null | undefined): ContextKeyExpression | undefined {
+	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
 		if (!serialized) {
 			return undefined;
 		}
@@ -1488,7 +1488,8 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 
 	public serialize(): string {
 		const value = this.regexp
-			? `/${this.regexp.source}/${this.regexp.flags}`
+			// ? `/${this.regexp.source}/${this.regexp.flags}`
+			? `/${this.regexp.source}/`
 			: '/invalid/';
 		return `${this.key} =~ ${value}`;
 	}
