@@ -126,30 +126,21 @@ export abstract class ContextKeyExpr {
 		return ContextKeySmallerEqualsExpr.create(key, value);
 	}
 
-	public static deserializeNew(serialized: string | null | undefined): ContextKeyExpression | undefined {
+	/**
+	 * Warning: experimental; the API might change.
+	 */
+	public static deserializeOrErrorNew(serialized: string | null | undefined): { type: 'ok'; expr: ContextKeyExpr } | { type: 'error'; readonly lexingErrors: string[]; readonly parsingErrors: readonly string[] } {
 		if (!serialized) {
-			return undefined;
+			return { type: 'error', lexingErrors: [], parsingErrors: [] };
 		}
 
 		const parser = new Parser();
 		const expr = parser.parse(serialized);
-		if (expr === undefined) { // print a console warning
-			const warning = [];
-			warning.push(`Failed to parse context key expression ("when clause"): ${serialized}\n`);
-			if (parser.lexingErrors.length > 0) {
-				warning.push('Lexing errors:\n\n');
-				parser.lexingErrors.forEach(token => warning.push(Scanner.reportError(token), '\n'));
-			}
-
-			if (parser.parsingErrors.length > 0) {
-				if (parser.lexingErrors.length > 0) { warning.push('\n\n'); } // separate lexing errors from parsing errors
-				warning.push('Parsing errors:\n\n');
-				parser.parsingErrors.forEach(message => warning.push(`${message}`, '\n'));
-			}
-			console.warn(warning.join(''));
+		if (expr === undefined) {
+			return { type: 'error', lexingErrors: parser.lexingErrors.map(token => Scanner.reportError(token)), parsingErrors: parser.parsingErrors };
+		} else {
+			return { type: 'ok', expr };
 		}
-
-		return expr;
 	}
 
 	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
@@ -1488,8 +1479,7 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 
 	public serialize(): string {
 		const value = this.regexp
-			// ? `/${this.regexp.source}/${this.regexp.flags}`
-			? `/${this.regexp.source}/`
+			? `/${this.regexp.source}/${this.regexp.flags}`
 			: '/invalid/';
 		return `${this.key} =~ ${value}`;
 	}
