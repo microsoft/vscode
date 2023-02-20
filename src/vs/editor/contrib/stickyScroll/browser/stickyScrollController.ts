@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export interface IStickyScrollController {
@@ -42,10 +42,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	private _focusDisposableStore: DisposableStore | undefined;
-	private _focusedStickyElement: Element | undefined;
+	private _focusedStickyElement: HTMLDivElement | undefined;
 	private _focusedStickyElementIndex: number | undefined;
 	private _stickyElements: HTMLCollection | undefined;
 	private _numberStickyElements: number | undefined;
+	private _stickyScrollFocusedContextKey: RawContextKey<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -57,6 +58,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		super();
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor, languageFeaturesService, instaService);
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService);
+		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused;
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
 		this._register(this._stickyScrollWidget);
@@ -92,8 +94,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	public focus(): void {
-		const stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused;
-		const focusState = stickyScrollFocusedContextKey.getValue(this._contextKeyService);
+		const focusState = this._stickyScrollFocusedContextKey.getValue(this._contextKeyService);
 		const rootNode = this._stickyScrollWidget.getDomNode();
 		this._stickyElements = rootNode.children;
 		this._numberStickyElements = this._stickyElements.length;
@@ -104,9 +105,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		}
 		this._focusDisposableStore = new DisposableStore();
-		stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(true);
-		this._focusedStickyElement = rootNode.lastElementChild!;
+		this._stickyScrollFocusedContextKey.bindTo(this._contextKeyService).set(true);
+		this._focusedStickyElement = rootNode.lastElementChild! as HTMLDivElement;
 		this._focusedStickyElement.classList.add('focus');
+		this._focusedStickyElement.focus();
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
 
 		// When scrolling remove focus
@@ -131,8 +133,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (this._focusedStickyElement && this._focusedStickyElementIndex! < this._numberStickyElements! - 1) {
 			this._focusedStickyElement.classList.remove('focus');
 			this._focusedStickyElementIndex!++;
-			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)!;
+			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
+			this._focusedStickyElement.focus();
 		}
 	}
 
@@ -140,8 +143,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (this._focusedStickyElement && this._focusedStickyElementIndex! > 0) {
 			this._focusedStickyElement.classList.remove('focus');
 			this._focusedStickyElementIndex!--;
-			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)!;
+			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
+			this._focusedStickyElement.focus();
 		}
 	}
 
