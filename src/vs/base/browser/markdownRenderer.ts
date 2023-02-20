@@ -388,6 +388,7 @@ export const allowedMarkdownAttr = [
 	'target',
 	'title',
 	'width',
+	'start',
 ];
 
 function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownStringTrustedOptions }): { config: dompurify.Config; allowedSchemes: string[] } {
