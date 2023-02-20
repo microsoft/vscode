@@ -392,7 +392,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: this.hoverDelegate }));
+		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: experimentalHover ? this.hoverDelegate : undefined }));
 		templateDisposables.add(label.onDidRender(() => {
 			try {
 				if (templateData.currentContext) {
@@ -490,8 +491,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
+		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			title: isStringArray(label) ? label[0] : label,
+			title: experimentalHover ? isStringArray(label) ? label[0] : label : undefined,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,

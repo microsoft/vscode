@@ -73,8 +73,8 @@ exports.keyboardMaps = [
 
 exports.code = [
 	createModuleDescription('vs/code/electron-main/main'),
-	createModuleDescription('vs/code/node/cli/main'),
-	createModuleDescription('vs/code/node/cli/cliProcessMain', ['vs/code/node/cli/main']),
+	createModuleDescription('vs/code/node/cli'),
+	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
