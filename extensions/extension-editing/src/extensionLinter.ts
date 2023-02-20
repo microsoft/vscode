@@ -10,7 +10,7 @@ import { URL } from 'url';
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
+import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
@@ -110,11 +110,13 @@ export class ExtensionLinter {
 	}
 
 	private async lint() {
-		this.lintPackageJson();
-		await this.lintReadme();
+		await Promise.all([
+			this.lintPackageJson(),
+			this.lintReadme()
+		]);
 	}
 
-	private lintPackageJson() {
+	private async lintPackageJson() {
 		for (const document of Array.from(this.packageJsonQ)) {
 			this.packageJsonQ.delete(document);
 			if (document.isClosed) {
@@ -190,9 +192,70 @@ export class ExtensionLinter {
 						}
 					}
 				}
+
+				const whenClauseLinting = await this.lintWhenClauses(findNodeAtLocation(tree, ['contributes']), document);
+				diagnostics.push(...whenClauseLinting);
 			}
 			this.diagnosticsCollection.set(document.uri, diagnostics);
 		}
+	}
+
+	/** lints `when` and `enablement` clauses */
+	private async lintWhenClauses(contributesNode: JsonNode | undefined, document: TextDocument): Promise<Diagnostic[]> {
+		if (!contributesNode) {
+			return [];
+		}
+
+		const whens: JsonNode[] = [];
+
+		function findWhens(node: JsonNode | undefined, clauseName: string) {
+			if (node) {
+				switch (node.type) {
+					case 'property':
+						if (node.children) {
+							const key = node.children[0];
+							const value = node.children[1];
+							switch (value.type) {
+								case 'string':
+									if (key.value === clauseName && typeof value.value === 'string' /* careful: `.value` MUST be a string 1) because a when/enablement clause is string; so also, type cast to string below is safe */) {
+										whens.push(value);
+									}
+								case 'object':
+								case 'array':
+									findWhens(value, clauseName);
+							}
+						}
+						break;
+					case 'object':
+					case 'array':
+						if (node.children) {
+							node.children.forEach(n => findWhens(n, clauseName));
+						}
+				}
+			}
+		}
+
+		[
+			findNodeAtLocation(contributesNode, ['menus']),
+			findNodeAtLocation(contributesNode, ['views']),
+			findNodeAtLocation(contributesNode, ['viewsWelcome']),
+			findNodeAtLocation(contributesNode, ['keybindings']),
+		].forEach(n => findWhens(n, 'when'));
+
+		findWhens(findNodeAtLocation(contributesNode, ['commands']), 'enablement');
+
+		const parseResults = await commands.executeCommand<(string | undefined)[]>('_parseWhenExpressions', whens.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
+
+		const diagnostics: Diagnostic[] = [];
+		for (let i = 0; i < parseResults.length; ++i) {
+			const parseRes = parseResults[i];
+			if (parseRes) {
+				const start = whens[i].offset;
+				const end = whens[i].offset + whens[i].length;
+				diagnostics.push(new Diagnostic(new Range(document.positionAt(start), document.positionAt(end)), parseRes, DiagnosticSeverity.Warning));
+			}
+		}
+		return diagnostics;
 	}
 
 	private async lintReadme() {
