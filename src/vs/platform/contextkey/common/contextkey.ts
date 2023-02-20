@@ -275,6 +275,14 @@ value ::=
 ```
 */
 
+export type ParserConfig = {
+	regexParsingWithErrorRecovery: boolean;
+};
+
+const defaultConfig: ParserConfig = {
+	regexParsingWithErrorRecovery: true // with this option enabled, the parser can recover from regex parsing errors, e.g., unescaped slashes
+};
+
 class ParseError extends Error { }
 
 /**
@@ -312,6 +320,9 @@ export class Parser {
 
 	get parsingErrors(): Readonly<string[]> {
 		return this._parsingErrors;
+	}
+
+	constructor(private _config: ParserConfig = defaultConfig) {
 	}
 
 	/**
@@ -423,6 +434,19 @@ export class Parser {
 
 					// @ulugbekna: we need to reconstruct the regex from the tokens because some extensions use unescaped slashes in regexes
 					const expr = this._peek();
+
+					if (!this._config.regexParsingWithErrorRecovery) {
+						this._advance();
+						if (expr.type !== TokenType.RegexStr) {
+							throw this._errExpectedButGot(`REGEX`, expr);
+						}
+						const regexLexeme = expr.lexeme;
+						const closingSlashIndex = regexLexeme.lastIndexOf('/');
+						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
+						const regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+						return ContextKeyExpr.regex(key, regexp);
+					}
+
 					switch (expr.type) {
 						case TokenType.RegexStr:
 						case TokenType.Error: { // also handle an ErrorToken in case of smth such as /(/file)/
