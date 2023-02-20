@@ -4,27 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IState, ITokenizationSupport, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
-import { LanguageId, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import type { IGrammar, StateStack } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { LanguageId, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationResult } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import type { IGrammar, StateStack } from 'vscode-textmate';
 
-export class TMTokenization extends Disposable implements ITokenizationSupport {
-
-	private readonly _grammar: IGrammar;
-	private readonly _containsEmbeddedLanguages: boolean;
-	private readonly _seenLanguages: boolean[];
-	private readonly _initialState: StateStack;
-
+export class TextMateTokenizationSupport extends Disposable implements ITokenizationSupport {
+	private readonly _seenLanguages: boolean[] = [];
 	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = this._register(new Emitter<LanguageId>());
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
-	constructor(grammar: IGrammar, initialState: StateStack, containsEmbeddedLanguages: boolean) {
+	constructor(
+		private readonly _grammar: IGrammar,
+		private readonly _initialState: StateStack,
+		private readonly _containsEmbeddedLanguages: boolean,
+		private readonly _createBackgroundTokenizer?: (textModel: ITextModel, tokenStore: IBackgroundTokenizationStore) => IBackgroundTokenizer | undefined
+	) {
 		super();
-		this._grammar = grammar;
-		this._initialState = initialState;
-		this._containsEmbeddedLanguages = containsEmbeddedLanguages;
-		this._seenLanguages = [];
 	}
 
 	public getInitialState(): IState {
@@ -33,6 +30,13 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 
 	public tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult {
 		throw new Error('Not supported!');
+	}
+
+	public createBackgroundTokenizer(textModel: ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined {
+		if (this._createBackgroundTokenizer) {
+			return this._createBackgroundTokenizer(textModel, store);
+		}
+		return undefined;
 	}
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: StateStack): EncodedTokenizationResult {
@@ -66,7 +70,6 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 			endState = state;
 		} else {
 			endState = textMateResult.ruleStack;
-
 		}
 
 		return new EncodedTokenizationResult(textMateResult.tokens, endState);
