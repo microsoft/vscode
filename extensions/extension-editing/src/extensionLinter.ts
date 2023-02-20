@@ -115,10 +115,10 @@ export class ExtensionLinter {
 	}
 
 	private lintPackageJson() {
-		this.packageJsonQ.forEach(document => {
+		for (const document of Array.from(this.packageJsonQ)) {
 			this.packageJsonQ.delete(document);
 			if (document.isClosed) {
-				return;
+				continue;
 			}
 
 			const diagnostics: Diagnostic[] = [];
@@ -192,7 +192,7 @@ export class ExtensionLinter {
 				}
 			}
 			this.diagnosticsCollection.set(document.uri, diagnostics);
-		});
+		}
 	}
 
 	private async lintReadme() {
