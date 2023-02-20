@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
@@ -19,15 +20,24 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ExtensionManagementError, ExtensionManagementErrorCode, getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsScanner, InstallGalleryExtensionTask } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -62,6 +72,26 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 		extension: IGalleryExtension,
 		extensionDownloader: ExtensionsDownloader,
 	) {
+		const instantiationService = new TestInstantiationService();
+		const logService = instantiationService.stub(ILogService, new NullLogService());
+		const fileService = instantiationService.stub(IFileService, new FileService(logService));
+		const fileSystemProvider = new InMemoryFileSystemProvider();
+		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const systemExtensionsLocation = joinPath(ROOT, 'system');
+		const userExtensionsLocation = joinPath(ROOT, 'extensions');
+		instantiationService.stub(INativeEnvironmentService, {
+			userHome: ROOT,
+			userRoamingDataHome: ROOT,
+			builtinExtensionsPath: systemExtensionsLocation.fsPath,
+			extensionsPath: userExtensionsLocation.fsPath,
+			userDataPath: userExtensionsLocation.fsPath
+		});
+		instantiationService.stub(IProductService, {});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const uriIdentityService = instantiationService.stub(IUriIdentityService, instantiationService.createInstance(UriIdentityService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, instantiationService.createInstance(UserDataProfilesService));
+		const extensionsProfileScannerService = instantiationService.stub(IExtensionsProfileScannerService, instantiationService.createInstance(ExtensionsProfileScannerService));
+		const extensionsScannerService = instantiationService.stub(IExtensionsScannerService, instantiationService.createInstance(ExtensionsScannerService));
 		super(
 			{
 				name: extension.name,
@@ -70,14 +100,23 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 				engines: { vscode: '*' },
 			},
 			extension,
-			{},
+			{ profileLocation: userDataProfilesService.defaultProfile.extensionsResource },
 			extensionDownloader,
 			new TestExtensionsScanner(),
-			new NullLogService(),
+			uriIdentityService,
+			userDataProfilesService,
+			extensionsScannerService,
+			extensionsProfileScannerService,
+			logService,
 		);
 	}
 
-	protected override async installExtension(): Promise<ILocalExtension> {
+	protected override async doRun(token: CancellationToken): Promise<ILocalExtension> {
+		const result = await this.install(token);
+		return result[0];
+	}
+
+	protected override async extractExtension(): Promise<ILocalExtension> {
 		this.installed = true;
 		return new class extends mock<ILocalExtension>() { };
 	}

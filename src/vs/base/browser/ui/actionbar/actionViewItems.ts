@@ -415,7 +415,7 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export class SelectActionViewItem extends BaseActionViewItem {
+export class SelectActionViewItem<T = string> extends BaseActionViewItem {
 	protected selectBox: SelectBox;
 
 	constructor(ctx: unknown, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
@@ -444,7 +444,7 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		this.actionRunner.run(this._action, this.getActionContext(option, index));
 	}
 
-	protected getActionContext(option: string, index: number) {
+	protected getActionContext(option: string, index: number): T | string {
 		return option;
 	}
 

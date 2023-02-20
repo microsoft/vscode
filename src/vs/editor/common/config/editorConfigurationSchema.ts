@@ -95,6 +95,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
+		'editor.experimental.asyncTokenization': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker.")
+		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
 			default: null, // We want to distinguish the empty array from not configured.

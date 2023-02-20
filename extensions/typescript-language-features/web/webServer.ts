@@ -14,6 +14,9 @@ import { URI } from 'vscode-uri';
 const watchFiles: Map<string, { path: string; callback: ts.FileWatcherCallback; pollingInterval?: number; options?: ts.WatchOptions }> = new Map();
 const watchDirectories: Map<string, { path: string; callback: ts.DirectoryWatcherCallback; recursive?: boolean; options?: ts.WatchOptions }> = new Map();
 let session: WorkerSession | undefined;
+
+const projectRootPaths = new Map</* original path*/ string, /* parsed URI */ URI>();
+
 // END GLOBALS
 // BEGIN misc internals
 const indent: (str: string) => string = (ts as any).server.indent;
@@ -94,6 +97,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
+			if (looksLikeLibDtsPath(path)) { // We don't support watching lib files on web since they are readonly
+				return { close() { } };
+			}
+
 			logVerbose('fs.watchFile', { path });
 
 			watchFiles.set(path, { path, callback, pollingInterval, options });
@@ -171,7 +178,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		readFile(path) {
 			logVerbose('fs.readFile', { path });
 
-			if (!fs || path.startsWith('/lib.')) {
+			if (!fs) {
 				const webPath = getWebPath(path);
 				if (webPath) {
 					const request = new XMLHttpRequest();
@@ -188,7 +195,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				const contents = fs.readFile(toResource(path)).slice();
 				return textDecoder.decode(contents);
 			} catch (error) {
-				logNormal('Error fs.readFile', { path, error });
+				logNormal('Error fs.readFile', { path, error: error + '' });
 				return undefined;
 			}
 		},
@@ -202,7 +209,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				return fs.stat(toResource(path)).size;
 			} catch (error) {
-				logNormal('Error fs.getFileSize', { path, error });
+				logNormal('Error fs.getFileSize', { path, error: error + '' });
 				return 0;
 			}
 		},
@@ -220,7 +227,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				fs.writeFile(toResource(path), textEncoder.encode(data));
 			} catch (error) {
-				logNormal('Error fs.writeFile', { path, error });
+				logNormal('Error fs.writeFile', { path, error: error + '' });
 			}
 		},
 		resolvePath(path: string): string {
@@ -244,7 +251,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				return fs.stat(toResource(path)).type === FileType.File;
 			} catch (error) {
-				logNormal('Error fs.fileExists', { path, error });
+				logNormal('Error fs.fileExists', { path, error: error + '' });
 				return false;
 			}
 		},
@@ -258,7 +265,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				return fs.stat(toResource(path)).type === FileType.Directory;
 			} catch (error) {
-				logNormal('Error fs.directoryExists', { path, error });
+				logNormal('Error fs.directoryExists', { path, error: error + '' });
 				return false;
 			}
 		},
@@ -272,7 +279,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				fs.createDirectory(toResource(path));
 			} catch (error) {
-				logNormal('Error fs.createDirectory', { path, error });
+				logNormal('Error fs.createDirectory', { path, error: error + '' });
 			}
 		},
 		getExecutingFilePath(): string {
@@ -297,7 +304,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				return new Date(fs.stat(toResource(path)).mtime);
 			} catch (error) {
-				logNormal('Error fs.getModifiedTime', { path, error });
+				logNormal('Error fs.getModifiedTime', { path, error: error + '' });
 				return undefined;
 			}
 		},
@@ -311,7 +318,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			try {
 				fs.delete(toResource(path));
 			} catch (error) {
-				logNormal('Error fs.deleteFile', { path, error });
+				logNormal('Error fs.deleteFile', { path, error: error + '' });
 			}
 		},
 		createHash: generateDjb2Hash,
@@ -386,20 +393,58 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	/**
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
-	function toResource(filepath: string) {
-		if (filepath.startsWith('/lib.') && filepath.endsWith('.d.ts')) {
+	function toResource(filepath: string): URI {
+		if (looksLikeLibDtsPath(filepath)) {
 			return URI.from({
 				scheme: extensionUri.scheme,
 				authority: extensionUri.authority,
 				path: extensionUri.path + '/dist/browser/typescript/' + filepath.slice(1)
 			});
 		}
-		const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
-		if (!parts) {
-			throw new Error('complex regex failed to match ' + filepath);
+
+		const uri = filePathToResourceUri(filepath);
+		if (!uri) {
+			throw new Error(`Could not parse path ${filepath}`);
 		}
-		return URI.parse(parts[1] + '://' + (parts[2] === 'ts-nul-authority' ? '' : parts[2]) + (parts[3] ? '/' + parts[3] : ''));
+
+		// Check if TS is trying to read a file outside of the project root.
+		// We allow reading files on unknown scheme as these may be loose files opened by the user.
+		// However we block reading files on schemes that are on a known file system with an unknown root
+		let allowRead: 'implicit' | 'block' | 'allow' = 'implicit';
+		for (const projectRoot of projectRootPaths.values()) {
+			if (uri.scheme === projectRoot.scheme) {
+				if (uri.toString().startsWith(projectRoot.toString())) {
+					allowRead = 'allow';
+					break;
+				}
+
+				// Tentatively block the read but a future loop may allow it
+				allowRead = 'block';
+			}
+		}
+
+		if (allowRead === 'block') {
+			throw new Error(`Could not read file outside of project root ${filepath}`);
+		}
+
+		return uri;
 	}
+}
+
+function looksLikeLibDtsPath(filepath: string) {
+	return filepath.startsWith('/lib.') && filepath.endsWith('.d.ts');
+}
+
+function filePathToResourceUri(filepath: string): URI | undefined {
+	const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
+	if (!parts) {
+		return undefined;
+	}
+
+	const scheme = parts[1];
+	const authority = parts[2] === 'ts-nul-authority' ? '' : parts[2];
+	const path = parts[3];
+	return URI.from({ scheme, authority, path: (path ? '/' + path : path) });
 }
 
 class WasmCancellationToken implements ts.server.ServerCancellationToken {
@@ -435,12 +480,14 @@ interface StartSessionOptions {
 }
 
 class WorkerSession extends ts.server.Session<{}> {
-	wasmCancellationToken: WasmCancellationToken;
-	listener: (message: any) => void;
+
+	readonly wasmCancellationToken: WasmCancellationToken;
+	readonly listener: (message: any) => void;
+
 	constructor(
 		host: ts.server.ServerHost,
 		options: StartSessionOptions,
-		public port: MessagePort,
+		public readonly port: MessagePort,
 		logger: ts.server.Logger,
 		hrtime: ts.server.SessionOptions['hrtime']
 	) {
@@ -450,12 +497,13 @@ class WorkerSession extends ts.server.Session<{}> {
 			cancellationToken,
 			...options,
 			typingsInstaller: ts.server.nullTypingsInstaller, // TODO: Someday!
-			byteLength: () => { throw new Error('Not implemented'); }, // Formats the message text in send of Session which is overriden in this class so not needed
+			byteLength: () => { throw new Error('Not implemented'); }, // Formats the message text in send of Session which is overridden in this class so not needed
 			hrtime,
 			logger,
 			canUseEvents: true,
 		});
 		this.wasmCancellationToken = cancellationToken;
+
 		this.listener = (message: any) => {
 			// TEMP fix since Cancellation.retrieveCheck is not correct
 			function retrieveCheck2(data: any) {
@@ -472,9 +520,27 @@ class WorkerSession extends ts.server.Session<{}> {
 			if (shouldCancel) {
 				this.wasmCancellationToken.shouldCancel = shouldCancel;
 			}
+
+			try {
+				if (message.data.command === 'updateOpen') {
+					const args = message.data.arguments as ts.server.protocol.UpdateOpenRequestArgs;
+					for (const open of args.openFiles ?? []) {
+						if (open.projectRootPath) {
+							const uri = filePathToResourceUri(open.projectRootPath);
+							if (uri) {
+								projectRootPaths.set(open.projectRootPath, uri);
+							}
+						}
+					}
+				}
+			} catch {
+				// Noop
+			}
+
 			this.onMessage(message.data);
 		};
 	}
+
 	public override send(msg: ts.server.protocol.Message) {
 		if (msg.type === 'event' && !this.canUseEvents) {
 			if (this.logger.hasLevel(ts.server.LogLevel.verbose)) {
@@ -487,18 +553,22 @@ class WorkerSession extends ts.server.Session<{}> {
 		}
 		this.port.postMessage(msg);
 	}
+
 	protected override parseMessage(message: {}): ts.server.protocol.Request {
 		return message as ts.server.protocol.Request;
 	}
+
 	protected override toStringMessage(message: {}) {
 		return JSON.stringify(message, undefined, 2);
 	}
+
 	override exit() {
 		this.logger.info('Exiting...');
 		this.port.removeEventListener('message', this.listener);
 		this.projectService.closeLog();
 		close();
 	}
+
 	listen() {
 		this.logger.info(`webServer.ts: tsserver starting to listen for messages on 'message'...`);
 		this.port.onmessage = this.listener;
@@ -588,27 +658,43 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 	session.listen();
 }
 
+function parseLogLevel(input: string | undefined): ts.server.LogLevel | undefined {
+	switch (input) {
+		case 'normal': return ts.server.LogLevel.normal;
+		case 'terse': return ts.server.LogLevel.terse;
+		case 'verbose': return ts.server.LogLevel.verbose;
+		default: return undefined;
+	}
+}
 
 let hasInitialized = false;
 const listener = async (e: any) => {
 	if (!hasInitialized) {
 		hasInitialized = true;
 		if ('args' in e.data) {
+			const args = e.data.args;
+
+			const logLevel = parseLogLevel(findArgument(args, '--logVerbosity'));
+			const doLog = typeof logLevel === 'undefined'
+				? (_message: string) => { }
+				: (message: string) => { postMessage({ type: 'log', body: message }); };
+
 			const logger: ts.server.Logger = {
 				close: () => { },
-				hasLevel: level => level <= ts.server.LogLevel.verbose,
+				hasLevel: level => typeof logLevel === 'undefined' ? false : level <= logLevel,
 				loggingEnabled: () => true,
 				perftrc: () => { },
-				info: s => postMessage({ type: 'log', body: s + '\n' }),
-				msg: s => postMessage({ type: 'log', body: s + '\n' }),
+				info: doLog,
+				msg: doLog,
 				startGroup: () => { },
 				endGroup: () => { },
-				getLogFileName: () => 'tsserver.log',
+				getLogFileName: () => undefined
 			};
+
 			const [sync, tsserver, watcher] = e.ports as MessagePort[];
 			const extensionUri = URI.from(e.data.extensionUri);
 			watcher.onmessage = (e: any) => updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
-			await initializeSession(e.data.args, extensionUri, { sync, tsserver, watcher }, logger);
+			await initializeSession(args, extensionUri, { sync, tsserver, watcher }, logger);
 		} else {
 			console.error('unexpected message in place of initial message: ' + JSON.stringify(e.data));
 		}
@@ -617,4 +703,3 @@ const listener = async (e: any) => {
 	console.error(`unexpected message on main channel: ${JSON.stringify(e)}`);
 };
 addEventListener('message', listener);
-

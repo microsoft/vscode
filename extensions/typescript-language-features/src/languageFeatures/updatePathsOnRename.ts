@@ -57,12 +57,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
 			const [{ newUri, oldUri }] = e.files;
-			const newFilePath = this.client.toPath(newUri);
+			const newFilePath = this.client.toTsFilePath(newUri);
 			if (!newFilePath) {
 				return;
 			}
 
-			const oldFilePath = this.client.toPath(oldUri);
+			const oldFilePath = this.client.toTsFilePath(oldUri);
 			if (!oldFilePath) {
 				return;
 			}
@@ -76,7 +76,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			// Try to get a js/ts file that is being moved
 			// For directory moves, this returns a js/ts file under the directory.
 			const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
-			if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
+			if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
 				return;
 			}
 

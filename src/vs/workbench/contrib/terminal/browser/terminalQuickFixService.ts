@@ -10,19 +10,22 @@ import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
+	declare _serviceBrand: undefined;
+
+	private _selectors: Map<string, ITerminalCommandSelector> = new Map();
+
+	private _providers: Map<string, ITerminalQuickFixProvider> = new Map();
+	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
+
 	private readonly _onDidRegisterProvider = new Emitter<ITerminalQuickFixProviderSelector>();
 	readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
 	private readonly _onDidRegisterCommandSelector = new Emitter<ITerminalCommandSelector>();
 	readonly onDidRegisterCommandSelector = this._onDidRegisterCommandSelector.event;
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
-	_serviceBrand: undefined;
-	_providers: Map<string, ITerminalQuickFixProvider> = new Map();
-	_selectors: Map<string, ITerminalCommandSelector> = new Map();
-	get providers(): Map<string, ITerminalQuickFixProvider> { return this._providers; }
 
 	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
-		this._terminalContributionService.quickFixes.then(selectors => {
+		this._terminalContributionService.terminalQuickFixes.then(selectors => {
 			for (const selector of selectors) {
 				this.registerCommandSelector(selector);
 			}
@@ -35,16 +38,29 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	}
 
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable {
-		this._providers.set(id, provider);
-		const selector = this._selectors.get(id);
-		if (!selector) {
-			throw new Error(`No registered selector for ID: ${id}`);
-		}
-		this._onDidRegisterProvider.fire({ selector, provider });
+		// This is more complicated than it looks like it should be because we need to return an
+		// IDisposable synchronously but we must await ITerminalContributionService.quickFixes
+		// asynchronously before actually registering the provider.
+		let disposed = false;
+		this._terminalContributionService.terminalQuickFixes.then(() => {
+			if (disposed) {
+				return;
+			}
+			this._providers.set(id, provider);
+			const selector = this._selectors.get(id);
+			if (!selector) {
+				throw new Error(`No registered selector for ID: ${id}`);
+			}
+			this._onDidRegisterProvider.fire({ selector, provider });
+		});
 		return toDisposable(() => {
-			this._selectors.delete(id);
+			disposed = true;
 			this._providers.delete(id);
-			this._onDidUnregisterProvider.fire(selector.id);
+			const selector = this._selectors.get(id);
+			if (selector) {
+				this._selectors.delete(id);
+				this._onDidUnregisterProvider.fire(selector.id);
+			}
 		});
 	}
 }

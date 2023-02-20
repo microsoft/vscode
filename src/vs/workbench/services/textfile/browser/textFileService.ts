@@ -20,7 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/model';
 import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -556,14 +556,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
 			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
 			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
-		};
+		});
 
-		return (await this.dialogService.confirm(confirm)).confirmed;
+		return confirmed;
 	}
 
 	private async suggestSavePath(resource: URI): Promise<URI> {
@@ -591,13 +591,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// of untitled model if it is a valid path name and
 				// figure out the file extension from the mode if any.
 
+				let nameCandidate: string;
 				if (await this.pathService.hasValidBasename(joinPath(defaultFilePath, model.name), model.name)) {
-					const languageId = model.getLanguageId();
-					if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
-						suggestedFilename = this.suggestFilename(languageId, model.name);
-					} else {
-						suggestedFilename = model.name;
-					}
+					nameCandidate = model.name;
+				} else {
+					nameCandidate = basename(resource);
+				}
+
+				const languageId = model.getLanguageId();
+				if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
+					suggestedFilename = this.suggestFilename(languageId, nameCandidate);
+				} else {
+					suggestedFilename = nameCandidate;
 				}
 			}
 		}

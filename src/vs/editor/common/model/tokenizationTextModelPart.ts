@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
@@ -34,7 +33,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: ContiguousTokensStore;
 	private readonly _semanticTokens: SparseTokensStore;
 	private readonly _tokenization: TextModelTokenization;
@@ -54,19 +52,19 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._semanticTokens = new SparseTokensStore(
 			this._languageService.languageIdCodec
 		);
-		this._tokenization = new TextModelTokenization(
+		this._tokenization = this._register(new TextModelTokenization(
 			_textModel,
 			this,
 			this._languageService.languageIdCodec
-		);
+		));
 
-		this._languageRegistryListener = this._languageConfigurationService.onDidChange(
+		this._register(this._languageConfigurationService.onDidChange(
 			e => {
 				if (e.affects(this._languageId)) {
 					this._onDidChangeLanguageConfiguration.fire({});
 				}
 			}
-		);
+		));
 	}
 
 	_hasListeners(): boolean {
@@ -74,7 +72,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
 			|| this._onDidChangeTokens.hasListeners()
-			|| this._onBackgroundTokenizationStateChanged.hasListeners()
 		);
 	}
 
@@ -104,35 +101,15 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._semanticTokens.flush();
 	}
 
+	// TODO@hediet TODO@alexdima what is the difference between this and acceptEdit?
 	public handleDidChangeContent(change: IModelContentChangedEvent): void {
 		this._tokenization.handleDidChangeContent(change);
 	}
 
-	public override dispose(): void {
-		this._languageRegistryListener.dispose();
-		this._tokenization.dispose();
-		super.dispose();
-	}
-
-	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
+	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
 	}
-	private handleTokenizationProgress(completed: boolean) {
-		if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
-			// We already did a full tokenization and don't go back to progressing.
-			return;
-		}
-		const newState = completed ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress;
-		if (this._backgroundTokenizationState !== newState) {
-			this._backgroundTokenizationState = newState;
-			this.bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
-			this._onBackgroundTokenizationStateChanged.fire();
-		}
-	}
-
-	private readonly _onBackgroundTokenizationStateChanged = this._register(new Emitter<void>());
-	public readonly onBackgroundTokenizationStateChanged: Event<void> = this._onBackgroundTokenizationStateChanged.event;
 
 	public setLineTokens(
 		lineNumber: number,
@@ -151,64 +128,76 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		);
 	}
 
-	public setTokens(
-		tokens: ContiguousMultilineTokens[],
-		backgroundTokenizationCompleted: boolean = false
-	): void {
-		if (tokens.length !== 0) {
-			const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
+	public handleBackgroundTokenizationFinished(): void {
+		if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
+			// We already did a full tokenization and don't go back to progressing.
+			return;
+		}
+		const newState = BackgroundTokenizationState.Completed;
+		this._backgroundTokenizationState = newState;
+		this.bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
+	}
 
-			for (let i = 0, len = tokens.length; i < len; i++) {
-				const element = tokens[i];
-				let minChangedLineNumber = 0;
-				let maxChangedLineNumber = 0;
-				let hasChange = false;
-				for (
-					let lineNumber = element.startLineNumber;
-					lineNumber <= element.endLineNumber;
-					lineNumber++
-				) {
-					if (hasChange) {
-						this._tokens.setTokens(
-							this._languageId,
-							lineNumber - 1,
-							this._textModel.getLineLength(lineNumber),
-							element.getLineTokens(lineNumber),
-							false
-						);
+	public get hasTokens(): boolean {
+		return this._tokens.hasTokens;
+	}
+
+	public setTokens(tokens: ContiguousMultilineTokens[]): void {
+		if (tokens.length === 0) {
+			return;
+		}
+
+		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
+
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const element = tokens[i];
+			let minChangedLineNumber = 0;
+			let maxChangedLineNumber = 0;
+			let hasChange = false;
+			for (
+				let lineNumber = element.startLineNumber;
+				lineNumber <= element.endLineNumber;
+				lineNumber++
+			) {
+				if (hasChange) {
+					this._tokens.setTokens(
+						this._languageId,
+						lineNumber - 1,
+						this._textModel.getLineLength(lineNumber),
+						element.getLineTokens(lineNumber),
+						false
+					);
+					maxChangedLineNumber = lineNumber;
+				} else {
+					const lineHasChange = this._tokens.setTokens(
+						this._languageId,
+						lineNumber - 1,
+						this._textModel.getLineLength(lineNumber),
+						element.getLineTokens(lineNumber),
+						true
+					);
+					if (lineHasChange) {
+						hasChange = true;
+						minChangedLineNumber = lineNumber;
 						maxChangedLineNumber = lineNumber;
-					} else {
-						const lineHasChange = this._tokens.setTokens(
-							this._languageId,
-							lineNumber - 1,
-							this._textModel.getLineLength(lineNumber),
-							element.getLineTokens(lineNumber),
-							true
-						);
-						if (lineHasChange) {
-							hasChange = true;
-							minChangedLineNumber = lineNumber;
-							maxChangedLineNumber = lineNumber;
-						}
 					}
 				}
-				if (hasChange) {
-					ranges.push({
-						fromLineNumber: minChangedLineNumber,
-						toLineNumber: maxChangedLineNumber,
-					});
-				}
 			}
-
-			if (ranges.length > 0) {
-				this._emitModelTokensChangedEvent({
-					tokenizationSupportChanged: false,
-					semanticTokensApplied: false,
-					ranges: ranges,
+			if (hasChange) {
+				ranges.push({
+					fromLineNumber: minChangedLineNumber,
+					toLineNumber: maxChangedLineNumber,
 				});
 			}
 		}
-		this.handleTokenizationProgress(backgroundTokenizationCompleted);
+
+		if (ranges.length > 0) {
+			this._emitModelTokensChangedEvent({
+				tokenizationSupportChanged: false,
+				semanticTokensApplied: false,
+				ranges: ranges,
+			});
+		}
 	}
 
 	public setSemanticTokens(

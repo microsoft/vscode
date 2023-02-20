@@ -112,6 +112,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	private disposed?: true;
 
 	protected _headElement?: HTMLDivElement;
+	protected _titleElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;
 	protected _secondaryHeading?: HTMLElement;
 	protected _metaHeading?: HTMLElement;
@@ -180,18 +181,18 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _fillHead(container: HTMLElement, noCloseAction?: boolean): void {
-		const titleElement = dom.$('.peekview-title');
+		this._titleElement = dom.$('.peekview-title');
 		if ((this.options as IPeekViewOptions).supportOnTitleClick) {
-			titleElement.classList.add('clickable');
-			dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
+			this._titleElement.classList.add('clickable');
+			dom.addStandardDisposableListener(this._titleElement, 'click', event => this._onTitleClick(event));
 		}
-		dom.append(this._headElement!, titleElement);
+		dom.append(this._headElement!, this._titleElement);
 
-		this._fillTitleIcon(titleElement);
+		this._fillTitleIcon(this._titleElement);
 		this._primaryHeading = dom.$('span.filename');
 		this._secondaryHeading = dom.$('span.dirname');
 		this._metaHeading = dom.$('span.meta');
-		dom.append(titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
+		dom.append(this._titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
 
 		const actionsContainer = dom.$('.peekview-actions');
 		dom.append(this._headElement!, actionsContainer);
@@ -289,7 +290,7 @@ export const peekViewResultsSelectionBackground = registerColor('peekViewResult.
 export const peekViewResultsSelectionForeground = registerColor('peekViewResult.selectionForeground', { dark: Color.white, light: '#6C6C6C', hcDark: Color.white, hcLight: editorForeground }, nls.localize('peekViewResultsSelectionForeground', 'Foreground color of the selected entry in the peek view result list.'));
 export const peekViewEditorBackground = registerColor('peekViewEditor.background', { dark: '#001F33', light: '#F2F8FC', hcDark: Color.black, hcLight: Color.white }, nls.localize('peekViewEditorBackground', 'Background color of the peek view editor.'));
 export const peekViewEditorGutterBackground = registerColor('peekViewEditorGutter.background', { dark: peekViewEditorBackground, light: peekViewEditorBackground, hcDark: peekViewEditorBackground, hcLight: peekViewEditorBackground }, nls.localize('peekViewEditorGutterBackground', 'Background color of the gutter in the peek view editor.'));
-export const peekViewEditorStickScrollBackground = registerColor('peekViewEditorStickScroll.background', { dark: peekViewEditorBackground, light: peekViewEditorBackground, hcDark: peekViewEditorBackground, hcLight: peekViewEditorBackground }, nls.localize('peekViewEditorStickScrollBackground', 'Background color of sticky scroll in the peek view editor.'));
+export const peekViewEditorStickyScrollBackground = registerColor('peekViewEditorStickyScroll.background', { dark: peekViewEditorBackground, light: peekViewEditorBackground, hcDark: peekViewEditorBackground, hcLight: peekViewEditorBackground }, nls.localize('peekViewEditorStickScrollBackground', 'Background color of sticky scroll in the peek view editor.'));
 
 export const peekViewResultsMatchHighlight = registerColor('peekViewResult.matchHighlightBackground', { dark: '#ea5c004d', light: '#ea5c004d', hcDark: null, hcLight: null }, nls.localize('peekViewResultsMatchHighlight', 'Match highlight color in the peek view result list.'));
 export const peekViewEditorMatchHighlight = registerColor('peekViewEditor.matchHighlightBackground', { dark: '#ff8f0099', light: '#f5d802de', hcDark: null, hcLight: null }, nls.localize('peekViewEditorMatchHighlight', 'Match highlight color in the peek view editor.'));

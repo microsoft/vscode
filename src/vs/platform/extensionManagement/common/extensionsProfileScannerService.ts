@@ -9,21 +9,22 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { Metadata, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtension, IExtensionIdentifier, isIExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Mutable, isObject, isString } from 'vs/base/common/types';
+import { Mutable, isObject, isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IStoredProfileExtension {
 	identifier: IExtensionIdentifier;
 	location: UriComponents | string;
+	relativeLocation: string | undefined;
 	version: string;
 	metadata?: Metadata;
 }
@@ -223,7 +224,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 			let storedProfileExtensions: IStoredProfileExtension[] | undefined;
 			try {
 				const content = await this.fileService.readFile(file);
-				storedProfileExtensions = JSON.parse(content.value.toString());
+				storedProfileExtensions = JSON.parse(content.value.toString().trim() || '[]');
 			} catch (error) {
 				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 					throw error;
@@ -247,14 +248,23 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						this.reportAndThrowInvalidConentError(file);
 					}
 					let location: URI;
-					if (isString(e.location)) {
+					if (isString(e.relativeLocation) && e.relativeLocation) {
+						// Extension in new format. No migration needed.
+						location = this.resolveExtensionLocation(e.relativeLocation);
+					} else if (isString(e.location)) {
+						// Extension in intermediate format. Migrate to new format.
 						location = this.resolveExtensionLocation(e.location);
+						migrate = true;
+						e.relativeLocation = e.location;
+						// retain old format so that old clients can read it
+						e.location = location.toJSON();
 					} else {
 						location = URI.revive(e.location);
 						const relativePath = this.toRelativePath(location);
 						if (relativePath) {
+							// Extension in old format. Migrate to new format.
 							migrate = true;
-							e.location = relativePath;
+							e.relativeLocation = relativePath;
 						}
 					}
 					extensions.push({
@@ -275,7 +285,9 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 				const storedProfileExtensions: IStoredProfileExtension[] = extensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					location: this.toRelativePath(e.location) ?? e.location.toJSON(),
+					// retain old format so that old clients can read it
+					location: e.location.toJSON(),
+					relativeLocation: this.toRelativePath(e.location),
 					metadata: e.metadata
 				}));
 				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
@@ -297,8 +309,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 
 	private toRelativePath(extensionLocation: URI): string | undefined {
-		return this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)
-			? this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation)
+		return this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.dirname(extensionLocation), this.extensionsLocation)
+			? this.uriIdentityService.extUri.basename(extensionLocation)
 			: undefined;
 	}
 
@@ -311,6 +323,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		if (!this._migrationPromise) {
 			this._migrationPromise = (async () => {
 				const oldDefaultProfileExtensionsLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json');
+				const oldDefaultProfileExtensionsInitLocation = this.uriIdentityService.extUri.joinPath(this.extensionsLocation, '.init-default-profile-extensions');
 				let content: string;
 				try {
 					content = (await this.fileService.readFile(oldDefaultProfileExtensionsLocation)).value.toString();
@@ -356,6 +369,14 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 					}
 				}
 
+				try {
+					await this.fileService.del(oldDefaultProfileExtensionsInitLocation);
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						this.logService.error(error);
+					}
+				}
+
 				return storedProfileExtensions;
 			})();
 		}
@@ -375,7 +396,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
-		&& (isUriComponents(candidate.location) || isString(candidate.location))
+		&& (isUriComponents(candidate.location) || (isString(candidate.location) && candidate.location))
+		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
 		&& candidate.version && isString(candidate.version);
 }
 

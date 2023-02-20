@@ -283,6 +283,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
 		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		if (minimapSide === 'left') {

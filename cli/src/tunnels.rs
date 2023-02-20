@@ -10,14 +10,13 @@ pub mod paths;
 pub mod shutdown_signal;
 
 mod control_server;
-mod name_generator;
 mod nosleep;
+#[cfg(target_os = "linux")]
+mod nosleep_linux;
 #[cfg(target_os = "macos")]
 mod nosleep_macos;
 #[cfg(target_os = "windows")]
 mod nosleep_windows;
-#[cfg(target_os = "linux")]
-mod nosleep_linux;
 mod port_forwarder;
 mod protocol;
 #[cfg_attr(unix, path = "tunnels/server_bridge_unix.rs")]

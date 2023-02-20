@@ -661,25 +661,14 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 	protected _getKernelPickerQuickPickItems(notebookTextModel: NotebookTextModel, matchResult: INotebookKernelMatchResult, notebookKernelService: INotebookKernelService, scopedContextKeyService: IContextKeyService): QuickPickInput<KernelQuickPickItem>[] {
 		const quickPickItems: QuickPickInput<KernelQuickPickItem>[] = [];
-		let previousKind = '';
 
 		if (matchResult.selected) {
 			const kernelItem = toKernelQuickPick(matchResult.selected, matchResult.selected);
-			const kind = matchResult.selected.kind || '';
-			if (kind) {
-				previousKind = kind;
-				quickPickItems.push({ type: 'separator', label: kind });
-			}
 			quickPickItems.push(kernelItem);
 		}
 
 		matchResult.suggestions.filter(kernel => kernel.id !== matchResult.selected?.id).map(kernel => toKernelQuickPick(kernel, matchResult.selected))
 			.forEach(kernel => {
-				const kind = kernel.kernel.kind || '';
-				if (kind && kind !== previousKind) {
-					previousKind = kind;
-					quickPickItems.push({ type: 'separator', label: kind });
-				}
 				quickPickItems.push(kernel);
 			});
 
@@ -794,17 +783,21 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		if (quickPickItem) {
 			const selectedKernelPickItem = quickPickItem as KernelQuickPickItem;
 			if (isKernelSourceQuickPickItem(selectedKernelPickItem)) {
-				const selectedKernelId = await this._executeCommand<string>(notebook, selectedKernelPickItem.command);
-				if (selectedKernelId) {
-					const { all } = await this._getMatchingResult(notebook);
-					const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
-					if (kernel) {
-						await this._selecteKernel(notebook, kernel);
+				try {
+					const selectedKernelId = await this._executeCommand<string>(notebook, selectedKernelPickItem.command);
+					if (selectedKernelId) {
+						const { all } = await this._getMatchingResult(notebook);
+						const kernel = all.find(kernel => kernel.id === `ms-toolsai.jupyter/${selectedKernelId}`);
+						if (kernel) {
+							await this._selecteKernel(notebook, kernel);
+							return true;
+						}
 						return true;
+					} else {
+						return this.displaySelectAnotherQuickPick(editor, false);
 					}
-					return true;
-				} else {
-					return this.displaySelectAnotherQuickPick(editor, false);
+				} catch (ex) {
+					return false;
 				}
 			} else if (isKernelPick(selectedKernelPickItem)) {
 				await this._selecteKernel(notebook, selectedKernelPickItem.kernel);
@@ -814,8 +807,12 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
 				// selected explicilty, it should trigger the execution?
-				selectedKernelPickItem.action.runAction();
-				return true;
+				try {
+					await selectedKernelPickItem.action.runAction();
+					return true;
+				} catch (ex) {
+					return false;
+				}
 			} else if (isSearchMarketplacePick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
 					this._paneCompositePartService,
@@ -990,14 +987,14 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	}
 
 	static async resolveKernel(notebook: INotebookTextModel, notebookKernelService: INotebookKernelService, notebookKernelHistoryService: INotebookKernelHistoryService, commandService: ICommandService): Promise<INotebookKernel | undefined> {
-		const { selected } = notebookKernelHistoryService.getKernels(notebook);
+		const alreadySelected = notebookKernelHistoryService.getKernels(notebook);
 
-		if (selected) {
-			return selected;
+		if (alreadySelected.selected) {
+			return alreadySelected.selected;
 		}
 
 		await commandService.executeCommand(SELECT_KERNEL_ID);
-		const kernel = notebookKernelService.getSelectedOrSuggestedKernel(notebook);
-		return kernel;
+		const { selected } = notebookKernelHistoryService.getKernels(notebook);
+		return selected;
 	}
 }

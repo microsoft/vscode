@@ -488,7 +488,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	set quickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider | undefined) {
 		this._quickDiffProvider = quickDiffProvider;
-		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider });
+		if (quickDiffProvider?.label) {
+			checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+		}
+		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel: quickDiffProvider?.label });
 	}
 
 	private _commitTemplate: string | undefined = undefined;
