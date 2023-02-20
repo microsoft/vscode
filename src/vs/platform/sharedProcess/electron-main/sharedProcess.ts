@@ -333,9 +333,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			product,
 			policiesData: this.policyService.serialize()
 		};
-
-		// Load with config
-		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/sharedProcess/sharedProcess${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 	}
 
 	private registerSharedProcessListeners(): void {
