@@ -34,7 +34,7 @@ import {
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -58,7 +58,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/co
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -1822,35 +1822,6 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 	}
 });
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a.resource { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
-	}
-
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a.resource:hover,
-			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a.resource:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
-			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
-	}
-
-	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
-	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
-	}
-
-	const buttonForegroundColor = theme.getColor(buttonForeground);
-	if (buttonForegroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
-	}
-
-});
 
 function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
 	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;

@@ -773,3 +773,23 @@
 .monaco-workbench .extension-editor > .header > .details > .recommendation .codicon {
 	color: var(--vscode-extensionButton-prominentBackground);
 }
+
+
+.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a.resource,
+.monaco-workbench .extension-editor .content .feature-contributions a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a.resource:hover,
+.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a.resource:active,
+.monaco-workbench .extension-editor .content .feature-contributions a:hover,
+.monaco-workbench .extension-editor .content .feature-contributions a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover,
+.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover {
+	color: var(--vscode-button-foreground);;
+	background-color: var(--vscode-button-hoverBackground);
+	border-color: var(--vscode-button-hoverBackground);
+}
