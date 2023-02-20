@@ -244,7 +244,7 @@ export class ExtensionLinter {
 
 		findWhens(findNodeAtLocation(contributesNode, ['commands']), 'enablement');
 
-		const parseResults = await commands.executeCommand<(string | undefined)[]>('_parseWhenExpressions', whens.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
+		const parseResults = await commands.executeCommand<string[]>('_parseWhenExpressions', whens.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
 
 		const diagnostics: Diagnostic[] = [];
 		for (let i = 0; i < parseResults.length; ++i) {
@@ -252,7 +252,8 @@ export class ExtensionLinter {
 			if (parseRes) {
 				const start = whens[i].offset;
 				const end = whens[i].offset + whens[i].length;
-				diagnostics.push(new Diagnostic(new Range(document.positionAt(start), document.positionAt(end)), parseRes, DiagnosticSeverity.Warning));
+				const range = new Range(document.positionAt(start), document.positionAt(end));
+				diagnostics.push(new Diagnostic(range, parseRes, DiagnosticSeverity.Warning));
 			}
 		}
 		return diagnostics;
