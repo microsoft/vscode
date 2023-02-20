@@ -54,7 +54,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		private _contextKeyService: IContextKeyService,
 		private _commentMenus: CommentMenus,
 		private _commentOptions: languages.CommentOptions | undefined,
-		private _pendingComment: string | null,
+		private _pendingComment: string | undefined,
 		private _parentThread: ICommentThreadWidget,
 		private _actionRunDelegate: (() => void) | null,
 		@ICommentService private commentService: ICommentService,
@@ -66,7 +66,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		super();
 
 		this.form = dom.append(container, dom.$('.comment-form'));
-		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this.form, SimpleCommentEditor.getEditorOptions(configurationService), this._parentThread));
+		this.commentEditor = this._register(this._scopedInstatiationService.createInstance(SimpleCommentEditor, this.form, SimpleCommentEditor.getEditorOptions(configurationService), _contextKeyService, this._parentThread));
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
@@ -126,14 +126,14 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
-	public getPendingComment(): string | null {
+	public getPendingComment(): string | undefined {
 		const model = this.commentEditor.getModel();
 
 		if (model && model.getValueLength() > 0) { // checking length is cheap
 			return model.getValue();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	public layout(widthInPixel: number) {

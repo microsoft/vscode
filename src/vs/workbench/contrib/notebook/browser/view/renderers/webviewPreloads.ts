@@ -67,6 +67,7 @@ export interface PreloadOptions {
 export interface RenderOptions {
 	readonly lineLimit: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 }
 
 interface PreloadContext {
@@ -89,6 +90,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 	const lineLimit = ctx.renderOptions.lineLimit;
 	const outputScrolling = ctx.renderOptions.outputScrolling;
+	const outputWordWrap = ctx.renderOptions.outputWordWrap;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -1353,6 +1355,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				settings: {
 					get lineLimit() { return lineLimit; },
 					get outputScrolling() { return outputScrolling; },
+					get outputWordWrap() { return outputWordWrap; },
 				}
 			};
 
@@ -2151,11 +2154,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, preloadErrors: ReadonlyArray<Error | undefined>, signal: AbortSignal) {
+			const startTime = Date.now();
 			const outputElement = this.createOutputElement(data);
 			await outputElement.render(data.content, data.rendererId, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
 			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
+
+			if (!!data.executionId && !!data.rendererId) {
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+			}
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {

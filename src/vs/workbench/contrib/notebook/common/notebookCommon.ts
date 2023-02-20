@@ -29,6 +29,7 @@ import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -105,11 +106,13 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	renderDuration?: { [key: string]: number };
 }
 
 export interface NotebookCellCollapseState {
@@ -888,7 +891,7 @@ export interface INotebookCellStatusBarItem {
 	readonly text: string;
 	readonly color?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
-	readonly tooltip?: string;
+	readonly tooltip?: string | IMarkdownString;
 	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly opacity?: string;
@@ -929,6 +932,7 @@ export const NotebookSetting = {
 	outputFontFamily: 'notebook.outputFontFamily',
 	kernelPickerType: 'notebook.kernelPicker.type',
 	outputScrolling: 'notebook.experimental.outputScrolling',
+	outputWordWrap: 'notebook.output.wordWrap',
 	logging: 'notebook.logging',
 } as const;
 

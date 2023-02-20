@@ -27,7 +27,7 @@ import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { isESM } from 'vs/base/common/amd';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 const processExplorerWindowState = 'issue.processExplorerWindowState';
@@ -67,7 +67,7 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IProductService private readonly productService: IProductService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateService private readonly stateService: IStateService
 	) {
 		this.registerListeners();
 	}
@@ -256,7 +256,7 @@ export class IssueMainService implements IIssueMainService {
 
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
 
-				const savedPosition = this.stateMainService.getItem<IWindowState>(processExplorerWindowState, undefined);
+				const savedPosition = this.stateService.getItem<IWindowState>(processExplorerWindowState, undefined);
 				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
 				// Correct dimensions to take scale/dpr into account
@@ -313,7 +313,7 @@ export class IssueMainService implements IIssueMainService {
 						x: position[0],
 						y: position[1]
 					};
-					this.stateMainService.setItem(processExplorerWindowState, state);
+					this.stateService.setItem(processExplorerWindowState, state);
 				};
 
 				this.processExplorerWindow.on('moved', storeState);

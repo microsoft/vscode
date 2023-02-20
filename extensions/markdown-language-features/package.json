@@ -401,6 +401,22 @@
           "description": "%configuration.markdown.suggest.paths.enabled.description%",
           "scope": "resource"
         },
+        "markdown.suggest.paths.includeWorkspaceHeaderCompletions": {
+          "type": "string",
+          "default": "onDoubleHash",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions%",
+          "enum": [
+            "never",
+            "onDoubleHash",
+            "onSingleOrDoubleHash"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
+          ]
+        },
         "markdown.trace.extension": {
           "type": "string",
           "enum": [
@@ -616,7 +632,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "dompurify": "^2.4.1",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",

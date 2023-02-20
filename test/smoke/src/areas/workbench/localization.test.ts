@@ -8,7 +8,9 @@ import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 
-	describe('Localization', () => {
+	// BUG: app.getPreferredSystemLanguages() doesn't seem to return anything here on Linux: https://github.com/microsoft/vscode/blob/3ba29f37d6b9f3f2257b48f2b90f0699ea581be4/src/main.js#L100-L113
+	// but it should when we move to Electron 22 so we can re-enable this test then.
+	(process.platform === 'linux' ? describe.skip : describe)('Localization', () => {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
@@ -22,8 +24,11 @@ export function setup(logger: Logger) {
 			const result = await app.workbench.localization.getLocalizedStrings();
 			const localeInfo = await app.workbench.localization.getLocaleInfo();
 
-			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
-				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
+			// The smoke tests will only work on a machine that uses English as the OS language.
+			// The build machine is configured to use English as the OS language so that is why
+			// we can hardcode the expected values here.
+			if (localeInfo.locale === undefined || !localeInfo.locale.toLowerCase().startsWith('en')) {
+				throw new Error(`The requested locale for VS Code was not English. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
 			}
 
 			if (localeInfo.language.toLowerCase() !== 'de') {

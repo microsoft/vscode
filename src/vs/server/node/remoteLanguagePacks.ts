@@ -28,7 +28,9 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 		if (!result) {
 			const { getNLSConfiguration } = <typeof import('vs/base/node/languagePacks')>require(`../../base/node/languagePacks.${isESM ? 'esm' : 'cjs'}}}`);
 
-			result = getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
+			// For remote, we just use language for both locale and language since we don't have any use case for the locale
+			// on the server side.
+			result = getNLSConfiguration(product.commit, userDataPath, metaData, language, language).then(value => {
 				if (InternalNLSConfiguration.is(value)) {
 					value._languagePackSupport = true;
 				}

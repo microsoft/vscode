@@ -325,6 +325,7 @@ export class DebugSession implements IDebugSession {
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
 				supportsMemoryEvent: true, // #133643
+				supportsStartDebuggingRequest: true
 			});
 
 			this.initialized = true;
@@ -1074,6 +1075,8 @@ export class DebugSession implements IDebugSession {
 
 		const outputQueue = new Queue<void>();
 		this.rawListeners.push(this.raw.onDidOutput(async event => {
+			const outputSeverity = event.body.category === 'stderr' ? Severity.Error : event.body.category === 'console' ? Severity.Warning : Severity.Info;
+
 			// When a variables event is received, execute immediately to obtain the variables value #126967
 			if (event.body.variablesReference) {
 				const source = event.body.source && event.body.line ? {
@@ -1090,14 +1093,14 @@ export class DebugSession implements IDebugSession {
 					// For single logged variables, try to use the output if we can so
 					// present a better (i.e. ANSI-aware) representation of the output
 					if (resolved.length === 1) {
-						this.appendToRepl({ output: event.body.output, expression: resolved[0], sev: Severity.Info, source }, event.body.category === 'important');
+						this.appendToRepl({ output: event.body.output, expression: resolved[0], sev: outputSeverity, source }, event.body.category === 'important');
 						return;
 					}
 
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						(<any>child).name = null;
-						this.appendToRepl({ output: '', expression: child, sev: Severity.Info, source }, event.body.category === 'important');
+						this.appendToRepl({ output: '', expression: child, sev: outputSeverity, source }, event.body.category === 'important');
 					});
 				});
 				return;
@@ -1107,7 +1110,6 @@ export class DebugSession implements IDebugSession {
 					return;
 				}
 
-				const outputSeverity = event.body.category === 'stderr' ? Severity.Error : event.body.category === 'console' ? Severity.Warning : Severity.Info;
 				if (event.body.category === 'telemetry') {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry

@@ -409,7 +409,7 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
 	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
-		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
+		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
 }
