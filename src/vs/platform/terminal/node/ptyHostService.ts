@@ -78,7 +78,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessExit = this._onProcessExit.event;
 
 	// TODO@bpasero investigate why this is needed
-	private readonly forceEnableDebugInspect = this._environmentService.isBuilt && this._configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
+	private readonly forceEnableDebugInspect = this._environmentService.isBuilt;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
