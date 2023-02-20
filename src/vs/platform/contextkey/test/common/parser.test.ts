@@ -216,6 +216,11 @@ suite('Context Key Scanner', () => {
 			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nExpected KEY, 'true', or 'false' but got '(' at offset 1.\n");
 		});
 
+		test(`config.foo &&  &&bar =~ /^foo$|^bar-foo$|^joo$|^jar$/ && !foo`, () => {
+			const input = `config.foo &&  &&bar =~ /^foo$|^bar-foo$|^joo$|^jar$/ && !foo`;
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got '&&' at offset 15.\n");
+		});
+
 	});
 
 });
