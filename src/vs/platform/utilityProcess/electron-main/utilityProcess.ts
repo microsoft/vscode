@@ -209,7 +209,7 @@ export class UtilityProcess extends Disposable {
 		const execArgv = [...this.configuration.execArgv ?? [], `--vscode-utility-kind=${this.configuration.type}`];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const stdio = 'pipe';
-		const env = this.createEnv(configuration);
+		const env = this.createEnv(configuration, isWindowSandboxed);
 
 		this.log('creating new...', Severity.Info);
 
@@ -228,13 +228,16 @@ export class UtilityProcess extends Disposable {
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
+	private createEnv(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): { [key: string]: any } {
 		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
-		// Apply support environment variables from config
+		// Apply supported environment variables from config
 		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
+		}
+		if (isWindowSandboxed) {
+			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1';
 		}
 
 		// Remove any environment variables that are not allowed

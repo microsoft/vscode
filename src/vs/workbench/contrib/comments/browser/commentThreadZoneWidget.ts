@@ -117,7 +117,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		editor: ICodeEditor,
 		private _owner: string,
 		private _commentThread: languages.CommentThread,
-		private _pendingComment: string | null,
+		private _pendingComment: string | undefined,
+		private _pendingEdits: { [key: number]: string } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
@@ -196,8 +197,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	public getPendingComment(): string | null {
-		return this._commentThreadWidget.getPendingComment();
+	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
+		return {
+			newComment: this._commentThreadWidget.getPendingComment(),
+			edits: this._commentThreadWidget.getPendingEdits()
+		};
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -211,6 +215,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._scopedInstantiationService,
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
+			this._pendingEdits,
 			{ editor: this.editor, codeBlockFontSize: '' },
 			this._commentOptions,
 			{
