@@ -77,9 +77,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 
-	// TODO@bpasero investigate why this is needed
-	private readonly forceEnableDebugInspect = this._environmentService.isBuilt && this._configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
-
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
 		private readonly loggerName: string,
@@ -152,7 +149,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		};
 
-		const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this.forceEnableDebugInspect ? false : this._environmentService.isBuilt);
+		const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
 		if (ptyHostDebug) {
 			if (ptyHostDebug.break && ptyHostDebug.port) {
 				opts.debugBrk = ptyHostDebug.port;
