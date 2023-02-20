@@ -14,7 +14,8 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, Parser, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Scanner } from 'vs/platform/contextkey/common/scanner';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -646,22 +647,16 @@ CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
 });
 
 CommandsRegistry.registerCommand('_parseWhenExpressions', (_accessor: ServicesAccessor, whenClauses: string[]) => {
+	const parser = new Parser();
 	return whenClauses.map(whenClause => {
-		const r = ContextKeyExpr.deserializeOrErrorNew(whenClause);
-		switch (r.type) {
-			case 'ok':
-				return undefined;
-			case 'error': {
-				const errMsg = [localize('_parseWhenExpressions', "Error parsing when clause: \n")];
-				if (r.lexingErrors.length > 0) {
-					errMsg.push(...r.lexingErrors);
-				} else if (r.parsingErrors.length > 0) {
-					errMsg.push(...r.parsingErrors);
-				} else {
-					return undefined;
-				}
-				return errMsg.join('\n');
-			}
+		parser.parse(whenClause);
+
+		if (parser.lexingErrors.length > 0) {
+			return parser.lexingErrors.map(errToken => Scanner.reportError(errToken));
+		} else if (parser.parsingErrors.length > 0) {
+			return parser.parsingErrors;
+		} else {
+			return undefined;
 		}
 	});
 });
