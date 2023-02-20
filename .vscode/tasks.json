@@ -255,6 +255,17 @@
 			"group": "build",
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		},
+		{
+			// Used for monaco editor playground launch config
+			"label": "Launch Http Server",
+			"type": "shell",
+			"command": "node_modules/.bin/http-server --cors --port 5001 -a 127.0.0.1 -s -c-1",
+			"isBackground": true,
+			"problemMatcher": [],
+			"dependsOn": [
+				"Core - Build"
+			]
 		}
 	]
 }

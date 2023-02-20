@@ -85,6 +85,7 @@ export interface IProductConfiguration {
 	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip };
+	readonly virtualWorkspaceExtensionTips?: { [virtualWorkspaceName: string]: IVirtualWorkspaceExtensionTip };
 	readonly extensionKeywords?: { [extension: string]: readonly string[] };
 	readonly keymapExtensionTips?: readonly string[];
 	readonly webExtensionTips?: readonly string[];
@@ -195,6 +196,11 @@ export interface IExeBasedExtensionTip {
 }
 
 export interface IRemoteExtensionTip {
+	friendlyName: string;
+	extensionId: string;
+}
+
+export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 }

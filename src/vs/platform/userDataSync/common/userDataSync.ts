@@ -423,10 +423,6 @@ export interface IUserDataSyncResourceError extends IUserDataSyncResource {
 	readonly error: UserDataSyncError;
 }
 
-export interface IUserDataInitializer {
-	initialize(userData: IUserData): Promise<void>;
-}
-
 export interface IUserDataSynchroniser {
 
 	readonly resource: SyncResource;

@@ -129,7 +129,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 			lineMatcher: GitPushOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
-			length: 15
+			length: 5
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
@@ -171,11 +171,23 @@ export function gitCreatePr(): IInternalOptions {
 		id: 'Git Create Pr',
 		type: 'internal',
 		commandLineMatcher: GitPushCommandLineRegex,
+		// Example output:
+		// ...
+		// 9:  remote:
+		// 8:  remote: Create a pull request for 'my_branch' on GitHub by visiting:
+		// 7:  remote:      https://github.com/microsoft/vscode/pull/new/my_branch
+		// 6:  remote:
+		// 5:  remote: GitHub found x vulnerabilities on microsoft/vscode's default branch (...). To find out more, visit:
+		// 4:  remote:      https://github.com/microsoft/vscode/security/dependabot
+		// 3:  remote:
+		// 2:  To https://github.com/microsoft/vscode
+		// 1:  * [new branch]              my_branch -> my_branch
+		// 0:  Branch 'my_branch' set up to track remote branch 'my_branch' from 'origin'.
 		outputMatcher: {
 			lineMatcher: GitCreatePrOutputRegex,
 			anchor: 'bottom',
-			offset: 0,
-			length: 15
+			offset: 3,
+			length: 6
 		},
 		commandExitResult: 'success',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {

@@ -17,7 +17,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.DefinitionLink[] | vscode.Definition | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}

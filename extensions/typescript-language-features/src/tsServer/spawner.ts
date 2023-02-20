@@ -142,18 +142,18 @@ export class TypeScriptServerSpawner {
 		const { args, tsServerLog, tsServerTraceDirectory } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager, canceller.cancellationPipeName);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			if (!isWeb()) {
-				if (tsServerLog) {
-					this._logger.info(`<${kind}> Log file: ${tsServerLog}`);
-				} else {
-					this._logger.error(`<${kind}> Could not create log directory`);
-				}
+			if (tsServerLog?.type === 'file') {
+				this._logger.info(`<${kind}> Log file: ${tsServerLog.uri.fsPath}`);
+			} else if (tsServerLog?.type === 'output') {
+				this._logger.info(`<${kind}> Logging to output`);
+			} else {
+				this._logger.error(`<${kind}> Could not create TS Server log`);
 			}
 		}
 
 		if (configuration.enableTsServerTracing) {
 			if (tsServerTraceDirectory) {
-				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory}`);
+				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory.fsPath}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create trace directory`);
 			}
@@ -240,7 +240,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory.path);
+				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
 			}
 		}
 
@@ -275,7 +275,7 @@ export class TypeScriptServerSpawner {
 			args.push('--enableProjectWideIntelliSenseOnWeb');
 		}
 
-		return { args, tsServerLog: tsServerLog, tsServerTraceDirectory };
+		return { args, tsServerLog, tsServerTraceDirectory };
 	}
 
 	private static isLoggingEnabled(configuration: TypeScriptServiceConfiguration) {

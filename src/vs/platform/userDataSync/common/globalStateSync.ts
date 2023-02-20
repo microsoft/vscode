@@ -19,15 +19,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { AbstractInitializer, AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, getSyncResourceLogLabel, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -393,59 +393,6 @@ export class LocalGlobalStateProvider {
 			this.logService.info(`${syncResourceLogLabel}: Updated global state`, [...updatedStorage.keys()]);
 		}
 	}
-}
-
-export class GlobalStateInitializer extends AbstractInitializer {
-
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IFileService fileService: IFileService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-	) {
-		super(SyncResource.GlobalState, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
-	}
-
-	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		if (!remoteGlobalState) {
-			this.logService.info('Skipping initializing global state because remote global state does not exist.');
-			return;
-		}
-
-		const argv: IStringDictionary<any> = {};
-		const storage: IStringDictionary<any> = {};
-		for (const key of Object.keys(remoteGlobalState.storage)) {
-			if (key.startsWith(argvStoragePrefx)) {
-				argv[key.substring(argvStoragePrefx.length)] = remoteGlobalState.storage[key].value;
-			} else {
-				if (this.storageService.get(key, StorageScope.PROFILE) === undefined) {
-					storage[key] = remoteGlobalState.storage[key].value;
-				}
-			}
-		}
-
-		if (Object.keys(argv).length) {
-			let content = '{}';
-			try {
-				const fileContent = await this.fileService.readFile(this.environmentService.argvResource);
-				content = fileContent.value.toString();
-			} catch (error) { }
-			for (const argvProperty of Object.keys(argv)) {
-				content = edit(content, [argvProperty], argv[argvProperty], {});
-			}
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
-		}
-
-		if (Object.keys(storage).length) {
-			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key], StorageScope.PROFILE, StorageTarget.USER);
-			}
-		}
-	}
-
 }
 
 export class UserDataSyncStoreTypeSynchronizer {

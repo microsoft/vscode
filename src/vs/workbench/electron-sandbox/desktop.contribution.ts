@@ -267,6 +267,13 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			},
+			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
+				type: 'boolean',
+				description: localize('experimentalUseSharedProcessUseUtilityProcess', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
+				default: false, //typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				'scope': ConfigurationScope.APPLICATION,
+				ignoreSync: true
+			}
 		}
 	});
 
@@ -353,7 +360,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				}
 			},
 			'log-level': {
-				type: 'string',
+				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}

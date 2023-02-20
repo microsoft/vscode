@@ -15,10 +15,9 @@ export interface IAssignmentService {
 }
 
 export enum TargetPopulation {
-	Team = 'team',
-	Internal = 'internal',
 	Insiders = 'insider',
 	Public = 'public',
+	Exploration = 'exploration'
 }
 
 /*

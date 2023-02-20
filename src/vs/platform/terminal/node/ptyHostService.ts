@@ -11,7 +11,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
+import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
@@ -76,6 +76,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
+
+	// TODO@bpasero investigate why this is needed
+	private readonly forceEnableDebugInspect = this._environmentService.isBuilt && this._configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
@@ -149,7 +152,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		};
 
-		const ptyHostDebug = parsePtyHostPort(this._environmentService.args, this._environmentService.isBuilt);
+		const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this.forceEnableDebugInspect ? false : this._environmentService.isBuilt);
 		if (ptyHostDebug) {
 			if (ptyHostDebug.break && ptyHostDebug.port) {
 				opts.debugBrk = ptyHostDebug.port;

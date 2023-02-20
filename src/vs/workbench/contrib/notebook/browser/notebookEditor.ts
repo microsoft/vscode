@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -354,9 +355,10 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 	getSelection(): IEditorPaneSelection | undefined {
 		if (this._widget.value) {
-			const cellUri = this._widget.value.getActiveCell()?.uri;
-			if (cellUri) {
-				return new NotebookEditorSelection(cellUri);
+			const activeCell = this._widget.value.getActiveCell();
+			if (activeCell) {
+				const cellUri = activeCell.uri;
+				return new NotebookEditorSelection(cellUri, activeCell.getSelections());
 			}
 		}
 
@@ -421,7 +423,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 class NotebookEditorSelection implements IEditorPaneSelection {
 
 	constructor(
-		private readonly cellUri: URI
+		private readonly cellUri: URI,
+		private readonly selections: Selection[]
 	) { }
 
 	compare(other: IEditorPaneSelection): EditorPaneSelectionCompareResult {
@@ -439,7 +442,10 @@ class NotebookEditorSelection implements IEditorPaneSelection {
 	restore(options: IEditorOptions): INotebookEditorOptions {
 		const notebookOptions: INotebookEditorOptions = {
 			cellOptions: {
-				resource: this.cellUri
+				resource: this.cellUri,
+				options: {
+					selection: this.selections[0]
+				}
 			}
 		};
 

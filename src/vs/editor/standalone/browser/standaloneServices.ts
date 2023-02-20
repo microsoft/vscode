@@ -8,6 +8,8 @@ import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/services/languageFeatureDebounce';
+import 'vs/editor/common/services/semanticTokensStylingService';
+import 'vs/editor/common/services/languageFeaturesService';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -31,7 +33,7 @@ import { CommandsRegistry, ICommandEvent, ICommandHandler, ICommandService } fro
 import { IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationModel, IConfigurationValue, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogService, IInputResult, IPrompt, IPromptResult, IPromptWithCustomCancel, IPromptResultWithCancel, IPromptWithDefaultCancel, IPromptBaseButton } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
@@ -84,12 +86,12 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-
-import 'vs/editor/common/services/languageFeaturesService';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { LogService } from 'vs/platform/log/common/logService';
+import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -202,38 +204,64 @@ class StandaloneProgressService implements IProgressService {
 
 class StandaloneDialogService implements IDialogService {
 
-	public _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	readonly onWillShowDialog = Event.None;
 	readonly onDidShowDialog = Event.None;
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.doConfirm(confirmation).then(confirmed => {
-			return {
-				confirmed,
-				checkboxChecked: false // unsupported
-			} as IConfirmationResult;
-		});
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		const confirmed = this.doConfirm(confirmation.message, confirmation.detail);
+
+		return {
+			confirmed,
+			checkboxChecked: false // unsupported
+		} as IConfirmationResult;
 	}
 
-	private doConfirm(confirmation: IConfirmation): Promise<boolean> {
-		let messageText = confirmation.message;
-		if (confirmation.detail) {
-			messageText = messageText + '\n\n' + confirmation.detail;
+	private doConfirm(message: string, detail?: string): boolean {
+		let messageText = message;
+		if (detail) {
+			messageText = messageText + '\n\n' + detail;
 		}
 
-		return Promise.resolve(window.confirm(messageText));
+		return window.confirm(messageText);
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
-		return Promise.resolve({ choice: 0 });
+	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
+	async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
+		let result: T | undefined = undefined;
+		const confirmed = this.doConfirm(prompt.message, prompt.detail);
+		if (confirmed) {
+			const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
+			if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
+				promptButtons.push(prompt.cancelButton);
+			}
+
+			result = await promptButtons[0]?.run({ checkboxChecked: false });
+		}
+
+		return { result };
 	}
 
-	public input(): Promise<IInputResult> {
-		return Promise.resolve({ choice: 0 }); // unsupported
+	async info(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Info, message, detail });
 	}
 
-	public about(): Promise<void> {
+	async warn(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Warning, message, detail });
+	}
+
+	async error(message: string, detail?: string): Promise<void> {
+		await this.prompt({ type: Severity.Error, message, detail });
+	}
+
+	input(): Promise<IInputResult> {
+		return Promise.resolve({ confirmed: false }); // unsupported
+	}
+
+	about(): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 }
@@ -1096,6 +1124,16 @@ export module StandaloneServices {
 				if (r instanceof SyncDescriptor) {
 					serviceCollection.set(serviceIdentifier, overrides[serviceId]);
 				}
+			}
+		}
+
+		// Instantiate all editor features
+		const editorFeatures = getEditorFeatures();
+		for (const feature of editorFeatures) {
+			try {
+				instantiationService.createInstance(feature);
+			} catch (err) {
+				onUnexpectedError(err);
 			}
 		}
 
