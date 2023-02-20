@@ -647,16 +647,16 @@ CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
 });
 
 CommandsRegistry.registerCommand('_parseWhenExpressions', (_accessor: ServicesAccessor, whenClauses: string[]) => {
-	const parser = new Parser();
+	const parser = new Parser({ regexParsingWithErrorRecovery: false });
 	return whenClauses.map(whenClause => {
 		parser.parse(whenClause);
 
 		if (parser.lexingErrors.length > 0) {
-			return parser.lexingErrors.map(errToken => Scanner.reportError(errToken));
+			return parser.lexingErrors.map(errToken => Scanner.reportError(errToken)).join('\n');
 		} else if (parser.parsingErrors.length > 0) {
-			return parser.parsingErrors;
+			return parser.parsingErrors.join('\n');
 		} else {
-			return undefined;
+			return '';
 		}
 	});
 });
