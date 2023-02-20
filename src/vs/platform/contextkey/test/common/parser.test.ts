@@ -33,7 +33,7 @@ function parseToStr(input: string): string {
 	return prints.join('');
 }
 
-suite('Context Key Scanner', () => {
+suite('Context Key Parser', () => {
 
 	test(' foo', () => {
 		const input = ' foo';
