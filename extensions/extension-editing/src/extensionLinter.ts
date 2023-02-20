@@ -199,7 +199,7 @@ export class ExtensionLinter {
 		for (const document of Array.from(this.readmeQ)) {
 			this.readmeQ.delete(document);
 			if (document.isClosed) {
-				return;
+				return; // TODO@ulugbekna: are we sure we want to return here? it may be a copy-paste problem where it used to be written with forEach, so it `return`ed instead of `continue`ing
 			}
 
 			const folder = this.getUriFolder(document.uri);
