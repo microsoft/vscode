@@ -129,7 +129,7 @@ export abstract class ContextKeyExpr {
 	/**
 	 * Warning: experimental; the API might change.
 	 */
-	public static deserializeOrErrorNew(serialized: string | null | undefined): { type: 'ok'; expr: ContextKeyExpr } | { type: 'error'; readonly lexingErrors: string[]; readonly parsingErrors: readonly string[] } {
+	public static deserializeOrErrorNew(serialized: string | null | undefined): { type: 'ok'; expr: ContextKeyExpression } | { type: 'error'; readonly lexingErrors: string[]; readonly parsingErrors: readonly string[] } {
 		if (!serialized) {
 			return { type: 'error', lexingErrors: [], parsingErrors: [] };
 		}
