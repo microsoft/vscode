@@ -212,7 +212,7 @@ export class ExtensionLinter {
 			if (node) {
 				switch (node.type) {
 					case 'property':
-						if (node.children) {
+						if (node.children && node.children.length === 2) {
 							const key = node.children[0];
 							const value = node.children[1];
 							switch (value.type) {
