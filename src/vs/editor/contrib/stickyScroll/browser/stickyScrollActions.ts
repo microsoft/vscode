@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IStickyScrollFocusService } from './stickyScrollServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
 
 export class ToggleStickyScroll extends Action2 {
 
@@ -48,7 +48,7 @@ export class ToggleStickyScroll extends Action2 {
 
 const weight = KeybindingWeight.EditorContrib + 1000;
 
-export class FocusStickyScroll extends Action2 {
+export class FocusStickyScroll extends EditorAction2 {
 
 	constructor() {
 		super({
@@ -69,15 +69,15 @@ export class FocusStickyScroll extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
-		const codeEditorService = accessor.get(ICodeEditorService);
-		const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
-		stickyScrollFocusService.focus(editor);
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const stickyScrollController = StickyScrollController.get(editor);
+		if (stickyScrollController) {
+			stickyScrollController.focus();
+		}
 	}
 }
 
-export class SelectNextStickyScrollLine extends Action2 {
+export class SelectNextStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectNextStickyScrollLine',
@@ -93,13 +93,15 @@ export class SelectNextStickyScrollLine extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
-		stickyScrollFocusService.focusNext();
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const stickyScrollController = StickyScrollController.get(editor);
+		if (stickyScrollController) {
+			stickyScrollController.focusNext();
+		}
 	}
 }
 
-export class SelectPreviousStickyScrollLine extends Action2 {
+export class SelectPreviousStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.selectPreviousStickyScrollLine',
@@ -115,13 +117,15 @@ export class SelectPreviousStickyScrollLine extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
-		stickyScrollFocusService.focusPrevious();
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const stickyScrollController = StickyScrollController.get(editor);
+		if (stickyScrollController) {
+			stickyScrollController.focusPrevious();
+		}
 	}
 }
 
-export class GoToStickyScrollLine extends Action2 {
+export class GoToStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.goToFocusedStickyScrollLine',
@@ -137,14 +141,16 @@ export class GoToStickyScrollLine extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
-		stickyScrollFocusService.goToFocused();
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const stickyScrollController = StickyScrollController.get(editor);
+		if (stickyScrollController) {
+			stickyScrollController.goToFocused();
+		}
 	}
 }
 
 
-export class CancelFocusStickyScroll extends Action2 {
+export class CancelFocusStickyScroll extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.action.cancelFocusStickyScroll',
@@ -160,8 +166,10 @@ export class CancelFocusStickyScroll extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const stickyScrollFocusService = accessor.get(IStickyScrollFocusService);
-		stickyScrollFocusService.cancelFocus();
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const stickyScrollController = StickyScrollController.get(editor);
+		if (stickyScrollController) {
+			stickyScrollController.cancelFocus();
+		}
 	}
 }
