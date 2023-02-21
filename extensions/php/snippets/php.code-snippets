@@ -156,6 +156,10 @@
 		],
 		"description": "Anonymous Function"
 	},
+	"goto": {
+		"prefix": "goto",
+		"body": "goto $0;"
+	},
 	"if …": {
 		"prefix": "if",
 		"body": [
