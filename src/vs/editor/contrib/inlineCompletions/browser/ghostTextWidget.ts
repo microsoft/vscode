@@ -31,7 +31,6 @@ export class GhostTextWidget extends Disposable {
 	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.languageService.languageIdCodec));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
-	private _ariaStringBuilder: StringBuilder = new StringBuilder(10000);
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -77,9 +76,6 @@ export class GhostTextWidget extends Disposable {
 	private readonly replacementDecoration = this._register(new DisposableDecorations(this.editor));
 
 	private update(): void {
-		if (this._ariaStringBuilder.build().length) {
-			return;
-		}
 		const ghostText = this.model.ghostText;
 
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
@@ -134,6 +130,7 @@ export class GhostTextWidget extends Disposable {
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
+		const ariaStringBuilder = new StringBuilder(10000);
 		for (const part of ghostText.parts) {
 			let lines = part.lines;
 			if (hiddenTextStartColumn === undefined) {
@@ -142,14 +139,14 @@ export class GhostTextWidget extends Disposable {
 					text: lines[0],
 					preview: part.preview,
 				});
-				this._ariaStringBuilder.appendString(lines[0]);
+				ariaStringBuilder.appendString(lines[0]);
 				lines = lines.slice(1);
 			} else {
-				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined, this._ariaStringBuilder);
+				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined, ariaStringBuilder);
 			}
 
 			if (lines.length > 0) {
-				addToAdditionalLines(lines, 'ghost-text', this._ariaStringBuilder);
+				addToAdditionalLines(lines, 'ghost-text', ariaStringBuilder);
 				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 					hiddenTextStartColumn = part.column;
 				}
@@ -158,7 +155,7 @@ export class GhostTextWidget extends Disposable {
 			lastIdx = part.column - 1;
 		}
 		if (hiddenTextStartColumn !== undefined) {
-			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined, this._ariaStringBuilder);
+			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined, ariaStringBuilder);
 		}
 
 		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
@@ -168,8 +165,7 @@ export class GhostTextWidget extends Disposable {
 
 		this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-				alert(this._ariaStringBuilder.build());
-				this._ariaStringBuilder.reset();
+				alert(ariaStringBuilder.build());
 			}
 		});
 
