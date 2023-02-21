@@ -14,7 +14,8 @@ import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { CommentThreadState } from 'vs/editor/common/languages';
 
 export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges. This color should be opaque.'));
-registerColor('editorGutter.commentGlyphForground', { dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white }, nls.localize('editorGutterCommentGlyphForeground', 'Editor gutter decoration color for commenting glyphs.'));
+export const editorGutterCommentGlyphForeground = registerColor('editorGutter.commentGlyphForground', { dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white }, nls.localize('editorGutterCommentGlyphForeground', 'Editor gutter decoration color for commenting glyphs.'));
+export const editorGutterCommentGlyphForegroundUnresolved = registerColor('editorGutter.commentGlyphForegroundUnresolved', { dark: editorGutterCommentGlyphForeground, light: editorGutterCommentGlyphForeground, hcDark: editorGutterCommentGlyphForeground, hcLight: editorGutterCommentGlyphForeground }, nls.localize('editorGutterCommentGlyphForegroundUnresolved', 'Editor gutter decoration color for commenting glyphs for unresolved comment threads.'));
 
 export class CommentGlyphWidget {
 	public static description = 'comment-glyph-widget';
