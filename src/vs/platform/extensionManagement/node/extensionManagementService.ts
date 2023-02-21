@@ -21,7 +21,7 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
-import { extract, IFile, zip } from 'vs/base/node/zip';
+import { extract, ExtractError, IFile, zip } from 'vs/base/node/zip';
 import * as nls from 'vs/nls';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -35,7 +35,7 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { IExtensionsScannerService, IScannedExtension, ScanOptions } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
-import { getManifest, toExtensionManagementError } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtension, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -597,8 +597,15 @@ export class ExtensionsScanner extends Disposable {
 			this.logService.info(`Extracted extension to ${location}:`, identifier.id);
 		} catch (e) {
 			try { await pfs.Promises.rm(location); } catch (e) { /* Ignore */ }
-
-			throw toExtensionManagementError(e);
+			let errorCode = ExtensionManagementErrorCode.Extract;
+			if (e instanceof ExtractError) {
+				if (e.type === 'CorruptZip') {
+					errorCode = ExtensionManagementErrorCode.CorruptZip;
+				} else if (e.type === 'Incomplete') {
+					errorCode = ExtensionManagementErrorCode.IncompleteZip;
+				}
+			}
+			throw new ExtensionManagementError(e.message, errorCode);
 		}
 	}
 
