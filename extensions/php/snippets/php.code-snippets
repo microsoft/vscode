@@ -136,6 +136,11 @@
 		],
 		"description": "If Else block"
 	},
+	"param": {
+		"prefix": "param",
+		"body": "${1:Type} $${2:var}${3: = ${4:null}}$5",
+		"description": "Parameter definition"
+	},
 	"PHPDoc class …": {
 		"prefix": "doc_class",
 		"body": [
