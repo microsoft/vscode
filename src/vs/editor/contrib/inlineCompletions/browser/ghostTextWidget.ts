@@ -88,7 +88,7 @@ export class GhostTextWidget extends Disposable {
 		const inlineTexts = new Array<InsertedInlineText>();
 		const additionalLines = new Array<LineData>();
 
-		function addToAdditionalLines(lines: readonly string[], className: string | undefined, ariaText: StringBuilder) {
+		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
 			if (additionalLines.length > 0) {
 				const lastLine = additionalLines[additionalLines.length - 1];
 				if (className) {
@@ -103,7 +103,6 @@ export class GhostTextWidget extends Disposable {
 					content: line,
 					decorations: className ? [new LineDecoration(1, line.length + 1, className, InlineDecorationType.Regular)] : []
 				});
-				ariaText.appendString(line);
 			}
 		}
 
@@ -130,7 +129,6 @@ export class GhostTextWidget extends Disposable {
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
-		const ariaStringBuilder = new StringBuilder(10000);
 		for (const part of ghostText.parts) {
 			let lines = part.lines;
 			if (hiddenTextStartColumn === undefined) {
@@ -139,14 +137,13 @@ export class GhostTextWidget extends Disposable {
 					text: lines[0],
 					preview: part.preview,
 				});
-				ariaStringBuilder.appendString(lines[0]);
 				lines = lines.slice(1);
 			} else {
-				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined, ariaStringBuilder);
+				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
 			}
 
 			if (lines.length > 0) {
-				addToAdditionalLines(lines, 'ghost-text', ariaStringBuilder);
+				addToAdditionalLines(lines, 'ghost-text');
 				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 					hiddenTextStartColumn = part.column;
 				}
@@ -155,7 +152,7 @@ export class GhostTextWidget extends Disposable {
 			lastIdx = part.column - 1;
 		}
 		if (hiddenTextStartColumn !== undefined) {
-			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined, ariaStringBuilder);
+			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
 		}
 
 		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
@@ -165,7 +162,8 @@ export class GhostTextWidget extends Disposable {
 
 		this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-				alert(ariaStringBuilder.build());
+				const lineText = this.editor.getModel()!.getLineContent(ghostText.lineNumber);
+				alert(ghostText.renderForScreenReader(lineText));
 			}
 		});
 
