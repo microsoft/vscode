@@ -130,8 +130,6 @@ export class StickyLineCandidateProvider extends Disposable {
 		const firstStickyModelProvider = (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL ? this.stickyModelFromOutlineModel : this.stickyModelFromFoldingModel).bind(this);
 		const secondStickyModelProvider = (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL ? this.stickyModelFromFoldingModel : this.stickyModelFromOutlineModel).bind(this);
 
-		console.log(this._options!.defaultModel);
-
 		const status1 = await firstStickyModelProvider(model, modelVersionId, token);
 		if (status1 === undefined) {
 			return;
