@@ -165,6 +165,15 @@
 		"prefix": "goto",
 		"body": "goto $0;"
 	},
+	"heredoc": {
+		"prefix": "heredoc",
+		"body": [
+			"<<<${1:IDENTIFIER}",
+			"$0",
+			"${1:IDENTIFIER};"
+		],
+		"description": "Heredoc"
+	},
 	"if …": {
 		"prefix": "if",
 		"body": [
@@ -185,6 +194,15 @@
 			"$0"
 		],
 		"description": "If Else block"
+	},
+	"nowdoc": {
+		"prefix": "nowdoc",
+		"body": [
+			"<<<'${1:IDENTIFIER}'",
+			"$0",
+			"'${1:IDENTIFIER}';"
+		],
+		"description": "Nowdoc"
 	},
 	"param": {
 		"prefix": "param",
