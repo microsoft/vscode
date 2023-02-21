@@ -237,8 +237,9 @@ export class UtilityProcess extends Disposable {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
 		if (isWindowSandboxed) {
-			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1';
+			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
 		}
+		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
 
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);
