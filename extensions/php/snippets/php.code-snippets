@@ -195,6 +195,11 @@
 		],
 		"description": "If Else block"
 	},
+	"namespace - path": {
+		"prefix": "namespace_path",
+		"body": "namespace $1${RELATIVE_FILEPATH/^[^\\\\]+\\\\(.*)\\.php/$1/};",
+		"description": "Namespace created by the current file path"
+	},
 	"nowdoc": {
 		"prefix": "nowdoc",
 		"body": [
@@ -357,6 +362,28 @@
 			"}"
 		],
 		"description": "Try catch finally block"
+	},
+	"use function": {
+		"prefix": "use_fun",
+		"body": "use function $1;"
+	},
+	"use const": {
+		"prefix": "use_const",
+		"body": "use const $1;"
+	},
+	"use grouping": {
+		"prefix": "use_group",
+		"body": [
+			"use${1| const , function |}$2\\{",
+			"\t$0,",
+			"}"
+		],
+		"description": "Use grouping imports"
+	},
+	"use as ": {
+		"prefix": "use_as",
+		"body": "use${1| const , function |}$2 as $3;",
+		"description": "Use as alias"
 	},
 	"while …": {
 		"prefix": "while",
