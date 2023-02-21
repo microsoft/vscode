@@ -44,6 +44,11 @@
 		],
 		"description": "Class definition"
 	},
+	"class const": {
+		"prefix": "class_const",
+		"body": "${1|public ,private ,protected |}const ${2:NAME} = $3;",
+		"description": "Class constant"
+	},
 	"class __construct": {
 		"prefix": "construct",
 		"body": [
