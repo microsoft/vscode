@@ -19,6 +19,11 @@
 		"body": "'$1' => $2$0",
 		"description": "Key-Value pair"
 	},
+	"$a <=> $b": {
+		"prefix": "spaceship",
+		"body": "(${1:$$a} <=> ${2:$$b} === ${3|0,1,-1|})",
+		"description": "Spaceship equality check"
+	},
 	"case …": {
 		"prefix": "case",
 		"body": [
