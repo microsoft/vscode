@@ -54,6 +54,30 @@
 		"body": "(${1:$$a} <=> ${2:$$b} === ${3|0,1,-1|})",
 		"description": "Spaceship equality check"
 	},
+	"attribute": {
+		"prefix": "attr",
+		"body": [
+			"#[\\\\Attribute]",
+			"class ${1:My}Attribute${2: extends ${3:MyOther}Attribute} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Attribute"
+	},
+	"attribute target": {
+		"prefix": "attr_target",
+		"body": "\\Attribute::${1|TARGET_ALL,TARGET_CLASS,TARGET_FUNCTION,TARGET_METHOD,TARGET_PROPERTY,TARGET_CLASS_CONSTANT,TARGET_PARAMETER,IS_REPEATABLE|}$0"
+	},
+	"attribute with target": {
+		"prefix": "attr_with_target",
+		"body": [
+			"#[\\\\Attribute(\\Attribute::${1|TARGET_ALL,TARGET_CLASS,TARGET_FUNCTION,TARGET_METHOD,TARGET_PROPERTY,TARGET_CLASS_CONSTANT,TARGET_PARAMETER,IS_REPEATABLE|}$2)]",
+			"class ${3:My}Attribute${4: extends ${5:MyOther}Attribute} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Attribute - Chain targets with attr_target snippet"
+	},
 	"case …": {
 		"prefix": "case",
 		"body": [
@@ -73,11 +97,6 @@
 			""
 		],
 		"description": "Class definition"
-	},
-	"class const": {
-		"prefix": "class_const",
-		"body": "${1|public ,private ,protected |}const ${2:NAME} = $3;",
-		"description": "Class constant"
 	},
 	"class __construct": {
 		"prefix": "construct",
@@ -106,7 +125,39 @@
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Function"
+		"description": "Function for classes, traits and enums"
+	},
+	"const": {
+		"prefix": "const",
+		"body": "${1|public ,private ,protected |}const ${2:NAME} = $3;",
+		"description": "Constant for classes, traits, enums"
+	},
+	"dynamic property class": {
+		"prefix": "dynamic_class",
+		"body": [
+			"#[\\\\AllowDynamicProperties]",
+			"${1:${2|final ,readonly |}}class ${3:${TM_FILENAME_BASE}}${4: extends ${5:AnotherClass}} ${6:implements ${7:Interface}}",
+			"{",
+			"\t$0",
+			"}"
+		]
+	},
+	"enum": {
+		"prefix": "enum",
+		"body": [
+			"enum $1 {",
+			"\tcase $2;$0",
+			"}"
+		]
+	},
+	"enum backed": {
+		"prefix": "enum_backed",
+		"body": [
+			"enum $1: ${2|string,int|} {",
+			"\tcase $3;$0",
+			"}",
+		],
+		"description": "Backed enum"
 	},
 	"define(…, …)": {
 		"prefix": "def",
@@ -165,6 +216,15 @@
 			"}"
 		],
 		"description": "Foreach loop"
+	},
+	"foreach enum": {
+		"prefix": "foreach_enum",
+		"body": [
+			"foreach ($1::cases() as \\$case) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Foreach enum case loop"
 	},
 	"function": {
 		"prefix": "fun",
@@ -243,6 +303,16 @@
 			"'${1:IDENTIFIER}';"
 		],
 		"description": "Nowdoc"
+	},
+	"match": {
+		"prefix": "match",
+		"body": [
+			"match (${1:expression}) {",
+			"\t$2 => $3,",
+			"\t$4 => $5,$0",
+			"}"
+		],
+		"description": "Match expression; like switch with identity checks. Use keyval snippet to chain expressions"
 	},
 	"param": {
 		"prefix": "param",
@@ -334,6 +404,11 @@
 			"#region"
 		],
 		"description": "Folding Region Start"
+	},
+	"sensitive param": {
+		"prefix": "sensitive_param",
+		"body": "#[\\\\SensitiveParameter] ${1:Type} $${2:var}${3: = ${4:null}}$5",
+		"description": "Parameter definition"
 	},
 	"switch …": {
 		"prefix": "switch",
