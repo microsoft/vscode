@@ -32,11 +32,9 @@ export class DebugExtensionHostAction extends Action {
 		const inspectPorts = await this._extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, false);
 		if (inspectPorts.length === 0) {
 			const res = await this._dialogService.confirm({
-				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this.productService.nameLong),
-				primaryButton: nls.localize('restart3', "&&Restart"),
-				secondaryButton: nls.localize('cancel', "&&Cancel")
+				primaryButton: nls.localize({ key: 'restart3', comment: ['&& denotes a mnemonic'] }, "&&Restart")
 			});
 			if (res.confirmed) {
 				await this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });

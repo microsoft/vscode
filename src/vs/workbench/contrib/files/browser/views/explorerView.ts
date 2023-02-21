@@ -144,6 +144,10 @@ export interface IExplorerViewContainerDelegate {
 	didOpenElement(event?: UIEvent): void;
 }
 
+export interface IExplorerViewPaneOptions extends IViewPaneOptions {
+	delegate: IExplorerViewContainerDelegate;
+}
+
 export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -173,10 +177,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
+	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
 	constructor(
-		options: IViewPaneOptions,
-		private readonly delegate: IExplorerViewContainerDelegate,
+		options: IExplorerViewPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -202,6 +206,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		this.delegate = options.delegate;
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
@@ -468,10 +473,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				try {
-					this.delegate.willOpenElement(e.browserEvent);
+					this.delegate?.willOpenElement(e.browserEvent);
 					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, source: EditorOpenSource.USER } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				} finally {
-					this.delegate.didOpenElement();
+					this.delegate?.didOpenElement();
 				}
 			}
 		}));
@@ -498,7 +503,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {
-			if (e.element === null) {
+			// If empty space is clicked, and not scrolling by page enabled #173261
+			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
+			if (e.element === null && !scrollingByPage) {
 				// click in empty area -> create a new file #116676
 				this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
 			}

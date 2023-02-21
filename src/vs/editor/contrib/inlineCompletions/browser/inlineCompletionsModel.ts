@@ -539,17 +539,29 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const line = firstPart.lines[0];
 		const langId = this.editor.getModel()!.getLanguageIdAtPosition(ghostText.lineNumber, 1);
 		const config = this.languageConfigurationService.getLanguageConfiguration(langId);
-		const r = new RegExp(config.wordDefinition, config.wordDefinition.flags.replace('g', ''));
-		const m = line.match(r);
+		const wordRegExp = new RegExp(config.wordDefinition.source, config.wordDefinition.flags.replace('g', ''));
+
+		const m1 = line.match(wordRegExp);
 		let acceptUntilIndexExclusive = 0;
-		if (m && m.index !== undefined) {
-			if (m.index === 0) {
-				acceptUntilIndexExclusive = m[0].length;
+		if (m1 && m1.index !== undefined) {
+			if (m1.index === 0) {
+				acceptUntilIndexExclusive = m1[0].length;
 			} else {
-				acceptUntilIndexExclusive = m.index;
+				acceptUntilIndexExclusive = m1.index;
 			}
 		} else {
 			acceptUntilIndexExclusive = line.length;
+		}
+
+		const wsRegExp = /\s/g;
+		let m2 = wsRegExp.exec(line);
+		if (m2 && m2.index === 0) {
+			m2 = wsRegExp.exec(line);
+		}
+		if (m2 && m2.index !== undefined) {
+			if (m2.index < acceptUntilIndexExclusive) {
+				acceptUntilIndexExclusive = m2.index;
+			}
 		}
 
 		const partialText = line.substring(0, acceptUntilIndexExclusive);

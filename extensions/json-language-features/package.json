@@ -13,8 +13,7 @@
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc",
-    "onCommand:json.clearCache"
+    "onLanguage:jsonc"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
@@ -150,13 +149,18 @@
         "command": "json.clearCache",
         "title": "%json.command.clearCache%",
         "category": "JSON"
+      },
+      {
+        "command": "json.sort",
+        "title": "%json.command.sort%",
+        "category": "JSON"
       }
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.7.4-preview",
+    "@vscode/extension-telemetry": "^0.7.5",
     "request-light": "^0.7.0",
-    "vscode-languageclient": "^8.1.0-next.6"
+    "vscode-languageclient": "^8.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

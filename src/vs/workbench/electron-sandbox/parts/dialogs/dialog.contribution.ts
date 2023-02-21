@@ -64,26 +64,32 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 			// Confirm
 			if (this.currentDialog.args.confirmArgs) {
 				const args = this.currentDialog.args.confirmArgs;
-				result = this.useCustomDialog ? await this.browserImpl.confirm(args.confirmation) : await this.nativeImpl.confirm(args.confirmation);
+				result = (this.useCustomDialog || args?.confirmation.custom) ?
+					await this.browserImpl.confirm(args.confirmation) :
+					await this.nativeImpl.confirm(args.confirmation);
 			}
 
 			// Input (custom only)
 			else if (this.currentDialog.args.inputArgs) {
 				const args = this.currentDialog.args.inputArgs;
-				result = await this.browserImpl.input(args.severity, args.message, args.buttons, args.inputs, args.options);
+				result = await this.browserImpl.input(args.input);
 			}
 
-			// Message
-			else if (this.currentDialog.args.showArgs) {
-				const args = this.currentDialog.args.showArgs;
-				result = (this.useCustomDialog || args.options?.custom) ?
-					await this.browserImpl.show(args.severity, args.message, args.buttons, args.options) :
-					await this.nativeImpl.show(args.severity, args.message, args.buttons, args.options);
+			// Prompt
+			else if (this.currentDialog.args.promptArgs) {
+				const args = this.currentDialog.args.promptArgs;
+				result = (this.useCustomDialog || args?.prompt.custom) ?
+					await this.browserImpl.prompt(args.prompt) :
+					await this.nativeImpl.prompt(args.prompt);
 			}
 
 			// About
 			else {
-				await this.nativeImpl.about();
+				if (this.useCustomDialog) {
+					await this.browserImpl.about();
+				} else {
+					await this.nativeImpl.about();
+				}
 			}
 
 			this.currentDialog.close(result);

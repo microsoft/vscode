@@ -303,6 +303,10 @@ class CellContentProvider implements ITextModelContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
+		if (!ref.object.isResolved()) {
+			return null;
+		}
+
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
@@ -860,9 +864,9 @@ configurationRegistry.registerConfiguration({
 			default: 'fromEditor'
 		},
 		[NotebookSetting.outputLineHeight]: {
-			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
-			default: 19,
+			default: 0,
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
@@ -892,7 +896,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
-		}
+		},
+		[NotebookSetting.outputWordWrap]: {
+			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
 	}
 });
 

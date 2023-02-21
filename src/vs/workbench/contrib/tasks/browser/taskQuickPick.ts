@@ -9,9 +9,8 @@ import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTa
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, QuickPickInput, IQuickPick, IQuickInputButton, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -211,15 +210,13 @@ export class TaskQuickPick extends Disposable {
 	}
 
 	public async handleSettingOption(selectedType: string) {
-		const noButton = nls.localize('TaskQuickPick.changeSettingNo', "No");
-		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
-		const changeSettingResult = await this._dialogService.show(Severity.Warning,
-			nls.localize('TaskQuickPick.changeSettingDetails',
+		const { confirmed } = await this._dialogService.confirm({
+			type: Severity.Warning,
+			message: nls.localize('TaskQuickPick.changeSettingDetails',
 				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. \n\n Do you want to enable {0} task detection for all workspaces?", selectedType),
-			[yesButton, noButton],
-			{ cancelId: 1 }
-		);
-		if (changeSettingResult.choice === 0) {
+			cancelButton: nls.localize('TaskQuickPick.changeSettingNo', "No")
+		});
+		if (confirmed) {
 			await this._configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
 			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
 			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);

@@ -57,6 +57,11 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+
+	/**
+	 * Control whether a screen reader announces inline suggestion content immediately.
+	 */
+	screenReaderAnnounceInlineSuggestion?: boolean;
 	/**
 	 * The `tabindex` property of the editor's textarea
 	 */
@@ -698,6 +703,11 @@ export interface IEditorOptions {
 	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
 	dropIntoEditor?: IDropIntoEditorOptions;
+
+	/**
+	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 */
+	tabFocusMode?: boolean;
 }
 
 /**
@@ -4569,22 +4579,6 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
-//#region tabFocusMode
-
-class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode, boolean> {
-
-	constructor() {
-		super(EditorOption.tabFocusMode);
-	}
-
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
-		const readOnly = options.get(EditorOption.readOnly);
-		return (readOnly ? true : env.tabFocusMode);
-	}
-}
-
-//#endregion
-
 //#region wrappingIndent
 
 /**
@@ -4763,6 +4757,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	screenReaderAnnounceInlineSuggestion,
 	ariaLabel,
 	autoClosingBrackets,
 	autoClosingDelete,
@@ -4928,6 +4923,13 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
+		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
+		{
+			description: nls.localize('ariaAssertiveInlineSuggestion', "Control whether aria-live assertive & role alert are on the inline suggestion element so that a screen reader detects it immediately."),
+			tags: ['accessibility']
+		}
 	)),
 	autoClosingBrackets: register(new EditorStringEnumOption(
 		EditorOption.autoClosingBrackets, 'autoClosingBrackets',
@@ -5619,7 +5621,9 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorTabFocusMode()),
+	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
+		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+	)),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),

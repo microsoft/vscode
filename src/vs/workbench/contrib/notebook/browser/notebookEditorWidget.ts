@@ -32,6 +32,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import * as nls from 'vs/nls';
@@ -70,12 +71,12 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -88,6 +89,7 @@ import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = DOM.$;
 
@@ -124,6 +126,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
 	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
+	private readonly _onWillChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
+	readonly onWillChangeModel: Event<NotebookTextModel | undefined> = this._onWillChangeModel.event;
 	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
@@ -156,7 +160,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
-
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -208,6 +211,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
+		this._onWillChangeModel.fire(this._notebookViewModel?.notebookDocument);
 		this._notebookViewModel = newModel;
 		this._onDidChangeModel.fire(newModel?.notebookDocument);
 	}
@@ -1318,7 +1322,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didDragMarkupCell: that._didDragMarkupCell.bind(that),
 			didDropMarkupCell: that._didDropMarkupCell.bind(that),
 			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that),
-			didResizeOutput: that._didResizeOutput.bind(that)
+			didResizeOutput: that._didResizeOutput.bind(that),
+			updatePerformanceMetadata: that._updatePerformanceMetadata.bind(that),
 		}, id, viewType, resource, {
 			...this._notebookOptions.computeWebviewOptions(),
 			fontFamily: this._generateFontFamily()
@@ -1693,7 +1698,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}
 		state.contributionsState = contributionsState;
-		state.selectedKernelId = this.activeKernel?.id;
+		if (this.textModel?.uri.scheme === Schemas.untitled) {
+			state.selectedKernelId = this.activeKernel?.id;
+		}
 
 		return state;
 	}
@@ -1983,15 +1990,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
-	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
+	async revealRangeInViewAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
 		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.Default);
 	}
 
-	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
+	async revealRangeInCenterAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
 		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.Center);
 	}
 
-	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
+	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
 		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
@@ -2459,7 +2466,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return ret;
 	}
 
-	async highlightFind(cell: CodeCellViewModel, matchIndex: number): Promise<number> {
+	async highlightFind(matchIndex: number): Promise<number> {
 		if (!this._webview) {
 			return 0;
 		}
@@ -2628,7 +2635,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (!existingOutput
 				|| (!existingOutput.renderer && output.type === RenderOutputType.Extension)
 			) {
-				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
 			} else if (existingOutput.renderer
 				&& output.type === RenderOutputType.Extension
 				&& existingOutput.renderer.id !== output.renderer.id) {
@@ -2905,6 +2912,31 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this._getCellById(cellId);
 		if (cell) {
 			this._onDidResizeOutputEmitter.fire(cell);
+		}
+	}
+
+	private _updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const cell = this._getCellById(cellId);
+		const cellIndex = !cell ? undefined : this.getCellIndex(cell);
+		if (cell?.internalMetadata.executionId === executionId && cellIndex !== undefined) {
+			const renderDurationMap = cell.internalMetadata.renderDuration || {};
+			renderDurationMap[rendererId] = (renderDurationMap[rendererId] ?? 0) + duration;
+
+			this.textModel.applyEdits([
+				{
+					editType: CellEditType.PartialInternalMetadata,
+					index: cellIndex,
+					internalMetadata: {
+						executionId: executionId,
+						renderDuration: renderDurationMap
+					}
+				}
+			], true, undefined, () => undefined, undefined, false);
+
 		}
 	}
 

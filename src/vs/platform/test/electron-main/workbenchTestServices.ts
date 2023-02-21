@@ -7,7 +7,7 @@ import { Promises } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 
 export class TestLifecycleMainService implements ILifecycleMainService {
@@ -24,7 +24,7 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 
 		this._onWillShutdown.fire({
 			reason: ShutdownReason.QUIT,
-			join(promise) {
+			join(id, promise) {
 				joiners.push(promise);
 			}
 		});
@@ -49,7 +49,7 @@ export class TestLifecycleMainService implements ILifecycleMainService {
 	async when(phase: LifecycleMainPhase): Promise<void> { }
 }
 
-export class InMemoryTestStateMainService implements IStateMainService {
+export class InMemoryTestStateMainService implements IStateService {
 
 	_serviceBrand: undefined;
 

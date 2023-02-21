@@ -37,9 +37,10 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { join } from 'vs/base/common/path';
 import { ITunnelApplicationConfig } from 'vs/base/common/product';
+import { isNumber, isObject, isString } from 'vs/base/common/types';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
-	original: 'Remote Tunnels',
+	original: 'Remote-Tunnels',
 	value: localize('remoteTunnel.category', 'Remote Tunnels')
 };
 
@@ -54,6 +55,9 @@ const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
+const REMOTE_TUNNEL_EXTENSION_TIMEOUT = 4 * 60 * 1000; // show the recommendation that a machine started using tunnels if it joined less than 4 minutes ago
+
+interface UsedOnHostMessage { hostName: string; timeStamp: number }
 
 type ExistingSessionItem = { session: AuthenticationSession; providerId: string; label: string; description: string };
 type IAuthenticationProvider = { id: string; scopes: string[] };
@@ -70,10 +74,11 @@ enum RemoteTunnelCommandIds {
 	learnMore = 'workbench.remoteTunnel.actions.learnMore',
 }
 
+// name shown in nofications
 namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
 	export const turnOff = localize('remoteTunnel.actions.turnOff', 'Turn off Remote Tunnel Access...');
-	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Log');
+	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Remote Tunnel Service Log');
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Machine Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with VS Code Tunnels');
@@ -177,8 +182,23 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			if (await this.extensionService.getExtension(remoteExtension.extensionId)) {
 				return false;
 			}
-			const usedOnHost = this.storageService.get(REMOTE_TUNNEL_USED_STORAGE_KEY, StorageScope.APPLICATION);
-			if (!usedOnHost) {
+			const usedOnHostMessage = this.storageService.get(REMOTE_TUNNEL_USED_STORAGE_KEY, StorageScope.APPLICATION);
+			if (!usedOnHostMessage) {
+				return false;
+			}
+			let usedOnHost: string | undefined;
+			try {
+				const message = JSON.parse(usedOnHostMessage);
+				if (!isObject(message)) {
+					return false;
+				}
+				const { hostName, timeStamp } = message as UsedOnHostMessage;
+				if (!isString(hostName)! || !isNumber(timeStamp) || new Date().getTime() > timeStamp + REMOTE_TUNNEL_EXTENSION_TIMEOUT) {
+					return false;
+				}
+				usedOnHost = hostName;
+			} catch (_) {
+				// problems parsing the message, likly the old message format
 				return false;
 			}
 			const currentHostName = await this.remoteTunnelService.getHostName();
@@ -490,12 +510,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 				const didNotifyPreview = storageService.getBoolean(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, StorageScope.APPLICATION, false);
 				if (!didNotifyPreview) {
-					const result = await dialogService.confirm({
+					const { confirmed } = await dialogService.confirm({
 						message: localize('tunnel.preview', 'Remote Tunnels is currently in preview. Please report any problems using the "Help: Report Issue" command.'),
-						primaryButton: localize('enable', 'Enable'),
-						secondaryButton: localize('cancel', 'Cancel'),
+						primaryButton: localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, '&&Enable')
 					});
-					if (!result.confirmed) {
+					if (!confirmed) {
 						return;
 					}
 
@@ -527,7 +546,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							]
 						}
 					});
-					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, connectionInfo.hostName, StorageScope.APPLICATION, StorageTarget.USER);
+					const usedOnHostMessage: UsedOnHostMessage = { hostName: connectionInfo.hostName, timeStamp: new Date().getTime() };
+					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, JSON.stringify(usedOnHostMessage), StorageScope.APPLICATION, StorageTarget.USER);
 				} else {
 					await notificationService.notify({
 						severity: Severity.Info,
@@ -594,12 +614,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			}
 
 			async run() {
-				const result = await that.dialogService.confirm({
-					type: 'info',
-					message: localize('remoteTunnel.turnOff.confirm', 'Do you want to turn off Remote Tunnel Access?'),
-					primaryButton: localize('remoteTunnel.turnOff.yesButton', 'Yes'),
+				const { confirmed } = await that.dialogService.confirm({
+					message: localize('remoteTunnel.turnOff.confirm', 'Do you want to turn off Remote Tunnel Access?')
 				});
-				if (result.confirmed) {
+				if (confirmed) {
 					that.clearAuthenticationPreference();
 					that.remoteTunnelService.updateAccount(undefined);
 				}
@@ -720,7 +738,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			} else {
 				quickPick.title = localize('manage.title.off', 'Remote Machine Access not enabled');
 			}
-			items.push({ id: RemoteTunnelCommandIds.showLog, label: RemoteTunnelCommandLabels.showLog });
+			items.push({ id: RemoteTunnelCommandIds.showLog, label: localize('manage.showLog', 'Show Log') });
 			items.push({ type: 'separator' });
 			items.push({ id: RemoteTunnelCommandIds.configure, label: localize('manage.machineName', 'Change Host Name'), description: this.connectionInfo?.hostName });
 			items.push({ id: RemoteTunnelCommandIds.turnOff, label: RemoteTunnelCommandLabels.turnOff, description: account ? `${account.label} (${account.description})` : undefined });

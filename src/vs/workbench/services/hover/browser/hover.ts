@@ -59,6 +59,13 @@ export interface IHoverOptions {
 	target: IHoverTarget | HTMLElement;
 
 	/**
+	 * An ID to associate with the hover to be used as an equality check. Normally when calling
+	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
+	 * is the same one that is already showing, when this is set, the ID will be used instead.
+	 */
+	id?: number | string;
+
+	/**
 	 * A set of actions for the hover's "status bar".
 	 */
 	actions?: IHoverAction[];
@@ -126,6 +133,14 @@ export interface IHoverOptions {
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
 	 */
 	trapFocus?: boolean;
+
+	/*
+	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
+	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is
+	 * created as the next tab index after the element being hovered and/or to workaround the
+	 * element's container hiding on `focusout`.
+	 */
+	container?: HTMLElement;
 }
 
 export interface IHoverAction {
