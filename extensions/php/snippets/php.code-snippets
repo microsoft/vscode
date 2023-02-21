@@ -47,6 +47,17 @@
 			"}"
 		]
 	},
+	"class __construct promotion": {
+		"prefix": "construct_promoted",
+		"body": [
+			"${1|public,private,protected|} function __construct(",
+			"\t${2|public ,private ,protected |}${3:readonly }${4:Type} $${5:var}${6: = ${7:null}}$8",
+			") {",
+			"\t$0",
+			"}"
+		],
+		"description": "Promotion style constructor. Chain promotions with the property_promotion snippet"
+	},
 	"class function …": {
 		"prefix": "class_fun",
 		"body": [
@@ -165,6 +176,11 @@
 		"prefix": "param",
 		"body": "${1:Type} $${2:var}${3: = ${4:null}}$5",
 		"description": "Parameter definition"
+	},
+	"property promotion": {
+		"prefix": "property_promoted",
+		"body": "${1|public ,private ,protected |}${2:readonly }${3:Type} $${4:var}${5: = ${6:null}}$7",
+		"description": "Property promotion"
 	},
 	"PHPDoc class …": {
 		"prefix": "doc_class",
