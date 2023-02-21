@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export interface IStickyScrollController {
@@ -72,6 +72,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this._onContextMenu(event);
 		}));
+
+		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
+		this._register(focusTracker.onDidFocus(_ => {
+			console.log('on did focus');
+		}));
+		this._register(focusTracker.onDidBlur(_ => {
+			console.log('on did blur');
+			this._disposeFocusStickyScrollStore();
+		}));
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -87,6 +96,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _disposeFocusStickyScrollStore() {
+		console.log('Entered into the dispose');
 		this._focusedStickyElement!.classList.remove('focus');
 		this._stickyScrollFocusedContextKey.set(false);
 		this._focusDisposableStore!.dispose();
@@ -94,6 +104,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	public focus(): void {
 		const focusState = this._stickyScrollFocusedContextKey.get();
+		console.log('inside focus ', focusState);
 		const rootNode = this._stickyScrollWidget.getDomNode();
 		this._stickyElements = rootNode.children;
 		this._numberStickyElements = this._stickyElements.length;
@@ -107,9 +118,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollFocusedContextKey.set(true);
 		this._focusedStickyElement = rootNode.lastElementChild! as HTMLDivElement;
 		this._focusedStickyElement.classList.add('focus');
-		this._focusedStickyElement.focus();
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
+		// this._focusedStickyElement.focus();
 
+		rootNode.focus();
+
+		/*
 		// When scrolling remove focus
 		const onScroll = this._editor.onDidScrollChange(() => {
 			this._disposeFocusStickyScrollStore();
@@ -126,6 +140,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focusDisposableStore.add(onScroll);
 		this._focusDisposableStore.add(onMouseUp);
 		this._focusDisposableStore.add(onStickyScrollWidgetHover);
+		*/
 	}
 
 	public focusNext(): void {
@@ -134,7 +149,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._focusedStickyElementIndex!++;
 			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
-			this._focusedStickyElement.focus();
+			// this._focusedStickyElement.focus();
 		}
 	}
 
@@ -144,7 +159,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._focusedStickyElementIndex!--;
 			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
-			this._focusedStickyElement.focus();
+			// this._focusedStickyElement.focus();
 		}
 	}
 
