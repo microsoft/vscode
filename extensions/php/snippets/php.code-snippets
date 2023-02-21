@@ -50,7 +50,7 @@
 	"class function …": {
 		"prefix": "class_fun",
 		"body": [
-			"${1|public ,private ,protected |}${2: static }function ${3:FunctionName}(${4:${5:${6:Type} }$${7:var}${8: = ${9:null}}}$10)",
+			"${1|public ,private ,protected |}${2: static }function ${3:FunctionName}(${4:${5:${6:Type} }$${7:var}${8: = ${9:null}}}$10) : ${11:Returntype}",
 			"{",
 			"\t${0:# code...}",
 			"}"
@@ -114,6 +114,31 @@
 			"}"
 		],
 		"description": "Foreach loop"
+	},
+	"function": {
+		"prefix": "fun",
+		"body": [
+			"function ${1:FunctionName}($2)${3: : ${4:Returntype}} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Function - use param snippet for parameters"
+	},
+	"anonymous function": {
+		"prefix": "fun_anonymous",
+		"body": [
+			"function ($1)${2: use ($${3:var})} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Anonymous Function"
+	},
+	"arrow function": {
+		"prefix": "fun_arrow",
+		"body": [
+			"fn(${1:$$var}) => $0"
+		],
+		"description": "Anonymous Function"
 	},
 	"if …": {
 		"prefix": "if",
