@@ -31,7 +31,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			if (expandedText.startsWith('<')) {
 				this.lastCompletionType = 'html';
-			} else if (expandedText.includes(':') && expandedText.endsWith(';')) {
+			} else if (expandedText.indexOf(':') > 0 && expandedText.endsWith(';')) {
 				this.lastCompletionType = 'css';
 			} else {
 				this.lastCompletionType = undefined;

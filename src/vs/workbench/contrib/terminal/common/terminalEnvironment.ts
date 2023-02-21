@@ -8,13 +8,16 @@
  */
 
 import * as path from 'vs/base/common/path';
-import { URI as Uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
+import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessEnvironment, isWindows, language, OperatingSystem, platform, Platform } from 'vs/base/common/platform';
+import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { isString } from 'vs/base/common/types';
+import { ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -183,14 +186,14 @@ export async function getCwd(
 	shell: IShellLaunchConfig,
 	userHome: string | undefined,
 	variableResolver: VariableResolver | undefined,
-	root: Uri | undefined,
+	root: URI | undefined,
 	customCwd: string | undefined,
 	logService?: ILogService
 ): Promise<string> {
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 		const resolved = await _resolveCwd(unresolved, variableResolver);
-		return _sanitizeCwd(resolved || unresolved);
+		return sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;
@@ -213,7 +216,7 @@ export async function getCwd(
 		cwd = root ? root.fsPath : userHome || '';
 	}
 
-	return _sanitizeCwd(cwd);
+	return sanitizeCwd(cwd);
 }
 
 async function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined, logService?: ILogService): Promise<string | undefined> {
@@ -224,14 +227,6 @@ async function _resolveCwd(cwd: string, variableResolver: VariableResolver | und
 			logService?.error('Could not resolve terminal cwd', e);
 			return undefined;
 		}
-	}
-	return cwd;
-}
-
-function _sanitizeCwd(cwd: string): string {
-	// Make the drive letter uppercase on Windows (see #9448)
-	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
-		return cwd[0].toUpperCase() + cwd.substr(1);
 	}
 	return cwd;
 }
@@ -395,7 +390,83 @@ export async function createTerminalEnvironment(
 		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
-		addTerminalEnvironmentKeys(env, version, locale, detectLocale);
+		addTerminalEnvironmentKeys(env, version, language, detectLocale);
 	}
 	return env;
+}
+
+/**
+ * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
+ * included trying to prepare the path for WSL if needed.
+ *
+ * @param originalPath The path to be escaped and formatted.
+ * @param executable The executable off the shellLaunchConfig.
+ * @param title The terminal's title.
+ * @param shellType The type of shell the path is being sent to.
+ * @param backend The backend for the terminal.
+ * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
+ * tests.
+ * @returns An escaped version of the path to be execuded in the terminal.
+ */
+export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
+	let originalPath: string;
+	if (isString(resource)) {
+		originalPath = resource;
+	} else {
+		originalPath = resource.fsPath;
+		// Apply backend OS-specific formatting to the path since URI.fsPath uses the frontend's OS
+		if (isWindowsFrontend && os !== OperatingSystem.Windows) {
+			originalPath = originalPath.replace(/\\/g, '\/');
+		} else if (!isWindowsFrontend && os === OperatingSystem.Windows) {
+			originalPath = originalPath.replace(/\//g, '\\');
+		}
+	}
+
+	if (!executable) {
+		return originalPath;
+	}
+
+	const hasSpace = originalPath.includes(' ');
+	const hasParens = originalPath.includes('(') || originalPath.includes(')');
+
+	const pathBasename = path.basename(executable, '.exe');
+	const isPowerShell = pathBasename === 'pwsh' ||
+		title === 'pwsh' ||
+		pathBasename === 'powershell' ||
+		title === 'powershell';
+
+
+	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
+		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
+	}
+
+	if (hasParens && isPowerShell) {
+		return `& '${originalPath}'`;
+	}
+
+	if (os === OperatingSystem.Windows) {
+		// 17063 is the build number where wsl path was introduced.
+		// Update Windows uriPath to be executed in WSL.
+		if (shellType !== undefined) {
+			if (shellType === WindowsShellType.GitBash) {
+				return escapeNonWindowsPath(originalPath.replace(/\\/g, '/'));
+			}
+			else if (shellType === WindowsShellType.Wsl) {
+				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+			}
+			else if (hasSpace) {
+				return `"${originalPath}"`;
+			}
+			return originalPath;
+		}
+		const lowerExecutable = executable.toLowerCase();
+		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
+			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
+		} else if (hasSpace) {
+			return `"${originalPath}"`;
+		}
+		return originalPath;
+	}
+
+	return escapeNonWindowsPath(originalPath);
 }

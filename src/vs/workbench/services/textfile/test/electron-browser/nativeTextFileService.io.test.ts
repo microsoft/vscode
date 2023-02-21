@@ -7,13 +7,13 @@ import { tmpdir } from 'os';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Promises } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
@@ -53,7 +53,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 			service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
 
 			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
-			const sourceDir = getPathFromAmdModule(require, './fixtures');
+			const sourceDir = FileAccess.asFileUri('vs/workbench/services/textfile/test/electron-browser/fixtures').fsPath;
 
 			await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 

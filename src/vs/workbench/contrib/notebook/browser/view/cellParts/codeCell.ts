@@ -6,36 +6,38 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
+	private _inputCollapseElement: HTMLElement | undefined;
 
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;
 	private _isDisposed: boolean = false;
-	private readonly cellParts: CellPart[];
+	private readonly cellParts: CellPartsCollection;
 
 	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 
@@ -44,10 +46,9 @@ export class CodeCell extends Disposable {
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ILanguageService readonly languageService: ILanguageService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IOpenerService openerService: IOpenerService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
@@ -55,10 +56,12 @@ export class CodeCell extends Disposable {
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
-		this.cellParts = [...templateData.cellParts, cellEditorOptions, this._outputContainerRenderer];
+		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
+		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
+		this._renderedInputCollapseState = false; // editor is always expanded initially
 
 		this.registerViewCellLayoutChange();
 		this.registerCellEditorEventListeners();
@@ -67,16 +70,12 @@ export class CodeCell extends Disposable {
 
 		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (e.affectsCell(this.viewCell.uri)) {
-				this.cellParts.forEach(cellPart => {
-					cellPart.updateForExecutionState(this.viewCell, e);
-				});
+				this.cellParts.updateForExecutionState(this.viewCell, e);
 			}
 		}));
 
 		this._register(this.viewCell.onDidChangeState(e => {
-			this.cellParts.forEach(cellPart => {
-				cellPart.updateState(this.viewCell, e);
-			});
+			this.cellParts.updateState(this.viewCell, e);
 
 			if (e.outputIsHoveredChanged) {
 				this.updateForOutputHover();
@@ -104,9 +103,10 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
+		this.cellParts.scheduleRenderCell(this.viewCell);
+
 		this._register(toDisposable(() => {
-			this.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
+			this.cellParts.unrenderCell(this.viewCell);
 		}));
 
 		this.updateEditorOptions();
@@ -115,15 +115,14 @@ export class CodeCell extends Disposable {
 		this.updateForOutputFocus();
 
 		// Render Outputs
-		this._outputContainerRenderer.render(editorHeight);
+		this.viewCell.editorHeight = editorHeight;
+		this._outputContainerRenderer.render();
+		this._renderedOutputCollapseState = false; // the output is always rendered initially
 		// Need to do this after the intial renderOutput
-		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
-			this.initialViewUpdateExpanded();
-			this.viewCell.layoutChange({});
-		}
+		this.initialViewUpdateExpanded();
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
-			this.cellParts.forEach(cellPart => cellPart.prepareLayout());
+			this.cellParts.prepareLayout();
 		}));
 
 		const executionItemElement = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('.collapsed-execution-icon'));
@@ -136,9 +135,9 @@ export class CodeCell extends Disposable {
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeLayout, this.updateForLayout.bind(this)));
 
+		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 		this._register(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri))));
 		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
-		cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 	}
 
 	private _pendingLayout: IDisposable | undefined;
@@ -146,9 +145,7 @@ export class CodeCell extends Disposable {
 	private updateForLayout(): void {
 		this._pendingLayout?.dispose();
 		this._pendingLayout = DOM.modify(() => {
-			this.cellParts.forEach(part => {
-				part.updateInternalLayoutNow(this.viewCell);
-			});
+			this.cellParts.updateInternalLayoutNow(this.viewCell);
 		});
 	}
 
@@ -187,6 +184,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (model && this.templateData.editor) {
+				this._reigsterModelListeners(model);
 				this.templateData.editor.setModel(model);
 				this.viewCell.attachTextEditor(this.templateData.editor, this.viewCell.layoutInfo.estimatedHasHorizontalScrolling);
 				const focusEditorIfNeeded = () => {
@@ -240,10 +238,6 @@ export class CodeCell extends Disposable {
 					this.onCellWidthChange();
 				}
 			}
-
-			if (e.totalHeight) {
-				this.relayoutCell();
-			}
 		}));
 	}
 
@@ -265,8 +259,25 @@ export class CodeCell extends Disposable {
 			const selections = this.templateData.editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = this.templateData.editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
+			}
+		}));
+	}
+
+	private _reigsterModelListeners(model: ITextModel) {
+		this._register(model.onDidChangeTokens(() => {
+			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
+				// flush the collapsed input with the latest tokens
+				const content = this._getRichTextFromLineTokens(model);
+				DOM.safeInnerHtml(this._inputCollapseElement, content);
+				this._attachInputExpandButton(this._inputCollapseElement);
 			}
 		}));
 	}
@@ -373,21 +384,26 @@ export class CodeCell extends Disposable {
 		this._collapsedExecutionIcon.setVisibility(true);
 
 		// update preview
-		const richEditorText = this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
+		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
 		DOM.safeInnerHtml(element, richEditorText);
+		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		this._attachInputExpandButton(element);
+
+		DOM.show(this.templateData.cellInputCollapsedContainer);
+	}
+
+	private _attachInputExpandButton(element: HTMLElement) {
 		const expandIcon = DOM.$('span.expandInputIcon');
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
-			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double-click to expand cell input ({0})", keybinding.getLabel());
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		element.appendChild(expandIcon);
-
-		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}
 
 	private _showInput() {
@@ -398,6 +414,24 @@ export class CodeCell extends Disposable {
 
 	private _getRichText(buffer: IReadonlyTextBuffer, language: string) {
 		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
+	}
+
+	private _getRichTextFromLineTokens(model: ITextModel) {
+		let result = `<div class="monaco-tokenized-source">`;
+
+		const firstLineTokens = model.tokenization.getLineTokens(1);
+		const viewLineTokens = firstLineTokens.inflate();
+		const line = model.getLineContent(1);
+		let startOffset = 0;
+		for (let j = 0, lenJ = viewLineTokens.getCount(); j < lenJ; j++) {
+			const type = viewLineTokens.getClassName(j);
+			const endIndex = viewLineTokens.getEndOffset(j);
+			result += `<span class="${type}">${strings.escape(line.substring(startOffset, endIndex))}</span>`;
+			startOffset = endIndex;
+		}
+
+		result += `</div>`;
+		return result;
 	}
 
 	private _removeInputCollapsePreview() {
@@ -443,10 +477,10 @@ export class CodeCell extends Disposable {
 
 	private initialViewUpdateExpanded(): void {
 		this.templateData.container.classList.toggle('input-collapsed', false);
-		this._showInput();
+		DOM.show(this.templateData.editorPart);
+		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		this._showOutput(true);
-		this.relayoutCell();
 	}
 
 	private layoutEditor(dimension: IDimension): void {

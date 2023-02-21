@@ -6,14 +6,13 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -28,6 +27,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	instances: ITerminalInstance[] = [];
 	private _activeInstanceIndex: number = -1;
 	private _isShuttingDown = false;
+	private _activeOpenEditorRequest?: { instanceId: number; promise: Promise<IEditorPane | undefined> };
 
 	private _terminalEditorActive: IContextKey<boolean>;
 
@@ -115,40 +115,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return this._editorService.visibleEditors.filter(e => e instanceof TerminalEditorInput && e.terminalInstance?.instanceId);
 	}
 
-	private _getActiveTerminalEditor(): TerminalEditor | undefined {
-		return this._editorService.activeEditorPane instanceof TerminalEditor ? this._editorService.activeEditorPane : undefined;
-	}
-
-	findPrevious(): void {
-		const editor = this._getActiveTerminalEditor();
-		editor?.showFindWidget();
-		editor?.getFindWidget().find(true);
-	}
-
-	findNext(): void {
-		const editor = this._getActiveTerminalEditor();
-		editor?.showFindWidget();
-		editor?.getFindWidget().find(false);
-	}
-
-	getFindState(): FindReplaceState {
-		const editor = this._getActiveTerminalEditor();
-		return editor!.findState!;
-	}
-
-	async focusFindWidget(): Promise<void> {
-		const instance = this.activeInstance;
-		if (instance) {
-			await instance.focusWhenReady(true);
-		}
-
-		this._getActiveTerminalEditor()?.focusFindWidget();
-	}
-
-	hideFindWidget(): void {
-		this._getActiveTerminalEditor()?.hideFindWidget();
-	}
-
 	get activeInstance(): ITerminalInstance | undefined {
 		if (this.instances.length === 0 || this._activeInstanceIndex === -1) {
 			return undefined;
@@ -158,6 +124,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 	setActiveInstance(instance: ITerminalInstance): void {
 		this._setActiveInstance(instance);
+	}
+
+	async focusActiveInstance(): Promise<void> {
+		return this.activeInstance?.focusWhenReady(true);
 	}
 
 	private _setActiveInstance(instance: ITerminalInstance | undefined): void {
@@ -172,16 +142,21 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	async openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> {
 		const resource = this.resolveResource(instance);
 		if (resource) {
-			await this._editorService.openEditor({
-				resource,
-				description: instance.description || instance.shellLaunchConfig.type,
-				options:
-				{
-					pinned: true,
-					forceReload: true,
-					preserveFocus: editorOptions?.preserveFocus
-				}
-			}, editorOptions?.viewColumn || ACTIVE_GROUP);
+			await this._activeOpenEditorRequest?.promise;
+			this._activeOpenEditorRequest = {
+				instanceId: instance.instanceId,
+				promise: this._editorService.openEditor({
+					resource,
+					description: instance.description || instance.shellLaunchConfig.type,
+					options: {
+						pinned: true,
+						forceReload: true,
+						preserveFocus: editorOptions?.preserveFocus
+					}
+				}, editorOptions?.viewColumn ?? ACTIVE_GROUP)
+			};
+			await this._activeOpenEditorRequest?.promise;
+			this._activeOpenEditorRequest = undefined;
 		}
 	}
 
@@ -198,18 +173,17 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (URI.isUri(instanceOrUri)) {
 			const terminalIdentifier = parseTerminalUri(instanceOrUri);
 			if (terminalIdentifier.instanceId) {
-				const primaryBackend = this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
-				primaryBackend?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
-					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
-					input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
-					this._editorService.openEditor(input, {
-						pinned: true,
-						forceReload: true
-					},
-						input.group
-					);
-					this._registerInstance(inputKey, input, instance);
-					return instanceOrUri;
+				this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority).then(primaryBackend => {
+					primaryBackend?.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId!).then(attachPersistentProcess => {
+						const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
+						input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
+						this._editorService.openEditor(input, {
+							pinned: true,
+							forceReload: true
+						}, input.group);
+						this._registerInstance(inputKey, input, instance);
+						return instanceOrUri;
+					});
 				});
 			}
 		}
@@ -263,13 +237,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			this._editorService.openEditor({
 				resource: URI.revive(resource),
 				description: instance.description,
-				options:
-				{
+				options: {
 					pinned: true,
 					forceReload: true
 				}
-			},
-				SIDE_GROUP);
+			}, SIDE_GROUP);
 		}
 		return instance;
 	}
@@ -281,7 +253,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if ('pid' in deserializedInput) {
 			const newDeserializedInput = { ...deserializedInput, findRevivedId: true };
 			const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: newDeserializedInput }, TerminalLocation.Editor);
-			instance.target = TerminalLocation.Editor;
 			const input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
 			this._registerInstance(inputKey, input, instance);
 			return input;
@@ -325,9 +296,14 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeInstances.fire();
 	}
 
-	revealActiveEditor(preserveFocus?: boolean): void {
+	async revealActiveEditor(preserveFocus?: boolean): Promise<void> {
 		const instance = this.activeInstance;
 		if (!instance) {
+			return;
+		}
+
+		// If there is an active openEditor call for this instance it will be revealed by that
+		if (this._activeOpenEditorRequest?.instanceId === instance.instanceId) {
 			return;
 		}
 
@@ -339,8 +315,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				forceReload: true,
 				preserveFocus,
 				activation: EditorActivation.PRESERVE
-			},
-			editorInput.group
+			}
 		);
 	}
 }

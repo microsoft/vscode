@@ -6,9 +6,9 @@
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
+import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { Counter } from 'vs/base/common/numbers';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from 'vs/base/common/resources';
@@ -21,6 +21,7 @@ import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -583,6 +584,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	// --- edit sessions ---
 
+	private _providerHandlePool = 0;
+
 	// called by ext host
 	registerEditSessionIdentityProvider(scheme: string, provider: vscode.EditSessionIdentityProvider) {
 		if (this._editSessionIdentityProviders.has(scheme)) {
@@ -591,11 +594,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		this._editSessionIdentityProviders.set(scheme, provider);
 		const outgoingScheme = this._uriTransformerService.transformOutgoingScheme(scheme);
-		this._proxy.$registerEditSessionIdentityProvider(outgoingScheme);
+		const handle = this._providerHandlePool++;
+		this._proxy.$registerEditSessionIdentityProvider(handle, outgoingScheme);
 
 		return toDisposable(() => {
 			this._editSessionIdentityProviders.delete(scheme);
-			this._proxy.$unregisterEditSessionIdentityProvider(outgoingScheme);
+			this._proxy.$unregisterEditSessionIdentityProvider(handle);
 		});
 	}
 
@@ -624,6 +628,62 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		return result;
 	}
+
+	async $provideEditSessionIdentityMatch(workspaceFolder: UriComponents, identity1: string, identity2: string, cancellationToken: CancellationToken): Promise<EditSessionIdentityMatch | undefined> {
+		this._logService.info('Getting edit session identifier for workspaceFolder', workspaceFolder);
+		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
+		if (!folder) {
+			this._logService.warn('Unable to resolve workspace folder');
+			return undefined;
+		}
+
+		this._logService.info('Invoking #provideEditSessionIdentity for workspaceFolder', folder);
+
+		const provider = this._editSessionIdentityProviders.get(folder.uri.scheme);
+		this._logService.info(`Provider for scheme ${folder.uri.scheme} is defined: `, !!provider);
+		if (!provider) {
+			return undefined;
+		}
+
+		const result = await provider.provideEditSessionIdentityMatch?.(identity1, identity2, cancellationToken);
+		this._logService.info('Provider returned edit session identifier match result: ', result);
+		if (!result) {
+			return undefined;
+		}
+
+		return result;
+	}
+
+	private readonly _onWillCreateEditSessionIdentityEvent = new AsyncEmitter<vscode.EditSessionIdentityWillCreateEvent>();
+
+	getOnWillCreateEditSessionIdentityEvent(extension: IExtensionDescription): Event<vscode.EditSessionIdentityWillCreateEvent> {
+		return (listener, thisArg, disposables) => {
+			const wrappedListener: IExtensionListener<vscode.EditSessionIdentityWillCreateEvent> = function wrapped(e) { listener.call(thisArg, e); };
+			wrappedListener.extension = extension;
+			return this._onWillCreateEditSessionIdentityEvent.event(wrappedListener, undefined, disposables);
+		};
+	}
+
+	// main thread calls this to trigger participants
+	async $onWillCreateEditSessionIdentity(workspaceFolder: UriComponents, token: CancellationToken, timeout: number): Promise<void> {
+		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
+
+		if (folder === undefined) {
+			throw new Error('Unable to resolve workspace folder');
+		}
+
+		await this._onWillCreateEditSessionIdentityEvent.fireAsync({ workspaceFolder: folder }, token, async (thenable: Promise<unknown>, listener) => {
+			const now = Date.now();
+			await Promise.resolve(thenable);
+			if (Date.now() - now > timeout) {
+				this._logService.warn('SLOW edit session create-participant', (<IExtensionListener<vscode.EditSessionIdentityWillCreateEvent>>listener).extension.identifier);
+			}
+		});
+
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+	}
 }
 
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
@@ -646,3 +706,9 @@ function parseSearchInclude(include: string | IRelativePatternDto | undefined | 
 		folder: includeFolder
 	};
 }
+
+interface IExtensionListener<E> {
+	extension: IExtensionDescription;
+	(e: E): any;
+}
+

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, MessageBoxOptions, WebContents } from 'electron';
+import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, WebContents } from 'electron';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel, mnemonicMenuLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/window/common/window';
@@ -70,7 +70,7 @@ export class Menubar {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
@@ -100,7 +100,7 @@ export class Menubar {
 	}
 
 	private restoreCachedMenubarData() {
-		const menubarData = this.stateMainService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
 		if (menubarData) {
 			if (menubarData.menus) {
 				this.menubarMenus = menubarData.menus;
@@ -197,7 +197,7 @@ export class Menubar {
 		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateMainService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}
@@ -430,20 +430,15 @@ export class Menubar {
 
 		const confirmBeforeClose = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.isKeyboardEvent(event))) {
-			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
-					mnemonicButtonLabel(nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit")),
-					mnemonicButtonLabel(nls.localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"))
+					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
+					nls.localize('cancel', "Cancel")
 				],
-				message: nls.localize('quitMessage', "Are you sure you want to quit?"),
-				noLink: true,
-				defaultId: 0,
-				cancelId: 1
-			};
+				message: nls.localize('quitMessage', "Are you sure you want to quit?")
+			});
 
-			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, options);
 			return response === 0;
 		}
 
@@ -532,19 +527,19 @@ export class Menubar {
 
 		return new MenuItem(this.likeAction(commandId, {
 			label: item.label,
-			click: (menuItem, win, event) => {
+			click: async (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
-				const success = this.windowsMainService.open({
+				const success = (await this.windowsMainService.open({
 					context: OpenContext.MENU,
 					cli: this.environmentMainService.args,
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
 					gotoLineMode: false,
 					remoteAuthority: item.remoteAuthority
-				}).length > 0;
+				})).length > 0;
 
 				if (!success) {
-					this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
+					await this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
 				}
 			}
 		}, false));

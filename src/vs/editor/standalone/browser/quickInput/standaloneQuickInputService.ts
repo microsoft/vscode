@@ -5,7 +5,7 @@
 
 import 'vs/css!./standaloneQuickInput';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -15,12 +15,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/standaloneLayoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
+import { IQuickInputControllerHost, QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { once } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
-export class EditorScopedQuickInputService extends QuickInputService {
+class EditorScopedQuickInputService extends QuickInputService {
 
 	private host: IQuickInputControllerHost | undefined = undefined;
 
@@ -184,4 +184,4 @@ export class QuickInputEditorWidget implements IOverlayWidget {
 	}
 }
 
-registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution);
+registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution, EditorContributionInstantiation.Lazy);

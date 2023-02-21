@@ -25,6 +25,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -873,6 +874,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private _adapterData: any,
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -891,7 +893,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get uri(): uri {
-		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService) : this._uri;
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService, this.logService) : this._uri;
 	}
 
 	get column(): number | undefined {
@@ -1056,6 +1058,8 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBreakpoint {
 
+	private supportedSessions: Set<string> = new Set();
+
 	constructor(
 		public readonly filter: string,
 		public readonly label: string,
@@ -1063,7 +1067,8 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		public readonly supportsCondition: boolean,
 		condition: string | undefined,
 		public readonly description: string | undefined,
-		public readonly conditionDescription: string | undefined
+		public readonly conditionDescription: string | undefined,
+		private fallback: boolean = false
 	) {
 		super(enabled, undefined, condition, undefined, generateUuid());
 	}
@@ -1074,13 +1079,45 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.label = this.label;
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
+		result.conditionDescription = this.conditionDescription;
 		result.condition = this.condition;
+		result.fallback = this.fallback;
+		result.description = this.description;
 
 		return result;
 	}
 
+	setSupportedSession(sessionId: string, supported: boolean): void {
+		if (supported) {
+			this.supportedSessions.add(sessionId);
+		}
+		else {
+			this.supportedSessions.delete(sessionId);
+		}
+	}
+
+	/**
+	 * Used to specify which breakpoints to show when no session is specified.
+	 * Useful when no session is active and we want to show the exception breakpoints from the last session.
+	 */
+	setFallback(isFallback: boolean) {
+		this.fallback = isFallback;
+	}
+
 	get supported(): boolean {
 		return true;
+	}
+
+	/**
+	 * Checks if the breakpoint is applicable for the specified session.
+	 * If sessionId is undefined, returns true if this breakpoint is a fallback breakpoint.
+	 */
+	isSupportedSession(sessionId?: string): boolean {
+		return sessionId ? this.supportedSessions.has(sessionId) : this.fallback;
+	}
+
+	matches(filter: DebugProtocol.ExceptionBreakpointsFilter) {
+		return this.filter === filter.filter && this.label === filter.label && this.supportsCondition === !!filter.supportsCondition && this.conditionDescription === filter.conditionDescription && this.description === filter.description;
 	}
 
 	override toString(): string {
@@ -1131,10 +1168,6 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class Memory {
-
-}
-
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
@@ -1153,7 +1186,8 @@ export class DebugModel implements IDebugModel {
 	constructor(
 		debugStorage: DebugStorage,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
@@ -1340,24 +1374,43 @@ export class DebugModel implements IDebugModel {
 		return this.exceptionBreakpoints;
 	}
 
+	getExceptionBreakpointsForSession(sessionId?: string): IExceptionBreakpoint[] {
+		return this.exceptionBreakpoints.filter(ebp => ebp.isSupportedSession(sessionId));
+	}
+
 	getInstructionBreakpoints(): IInstructionBreakpoint[] {
 		return this.instructionBreakpoints;
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+	setExceptionBreakpointsForSession(sessionId: string, data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
-			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) =>
-				exbp.filter === data[i].filter && exbp.label === data[i].label && exbp.supportsCondition === data[i].supportsCondition && exbp.conditionDescription === data[i].conditionDescription && exbp.description === data[i].description)) {
-				// No change
-				return;
-			}
+			let didChangeBreakpoints = false;
+			data.forEach(d => {
+				let ebp = this.exceptionBreakpoints.filter((exbp) => exbp.matches(d)).pop();
 
-			this.exceptionBreakpoints = data.map(d => {
-				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
-				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : !!d.default, !!d.supportsCondition, ebp?.condition, d.description, d.conditionDescription);
+				if (!ebp) {
+					didChangeBreakpoints = true;
+					ebp = new ExceptionBreakpoint(d.filter, d.label, !!d.default, !!d.supportsCondition, undefined /* condition */, d.description, d.conditionDescription);
+					this.exceptionBreakpoints.push(ebp);
+				}
+
+				ebp.setSupportedSession(sessionId, true);
 			});
-			this._onDidChangeBreakpoints.fire(undefined);
+
+			if (didChangeBreakpoints) {
+				this._onDidChangeBreakpoints.fire(undefined);
+			}
 		}
+	}
+
+	removeExceptionBreakpointsForSession(sessionId: string): void {
+		this.exceptionBreakpoints.forEach(ebp => ebp.setSupportedSession(sessionId, false));
+	}
+
+	// Set last focused session as fallback session.
+	// This is done to keep track of the exception breakpoints to show when no session is active.
+	setExceptionBreakpointFallbackSession(sessionId: string): void {
+		this.exceptionBreakpoints.forEach(ebp => ebp.setFallback(ebp.isSupportedSession(sessionId)));
 	}
 
 	setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): void {
@@ -1375,7 +1428,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();

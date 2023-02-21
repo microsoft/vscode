@@ -5,9 +5,10 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { isWindows, Platform } from 'vs/base/common/platform';
+import { isWindows, OperatingSystem, Platform } from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
-import { addTerminalEnvironmentKeys, getCwd, getDefaultShell, getLangEnvVariable, mergeEnvironments, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { addTerminalEnvironmentKeys, getCwd, getDefaultShell, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { PosixShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 suite('Workbench - TerminalEnvironment', () => {
 	suite('addTerminalEnvironmentKeys', () => {
@@ -246,6 +247,78 @@ suite('Workbench - TerminalEnvironment', () => {
 				} as any)[key];
 			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
 			strictEqual(shell3, 'automationShell', 'automationShell was true and specified in settings');
+		});
+	});
+	suite('preparePathForShell', () => {
+		const wslPathBackend = {
+			getWslPath: async (original: string, direction: 'unix-to-win' | 'win-to-unix') => {
+				if (direction === 'unix-to-win') {
+					const match = original.match(/^\/mnt\/(?<drive>[a-zA-Z])\/(?<path>.+)$/);
+					const groups = match?.groups;
+					if (!groups) {
+						return original;
+					}
+					return `${groups.drive}:\\${groups.path.replace(/\//g, '\\')}`;
+				}
+				const match = original.match(/(?<drive>[a-zA-Z]):\\(?<path>.+)/);
+				const groups = match?.groups;
+				if (!groups) {
+					return original;
+				}
+				return `/mnt/${groups.drive.toLowerCase()}/${groups.path.replace(/\\/g, '/')}`;
+			}
+		};
+		suite('Windows frontend, Windows backend', () => {
+			test('Command Prompt', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `c:\\foo\\bar`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `c:\\foo\\bar'baz`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, true), `"c:\\foo\\bar$(echo evil)baz"`);
+			});
+			test('PowerShell', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', WindowsShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `c:\\foo\\bar`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', WindowsShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar''baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', WindowsShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar$(echo evil)baz'`);
+			});
+			test('Git Bash', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar(echo evil)baz'`);
+			});
+			test('WSL', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.Wsl, wslPathBackend, OperatingSystem.Windows, true), '/mnt/c/foo/bar');
+			});
+		});
+		suite('Windows frontend, Linux backend', () => {
+			test('Bash', async () => {
+				strictEqual(await preparePathForShell('/foo/bar', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar'`);
+				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/barbaz'`);
+				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar(echo evil)baz'`);
+			});
+		});
+		suite('Linux frontend, Windows backend', () => {
+			test('Command Prompt', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `c:\\foo\\bar`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `c:\\foo\\bar'baz`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'cmd', 'cmd', WindowsShellType.CommandPrompt, wslPathBackend, OperatingSystem.Windows, false), `"c:\\foo\\bar$(echo evil)baz"`);
+			});
+			test('PowerShell', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', WindowsShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false), `c:\\foo\\bar`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', WindowsShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false), `& 'c:\\foo\\bar''baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', WindowsShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, false), `& 'c:\\foo\\bar$(echo evil)baz'`);
+			});
+			test('Git Bash', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar(echo evil)baz'`);
+			});
+			test('WSL', async () => {
+				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.Wsl, wslPathBackend, OperatingSystem.Windows, false), '/mnt/c/foo/bar');
+			});
+		});
+		suite('Linux frontend, Linux backend', () => {
+			test('Bash', async () => {
+				strictEqual(await preparePathForShell('/foo/bar', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar'`);
+				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/barbaz'`);
+				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar(echo evil)baz'`);
+			});
 		});
 	});
 });

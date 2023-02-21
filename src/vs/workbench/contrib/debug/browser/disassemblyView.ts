@@ -18,7 +18,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IDebugSession, IInstructionBreakpoint, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -41,6 +41,7 @@ import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { binarySearch2 } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -581,7 +582,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUriIdentityService readonly uriService: IUriIdentityService,
+		@IUriIdentityService private readonly uriService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -618,14 +620,14 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.currentElement.element = element;
 		const instruction = element.instruction;
 		templateData.sourcecode.innerText = '';
-		const sb = createStringBuilder(1000);
+		const sb = new StringBuilder(1000);
 
 		if (this._disassemblyView.isSourceCodeRender && instruction.location?.path && instruction.line) {
 			const sourceURI = this.getUriFromSource(instruction);
 
 			if (sourceURI) {
 				let textModel: ITextModel | undefined = undefined;
-				const sourceSB = createStringBuilder(10000);
+				const sourceSB = new StringBuilder(10000);
 				const ref = await this.textModelService.createModelReference(sourceURI);
 				textModel = ref.object.textEditorModel;
 				templateData.cellDisposable.push(ref);
@@ -636,8 +638,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
 						const lineContent = textModel.getLineContent(lineNumber);
-						sourceSB.appendASCIIString(`  ${lineNumber}: `);
-						sourceSB.appendASCIIString(lineContent + '\n');
+						sourceSB.appendString(`  ${lineNumber}: `);
+						sourceSB.appendString(lineContent + '\n');
 
 						if (instruction.endLine && lineNumber < instruction.endLine) {
 							lineNumber++;
@@ -655,27 +657,27 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		let spacesToAppend = 10;
 
 		if (instruction.address !== '-1') {
-			sb.appendASCIIString(instruction.address);
+			sb.appendString(instruction.address);
 			if (instruction.address.length < InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH) {
 				spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCIIString(' ');
+				sb.appendString(' ');
 			}
 		}
 
 		if (instruction.instructionBytes) {
-			sb.appendASCIIString(instruction.instructionBytes);
+			sb.appendString(instruction.instructionBytes);
 			spacesToAppend = 10;
 			if (instruction.instructionBytes.length < InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH) {
 				spacesToAppend = InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH - instruction.instructionBytes.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCIIString(' ');
+				sb.appendString(' ');
 			}
 		}
 
-		sb.appendASCIIString(instruction.instruction);
+		sb.appendString(instruction.instruction);
 		templateData.instruction.innerText = sb.build();
 
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
@@ -741,7 +743,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 			return this.uriService.asCanonicalUri(URI.file(path));
 		}
 
-		return getUriFromSource(instruction.location!, instruction.location!.path, this._disassemblyView.debugSession!.getId(), this.uriService);
+		return getUriFromSource(instruction.location!, instruction.location!.path, this._disassemblyView.debugSession!.getId(), this.uriService, this.logService);
 	}
 
 	private applyFontInfo(element: HTMLElement) {

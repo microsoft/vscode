@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -113,7 +113,7 @@ const enum ActiveEditorOrder {
 class MainThreadDocumentAndEditorStateComputer {
 
 	private readonly _toDispose = new DisposableStore();
-	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
+	private readonly _toDisposeOnEditorRemove = new DisposableMap<string>();
 	private _currentState?: DocumentAndEditorState;
 	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
 
@@ -141,6 +141,7 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	dispose(): void {
 		this._toDispose.dispose();
+		this._toDisposeOnEditorRemove.dispose();
 	}
 
 	private _onDidAddEditor(e: ICodeEditor): void {
@@ -153,10 +154,9 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidRemoveEditor(e: ICodeEditor): void {
-		const sub = this._toDisposeOnEditorRemove.get(e.getId());
-		if (sub) {
-			this._toDisposeOnEditorRemove.delete(e.getId());
-			sub.dispose();
+		const id = e.getId();
+		if (this._toDisposeOnEditorRemove.has(id)) {
+			this._toDisposeOnEditorRemove.deleteAndDispose(id);
 			this._updateState();
 		}
 	}

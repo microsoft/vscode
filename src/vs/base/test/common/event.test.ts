@@ -9,6 +9,8 @@ import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
 import { observableValue, transaction } from 'vs/base/common/observable';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 namespace Samples {
@@ -89,7 +91,7 @@ suite('Event utils dispose', function () {
 	test('no leak with debounce-util', function () {
 		const store = new DisposableStore();
 		const emitter = new Emitter<number>();
-		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, store);
+		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, undefined, store);
 		assertDisposablesCount(1); // debounce only listens when `debounce` is being listened on
 
 		let all = 0;
@@ -173,8 +175,8 @@ suite('Event', function () {
 		let firstCount = 0;
 		let lastCount = 0;
 		const a = new Emitter({
-			onFirstListenerAdd() { firstCount += 1; },
-			onLastListenerRemove() { lastCount += 1; }
+			onWillAddFirstListener() { firstCount += 1; },
+			onDidRemoveLastListener() { lastCount += 1; }
 		});
 
 		assert.strictEqual(firstCount, 0);
@@ -191,6 +193,24 @@ suite('Event', function () {
 		subscription = a.event(function () { });
 		assert.strictEqual(firstCount, 2);
 		assert.strictEqual(lastCount, 1);
+	});
+
+	test('onWillRemoveListener', () => {
+		let count = 0;
+		const a = new Emitter({
+			onWillRemoveListener() { count += 1; }
+		});
+
+		assert.strictEqual(count, 0);
+
+		let subscription = a.event(function () { });
+		assert.strictEqual(count, 0);
+
+		subscription.dispose();
+		assert.strictEqual(count, 1);
+
+		subscription = a.event(function () { });
+		assert.strictEqual(count, 1);
 	});
 
 	test('throwingListener', () => {
@@ -238,105 +258,30 @@ suite('Event', function () {
 		assert.strictEqual(counter, 3);
 	});
 
-	test('Debounce Event', function (done: () => void) {
-		const doc = new Samples.Document3();
-
-		const onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
-			if (!prev) {
-				prev = [cur];
-			} else if (prev.indexOf(cur) < 0) {
-				prev.push(cur);
-			}
-			return prev;
-		}, 10);
-
-		let count = 0;
-
-		onDocDidChange(keys => {
-			count++;
-			assert.ok(keys, 'was not expecting keys.');
-			if (count === 1) {
-				doc.setText('4');
-				assert.deepStrictEqual(keys, ['1', '2', '3']);
-			} else if (count === 2) {
-				assert.deepStrictEqual(keys, ['4']);
-				done();
-			}
-		});
-
-		doc.setText('1');
-		doc.setText('2');
-		doc.setText('3');
-	});
-
-	test('Debounce Event - leading', async function () {
-		const emitter = new Emitter<void>();
-		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
-
-		let calls = 0;
-		debounced(() => {
-			calls++;
-		});
-
-		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
-		emitter.fire();
-
-		await timeout(1);
-		assert.strictEqual(calls, 1);
-	});
-
-	test('Debounce Event - leading', async function () {
-		const emitter = new Emitter<void>();
-		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
-
-		let calls = 0;
-		debounced(() => {
-			calls++;
-		});
-
-		// If the source event is fired multiple times, the debounced (on the leading edge) event should be fired twice
-		emitter.fire();
-		emitter.fire();
-		emitter.fire();
-		await timeout(1);
-		assert.strictEqual(calls, 2);
-	});
-
-	test('Debounce Event - leading reset', async function () {
-		const emitter = new Emitter<number>();
-		const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
-
-		const calls: number[] = [];
-		debounced((e) => calls.push(e));
-
-		emitter.fire(1);
-		emitter.fire(1);
-
-		await timeout(1);
-		assert.deepStrictEqual(calls, [1, 1]);
-	});
-
 	test('DebounceEmitter', async function () {
-		let callCount = 0;
-		let sum = 0;
-		const emitter = new DebounceEmitter<number>({
-			merge: arr => {
-				callCount += 1;
-				return arr.reduce((p, c) => p + c);
-			}
+		return runWithFakedTimers({}, async function () {
+
+			let callCount = 0;
+			let sum = 0;
+			const emitter = new DebounceEmitter<number>({
+				merge: arr => {
+					callCount += 1;
+					return arr.reduce((p, c) => p + c);
+				}
+			});
+
+			emitter.event(e => { sum = e; });
+
+			const p = Event.toPromise(emitter.event);
+
+			emitter.fire(1);
+			emitter.fire(2);
+
+			await p;
+
+			assert.strictEqual(callCount, 1);
+			assert.strictEqual(sum, 3);
 		});
-
-		emitter.event(e => { sum = e; });
-
-		const p = Event.toPromise(emitter.event);
-
-		emitter.fire(1);
-		emitter.fire(2);
-
-		await p;
-
-		assert.strictEqual(callCount, 1);
-		assert.strictEqual(sum, 3);
 	});
 
 	test('Microtask Emitter', (done) => {
@@ -410,59 +355,64 @@ suite('AsyncEmitter', function () {
 	});
 
 	test('sequential delivery', async function () {
+		return runWithFakedTimers({}, async function () {
 
-		interface E extends IWaitUntil {
-			foo: boolean;
-		}
+			interface E extends IWaitUntil {
+				foo: boolean;
+			}
 
-		let globalState = 0;
-		const emitter = new AsyncEmitter<E>();
+			let globalState = 0;
+			const emitter = new AsyncEmitter<E>();
 
-		emitter.event(e => {
-			e.waitUntil(timeout(10).then(_ => {
-				assert.strictEqual(globalState, 0);
-				globalState += 1;
-			}));
+			emitter.event(e => {
+				e.waitUntil(timeout(10).then(_ => {
+					assert.strictEqual(globalState, 0);
+					globalState += 1;
+				}));
+			});
+
+			emitter.event(e => {
+				e.waitUntil(timeout(1).then(_ => {
+					assert.strictEqual(globalState, 1);
+					globalState += 1;
+				}));
+			});
+
+			await emitter.fireAsync({ foo: true }, CancellationToken.None);
+			assert.strictEqual(globalState, 2);
 		});
-
-		emitter.event(e => {
-			e.waitUntil(timeout(1).then(_ => {
-				assert.strictEqual(globalState, 1);
-				globalState += 1;
-			}));
-		});
-
-		await emitter.fireAsync({ foo: true }, CancellationToken.None);
-		assert.strictEqual(globalState, 2);
 	});
 
 	test('sequential, in-order delivery', async function () {
-		interface E extends IWaitUntil {
-			foo: number;
-		}
-		const events: number[] = [];
-		let done = false;
-		const emitter = new AsyncEmitter<E>();
+		return runWithFakedTimers({}, async function () {
 
-		// e1
-		emitter.event(e => {
-			e.waitUntil(timeout(10).then(async _ => {
-				if (e.foo === 1) {
-					await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
-					assert.deepStrictEqual(events, [1, 2]);
-					done = true;
-				}
-			}));
+			interface E extends IWaitUntil {
+				foo: number;
+			}
+			const events: number[] = [];
+			let done = false;
+			const emitter = new AsyncEmitter<E>();
+
+			// e1
+			emitter.event(e => {
+				e.waitUntil(timeout(10).then(async _ => {
+					if (e.foo === 1) {
+						await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
+						assert.deepStrictEqual(events, [1, 2]);
+						done = true;
+					}
+				}));
+			});
+
+			// e2
+			emitter.event(e => {
+				events.push(e.foo);
+				e.waitUntil(timeout(7));
+			});
+
+			await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
+			assert.ok(done);
 		});
-
-		// e2
-		emitter.event(e => {
-			events.push(e.foo);
-			e.waitUntil(timeout(7));
-		});
-
-		await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
-		assert.ok(done);
 	});
 
 	test('catch errors', async function () {
@@ -623,6 +573,17 @@ suite('PausableEmitter', function () {
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);
 
 	});
+
+	test('empty pause with merge', function () {
+		const data: number[] = [];
+		const emitter = new PauseableEmitter<number>({ merge: a => a[0] });
+		emitter.event(e => data.push(1));
+
+		emitter.pause();
+		emitter.resume();
+		assert.deepStrictEqual(data, []);
+	});
+
 });
 
 suite('Event utils - ensureNoDisposablesAreLeakedInTestSuite', function () {
@@ -991,7 +952,7 @@ suite('Event utils', () => {
 
 	test('dispose is reentrant', () => {
 		const emitter = new Emitter<number>({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				emitter.dispose();
 			}
 		});
@@ -1084,5 +1045,227 @@ suite('Event utils', () => {
 			{ label: 'disposeAll' },
 			{ label: 'dispose', idx: 1 },
 		]);
+	});
+
+	suite('accumulate', () => {
+		test('should not fire after a listener is disposed with undefined or []', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const calls1: number[][] = [];
+			const calls2: number[][] = [];
+			const listener1 = accumulated((e) => calls1.push(e));
+			accumulated((e) => calls2.push(e));
+
+			eventEmitter.fire(1);
+			await timeout(1);
+			assert.deepStrictEqual(calls1, [[1]]);
+			assert.deepStrictEqual(calls2, [[1]]);
+
+			listener1.dispose();
+			await timeout(1);
+			assert.deepStrictEqual(calls1, [[1]]);
+			assert.deepStrictEqual(calls2, [[1]], 'should not fire after a listener is disposed with undefined or []');
+		});
+		test('should accumulate a single event', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const results1 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(1);
+			});
+			assert.deepStrictEqual(results1, [1]);
+
+			const results2 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(2);
+			});
+			assert.deepStrictEqual(results2, [2]);
+		});
+		test('should accumulate multiple events', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const results1 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(1);
+				eventEmitter.fire(2);
+				eventEmitter.fire(3);
+			});
+			assert.deepStrictEqual(results1, [1, 2, 3]);
+
+			const results2 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(4);
+				eventEmitter.fire(5);
+				eventEmitter.fire(6);
+				eventEmitter.fire(7);
+				eventEmitter.fire(8);
+			});
+			assert.deepStrictEqual(results2, [4, 5, 6, 7, 8]);
+		});
+	});
+
+	suite('debounce', () => {
+		test('simple', function (done: () => void) {
+			const doc = new Samples.Document3();
+
+			const onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
+				if (!prev) {
+					prev = [cur];
+				} else if (prev.indexOf(cur) < 0) {
+					prev.push(cur);
+				}
+				return prev;
+			}, 10);
+
+			let count = 0;
+
+			onDocDidChange(keys => {
+				count++;
+				assert.ok(keys, 'was not expecting keys.');
+				if (count === 1) {
+					doc.setText('4');
+					assert.deepStrictEqual(keys, ['1', '2', '3']);
+				} else if (count === 2) {
+					assert.deepStrictEqual(keys, ['4']);
+					done();
+				}
+			});
+
+			doc.setText('1');
+			doc.setText('2');
+			doc.setText('3');
+		});
+
+
+		test('microtask', function (done: () => void) {
+			const doc = new Samples.Document3();
+
+			const onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
+				if (!prev) {
+					prev = [cur];
+				} else if (prev.indexOf(cur) < 0) {
+					prev.push(cur);
+				}
+				return prev;
+			}, MicrotaskDelay);
+
+			let count = 0;
+
+			onDocDidChange(keys => {
+				count++;
+				assert.ok(keys, 'was not expecting keys.');
+				if (count === 1) {
+					doc.setText('4');
+					assert.deepStrictEqual(keys, ['1', '2', '3']);
+				} else if (count === 2) {
+					assert.deepStrictEqual(keys, ['4']);
+					done();
+				}
+			});
+
+			doc.setText('1');
+			doc.setText('2');
+			doc.setText('3');
+		});
+
+
+		test('leading', async function () {
+			const emitter = new Emitter<void>();
+			const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
+
+			let calls = 0;
+			debounced(() => {
+				calls++;
+			});
+
+			// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
+			emitter.fire();
+
+			await timeout(1);
+			assert.strictEqual(calls, 1);
+		});
+
+		test('leading (2)', async function () {
+			const emitter = new Emitter<void>();
+			const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
+
+			let calls = 0;
+			debounced(() => {
+				calls++;
+			});
+
+			// If the source event is fired multiple times, the debounced (on the leading edge) event should be fired twice
+			emitter.fire();
+			emitter.fire();
+			emitter.fire();
+			await timeout(1);
+			assert.strictEqual(calls, 2);
+		});
+
+		test('leading reset', async function () {
+			const emitter = new Emitter<number>();
+			const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
+
+			const calls: number[] = [];
+			debounced((e) => calls.push(e));
+
+			emitter.fire(1);
+			emitter.fire(1);
+
+			await timeout(1);
+			assert.deepStrictEqual(calls, [1, 1]);
+		});
+
+		test('should not flush events when a listener is disposed', async () => {
+			const emitter = new Emitter<number>();
+			const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0);
+
+			const calls: number[] = [];
+			const listener = debounced((e) => calls.push(e));
+
+			emitter.fire(1);
+			listener.dispose();
+
+			emitter.fire(1);
+
+			await timeout(1);
+			assert.deepStrictEqual(calls, []);
+		});
+
+		test('flushOnListenerRemove - should flush events when a listener is disposed', async () => {
+			const emitter = new Emitter<number>();
+			const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, undefined, true);
+
+			const calls: number[] = [];
+			const listener = debounced((e) => calls.push(e));
+
+			emitter.fire(1);
+			listener.dispose();
+
+			emitter.fire(1);
+
+			await timeout(1);
+			assert.deepStrictEqual(calls, [1], 'should fire with the first event, not the second (after listener dispose)');
+		});
+
+		test('should flush events when the emitter is disposed', async () => {
+			const emitter = new Emitter<number>();
+			const debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0);
+
+			const calls: number[] = [];
+			debounced((e) => calls.push(e));
+
+			emitter.fire(1);
+			emitter.dispose();
+
+			await timeout(1);
+			assert.deepStrictEqual(calls, [1]);
+		});
 	});
 });

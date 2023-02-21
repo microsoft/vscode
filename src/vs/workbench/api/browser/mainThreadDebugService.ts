@@ -230,9 +230,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			lifecycleManagedByParent: options.lifecycleManagedByParent,
 			repl: options.repl,
 			compact: options.compact,
-			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot,
-			saveBeforeRestart: saveBeforeStart
+			saveBeforeRestart: saveBeforeStart,
+
+			suppressDebugStatusbar: options.suppressDebugStatusbar,
+			suppressDebugToolbar: options.suppressDebugToolbar,
+			suppressDebugView: options.suppressDebugView,
 		};
 		try {
 			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
@@ -283,7 +286,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
-		session?.appendToRepl(value, severity.Warning);
+		session?.appendToRepl({ output: value, sev: severity.Warning });
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {

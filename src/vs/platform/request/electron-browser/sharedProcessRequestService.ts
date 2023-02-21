@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isBoolean } from 'vs/base/common/types';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -37,11 +38,19 @@ export class SharedProcessRequestService implements IRequestService {
 	}
 
 	private getRequestService(): IRequestService {
-		if (this.configurationService.getValue('developer.sharedProcess.redirectRequestsToMain') === true) {
+		if (this.isMainRequestServiceEnabled()) {
 			this.logService.trace('Using main request service');
 			return this.mainRequestService;
 		}
 		this.logService.trace('Using browser request service');
 		return this.browserRequestService;
+	}
+
+	private isMainRequestServiceEnabled(): boolean {
+		const value = this.configurationService.getValue('developer.sharedProcess.redirectRequestsToMain');
+		if (isBoolean(value)) {
+			return value;
+		}
+		return true;
 	}
 }

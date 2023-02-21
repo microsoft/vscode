@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { URI, URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -14,17 +14,21 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -33,23 +37,26 @@ suite('Search - Viewlet', () => {
 		instantiation = new TestInstantiationService();
 		instantiation.stub(ILanguageConfigurationService, TestLanguageConfigurationService);
 		instantiation.stub(IModelService, stubModelService(instantiation));
+		instantiation.stub(INotebookEditorService, stubNotebookEditorService(instantiation));
+
 		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 		instantiation.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiation.stub(ILabelService, new MockLabelService());
+		instantiation.stub(ILogService, new NullLogService());
 	});
 
 	test('Data Source', function () {
-		const result: SearchResult = instantiation.createInstance(SearchResult, null);
+		const result: SearchResult = aSearchResult();
 		result.query = {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
 			folderQueries: [{
-				folder: uri.parse('file://c:/')
+				folder: createFileUriFromPathFromRoot()
 			}]
 		};
 
 		result.add([{
-			resource: uri.parse('file:///c:/foo'),
+			resource: createFileUriFromPathFromRoot('/foo'),
 			results: [{
 				preview: {
 					text: 'bar',
@@ -72,14 +79,14 @@ suite('Search - Viewlet', () => {
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
 
-		assert.strictEqual(fileMatch.id(), 'file:///c%3A/foo');
-		assert.strictEqual(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert.strictEqual(fileMatch.id(), URI.file(`${getRootName()}/foo`).toString());
+		assert.strictEqual(lineMatch.id(), `${URI.file(`${getRootName()}/foo`).toString()}>[2,1 -> 2,2]b`);
 	});
 
 	test('Comparer', () => {
-		const fileMatch1 = aFileMatch(isWindows ? 'C:\\foo' : '/c/foo');
-		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
-		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
+		const fileMatch1 = aFileMatch('/foo');
+		const fileMatch2 = aFileMatch('/with/path');
+		const fileMatch3 = aFileMatch('/with/path/foo');
 		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
 		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
@@ -95,10 +102,10 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Advanced Comparer', () => {
-		const fileMatch1 = aFileMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
-		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
-		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.a' : '/c/with/path2/bar.a');
-		const fileMatch4 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.b' : '/c/with/path2/bar.b');
+		const fileMatch1 = aFileMatch('/with/path/foo10');
+		const fileMatch2 = aFileMatch('/with/path2/foo1');
+		const fileMatch3 = aFileMatch('/with/path/bar.a');
+		const fileMatch4 = aFileMatch('/with/path/bar.b');
 
 		// By default, path < path2
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
@@ -111,12 +118,12 @@ suite('Search - Viewlet', () => {
 	test('Cross-type Comparer', () => {
 
 		const searchResult = aSearchResult();
-		const folderMatch1 = aFolderMatch(isWindows ? 'C:\\voo' : '/c/voo', 0, searchResult);
-		const folderMatch2 = aFolderMatch(isWindows ? 'C:\\with' : '/c/with', 1, searchResult);
+		const folderMatch1 = aFolderMatch('/voo', 0, searchResult);
+		const folderMatch2 = aFolderMatch('/with', 1, searchResult);
 
-		const fileMatch1 = aFileMatch(isWindows ? 'C:\\voo\\foo.a' : '/c/voo/foo.a', folderMatch1);
-		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path.c' : '/c/with/path.c', folderMatch2);
-		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\bar.b' : '/c/with/path/bar.b', folderMatch2);
+		const fileMatch1 = aFileMatch('/voo/foo.a', folderMatch1);
+		const fileMatch2 = aFileMatch('/with/path.c', folderMatch2);
+		const fileMatch3 = aFileMatch('/with/path/bar.b', folderMatch2);
 
 		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
 		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
@@ -165,26 +172,66 @@ suite('Search - Viewlet', () => {
 
 	function aFileMatch(path: string, parentFolder?: FolderMatch, ...lineMatches: ITextSearchMatch[]): FileMatch {
 		const rawMatch: IFileMatch = {
-			resource: uri.file(path),
+			resource: URI.file('/' + path),
 			results: lineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, null, null, parentFolder, rawMatch);
+		return instantiation.createInstance(FileMatch, {
+			pattern: ''
+		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null);
 	}
 
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
 		const searchModel = instantiation.createInstance(SearchModel);
-		return instantiation.createInstance(FolderMatch, uri.file(path), path, index, null, parent, searchModel);
+		return instantiation.createInstance(FolderMatch, createFileUriFromPathFromRoot(path), path, index, {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: ''
+			}
+		}, parent ?? aSearchResult().folderMatches()[0], searchModel, null);
 	}
 
 	function aSearchResult(): SearchResult {
 		const searchModel = instantiation.createInstance(SearchModel);
-		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
+		searchModel.searchResult.query = {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: ''
+			}
+		};
 		return searchModel.searchResult;
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
+
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		instantiationService.stub(IConfigurationService, config);
+
 		return instantiationService.createInstance(ModelService);
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		return instantiationService.createInstance(NotebookEditorWidgetService);
+	}
+
+	function createFileUriFromPathFromRoot(path?: string): URI {
+		const rootName = getRootName();
+		if (path) {
+			return URI.file(`${rootName}${path}`);
+		} else {
+			if (isWindows) {
+				return URI.file(`${rootName}/`);
+			} else {
+				return URI.file(rootName);
+			}
+		}
+	}
+
+	function getRootName(): string {
+		if (isWindows) {
+			return 'c:';
+		} else {
+			return '';
+		}
 	}
 });

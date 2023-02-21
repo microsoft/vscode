@@ -91,6 +91,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/folding",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/html",
 			"project": "vscode-workbench"
 		},
@@ -108,6 +112,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/languageStatus",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/limitIndicator",
 			"project": "vscode-workbench"
 		},
 		{
@@ -307,6 +315,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/remoteTunnel",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
 			"project": "vscode-workbench"
 		},
@@ -395,6 +407,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/suggest",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/textfile",
 			"project": "vscode-workbench"
 		},
@@ -477,6 +493,10 @@
 		{
 			"name": "vs/workbench/services/userDataProfile",
 			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/localization",
+			"project": "vscode-workbench"
 		}
 	]
 }

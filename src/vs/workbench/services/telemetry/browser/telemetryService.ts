@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservableValue } from 'vs/base/common/observableValue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILoggerService } from 'vs/platform/log/common/log';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
@@ -15,7 +14,7 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, isInternalTelemetry, ITelemetryAppender, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
@@ -24,11 +23,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private impl: ITelemetryService;
+	private impl: ITelemetryService = NullTelemetryService;
 	public readonly sendErrorTelemetry = true;
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@ILogService logService: ILogService,
 		@ILoggerService loggerService: ILoggerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
@@ -37,16 +37,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey) {
-			this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
-		} else {
-			this.impl = NullTelemetryService;
-		}
+		this.impl = this.initializeService(environmentService, logService, loggerService, configurationService, storageService, productService, remoteAgentService);
 
 		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
-				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService);
+				this.impl = this.initializeService(environmentService, logService, loggerService, configurationService, storageService, productService, remoteAgentService);
 			}
 		}));
 	}
@@ -58,6 +54,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	 */
 	private initializeService(
 		environmentService: IBrowserWorkbenchEnvironmentService,
+		logService: ILogService,
 		loggerService: ILoggerService,
 		configurationService: IConfigurationService,
 		storageService: IStorageService,
@@ -65,13 +62,13 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		remoteAgentService: IRemoteAgentService
 	) {
 		const telemetrySupported = supportsTelemetry(productService, environmentService) && productService.aiConfig?.ariaKey;
-		if (telemetrySupported && this.impl === NullTelemetryService && this.telemetryLevel.value !== TelemetryLevel.NONE) {
+		if (telemetrySupported && getTelemetryLevel(configurationService) !== TelemetryLevel.NONE && this.impl === NullTelemetryService) {
 			// If remote server is present send telemetry through that, else use the client side appender
-			const appenders = [];
+			const appenders: ITelemetryAppender[] = [];
 			const isInternal = isInternalTelemetry(productService, configurationService);
 			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new OneDataSystemWebAppender(isInternal, 'monacoworkbench', null, productService.aiConfig?.ariaKey);
 			appenders.push(telemetryProvider);
-			appenders.push(new TelemetryLogAppender(loggerService, environmentService));
+			appenders.push(new TelemetryLogAppender(logService, loggerService, environmentService, productService));
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, isInternal, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
@@ -80,23 +77,23 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 			return this._register(new BaseTelemetryService(config, configurationService, productService));
 		}
-		return NullTelemetryService;
+		return this.impl;
 	}
 
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get telemetryLevel(): IObservableValue<TelemetryLevel> {
+	get telemetryLevel(): TelemetryLevel {
 		return this.impl.telemetryLevel;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+		return this.impl.publicLog(eventName, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLog(eventName, data as ITelemetryData);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
@@ -112,4 +109,4 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	}
 }
 
-registerSingleton(ITelemetryService, TelemetryService);
+registerSingleton(ITelemetryService, TelemetryService, InstantiationType.Delayed);

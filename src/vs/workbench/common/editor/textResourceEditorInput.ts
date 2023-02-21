@@ -130,10 +130,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		}
 	}
 
-	setLanguageId(languageId: string): void {
+	setLanguageId(languageId: string, source?: string): void {
 		this.setPreferredLanguageId(languageId);
 
-		this.cachedModel?.setLanguageId(languageId);
+		this.cachedModel?.setLanguageId(languageId, source);
 	}
 
 	setPreferredLanguageId(languageId: string): void {

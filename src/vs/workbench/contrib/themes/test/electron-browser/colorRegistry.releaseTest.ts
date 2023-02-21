@@ -9,15 +9,15 @@ import { asTextOrError } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-// eslint-disable-next-line code-import-patterns
+// eslint-disable-next-line local/code-import-patterns
 import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileAccess } from 'vs/base/common/network';
 
 interface ColorInfo {
 	description: string;
@@ -38,7 +38,9 @@ suite('Color Registry', function () {
 		// avoid importing the TestEnvironmentService as it brings in a duplicate registration of the file editor input factory.
 		const environmentService = new class extends mock<INativeEnvironmentService>() { override args = { _: [] }; };
 
-		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
+		const docUrl = 'https://raw.githubusercontent.com/microsoft/vscode-docs/main/api/references/theme-color.md';
+
+		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService()).request({ url: docUrl }, CancellationToken.None);
 		const content = (await asTextOrError(reqContext))!;
 
 		const expression = /-\s*\`([\w\.]+)\`: (.*)/g;
@@ -86,13 +88,21 @@ suite('Color Registry', function () {
 				assert.fail(`Color ${colorId} found in doc but marked experimental. Please remove from experimental list.`);
 			}
 		}
-
-		const undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
-		assert.deepStrictEqual(undocumentedKeys, [], 'Undocumented colors ids');
-
 		const superfluousKeys = Object.keys(colorsInDoc);
-		assert.deepStrictEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
+		const undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
 
+
+		let errorText = '';
+		if (undocumentedKeys.length > 0) {
+			errorText += `\n\nAdd the following colors:\n\n${undocumentedKeys.join('\n')}\n`;
+		}
+		if (superfluousKeys.length > 0) {
+			errorText += `\n\Remove the following colors:\n\n${superfluousKeys.join('\n')}\n`;
+		}
+
+		if (errorText.length > 0) {
+			assert.fail(`\n\nOpen https://github.dev/microsoft/vscode-docs/blob/vnext/api/references/theme-color.md#50${errorText}`);
+		}
 	});
 });
 
@@ -105,7 +115,7 @@ function getDescription(color: ColorContribution) {
 }
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
-	const extPath = getPathFromAmdModule(require, '../../../../../../../extensions');
+	const extPath = FileAccess.asFileUri('vs/../../extensions').fsPath;
 	const extFolders = await pfs.Promises.readDirsInDir(extPath);
 	const result: { [id: string]: string } = Object.create(null);
 	for (const folder of extFolders) {

@@ -22,30 +22,36 @@ or exit
 
 set --global VSCODE_SHELL_INTEGRATION 1
 
+# Apply any explicit path prefix (see #99878)
+if status --is-login; and set -q VSCODE_PATH_PREFIX
+	fish_add_path -p $VSCODE_PATH_PREFIX
+end
+set -e VSCODE_PATH_PREFIX
+
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
-	builtin printf "\e]633;%s\007" (string join ";" $argv)
+	builtin printf "\e]633;%s\a" (string join ";" $argv)
 end
 
 # Sent right before executing an interactive command.
 # Marks the beginning of command output.
 function __vsc_cmd_executed --on-event fish_preexec
 	__vsc_esc C
-	__vsc_esc E (__vsc_escape_cmd "$argv")
+	__vsc_esc E (__vsc_escape_value "$argv")
 
 	# Creates a marker to indicate a command was run.
 	set --global _vsc_has_cmd
 end
 
 
-# Escapes backslashes, newlines, and semicolons to serialize the command line.
-function __vsc_escape_cmd
-	set -l commandline "$argv"
-	# `string replace` automatically breaks its input apart on any newlines.
-	# Then `string join` at the end will bring it all back together.
-	string replace --all '\\' '\\\\' $commandline \
-		| string replace --all ';' '\x3b' \
-		| string join '\x0a'
+# Escape a value for use in the 'P' ("Property") or 'E' ("Command Line") sequences.
+# Backslashes are doubled and non-alphanumeric characters are hex encoded.
+function __vsc_escape_value
+	# Escape backslashes and semi-colons
+	echo $argv \
+	| string replace --all '\\' '\\\\' \
+	| string replace --all ';' '\\x3b' \
+	;
 end
 
 # Sent right after an interactive command has finished executing.
@@ -63,7 +69,7 @@ end
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
-	__vsc_esc P "Cwd=$PWD"
+	__vsc_esc P Cwd=(__vsc_escape_value "$PWD")
 
 	# If a command marker exists, remove it.
 	# Otherwise, the commandline is empty and no command was run.

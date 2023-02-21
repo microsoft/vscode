@@ -24,8 +24,9 @@ import { IEncryptionMainService } from 'vs/platform/encryption/common/encryption
 import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
+import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -37,9 +38,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILogService, LogLevel, LogService, MultiplexLogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, getLogLevel, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -69,10 +68,20 @@ import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/co
 import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
-import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { URI } from 'vs/base/common/uri';
+import { ServerUserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { localize } from 'vs/nls';
+import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from 'vs/server/node/remoteExtensionsScanner';
+import { RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { RemoteUserDataProfilesServiceChannel } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -87,15 +96,19 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IEnvironmentService, environmentService);
 	services.set(INativeEnvironmentService, environmentService);
 
-	const spdLogService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
-	const logService = new MultiplexLogService([new ServerLogService(getLogLevel(environmentService)), spdLogService]);
+	const loggerService = new LoggerService(getLogLevel(environmentService));
+	services.set(ILoggerService, loggerService);
+	socketServer.registerChannel('logger', new LoggerChannel(loggerService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+	const logger = loggerService.createLogger(URI.file(path.join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`)), { id: 'remoteServerLog', name: localize('remoteExtensionLog', "Remote Server") });
+	const logService = new LogService(logger, [new ServerLogger(getLogLevel(environmentService))]);
 	services.set(ILogService, logService);
 	setTimeout(() => cleanupOlderLogs(environmentService.logsPath).then(null, err => logService.error(err)), 10000);
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	logService.trace('process arguments:', environmentService.args);
 	if (Array.isArray(productService.serverGreeting)) {
-		spdLogService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
+		logService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
 
 	// ExtensionHost Debug broadcast service
@@ -103,7 +116,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	// TODO: @Sandy @Joao need dynamic context based router
 	const router = new StaticRouter<RemoteAgentConnectionContext>(ctx => ctx.clientId === 'renderer');
-	socketServer.registerChannel('logger', new LogLevelChannel(logService));
 
 	// Files
 	const fileService = disposables.add(new FileService(logService));
@@ -114,14 +126,21 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const uriIdentityService = new UriIdentityService(fileService);
 	services.set(IUriIdentityService, uriIdentityService);
 
-	// User Data Profiles
-	const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
-	services.set(IUserDataProfilesService, userDataProfilesService);
-
 	// Configuration
 	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
-	await configurationService.initialize();
+
+	// User Data Profiles
+	const userDataProfilesService = new ServerUserDataProfilesService(uriIdentityService, environmentService, fileService, logService);
+	services.set(IUserDataProfilesService, userDataProfilesService);
+	socketServer.registerChannel('userDataProfiles', new RemoteUserDataProfilesServiceChannel(userDataProfilesService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+	// Initialize
+	const [, , machineId] = await Promise.all([
+		configurationService.initialize(),
+		userDataProfilesService.init(),
+		getMachineId()
+	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
@@ -130,7 +149,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
-	const machineId = await getMachineId();
 	const isInternal = isInternalTelemetry(productService, configurationService);
 	if (supportsTelemetry(productService, environmentService)) {
 		if (productService.aiConfig && productService.aiConfig.ariaKey) {
@@ -167,13 +185,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));
 	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
+	services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService));
 	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
-
-	const extensionManagementCLIService = instantiationService.createInstance(ExtensionManagementCLIService);
-	services.set(IExtensionManagementCLIService, extensionManagementCLIService);
 
 	const ptyService = instantiationService.createInstance(
 		PtyHostService,
@@ -181,7 +197,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			graceTime: ProtocolConstants.ReconnectionGraceTime,
 			shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		}
+		},
+		localize('ptyHost', "Remote Pty Host")
 	);
 	services.set(IPtyService, ptyService);
 
@@ -192,13 +209,18 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const languagePackService = accessor.get(ILanguagePackService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionHostStatusService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
-		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService, extensionManagementService));
+		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService, extensionManagementService, configurationService));
+
+		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService);
+		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 		const remoteFileSystemChannel = new RemoteAgentFileSystemProviderChannel(logService, environmentService);
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
@@ -214,8 +236,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const credentialsChannel = ProxyChannel.fromService<RemoteAgentConnectionContext>(accessor.get(ICredentialsMainService));
 		socketServer.registerChannel('credentials', credentialsChannel);
 
-		// clean up deprecated extensions
-		extensionManagementService.removeUninstalledExtensions(true);
+		// clean up extensions folder
+		extensionManagementService.cleanUp();
 
 		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
 
@@ -251,8 +273,7 @@ export class SocketServer<TContext = string> extends IPCServer<TContext> {
 	}
 }
 
-class ServerLogService extends AbstractLogger implements ILogService {
-	_serviceBrand: undefined;
+class ServerLogger extends AbstractLogger {
 	private useColors: boolean;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
@@ -262,7 +283,7 @@ class ServerLogService extends AbstractLogger implements ILogService {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.checkLogLevel(LogLevel.Trace)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -272,7 +293,7 @@ class ServerLogService extends AbstractLogger implements ILogService {
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.checkLogLevel(LogLevel.Debug)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -282,7 +303,7 @@ class ServerLogService extends AbstractLogger implements ILogService {
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.checkLogLevel(LogLevel.Info)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -292,7 +313,7 @@ class ServerLogService extends AbstractLogger implements ILogService {
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.checkLogLevel(LogLevel.Warning)) {
 			if (this.useColors) {
 				console.warn(`\x1b[93m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -302,19 +323,9 @@ class ServerLogService extends AbstractLogger implements ILogService {
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.checkLogLevel(LogLevel.Error)) {
 			if (this.useColors) {
 				console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[${now()}]`, message, ...args);
-			}
-		}
-	}
-
-	critical(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			if (this.useColors) {
-				console.error(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
 				console.error(`[${now()}]`, message, ...args);
 			}

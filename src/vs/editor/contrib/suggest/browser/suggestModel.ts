@@ -17,7 +17,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,10 +24,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CompletionModel } from './completionModel';
-import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
+import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
+import { assertType } from 'vs/base/common/types';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -43,17 +43,18 @@ export interface ITriggerEvent {
 export interface ISuggestEvent {
 	readonly completionModel: CompletionModel;
 	readonly isFrozen: boolean;
-	readonly auto: boolean;
-	readonly shy: boolean;
-	readonly noSelect: boolean;
+	readonly triggerOptions: SuggestTriggerOptions;
 }
 
-export interface SuggestTriggerContext {
+export interface SuggestTriggerOptions {
 	readonly auto: boolean;
-	readonly shy: boolean;
-	readonly noSelect: boolean;
+	readonly shy?: boolean;
+	readonly refilter?: boolean;
+	readonly retrigger?: boolean;
 	readonly triggerKind?: CompletionTriggerKind;
 	readonly triggerCharacter?: string;
+	readonly clipboardText?: string;
+	completionOptions?: Partial<CompletionOptions>;
 }
 
 export class LineContext {
@@ -83,18 +84,14 @@ export class LineContext {
 	readonly column: number;
 	readonly leadingLineContent: string;
 	readonly leadingWord: IWordAtPosition;
-	readonly auto: boolean;
-	readonly shy: boolean;
-	readonly noSelect: boolean;
+	readonly triggerOptions: SuggestTriggerOptions;
 
-	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean, noSelect: boolean) {
+	constructor(model: ITextModel, position: Position, triggerOptions: SuggestTriggerOptions) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
-		this.auto = auto;
-		this.shy = shy;
-		this.noSelect = noSelect;
+		this.triggerOptions = triggerOptions;
 	}
 }
 
@@ -114,7 +111,7 @@ function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKey
 		return true;
 	}
 
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions');
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
 	if (allowQuickSuggestions !== undefined) {
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
@@ -131,7 +128,7 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		return true;
 	}
 
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters');
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
 	if (allowQuickSuggestions !== undefined) {
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
@@ -147,8 +144,8 @@ export class SuggestModel implements IDisposable {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
-	private _state: State = State.Idle;
 
+	private _triggerState: SuggestTriggerOptions | undefined = undefined;
 	private _requestToken?: CancellationTokenSource;
 	private _context?: LineContext;
 	private _currentSelection: Selection;
@@ -210,7 +207,7 @@ export class SuggestModel implements IDisposable {
 			// only filter completions when the editor isn't composing a character
 			// allow-any-unicode-next-line
 			// e.g. ¨ + u makes ü but just ¨ cannot be used for filtering
-			if (!editorIsComposing) {
+			if (!editorIsComposing && this._triggerState !== undefined) {
 				this._refilterCompletionItems();
 			}
 		}));
@@ -279,12 +276,26 @@ export class SuggestModel implements IDisposable {
 
 			const supports = supportsByTriggerCharacter.get(lastChar);
 			if (supports) {
+
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const existing = this._completionModel
-					? { items: this._completionModel.adopt(supports), clipboardText: this._completionModel.clipboardText }
-					: undefined;
-				this.trigger({ auto: true, shy: false, noSelect: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, existing);
+				const providerItemsToReuse = new Map<CompletionItemProvider, CompletionItem[]>();
+				if (this._completionModel) {
+					for (const [provider, items] of this._completionModel.getItemsByProvider()) {
+						if (!supports.has(provider)) {
+							providerItemsToReuse.set(provider, items);
+						}
+					}
+				}
+
+				this.trigger({
+					auto: true,
+					triggerKind: CompletionTriggerKind.TriggerCharacter,
+					triggerCharacter: lastChar,
+					retrigger: Boolean(this._completionModel),
+					clipboardText: this._completionModel?.clipboardText,
+					completionOptions: { providerFilter: supports, providerItemsToReuse }
+				});
 			}
 		};
 
@@ -295,15 +306,21 @@ export class SuggestModel implements IDisposable {
 	// --- trigger/retrigger/cancel suggest
 
 	get state(): State {
-		return this._state;
+		if (!this._triggerState) {
+			return State.Idle;
+		} else if (!this._triggerState.auto) {
+			return State.Manual;
+		} else {
+			return State.Auto;
+		}
 	}
 
 	cancel(retrigger: boolean = false): void {
-		if (this._state !== State.Idle) {
+		if (this._triggerState !== undefined) {
 			this._triggerQuickSuggest.cancel();
 			this._requestToken?.cancel();
 			this._requestToken = undefined;
-			this._state = State.Idle;
+			this._triggerState = undefined;
 			this._completionModel = undefined;
 			this._context = undefined;
 			this._onDidCancel.fire({ retrigger });
@@ -315,11 +332,11 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private _updateActiveSuggestSession(): void {
-		if (this._state !== State.Idle) {
+		if (this._triggerState !== undefined) {
 			if (!this._editor.hasModel() || !this._languageFeaturesService.completionProvider.has(this._editor.getModel())) {
 				this.cancel();
 			} else {
-				this.trigger({ auto: this._state === State.Auto, shy: false, noSelect: false }, true);
+				this.trigger({ auto: this._triggerState.auto, retrigger: true });
 			}
 		}
 	}
@@ -344,13 +361,13 @@ export class SuggestModel implements IDisposable {
 		}
 
 
-		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
+		if (this._triggerState === undefined && e.reason === CursorChangeReason.NotSet) {
 			if (prevSelection.containsRange(this._currentSelection) || prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
 				// cursor did move RIGHT due to typing -> trigger quick suggest
 				this._doTriggerQuickSuggest();
 			}
 
-		} else if (this._state !== State.Idle && e.reason === CursorChangeReason.Explicit) {
+		} else if (this._triggerState !== undefined && e.reason === CursorChangeReason.Explicit) {
 			// suggest is active and something like cursor keys are used to move
 			// the cursor. this means we can refilter at the new position
 			this._refilterCompletionItems();
@@ -359,7 +376,7 @@ export class SuggestModel implements IDisposable {
 
 	private _onCompositionEnd(): void {
 		// trigger or refilter when composition ends
-		if (this._state === State.Idle) {
+		if (this._triggerState === undefined) {
 			this._doTriggerQuickSuggest();
 		} else {
 			this._refilterCompletionItems();
@@ -373,15 +390,10 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
-			// no quick suggestion when in snippet mode
-			return;
-		}
-
 		this.cancel();
 
 		this._triggerQuickSuggest.cancelAndSet(() => {
-			if (this._state !== State.Idle) {
+			if (this._triggerState !== undefined) {
 				return;
 			}
 			if (!LineContext.shouldAutoTrigger(this._editor)) {
@@ -418,54 +430,43 @@ export class SuggestModel implements IDisposable {
 			}
 
 			// we made it till here -> trigger now
-			this.trigger({ auto: true, shy: false, noSelect: false });
+			this.trigger({ auto: true });
 
 		}, this._editor.getOption(EditorOption.quickSuggestionsDelay));
 	}
 
 	private _refilterCompletionItems(): void {
-		// Re-filter suggestions. This MUST run async because filtering/scoring
-		// uses the model content AND the cursor position. The latter is NOT
-		// updated when the document has changed (the event which drives this method)
-		// and therefore a little pause (next mirco task) is needed. See:
-		// https://stackoverflow.com/questions/25915634/difference-between-microtask-and-macrotask-within-an-event-loop-context#25933985
-		Promise.resolve().then(() => {
-			if (this._state === State.Idle) {
-				return;
-			}
-			if (!this._editor.hasModel()) {
-				return;
-			}
-			const model = this._editor.getModel();
-			const position = this._editor.getPosition();
-			const ctx = new LineContext(model, position, this._state === State.Auto, false, false);
-			this._onNewContext(ctx);
-		});
+		assertType(this._editor.hasModel());
+		assertType(this._triggerState !== undefined);
+
+		const model = this._editor.getModel();
+		const position = this._editor.getPosition();
+		const ctx = new LineContext(model, position, { ...this._triggerState, refilter: true });
+		this._onNewContext(ctx);
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }, noFilter?: boolean): void {
+	trigger(options: SuggestTriggerOptions): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
 
 		const model = this._editor.getModel();
-		const auto = context.auto;
-		const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy, context.noSelect);
+		const ctx = new LineContext(model, this._editor.getPosition(), options);
 
 		// Cancel previous requests, change state & update UI
-		this.cancel(retrigger);
-		this._state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto, shy: context.shy, position: this._editor.getPosition() });
+		this.cancel(options.retrigger);
+		this._triggerState = options;
+		this._onDidTrigger.fire({ auto: options.auto, shy: options.shy ?? false, position: this._editor.getPosition() });
 
 		// Capture context when request was sent
 		this._context = ctx;
 
 		// Build context for request
-		let suggestCtx: CompletionContext = { triggerKind: context.triggerKind ?? CompletionTriggerKind.Invoke };
-		if (context.triggerCharacter) {
+		let suggestCtx: CompletionContext = { triggerKind: options.triggerKind ?? CompletionTriggerKind.Invoke };
+		if (options.triggerCharacter) {
 			suggestCtx = {
 				triggerKind: CompletionTriggerKind.TriggerCharacter,
-				triggerCharacter: context.triggerCharacter
+				triggerCharacter: options.triggerCharacter
 			};
 		}
 
@@ -488,7 +489,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
-		const completionOptions = new CompletionOptions(snippetSortOrder, !noFilter ? itemKindFilter : new Set(), onlyFrom, showDeprecated);
+		const completionOptions = new CompletionOptions(snippetSortOrder, options.completionOptions?.kindFilter ?? itemKindFilter, options.completionOptions?.providerFilter, options.completionOptions?.providerItemsToReuse, showDeprecated);
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
 		const completions = provideSuggestionItems(
@@ -508,29 +509,29 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			let clipboardText = existing?.clipboardText;
+			let clipboardText = options?.clipboardText;
 			if (!clipboardText && completions.needsClipboard) {
 				clipboardText = await this._clipboardService.readText();
 			}
 
-			if (this._state === State.Idle) {
+			if (this._triggerState === undefined) {
 				return;
 			}
 
 			const model = this._editor.getModel();
-			let items = completions.items;
+			// const items = completions.items;
 
-			if (existing) {
-				const cmpFn = getSuggestionComparator(snippetSortOrder);
-				items = items.concat(existing.items).sort(cmpFn);
-			}
+			// if (existing) {
+			// 	const cmpFn = getSuggestionComparator(snippetSortOrder);
+			// 	items = items.concat(existing.items).sort(cmpFn);
+			// }
 
-			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy, context.noSelect);
+			const ctx = new LineContext(model, this._editor.getPosition(), options);
 			const fuzzySearchOptions = {
 				...FuzzyScoreOptions.default,
 				firstMatchCanBeWeak: !this._editor.getOption(EditorOption.suggest).matchOnWordStartOnly
 			};
-			this._completionModel = new CompletionModel(items, this._context!.column, {
+			this._completionModel = new CompletionModel(completions.items, this._context!.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: ctx.column - this._context!.column
 			},
@@ -639,7 +640,7 @@ export class SuggestModel implements IDisposable {
 		if (ctx.column < this._context.column) {
 			// typed -> moved cursor LEFT -> retrigger if still on a word
 			if (ctx.leadingWord.word) {
-				this.trigger({ auto: this._context.auto, shy: false, noSelect: false }, true);
+				this.trigger({ auto: this._context.triggerOptions.auto, retrigger: true });
 			} else {
 				this.cancel();
 			}
@@ -652,24 +653,42 @@ export class SuggestModel implements IDisposable {
 		}
 
 		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
-			// started a new word while IntelliSense shows -> retrigger
-
-			// Select those providers have not contributed to this completion model and re-trigger completions for
-			// them. Also adopt the existing items and merge them into the new completion model
-			const inactiveProvider = new Set(this._languageFeaturesService.completionProvider.all(this._editor.getModel()!));
-			for (const provider of this._completionModel.allProvider) {
-				inactiveProvider.delete(provider);
+			// started a new word while IntelliSense shows -> retrigger but reuse all items that we currently have
+			const shouldAutoTrigger = LineContext.shouldAutoTrigger(this._editor);
+			if (shouldAutoTrigger && this._context) {
+				// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
+				// suggestions to be cancelled, which causes `this._context` to be undefined
+				const map = this._completionModel.getItemsByProvider();
+				this.trigger({
+					auto: this._context.triggerOptions.auto,
+					retrigger: true,
+					clipboardText: this._completionModel.clipboardText,
+					completionOptions: { providerItemsToReuse: map }
+				});
 			}
-			const items = this._completionModel.adopt(new Set());
-			this.trigger({ auto: this._context.auto, shy: false, noSelect: false }, true, inactiveProvider, { items, clipboardText: this._completionModel.clipboardText });
 			return;
 		}
 
-		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
+		if (ctx.column > this._context.column && this._completionModel.getIncompleteProvider().size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
-			const { incomplete } = this._completionModel;
-			const items = this._completionModel.adopt(incomplete);
-			this.trigger({ auto: this._state === State.Auto, shy: false, noSelect: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, { items, clipboardText: this._completionModel.clipboardText });
+
+			const providerItemsToReuse = new Map<CompletionItemProvider, CompletionItem[]>();
+			const providerFilter = new Set<CompletionItemProvider>();
+			for (const [provider, items] of this._completionModel.getItemsByProvider()) {
+				if (items.length > 0 && items[0].container.incomplete) {
+					providerFilter.add(provider);
+				} else {
+					providerItemsToReuse.set(provider, items);
+				}
+			}
+
+			this.trigger({
+				auto: this._context.triggerOptions.auto,
+				triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions,
+				retrigger: true,
+				clipboardText: this._completionModel.clipboardText,
+				completionOptions: { providerFilter, providerItemsToReuse }
+			});
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
@@ -683,13 +702,21 @@ export class SuggestModel implements IDisposable {
 
 			if (this._completionModel.items.length === 0) {
 
-				if (LineContext.shouldAutoTrigger(this._editor) && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
-					// retrigger when heading into a new word
-					this.trigger({ auto: this._context.auto, shy: false, noSelect: false }, true);
+				const shouldAutoTrigger = LineContext.shouldAutoTrigger(this._editor);
+				if (!this._context) {
+					// shouldAutoTrigger forces tokenization, which can cause pending cursor change events to be emitted, which can cause
+					// suggestions to be cancelled, which causes `this._context` to be undefined
+					this.cancel();
 					return;
 				}
 
-				if (!this._context.auto) {
+				if (shouldAutoTrigger && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
+					// retrigger when heading into a new word
+					this.trigger({ auto: this._context.triggerOptions.auto, retrigger: true });
+					return;
+				}
+
+				if (!this._context.triggerOptions.auto) {
 					// freeze when IntelliSense was manually requested
 					this._completionModel.lineContext = oldLineContext;
 					isFrozen = this._completionModel.items.length > 0;
@@ -710,9 +737,7 @@ export class SuggestModel implements IDisposable {
 
 			this._onDidSuggest.fire({
 				completionModel: this._completionModel,
-				auto: this._context.auto,
-				shy: this._context.shy,
-				noSelect: this._context.noSelect,
+				triggerOptions: ctx.triggerOptions,
 				isFrozen,
 			});
 		}

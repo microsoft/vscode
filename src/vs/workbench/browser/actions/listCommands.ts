@@ -306,6 +306,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.collapseAllToFocus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+		const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', true);
+		// Trees
+		if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			const focus = tree.getFocus();
+
+			if (focus.length > 0) {
+				tree.collapse(focus[0], true);
+			}
+			tree.setSelection(focus, fakeKeyboardEvent);
+			tree.setAnchor(focus[0]);
+		}
+	}
+});
+
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.focusParent',

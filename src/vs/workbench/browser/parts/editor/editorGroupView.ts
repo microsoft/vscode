@@ -11,14 +11,13 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
@@ -36,22 +35,27 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { EditorGroupWatermark } from 'vs/workbench/browser/parts/editor/editorGroupWatermark';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -110,7 +114,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
-	private dimension: Dimension | undefined;
+	private lastLayout: IDomNodePagePosition | undefined;
 
 	private readonly scopedInstantiationService: IInstantiationService;
 
@@ -145,7 +149,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(themeService);
 
@@ -174,14 +179,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Container context menu
 			this.createContainerContextMenu();
 
-			// Letterpress container
-			const letterpressContainer = document.createElement('div');
-			letterpressContainer.classList.add('editor-group-letterpress');
-			this.element.appendChild(letterpressContainer);
+			// Watermark & shortcuts
+			this._register(this.instantiationService.createInstance(EditorGroupWatermark, this.element));
 
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
 
 			// Scoped instantiation service
@@ -207,7 +209,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.editorContainer);
 
 			// Editor pane
-			this.editorPane = this._register(this.scopedInstantiationService.createInstance(EditorPanes, this.editorContainer, this));
+			this.editorPane = this._register(this.scopedInstantiationService.createInstance(EditorPanes, this.element, this.editorContainer, this));
 			this._onDidChange.input = this.editorPane.onDidChangeSizeConstraints;
 
 			// Track Focus
@@ -362,13 +364,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private createContainerContextMenu(): void {
-		const menu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroupContext, this.contextKeyService));
-
-		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => this.onShowContainerContextMenu(menu, e)));
-		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, () => this.onShowContainerContextMenu(menu)));
+		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => this.onShowContainerContextMenu(e)));
+		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, () => this.onShowContainerContextMenu()));
 	}
 
-	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
+	private onShowContainerContextMenu(e?: MouseEvent): void {
 		if (!this.isEmpty) {
 			return; // only for empty editor groups
 		}
@@ -380,14 +380,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			anchor = { x: event.posx, y: event.posy };
 		}
 
-		// Fill in contributed actions
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(menu, undefined, actions);
-
 		// Show it
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.EmptyEditorGroupContext,
+			contextKeyService: this.contextKeyService,
 			getAnchor: () => anchor,
-			getActions: () => actions,
 			onHide: () => {
 				this.focus();
 			}
@@ -408,8 +405,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			let target: HTMLElement;
 			if (e instanceof MouseEvent) {
-				if (e.button !== 0) {
-					return undefined; // only for left mouse click
+				if (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */)) {
+					return undefined;
 				}
 
 				target = e.target as HTMLElement;
@@ -513,6 +510,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// not changed meanwhile. This prevents focus from being
 			// stolen accidentally on startup when the user already
 			// clicked somewhere.
+
 			if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
 				this.focus();
 			}
@@ -646,7 +644,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Remove query parameters from the resource extension
 			const queryStringLocation = resourceExt.indexOf('?');
 			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
-			descriptor['resource'] = { mimeType: getMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
+			descriptor['resource'] = { mimeType: new TelemetryTrustedValue(getMimeTypes(resource).join(', ')), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
@@ -1600,10 +1598,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 					return editor.isDirty(); // veto if still dirty
 				} catch (error) {
+					this.logService.error(error);
+
 					// if that fails, since we are about to close the editor, we accept that
 					// the editor cannot be reverted and instead do a soft revert that just
 					// enables us to close the editor. With this, a user can always close a
 					// dirty editor even when reverting fails.
+
 					await editor.revert(this.id, { soft: true });
 
 					return editor.isDirty(); // veto if still dirty
@@ -1851,7 +1852,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Themable
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		const isEmpty = this.isEmpty;
 
 		// Container
@@ -1865,7 +1866,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const borderColor = this.getColor(EDITOR_GROUP_HEADER_BORDER) || this.getColor(contrastBorder);
 		if (!isEmpty && borderColor) {
 			this.titleContainer.classList.add('title-border-bottom');
-			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
+			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor);
 		} else {
 			this.titleContainer.classList.remove('title-border-bottom');
 			this.titleContainer.style.removeProperty('--title-border-bottom-color');
@@ -1889,29 +1890,42 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorPane.maximumWidth; }
 	get maximumHeight(): number { return this.editorPane.maximumHeight; }
 
+	get proportionalLayout(): boolean {
+		if (!this.lastLayout) {
+			return true;
+		}
+
+		return !(this.lastLayout.width === this.minimumWidth || this.lastLayout.height === this.minimumHeight);
+	}
+
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	layout(width: number, height: number): void {
-		this.dimension = new Dimension(width, height);
+	layout(width: number, height: number, top: number, left: number): void {
+		this.lastLayout = { width, height, top, left };
+		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		// Layout the title area first to receive the size it occupies
 		const titleAreaSize = this.titleAreaControl.layout({
-			container: this.dimension,
+			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
 
 		// Pass the container width and remaining height to the editor layout
 		const editorHeight = Math.max(0, height - titleAreaSize.height);
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout(new Dimension(width, editorHeight));
+		this.editorPane.layout({ width, height: editorHeight, top: top + titleAreaSize.height, left });
 	}
 
 	relayout(): void {
-		if (this.dimension) {
-			const { width, height } = this.dimension;
-			this.layout(width, height);
+		if (this.lastLayout) {
+			const { width, height, top, left } = this.lastLayout;
+			this.layout(width, height, top, left);
 		}
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.editorPane.setBoundarySashes(sashes);
 	}
 
 	toJSON(): ISerializedEditorGroupModel {
@@ -1936,37 +1950,3 @@ export interface EditorReplacement extends IEditorReplacement {
 	readonly replacement: EditorInput;
 	readonly options?: IEditorOptions;
 }
-
-registerThemingParticipant((theme, collector) => {
-
-	// Letterpress
-	const letterpress = `./media/letterpress-${theme.type}.svg`;
-	collector.addRule(`
-		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
-		}
-	`);
-
-	// Focused Empty Group Border
-	const focusedEmptyGroupBorder = theme.getColor(EDITOR_GROUP_FOCUSED_EMPTY_BORDER);
-	if (focusedEmptyGroupBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
-				outline-width: 1px;
-				outline-color: ${focusedEmptyGroupBorder};
-				outline-offset: -2px;
-				outline-style: solid;
-			}
-
-			.monaco-workbench .part.editor > .content.empty .editor-group-container.empty.active:focus {
-				outline: none; /* never show outline for empty group if it is the last */
-			}
-		`);
-	} else {
-		collector.addRule(`
-			.monaco-workbench .part.editor > .content .editor-group-container.empty.active:focus {
-				outline: none; /* disable focus outline unless active empty group border is defined */
-			}
-		`);
-	}
-});

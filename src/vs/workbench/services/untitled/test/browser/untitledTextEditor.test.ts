@@ -16,10 +16,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isReadable, isReadableStream } from 'vs/base/common/stream';
 import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 suite('Untitled text editors', () => {
 
@@ -45,6 +46,7 @@ suite('Untitled text editors', () => {
 		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		await input1.resolve();
 		assert.strictEqual(service.get(input1.resource), input1.model);
+		assert.ok(!isUntitledWithAssociatedResource(input1.resource));
 
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
@@ -136,6 +138,7 @@ suite('Untitled text editors', () => {
 		});
 
 		const model = service.create({ associatedResource: file });
+		assert.ok(isUntitledWithAssociatedResource(model.resource));
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, model);
 		assert.ok(untitled.isDirty());
 		assert.strictEqual(model, onDidChangeDirtyModel);
@@ -330,6 +333,55 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(input.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		input.dispose();
+		model.dispose();
+		registration.dispose();
+	});
+
+	// Issue #159202
+	test('remembers that language was set explicitly if set by another source (i.e. ModelService)', async () => {
+		const language = 'untitled-input-test';
+
+		const registration = accessor.languageService.registerLanguage({
+			id: language,
+		});
+
+		const service = accessor.untitledTextEditorService;
+		const model = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
+		await input.resolve();
+
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+		accessor.modelService.setMode(model.textEditorModel!, accessor.languageService.createById(language));
+		assert.ok(input.model.hasLanguageSetExplicitly);
+
+		assert.strictEqual(model.getLanguageId(), language);
+
+		model.dispose();
+		registration.dispose();
+	});
+
+	test('Language is not set explicitly if set by language detection source', async () => {
+		const language = 'untitled-input-test';
+
+		const registration = accessor.languageService.registerLanguage({
+			id: language,
+		});
+
+		const service = accessor.untitledTextEditorService;
+		const model = service.create();
+		const input = instantiationService.createInstance(UntitledTextEditorInput, model);
+		await input.resolve();
+
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+		accessor.modelService.setMode(
+			model.textEditorModel!,
+			accessor.languageService.createById(language),
+			// This is really what this is testing
+			LanguageDetectionLanguageEventSource);
+		assert.ok(!input.model.hasLanguageSetExplicitly);
+
+		assert.strictEqual(model.getLanguageId(), language);
+
 		model.dispose();
 		registration.dispose();
 	});

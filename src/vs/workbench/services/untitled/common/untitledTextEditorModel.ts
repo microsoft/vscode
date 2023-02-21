@@ -10,7 +10,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -154,7 +154,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Fetch config
-		this.onConfigurationChange(false);
+		this.onConfigurationChange(undefined, false);
 
 		this.registerListeners();
 	}
@@ -162,42 +162,46 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => this.onConfigurationChange(true)));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e, true)));
 	}
 
-	private onConfigurationChange(fromEvent: boolean): void {
+	private onConfigurationChange(e: ITextResourceConfigurationChangeEvent | undefined, fromEvent: boolean): void {
 
 		// Encoding
-		const configuredEncoding = this.textResourceConfigurationService.getValue(this.resource, 'files.encoding');
-		if (this.configuredEncoding !== configuredEncoding && typeof configuredEncoding === 'string') {
-			this.configuredEncoding = configuredEncoding;
+		if (!e || e.affectsConfiguration(this.resource, 'files.encoding')) {
+			const configuredEncoding = this.textResourceConfigurationService.getValue(this.resource, 'files.encoding');
+			if (this.configuredEncoding !== configuredEncoding && typeof configuredEncoding === 'string') {
+				this.configuredEncoding = configuredEncoding;
 
-			if (fromEvent && !this.preferredEncoding) {
-				this._onDidChangeEncoding.fire(); // do not fire event if we have a preferred encoding set
+				if (fromEvent && !this.preferredEncoding) {
+					this._onDidChangeEncoding.fire(); // do not fire event if we have a preferred encoding set
+				}
 			}
 		}
 
 		// Label Format
-		const configuredLabelFormat = this.textResourceConfigurationService.getValue(this.resource, 'workbench.editor.untitled.labelFormat');
-		if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
-			this.configuredLabelFormat = configuredLabelFormat;
+		if (!e || e.affectsConfiguration(this.resource, 'workbench.editor.untitled.labelFormat')) {
+			const configuredLabelFormat = this.textResourceConfigurationService.getValue(this.resource, 'workbench.editor.untitled.labelFormat');
+			if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
+				this.configuredLabelFormat = configuredLabelFormat;
 
-			if (fromEvent) {
-				this._onDidChangeName.fire();
+				if (fromEvent) {
+					this._onDidChangeName.fire();
+				}
 			}
 		}
 	}
 
 	//#region Language
 
-	override setLanguageId(languageId: string): void {
+	override setLanguageId(languageId: string, source?: string): void {
 		const actualLanguage: string | undefined = languageId === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_ID
 			? this.editorService.activeTextEditorLanguageId
 			: languageId;
 		this.preferredLanguageId = actualLanguage;
 
 		if (actualLanguage) {
-			super.setLanguageId(actualLanguage);
+			super.setLanguageId(actualLanguage, source);
 		}
 	}
 
@@ -333,8 +337,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Listen to text model events
 		const textEditorModel = assertIsDefined(this.textEditorModel);
-		this._register(textEditorModel.onDidChangeContent(e => this.onModelContentChanged(textEditorModel, e)));
-		this._register(textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange(true))); // language change can have impact on config
+		this.installModelListeners(textEditorModel);
 
 		// Only adjust name and dirty state etc. if we
 		// actually created the untitled model
@@ -356,6 +359,13 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		return super.resolve();
+	}
+
+	protected override installModelListeners(model: ITextModel): void {
+		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e)));
+		this._register(model.onDidChangeLanguage(() => this.onConfigurationChange(undefined, true))); // language change can have impact on config
+
+		super.installModelListeners(model);
 	}
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {

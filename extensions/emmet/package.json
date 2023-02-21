@@ -18,30 +18,7 @@
   },
   "activationEvents": [
     "onCommand:emmet.expandAbbreviation",
-    "onCommand:editor.emmet.action.wrapWithAbbreviation",
-    "onCommand:editor.emmet.action.removeTag",
-    "onCommand:editor.emmet.action.updateTag",
-    "onCommand:editor.emmet.action.matchTag",
-    "onCommand:editor.emmet.action.balanceIn",
-    "onCommand:editor.emmet.action.balanceOut",
-    "onCommand:editor.emmet.action.prevEditPoint",
-    "onCommand:editor.emmet.action.nextEditPoint",
-    "onCommand:editor.emmet.action.mergeLines",
-    "onCommand:editor.emmet.action.selectPrevItem",
-    "onCommand:editor.emmet.action.selectNextItem",
-    "onCommand:editor.emmet.action.splitJoinTag",
-    "onCommand:editor.emmet.action.toggleComment",
-    "onCommand:editor.emmet.action.evaluateMathExpression",
-    "onCommand:editor.emmet.action.updateImageSize",
-    "onCommand:editor.emmet.action.incrementNumberByOneTenth",
-    "onCommand:editor.emmet.action.incrementNumberByOne",
-    "onCommand:editor.emmet.action.incrementNumberByTen",
-    "onCommand:editor.emmet.action.decrementNumberByOneTenth",
-    "onCommand:editor.emmet.action.decrementNumberByOne",
-    "onCommand:editor.emmet.action.decrementNumberByTen",
-    "onCommand:editor.emmet.action.reflectCSSValue",
-    "onCommand:workbench.action.showEmmetCommands",
-    "onStartupFinished"
+    "onLanguage"
   ],
   "main": "./out/node/emmetNodeMain",
   "browser": "./dist/browser/emmetBrowserMain",
@@ -65,7 +42,7 @@
         "emmet.showAbbreviationSuggestions": {
           "type": "boolean",
           "default": true,
-          "scope": "resource",
+          "scope": "language-overridable",
           "markdownDescription": "%emmetShowAbbreviationSuggestions%"
         },
         "emmet.includeLanguages": {
@@ -74,7 +51,6 @@
             "type": "string"
           },
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetIncludeLanguages%"
         },
         "emmet.variables": {
@@ -93,13 +69,11 @@
             "type": "string"
           },
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetVariables%"
         },
         "emmet.syntaxProfiles": {
           "type": "object",
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetSyntaxProfiles%"
         },
         "emmet.excludeLanguages": {
@@ -110,7 +84,6 @@
           "default": [
             "markdown"
           ],
-          "scope": "resource",
           "markdownDescription": "%emmetExclude%"
         },
         "emmet.extensionsPath": {
@@ -137,7 +110,6 @@
         "emmet.preferences": {
           "type": "object",
           "default": {},
-          "scope": "resource",
           "markdownDescription": "%emmetPreferences%",
           "properties": {
             "css.intUnit": {

@@ -20,6 +20,9 @@ export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap, Wind
 	'-monaco-gesturestart': GestureEvent;
 	'-monaco-gesturesend': GestureEvent;
 	'-monaco-gesturecontextmenu': GestureEvent;
+	'compositionstart': CompositionEvent;
+	'compositionupdate': CompositionEvent;
+	'compositionend': CompositionEvent;
 }
 
 export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
@@ -36,8 +39,8 @@ export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 	constructor(element: EventHandler, type: K, useCapture?: boolean) {
 		const fn = (e: Event) => this.emitter.fire(e as DOMEventMap[K]);
 		this.emitter = new Emitter({
-			onFirstListenerAdd: () => element.addEventListener(type, fn, useCapture),
-			onLastListenerRemove: () => element.removeEventListener(type, fn, useCapture)
+			onWillAddFirstListener: () => element.addEventListener(type, fn, useCapture),
+			onDidRemoveLastListener: () => element.removeEventListener(type, fn, useCapture)
 		});
 	}
 

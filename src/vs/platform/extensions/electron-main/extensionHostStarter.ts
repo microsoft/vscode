@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { canceled, SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -17,47 +17,31 @@ import { FileAccess } from 'vs/base/common/network';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
-import type { EventEmitter } from 'events';
-import * as electron from 'electron';
+import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
+import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-
-declare namespace UtilityProcessProposedApi {
-	interface UtilityProcessOptions {
-		serviceName?: string | undefined;
-		execArgv?: string[] | undefined;
-		env?: NodeJS.ProcessEnv | undefined;
-	}
-	export class UtilityProcess extends EventEmitter {
-		readonly pid?: number | undefined;
-		constructor(modulePath: string, args?: string[] | undefined, options?: UtilityProcessOptions);
-		postMessage(channel: string, message: any, transfer?: Electron.MessagePortMain[]): void;
-		kill(signal?: number | string): boolean;
-		on(event: 'exit', listener: (event: Electron.Event, code: number) => void): this;
-		on(event: 'spawn', listener: () => void): this;
-	}
-}
-const UtilityProcess = <typeof UtilityProcessProposedApi.UtilityProcess>((electron as any).UtilityProcess);
-const canUseUtilityProcess = (typeof UtilityProcess !== 'undefined');
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter {
 	_serviceBrand: undefined;
 
 	private static _lastId: number = 0;
 
-	protected readonly _extHosts: Map<string, ExtensionHostProcess | UtilityExtensionHostProcess>;
+	protected readonly _extHosts: Map<string, ExtensionHostProcess | WindowUtilityProcess>;
 	private _shutdown = false;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._extHosts = new Map<string, ExtensionHostProcess | UtilityExtensionHostProcess>();
+		this._extHosts = new Map<string, ExtensionHostProcess | WindowUtilityProcess>();
 
 		// On shutdown: gracefully await extension host shutdowns
-		lifecycleMainService.onWillShutdown((e) => {
+		this._lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
-			e.join(this._waitForAllExit(6000));
+			e.join('extHostStarter', this._waitForAllExit(6000));
 		});
 	}
 
@@ -65,7 +49,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		// Intentionally not killing the extension host processes
 	}
 
-	private _getExtHost(id: string): ExtensionHostProcess | UtilityExtensionHostProcess {
+	private _getExtHost(id: string): ExtensionHostProcess | WindowUtilityProcess {
 		const extHostProcess = this._extHosts.get(id);
 		if (!extHostProcess) {
 			throw new Error(`Unknown extension host!`);
@@ -86,7 +70,12 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 	}
 
 	onDynamicError(id: string): Event<{ error: SerializedError }> {
-		return this._getExtHost(id).onError;
+		const exthost = this._getExtHost(id);
+		if (exthost instanceof WindowUtilityProcess) {
+			return Event.None;
+		}
+
+		return exthost.onError;
 	}
 
 	onDynamicExit(id: string): Event<{ code: number; signal: string }> {
@@ -102,12 +91,12 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			throw canceled();
 		}
 		const id = String(++ExtensionHostStarter._lastId);
-		let extHost: UtilityExtensionHostProcess | ExtensionHostProcess;
+		let extHost: WindowUtilityProcess | ExtensionHostProcess;
 		if (useUtilityProcess) {
 			if (!canUseUtilityProcess) {
 				throw new Error(`Cannot use UtilityProcess!`);
 			}
-			extHost = new UtilityExtensionHostProcess(id, this._logService, this._windowsMainService);
+			extHost = new WindowUtilityProcess(this._logService, this._windowsMainService, this._telemetryService, this._lifecycleMainService);
 		} else {
 			extHost = new ExtensionHostProcess(id, this._logService);
 		}
@@ -126,7 +115,15 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		if (this._shutdown) {
 			throw canceled();
 		}
-		return this._getExtHost(id).start(opts);
+		this._getExtHost(id).start({
+			...opts,
+			type: 'extensionHost',
+			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
+			args: ['--skipWorkspaceStorageLock'],
+			execArgv: opts.execArgv,
+			allowLoadingUnsignedLibraries: true,
+			correlationId: id
+		});
 	}
 
 	async enableInspectPort(id: string): Promise<boolean> {
@@ -200,7 +197,7 @@ class ExtensionHostProcess extends Disposable {
 		}
 		const sw = StopWatch.create(false);
 		this._process = fork(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			FileAccess.asFileUri('bootstrap-fork').fsPath,
 			['--type=extensionHost', '--skipWorkspaceStorageLock'],
 			mixin({ cwd: cwd() }, opts),
 		);
@@ -279,138 +276,6 @@ class ExtensionHostProcess extends Disposable {
 		if (!this._hasExited) {
 			// looks like we timed out
 			this._logService.info(`Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms.`);
-			this._process.kill();
-		}
-	}
-}
-
-class UtilityExtensionHostProcess extends Disposable {
-
-	readonly onStdout = Event.None;
-	readonly onStderr = Event.None;
-	readonly onError = Event.None;
-
-	readonly _onMessage = this._register(new Emitter<any>());
-	readonly onMessage = this._onMessage.event;
-
-	readonly _onExit = this._register(new Emitter<{ pid: number; code: number; signal: string }>());
-	readonly onExit = this._onExit.event;
-
-	private _process: UtilityProcessProposedApi.UtilityProcess | null = null;
-	private _hasExited: boolean = false;
-
-	constructor(
-		public readonly id: string,
-		@ILogService private readonly _logService: ILogService,
-		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
-	) {
-		super();
-	}
-
-	start(opts: IExtensionHostProcessOptions): void {
-		const codeWindow = this._windowsMainService.getWindowById(opts.responseWindowId);
-		if (!codeWindow) {
-			this._logService.info(`UtilityProcess<${this.id}>: Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
-			return;
-		}
-
-		const responseWindow = codeWindow.win;
-		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
-			this._logService.info(`UtilityProcess<${this.id}>: Refusing to create new Extension Host UtilityProcess because requesting window cannot be found...`);
-			return;
-		}
-
-		const serviceName = `extensionHost${this.id}`;
-		const modulePath = FileAccess.asFileUri('bootstrap-fork.js', require).fsPath;
-		const args: string[] = ['--type=extensionHost', '--skipWorkspaceStorageLock'];
-		const execArgv: string[] = opts.execArgv || [];
-		const env: { [key: string]: any } = { ...opts.env };
-
-		// Make sure all values are strings, otherwise the process will not start
-		for (const key of Object.keys(env)) {
-			env[key] = String(env[key]);
-		}
-
-		this._logService.info(`UtilityProcess<${this.id}>: Creating new...`);
-
-		this._process = new UtilityProcess(modulePath, args, { serviceName, env, execArgv });
-
-		this._register(Event.fromNodeEventEmitter<void>(this._process, 'spawn')(() => {
-			this._logService.info(`UtilityProcess<${this.id}>: received spawn event.`);
-		}));
-		const onExit = Event.fromNodeEventEmitter<number>(this._process, 'exit', (_, code: number) => code);
-		this._register(onExit((code: number) => {
-			this._logService.info(`UtilityProcess<${this.id}>: received exit event with code ${code}.`);
-			this._hasExited = true;
-			this._onExit.fire({ pid: this._process!.pid!, code, signal: '' });
-		}));
-		const listener = (event: electron.Event, details: electron.Details) => {
-			if (details.type !== 'Utility') {
-				return;
-			}
-			// Despite the fact that we pass the argument `seviceName`,
-			// the details have a field called `name` where this value appears
-			if (details.name === serviceName) {
-				this._logService.info(`UtilityProcess<${this.id}>: terminated unexpectedly with code ${details.exitCode}.`);
-				this._hasExited = true;
-				this._onExit.fire({ pid: this._process!.pid!, code: details.exitCode, signal: '' });
-			}
-		};
-		electron.app.on('child-process-gone', listener);
-		this._register(toDisposable(() => {
-			electron.app.off('child-process-gone', listener);
-		}));
-
-		const { port1, port2 } = new electron.MessageChannelMain();
-
-		this._process.postMessage('port', null, [port2]);
-		responseWindow.webContents.postMessage(opts.responseChannel, opts.responseNonce, [port1]);
-	}
-
-	enableInspectPort(): boolean {
-		if (!this._process) {
-			return false;
-		}
-
-		this._logService.info(`UtilityProcess<${this.id}>: Enabling inspect port on extension host with pid ${this._process.pid}.`);
-
-		interface ProcessExt {
-			_debugProcess?(n: number): any;
-		}
-
-		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
-			// use (undocumented) _debugProcess feature of node
-			(<ProcessExt>process)._debugProcess!(this._process.pid!);
-			return true;
-		} else if (!platform.isWindows) {
-			// use KILL USR1 on non-windows platforms (fallback)
-			this._process.kill('SIGUSR1');
-			return true;
-		} else {
-			// not supported...
-			return false;
-		}
-	}
-
-	kill(): void {
-		if (!this._process) {
-			return;
-		}
-		this._logService.info(`UtilityProcess<${this.id}>: Killing extension host with pid ${this._process.pid}.`);
-		this._process.kill();
-	}
-
-	async waitForExit(maxWaitTimeMs: number): Promise<void> {
-		if (!this._process) {
-			return;
-		}
-		const pid = this._process.pid;
-		this._logService.info(`UtilityProcess<${this.id}>: Waiting for extension host with pid ${pid} to exit.`);
-		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
-
-		if (!this._hasExited) {
-			// looks like we timed out
-			this._logService.info(`UtilityProcess<${this.id}>: Extension host with pid ${pid} did not exit within ${maxWaitTimeMs}ms, will kill it now.`);
 			this._process.kill();
 		}
 	}

@@ -9,7 +9,6 @@ import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/ed
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
-import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 
@@ -22,7 +21,7 @@ export interface IModelService {
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
+	setMode(model: ITextModel, languageSelection: ILanguageSelection, source?: string): void;
 
 	destroyModel(resource: URI): void;
 
@@ -31,8 +30,6 @@ export interface IModelService {
 	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
 	getModel(resource: URI): ITextModel | null;
-
-	getSemanticTokensProviderStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling;
 
 	onModelAdded: Event<ITextModel>;
 

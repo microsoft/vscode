@@ -17,6 +17,7 @@ import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
 import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
+import { CommentThreadAdditionalActions } from 'vs/workbench/contrib/comments/browser/commentThreadAdditionalActions';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -35,6 +36,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _header!: CommentThreadHeader<T>;
 	private _body!: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
+	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
@@ -54,7 +56,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstatiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | null,
+		private _pendingComment: string | undefined,
+		private _pendingEdits: { [key: number]: string } | undefined,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
@@ -62,7 +65,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			collapse: () => void;
 		},
 		@ICommentService private commentService: ICommentService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -95,20 +98,22 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			bodyElement,
 			this._markdownOptions,
 			this._commentThread,
+			this._pendingEdits,
 			this._scopedInstatiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
+		this._register(this._body);
 
 		this._styleElement = dom.createStyleSheet(this.container);
 
 
-		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
 		this._commentThreadContextValue.set(_commentThread.contextValue);
 
-		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
+		const commentControllerKey = CommentContextKeys.commentControllerContext.bindTo(this._contextKeyService);
 		const controller = this.commentService.getCommentController(this._owner);
 
-		if (controller) {
+		if (controller?.contextValue) {
 			commentControllerKey.set(controller.contextValue);
 		}
 
@@ -149,11 +154,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
-		if (this._commentThread !== commentThread) {
-			dispose(this._commentThreadDisposables);
-		}
-
 		this._commentThread = commentThread;
+		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
@@ -179,6 +181,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (this._commentThread.canReply) {
 			this._createCommentForm();
 		}
+		this._createAdditionalActions();
 
 		this._register(this._body.onDidResize(dimension => {
 			this._refresh(dimension);
@@ -241,16 +244,33 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._register(this._commentReply);
 	}
 
+	private _createAdditionalActions() {
+		this._additionalActions = this._scopedInstatiationService.createInstance(
+			CommentThreadAdditionalActions,
+			this._body.container,
+			this._commentThread,
+			this._contextKeyService,
+			this._commentMenus,
+			this._containerDelegate.actionRunner,
+		);
+
+		this._register(this._additionalActions);
+	}
+
 	getCommentCoords(commentUniqueId: number) {
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingComment(): string | null {
+	getPendingEdits(): { [key: number]: string } {
+		return this._body.getPendingEdits();
+	}
+
+	getPendingComment(): string | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getDimensions() {

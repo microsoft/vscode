@@ -23,6 +23,7 @@ import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/d
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
@@ -31,6 +32,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExecuteCommandAction extends Action {
 
@@ -404,7 +406,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.close.classNames);
+		super(id, label, ThemeIcon.asClassName(Codicon.close));
 	}
 
 	override run(context?: IEditorCommandsContext): Promise<void> {
@@ -422,7 +424,7 @@ export class UnpinEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.pinned.classNames);
+		super(id, label, ThemeIcon.asClassName(Codicon.pinned));
 	}
 
 	override run(context?: IEditorCommandsContext): Promise<void> {
@@ -440,7 +442,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, Codicon.close.classNames);
+		super(id, label, ThemeIcon.asClassName(Codicon.close));
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
@@ -483,7 +485,8 @@ export class RevertAndCloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -498,10 +501,13 @@ export class RevertAndCloseEditorAction extends Action {
 			try {
 				await this.editorService.revert({ editor, groupId: group.id });
 			} catch (error) {
+				this.logService.error(error);
+
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
+
 				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
@@ -726,7 +732,7 @@ export class CloseAllEditorsAction extends AbstractCloseAllAction {
 		@IEditorService editorService: IEditorService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, Codicon.closeAll.classNames, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+		super(id, label, ThemeIcon.asClassName(Codicon.closeAll), fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected get excludeSticky(): boolean {
@@ -1133,10 +1139,13 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 		}
 
 		// Otherwise try in next group that has editors
+		const handledGroups = new Set<number>();
 		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
-		while (currentGroup) {
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
 			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
 			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
 				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
 				if (groupEditors.length > 0) {
 					return { editor: groupEditors[0], groupId: currentGroup.id };
@@ -1173,10 +1182,13 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 		}
 
 		// Otherwise try in previous group that has editors
+		const handledGroups = new Set<number>();
 		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
-		while (currentGroup) {
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
 			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
 			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
 				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
 				if (groupEditors.length > 0) {
 					return { editor: groupEditors[groupEditors.length - 1], groupId: currentGroup.id };
@@ -1541,10 +1553,10 @@ export class ClearRecentFilesAction extends Action {
 
 		// Ask for confirmation
 		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
 			detail: localize('confirmClearDetail', "This action is irreversible!"),
-			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-			type: 'warning'
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
 		});
 
 		if (!confirmed) {
@@ -1817,10 +1829,10 @@ export class ClearEditorHistoryAction extends Action {
 
 		// Ask for confirmation
 		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
 			detail: localize('confirmClearDetail', "This action is irreversible!"),
-			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-			type: 'warning'
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
 		});
 
 		if (!confirmed) {

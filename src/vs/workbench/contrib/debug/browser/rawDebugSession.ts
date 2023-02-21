@@ -83,6 +83,7 @@ export class RawDebugSession implements IDisposable {
 		debugAdapter: IDebugAdapter,
 		public readonly dbgr: IDebugger,
 		private readonly sessionId: string,
+		private readonly name: string,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -168,7 +169,7 @@ export class RawDebugSession implements IDisposable {
 			this._onDidEvent.fire(event);
 		});
 
-		this.debugAdapter.onRequest(request => this.dispatchRequest(request, dbgr));
+		this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 	}
 
 	get onDidExitAdapter(): Event<AdapterEndEvent> {
@@ -568,11 +569,11 @@ export class RawDebugSession implements IDisposable {
 						args.suspendDebuggee = suspendDebuggee;
 					}
 
-					this.send('disconnect', args, undefined, 2000);
+					await this.send('disconnect', args, undefined, 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
-					this.stopAdapter(error);
+					await this.stopAdapter(error);
 				}
 			} else {
 				return this.stopAdapter(error);
@@ -608,7 +609,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private async dispatchRequest(request: DebugProtocol.Request, dbgr: IDebugger): Promise<void> {
+	private async dispatchRequest(request: DebugProtocol.Request): Promise<void> {
 
 		const response: DebugProtocol.Response = {
 			type: 'response',
@@ -620,51 +621,74 @@ export class RawDebugSession implements IDisposable {
 
 		const safeSendResponse = (response: DebugProtocol.Response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
-		switch (request.command) {
-			case 'launchVSCode':
-				try {
-					let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
-					if (!result.success) {
-						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
-							[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
-						if (showResult.choice === 0) {
-							result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
-						} else {
-							response.success = false;
-							safeSendResponse(response);
-							await this.shutdown();
-						}
+		if (request.command === 'launchVSCode') {
+			try {
+				let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+				if (!result.success) {
+					const { confirmed } = await this.dialogSerivce.confirm({
+						type: Severity.Warning,
+						message: nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
+						primaryButton: nls.localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+					});
+					if (confirmed) {
+						result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+					} else {
+						response.success = false;
+						safeSendResponse(response);
+						await this.shutdown();
 					}
-					response.body = {
-						rendererDebugPort: result.rendererDebugPort,
-					};
-					safeSendResponse(response);
-				} catch (err) {
-					response.success = false;
-					response.message = err.message;
-					safeSendResponse(response);
 				}
-				break;
-			case 'runInTerminal':
-				try {
-					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
-					const resp = response as DebugProtocol.RunInTerminalResponse;
-					resp.body = {};
-					if (typeof shellProcessId === 'number') {
-						resp.body.shellProcessId = shellProcessId;
-					}
-					safeSendResponse(resp);
-				} catch (err) {
-					response.success = false;
-					response.message = err.message;
-					safeSendResponse(response);
-				}
-				break;
-			default:
-				response.success = false;
-				response.message = `unknown request '${request.command}'`;
+				response.body = {
+					rendererDebugPort: result.rendererDebugPort,
+				};
 				safeSendResponse(response);
-				break;
+			} catch (err) {
+				response.success = false;
+				response.message = err.message;
+				safeSendResponse(response);
+			}
+		} else if (request.command === 'runInTerminal') {
+			try {
+				const shellProcessId = await this.dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
+				const resp = response as DebugProtocol.RunInTerminalResponse;
+				resp.body = {};
+				if (typeof shellProcessId === 'number') {
+					resp.body.shellProcessId = shellProcessId;
+				}
+				safeSendResponse(resp);
+			} catch (err) {
+				response.success = false;
+				response.message = err.message;
+				safeSendResponse(response);
+			}
+		} else if (request.command === 'startDebugging') {
+			try {
+				const args = (request.arguments as DebugProtocol.StartDebuggingRequestArguments);
+				const config: IConfig = {
+					...args.configuration,
+					...{
+						request: args.request,
+						type: this.dbgr.type,
+						name: args.configuration.name || this.name
+					}
+				};
+				const success = await this.dbgr.startDebugging(config, this.sessionId);
+				if (success) {
+					safeSendResponse(response);
+				} else {
+					response.success = false;
+					response.message = 'Failed to start debugging';
+					safeSendResponse(response);
+				}
+			} catch (err) {
+				response.success = false;
+				response.message = err.message;
+				safeSendResponse(response);
+			}
+		} else {
+			response.success = false;
+			response.message = `unknown request '${request.command}'`;
+			safeSendResponse(response);
 		}
 	}
 
@@ -732,7 +756,7 @@ export class RawDebugSession implements IDisposable {
 	private handleErrorResponse(errorResponse: DebugProtocol.Response, showErrors: boolean): Error {
 
 		if (errorResponse.command === 'canceled' && errorResponse.message === 'canceled') {
-			return errors.canceled();
+			return new errors.CancellationError();
 		}
 
 		const error: DebugProtocol.Message | undefined = errorResponse?.body?.error;
@@ -750,7 +774,7 @@ export class RawDebugSession implements IDisposable {
 		if (showErrors && error && error.format && error.showUser) {
 			this.notificationService.error(userMessage);
 		}
-		const result = new Error(userMessage);
+		const result = new errors.ErrorNoTelemetry(userMessage);
 		(<any>result).showUser = error?.showUser;
 
 		return result;

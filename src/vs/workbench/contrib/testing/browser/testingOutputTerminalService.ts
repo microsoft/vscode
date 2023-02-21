@@ -6,6 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { language } from 'vs/base/common/platform';
 import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -17,15 +18,17 @@ import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal'
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
 
 
 export interface ITestingOutputTerminalService {
 	_serviceBrand: undefined;
 
 	/**
-	 * Opens a terminal for the given test's output.
+	 * Opens a terminal for the given test's output. Optionally, scrolls to and
+	 * selects the given marker in the test results.
 	 */
-	open(result: ITestResult): Promise<void>;
+	open(result: ITestResult, marker?: number): Promise<void>;
 }
 
 const friendlyDate = (date: number) => {
@@ -78,7 +81,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	/**
 	 * @inheritdoc
 	 */
-	public async open(result: ITestResult | undefined): Promise<void> {
+	public async open(result: ITestResult | undefined, marker?: number): Promise<void> {
 		const testOutputPtys = this.terminalService.instances
 			.map(t => {
 				const output = this.outputTerminals.get(t);
@@ -95,6 +98,8 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 			} else {
 				this.terminalGroupService.showPanel();
 			}
+
+			this.revealMarker(existing[0], marker);
 			return;
 		}
 
@@ -114,10 +119,10 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 				customPtyImplementation: () => output,
 				name: getTitle(result),
 			},
-		}), output, result);
+		}), output, result, marker);
 	}
 
-	private async showResultsInTerminal(terminal: ITerminalInstance, output: TestOutputProcess, result: ITestResult | undefined) {
+	private async showResultsInTerminal(terminal: ITerminalInstance, output: TestOutputProcess, result: ITestResult | undefined, thenSelectMarker?: number) {
 		this.outputTerminals.set(terminal, output);
 		output.resetFor(result?.id, getTitle(result));
 		this.terminalService.setActiveInstance(terminal);
@@ -148,11 +153,18 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 				}
 
 				const completedAt = result.completedAt ? new Date(result.completedAt) : new Date();
-				const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString());
+				const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString(language));
 				output.pushData(`\r\n\r\n\x1b[1m> ${text} <\x1b[0m\r\n\r\n`);
 				output.ended = true;
+				this.revealMarker(terminal, thenSelectMarker);
 			},
 		});
+	}
+
+	private revealMarker(terminal: ITerminalInstance, marker?: number) {
+		if (marker !== undefined) {
+			terminal.scrollToMark(getMarkId(marker, true), getMarkId(marker, false), true);
+		}
 	}
 }
 

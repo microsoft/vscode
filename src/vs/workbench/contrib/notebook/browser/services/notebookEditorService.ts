@@ -8,6 +8,9 @@ import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/com
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Event } from 'vs/base/common/event';
+import { Dimension } from 'vs/base/browser/dom';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { URI } from 'vs/base/common/uri';
 
 export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
 
@@ -18,8 +21,10 @@ export interface IBorrowValue<T> {
 export interface INotebookEditorService {
 	_serviceBrand: undefined;
 
-	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions): IBorrowValue<INotebookEditor>;
+	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, dimension?: Dimension): IBorrowValue<INotebookEditor>;
 
+	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined;
+	retrieveAllExistingWidgets(): IBorrowValue<NotebookEditorWidget>[];
 	onDidAddNotebookEditor: Event<INotebookEditor>;
 	onDidRemoveNotebookEditor: Event<INotebookEditor>;
 	addNotebookEditor(editor: INotebookEditor): void;

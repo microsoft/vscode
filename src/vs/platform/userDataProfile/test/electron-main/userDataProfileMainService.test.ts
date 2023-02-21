@@ -14,7 +14,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
@@ -24,6 +24,7 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
+	override get extensionsPath() { return joinPath(this.userRoamingDataHome, 'extensions.json').path; }
 	override get stateResource() { return joinPath(this.userRoamingDataHome, 'state.json'); }
 }
 
@@ -31,7 +32,7 @@ suite('UserDataProfileMainService', () => {
 
 	const disposables = new DisposableStore();
 	let testObject: UserDataProfilesMainService;
-	let environmentService: TestEnvironmentService, stateService: StateMainService;
+	let environmentService: TestEnvironmentService, stateService: StateService;
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -40,37 +41,67 @@ suite('UserDataProfileMainService', () => {
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, fileSystemProvider));
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
-		stateService = new StateMainService(environmentService, logService, fileService);
+		stateService = new StateService(SaveStrategy.DELAYED, environmentService, logService, fileService);
 
 		testObject = new UserDataProfilesMainService(stateService, new UriIdentityService(fileService), environmentService, fileService, logService);
 		await stateService.init();
-		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());
 
 	test('default profile', () => {
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
-		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
 	});
 
 	test('profiles always include default profile', () => {
 		assert.deepStrictEqual(testObject.profiles.length, 1);
 		assert.deepStrictEqual(testObject.profiles[0].isDefault, true);
-		assert.deepStrictEqual(testObject.profiles[0].extensionsResource, undefined);
 	});
 
 	test('default profile when there are profiles', async () => {
-		await testObject.createProfile('test');
+		await testObject.createNamedProfile('test');
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
-		assert.strictEqual(testObject.defaultProfile.extensionsResource?.toString(), joinPath(environmentService.userRoamingDataHome, 'extensions.json').toString());
 	});
 
 	test('default profile when profiles are removed', async () => {
-		const profile = await testObject.createProfile('test');
+		const profile = await testObject.createNamedProfile('test');
 		await testObject.removeProfile(profile);
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);
-		assert.strictEqual(testObject.defaultProfile.extensionsResource, undefined);
+	});
+
+	test('when no profile is set', async () => {
+		await testObject.createNamedProfile('profile1');
+
+		assert.equal(testObject.getProfileForWorkspace({ id: 'id' }), undefined);
+		assert.equal(testObject.getProfileForWorkspace({ id: 'id', configPath: environmentService.userRoamingDataHome }), undefined);
+		assert.equal(testObject.getProfileForWorkspace({ id: 'id', uri: environmentService.userRoamingDataHome }), undefined);
+	});
+
+	test('set profile to a workspace', async () => {
+		const workspace = { id: 'id', configPath: environmentService.userRoamingDataHome };
+		const profile = await testObject.createNamedProfile('profile1');
+
+		testObject.setProfileForWorkspace(workspace, profile);
+
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
+	});
+
+	test('set profile to a folder', async () => {
+		const workspace = { id: 'id', uri: environmentService.userRoamingDataHome };
+		const profile = await testObject.createNamedProfile('profile1');
+
+		testObject.setProfileForWorkspace(workspace, profile);
+
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
+	});
+
+	test('set profile to a window', async () => {
+		const workspace = { id: 'id' };
+		const profile = await testObject.createNamedProfile('profile1');
+
+		testObject.setProfileForWorkspace(workspace, profile);
+
+		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
 });

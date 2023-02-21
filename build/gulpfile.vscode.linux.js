@@ -12,6 +12,7 @@ const shell = require('gulp-shell');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const util = require('./lib/util');
+const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const packageJson = require('../package.json');
 const product = require('../product.json');
@@ -20,7 +21,7 @@ const sysrootInstaller = require('./linux/debian/install-sysroot');
 const debianRecommendedDependencies = require('./linux/debian/dep-lists').recommendedDeps;
 const path = require('path');
 const root = path.dirname(__dirname);
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
@@ -164,7 +165,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+			.pipe(rename('BUILD/usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
 		const workspaceMime = gulp.src('resources/linux/code-workspace.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))

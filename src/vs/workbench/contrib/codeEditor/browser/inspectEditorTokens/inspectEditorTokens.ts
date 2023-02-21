@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -20,18 +20,15 @@ import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages
 import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import type { IGrammar, IToken, StackElement } from 'vscode-textmate';
+import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import type { IGrammar, IToken, StateStack } from 'vscode-textmate';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
 import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -46,7 +43,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	}
 
 	private _editor: ICodeEditor;
-	private _textMateService: ITextMateService;
+	private _textMateService: ITextMateTokenizationService;
 	private _themeService: IWorkbenchThemeService;
 	private _languageService: ILanguageService;
 	private _notificationService: INotificationService;
@@ -56,7 +53,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextMateService textMateService: ITextMateService,
+		@ITextMateTokenizationService textMateService: ITextMateTokenizationService,
 		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -190,7 +187,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private readonly _editor: IActiveCodeEditor;
 	private readonly _languageService: ILanguageService;
 	private readonly _themeService: IWorkbenchThemeService;
-	private readonly _textMateService: ITextMateService;
+	private readonly _textMateService: ITextMateTokenizationService;
 	private readonly _notificationService: INotificationService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _languageFeaturesService: ILanguageFeaturesService;
@@ -200,7 +197,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		editor: IActiveCodeEditor,
-		textMateService: ITextMateService,
+		textMateService: ITextMateTokenizationService,
 		languageService: ILanguageService,
 		themeService: IWorkbenchThemeService,
 		notificationService: INotificationService,
@@ -514,8 +511,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement | null {
-		let state: StackElement | null = null;
+	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StateStack | null {
+		let state: StateStack | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
 			const tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
@@ -668,18 +665,5 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController);
+registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectEditorTokens);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
-		collector.addRule(`.monaco-editor .token-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .token-inspect-widget .tiw-metadata-separator { background-color: ${border}; }`);
-	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .token-inspect-widget { background-color: ${background}; }`);
-	}
-});

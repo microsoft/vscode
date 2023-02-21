@@ -43,7 +43,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		'workbench.editorAssociations': {
 			type: 'object',
-			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
 			additionalProperties: {
 				type: 'string'
 			}
@@ -139,6 +139,11 @@ export interface IEditorResolverService {
 	 * Emitted when an editor is registered or unregistered.
 	 */
 	readonly onDidChangeEditorRegistrations: Event<void>;
+
+	/**
+	 * Given a callback, run the callback pausing the registration emitter
+	 */
+	bufferChangeEvents(callback: Function): void;
 
 	/**
 	 * Registers a specific editor. Editors with the same glob pattern and ID will be grouped together by the resolver.

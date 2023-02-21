@@ -6,30 +6,41 @@
 import { Connection, Emitter } from 'vscode-languageserver';
 import { Disposable } from './util/dispose';
 
-export type ValidateEnabled = 'ignore' | 'warning' | 'error';
+export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
-interface Settings {
+export interface Settings {
 	readonly markdown: {
+		readonly preferredMdPathExtensionStyle: 'auto' | 'includeExtension' | 'removeExtension';
+
+		readonly occurrencesHighlight: {
+			readonly enabled: boolean;
+		};
+
 		readonly suggest: {
 			readonly paths: {
 				readonly enabled: boolean;
+				readonly includeWorkspaceHeaderCompletions: 'never' | 'onSingleOrDoubleHash' | 'onDoubleHash';
 			};
 		};
 
-		readonly experimental: {
-			readonly validate: {
-				readonly enabled: true;
-				readonly referenceLinks: {
-					readonly enabled: ValidateEnabled;
-				};
-				readonly fragmentLinks: {
-					readonly enabled: ValidateEnabled;
-				};
-				readonly fileLinks: {
-					readonly enabled: ValidateEnabled;
-					readonly markdownFragmentLinks: ValidateEnabled;
-				};
-				readonly ignoreLinks: readonly string[];
+		readonly validate: {
+			readonly enabled: true;
+			readonly referenceLinks: {
+				readonly enabled: ValidateEnabled;
+			};
+			readonly fragmentLinks: {
+				readonly enabled: ValidateEnabled;
+			};
+			readonly fileLinks: {
+				readonly enabled: ValidateEnabled;
+				readonly markdownFragmentLinks: ValidateEnabled | 'inherit';
+			};
+			readonly ignoredLinks: readonly string[];
+			readonly unusedLinkDefinitions: {
+				readonly enabled: ValidateEnabled;
+			};
+			readonly duplicateLinkDefinitions: {
+				readonly enabled: ValidateEnabled;
 			};
 		};
 	};

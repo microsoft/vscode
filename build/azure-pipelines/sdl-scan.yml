@@ -2,10 +2,10 @@ trigger: none
 pr: none
 
 parameters:
-  - name: ENABLE_TERRAPIN
-    displayName: "Enable Terrapin"
-    type: boolean
-    default: true
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
   - name: SCAN_WINDOWS
     displayName: "Scan Windows"
     type: boolean
@@ -16,8 +16,8 @@ parameters:
     default: false
 
 variables:
-  - name: ENABLE_TERRAPIN
-    value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
   - name: SCAN_WINDOWS
     value: ${{ eq(parameters.SCAN_WINDOWS, true) }}
   - name: SCAN_LINUX
@@ -30,12 +30,13 @@ variables:
     value: x64
   - name: VSCODE_ARCH
     value: x64
+  - name: Codeql.enabled
+    value: true
 
 stages:
   - stage: Windows
     condition: eq(variables.SCAN_WINDOWS, 'true')
-    pool:
-      vmImage: windows-latest
+    pool: vscode-1es-windows
     jobs:
       - job: WindowsJob
         timeoutInMinutes: 0
@@ -53,7 +54,7 @@ stages:
             displayName: "Azure Key Vault: Get Secrets"
             inputs:
               azureSubscription: "vscode-builds-subscription"
-              KeyVaultName: vscode
+              KeyVaultName: vscode-build-secrets
               SecretsFilter: "github-distro-mixin-password"
 
           - powershell: |
@@ -83,26 +84,28 @@ stages:
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
-              exec { npx https://aka.ms/enablesecurefeed standAlone }
-            timeoutInMinutes: 5
-            retryCountOnTaskFailure: 3
-            condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-            displayName: Switch to Terrapin packages
+              exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
+              exec { npm config set always-auth=true --location=project }
+              exec { yarn config set registry "$env:NPM_REGISTRY" }
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+            displayName: Setup NPM & Yarn
 
-          - task: Semmle@1
+          - task: npmAuthenticate@0
             inputs:
-              sourceCodeDirectory: "$(Build.SourcesDirectory)"
-              language: "cpp"
-              buildCommandsString: "yarn --frozen-lockfile --check-files"
-              querySuite: "Required"
-              timeout: "1800"
-              ram: "16384"
-              addProjectDirToScanningExclusionList: true
-            env:
-              npm_config_arch: "$(NPM_ARCH)"
-              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-            displayName: CodeQL
+              workingFile: .npmrc
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+            displayName: Setup NPM Authentication
+
+          - powershell: |
+              . build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+            displayName: Setup NPM Registry
+
+          - task: CodeQL3000Init@0
+            displayName: CodeQL Initialize
+            condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
@@ -118,6 +121,22 @@ stages:
 
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
+              . build/azure-pipelines/win32/retry.ps1
+              $ErrorActionPreference = "Stop"
+              retry { exec { yarn compile } }
+            env:
+              npm_config_arch: "$(NPM_ARCH)"
+              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+              GITHUB_TOKEN: "$(github-distro-mixin-password)"
+              CHILD_CONCURRENCY: 1
+            displayName: Compile
+
+          - task: CodeQL3000Finalize@0
+            displayName: CodeQL Finalize
+            condition: eq(variables['Codeql.enabled'], 'True')
+
+          - powershell: |
+              . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
               exec { yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)" }
             displayName: Download Symbols
@@ -129,6 +148,17 @@ stages:
               TargetPattern: "guardianGlob"
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
+
+          - task: AntiMalware@4
+            inputs:
+              InputType: Basic
+              ScanType: CustomScan
+              FileDirPath: '$(Build.SourcesDirectory)'
+              EnableServices: true
+              SupportLogOnError: false
+              TreatSignatureUpdateFailureAs: 'Warning'
+              SignatureFreshness: 'OneDay'
+              TreatStaleSignatureAs: 'Error'
 
           - task: TSAUpload@2
             inputs:
@@ -154,7 +184,7 @@ stages:
             displayName: "Azure Key Vault: Get Secrets"
             inputs:
               azureSubscription: "vscode-builds-subscription"
-              KeyVaultName: vscode
+              KeyVaultName: vscode-build-secrets
               SecretsFilter: "github-distro-mixin-password"
 
           - script: |
@@ -184,15 +214,25 @@ stages:
 
           - script: |
               set -e
-              npx https://aka.ms/enablesecurefeed standAlone
-            timeoutInMinutes: 5
-            retryCountOnTaskFailure: 3
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-            displayName: Switch to Terrapin packages
+              npm config set registry "$NPM_REGISTRY" --location=project
+              npm config set always-auth=true --location=project
+              yarn config set registry "$NPM_REGISTRY"
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+            displayName: Setup NPM & Yarn
+
+          - task: npmAuthenticate@0
+            inputs:
+              workingFile: .npmrc
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+            displayName: Setup NPM Authentication
+
+          - script: node build/setup-npm-registry.js $NPM_REGISTRY
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+            displayName: Setup NPM Registry
 
           - script: |
               set -e
-              for i in {1..3}; do # try 3 times, for Terrapin
+              for i in {1..5}; do # try 5 times
                 yarn --cwd build --frozen-lockfile --check-files && break
                 if [ $i -eq 3 ]; then
                   echo "Yarn failed too many times" >&2
@@ -225,7 +265,7 @@ stages:
                 export VSCODE_REMOTE_CXX=$(which g++)
               fi
 
-              for i in {1..3}; do # try 3 times, for Terrapin
+              for i in {1..5}; do # try 5 times
                 yarn --frozen-lockfile --check-files && break
                 if [ $i -eq 3 ]; then
                   echo "Yarn failed too many times" >&2

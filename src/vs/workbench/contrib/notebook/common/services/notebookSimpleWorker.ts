@@ -68,12 +68,7 @@ class MirrorCell {
 
 	getValue(): string {
 		const fullRange = this.getFullModelRange();
-		const eol = this.textBuffer.getEOL();
-		if (eol === '\n') {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
-		} else {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
-		}
+		return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
 	}
 
 	getComparisonValue(): number {
@@ -123,16 +118,25 @@ class MirrorNotebookDocument {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.metadata = e.metadata;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
 			}
 		});
+	}
+
+	private _assertIndex(index: number): void {
+		if (index < 0 || index >= this.cells.length) {
+			throw new Error(`Illegal index ${index}. Cells length: ${this.cells.length}`);
+		}
 	}
 
 	_spliceNotebookCells(splices: NotebookCellTextModelSplice<IMainCellDto>[]) {
@@ -154,7 +158,7 @@ class MirrorNotebookDocument {
 	}
 }
 
-export class CellSequence implements ISequence {
+class CellSequence implements ISequence {
 
 	constructor(readonly textModel: MirrorNotebookDocument) {
 	}

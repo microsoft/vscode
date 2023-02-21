@@ -96,7 +96,7 @@ export interface IColor {
 	defaults: { light: string; dark: string; highContrast: string };
 }
 
-export interface IWebviewEditor {
+interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
 	readonly selector: readonly {
@@ -137,6 +137,7 @@ export interface IWalkthroughStep {
 export interface IWalkthrough {
 	readonly id: string;
 	readonly title: string;
+	readonly icon?: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
 	readonly featuredFor: string[] | undefined;
@@ -226,13 +227,6 @@ export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWo
 }
 
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
-}
-
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;
@@ -268,6 +262,10 @@ export interface IRelaxedExtensionManifest {
 	description?: string;
 	main?: string;
 	browser?: string;
+	preview?: boolean;
+	// For now this only supports pointing to l10n bundle files
+	// but it will be used for package.l10n.json files in the future
+	l10n?: string;
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
@@ -411,7 +409,7 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
 	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
-		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
+		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
 }

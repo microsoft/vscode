@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
@@ -14,7 +15,8 @@ import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { ServiceConfigurationProvider } from './utils/configuration';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
-import { lazy, Lazy } from './utils/lazy';
+import { Lazy, lazy } from './utils/lazy';
+import { Logger } from './utils/logger';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
 
@@ -30,6 +32,8 @@ export function createLazyClientHost(
 		processFactory: TsServerProcessFactory;
 		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 		serviceConfigurationProvider: ServiceConfigurationProvider;
+		experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+		logger: Logger;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
@@ -51,6 +55,7 @@ export function lazilyActivateClient(
 	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
 	pluginManager: PluginManager,
 	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+	onActivate: () => Promise<void> = () => Promise.resolve(),
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
@@ -63,12 +68,14 @@ export function lazilyActivateClient(
 	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
 		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
 			hasActivated = true;
-			// Force activation
-			void lazyClientHost.value;
 
-			disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
-				return lazyClientHost.value.serviceClient.toPath(resource);
-			}));
+			onActivate().then(() => {
+				// Force activation
+				void lazyClientHost.value;
+
+				disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker));
+			});
+
 			return true;
 		}
 		return false;

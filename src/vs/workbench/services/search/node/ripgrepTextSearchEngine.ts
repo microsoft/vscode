@@ -131,7 +131,7 @@ export class RipgrepTextSearchEngine {
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */
-export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
+function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	const lines = msg.split('\n');
 	const firstLine = lines[0].trim();
 
@@ -161,7 +161,7 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 	return undefined;
 }
 
-export function buildRegexParseError(lines: string[]): string {
+function buildRegexParseError(lines: string[]): string {
 	const errorMessage: string[] = ['Regex parse error'];
 	const pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
 	if (pcre2ErrorLine.length >= 1) {
@@ -301,11 +301,15 @@ export class RipgrepParser extends EventEmitter {
 			}
 
 			const matchText = bytesOrTextToString(match.match);
-			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
-			const startCol = prevMatchEndCol + inBetweenChars;
+
+			const inBetweenText = fullTextBytes.slice(prevMatchEnd, match.start).toString();
+			const inBetweenStats = getNumLinesAndLastNewlineLength(inBetweenText);
+			const startCol = inBetweenStats.numLines > 0 ?
+				inBetweenStats.lastLineLength :
+				inBetweenStats.lastLineLength + prevMatchEndCol;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
-			const startLineNumber = prevMatchEndLine;
+			const startLineNumber = inBetweenStats.numLines + prevMatchEndLine;
 			const endLineNumber = stats.numLines + startLineNumber;
 			const endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
@@ -364,7 +368,8 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 	return { numLines, lastLineLength };
 }
 
-function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
+// exported for testing
+export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[] {
 	const args = ['--hidden'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -491,9 +496,14 @@ function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): string[]
 /**
  * `"foo/*bar/something"` -> `["foo", "foo/*bar", "foo/*bar/something", "foo/*bar/something/**"]`
  */
-export function spreadGlobComponents(globArg: string): string[] {
-	const components = splitGlobAware(globArg, '/');
-	return components.map((_, i) => components.slice(0, i + 1).join('/'));
+function spreadGlobComponents(globComponent: string): string[] {
+	const globComponentWithBraceExpansion = performBraceExpansionForRipgrep(globComponent);
+
+	return globComponentWithBraceExpansion.flatMap((globArg) => {
+		const components = splitGlobAware(globArg, '/');
+		return components.map((_, i) => components.slice(0, i + 1).join('/'));
+	});
+
 }
 
 export function unicodeEscapesToPCRE2(pattern: string): string {
@@ -624,4 +634,114 @@ export function fixRegexNewline(pattern: string): string {
 
 export function fixNewline(pattern: string): string {
 	return pattern.replace(/\n/g, '\\r?\\n');
+}
+
+// brace expansion for ripgrep
+
+/**
+ * Split string given first opportunity for brace expansion in the string.
+ * - If the brace is prepended by a \ character, then it is escaped.
+ * - Does not process escapes that are within the sub-glob.
+ * - If two unescaped `{` occur before `}`, then ripgrep will return an error for brace nesting, so don't split on those.
+ */
+function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: string; strInBraces: string; fixedEnd?: string } {
+	let inBraces = false;
+	let escaped = false;
+	let fixedStart = '';
+	let strInBraces = '';
+	for (let i = 0; i < pattern.length; i++) {
+		const char = pattern[i];
+		switch (char) {
+			case '\\':
+				if (escaped) {
+					// If we're already escaped, then just leave the escaped slash and the preceeding slash that escapes it.
+					// The two escaped slashes will result in a single slash and whatever processes the glob later will properly process the escape
+					if (inBraces) {
+						strInBraces += '\\' + char;
+					} else {
+						fixedStart += '\\' + char;
+					}
+					escaped = false;
+				} else {
+					escaped = true;
+				}
+				break;
+			case '{':
+				if (escaped) {
+					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowleged it and add the `{` to the appropriate string
+					if (inBraces) {
+						strInBraces += char;
+					} else {
+						fixedStart += char;
+					}
+					escaped = false;
+				} else {
+					if (inBraces) {
+						// ripgrep treats this as attempting to do a nested alternate group, which is invalid. Return with pattern including changes from escaped braces.
+						return { strInBraces: fixedStart + '{' + strInBraces + '{' + pattern.substring(i + 1) };
+					} else {
+						inBraces = true;
+					}
+				}
+				break;
+			case '}':
+				if (escaped) {
+					// same as `}`, but for closing bracket
+					if (inBraces) {
+						strInBraces += char;
+					} else {
+						fixedStart += char;
+					}
+					escaped = false;
+				} else if (inBraces) {
+					// we found an end bracket to a valid opening bracket. Return the appropriate strings.
+					return { fixedStart, strInBraces, fixedEnd: pattern.substring(i + 1) };
+				} else {
+					// if we're not in braces and not escaped, then this is a literal `}` character and we're still adding to fixedStart.
+					fixedStart += char;
+				}
+				break;
+			default:
+				// similar to the `\\` case, we didn't do anything with the escape, so we should re-insert it into the appropriate string
+				// to be consumed later when individual parts of the glob are processed
+				if (inBraces) {
+					strInBraces += (escaped ? '\\' : '') + char;
+				} else {
+					fixedStart += (escaped ? '\\' : '') + char;
+				}
+				escaped = false;
+				break;
+		}
+	}
+
+
+	// we are haven't hit the last brace, so no splitting should occur. Return with pattern including changes from escaped braces.
+	return { strInBraces: fixedStart + (inBraces ? ('{' + strInBraces) : '') };
+}
+
+/**
+ * Parses out curly braces and returns equivalent globs. Only supports one level of nesting.
+ * Exported for testing.
+ */
+export function performBraceExpansionForRipgrep(pattern: string): string[] {
+	const { fixedStart, strInBraces, fixedEnd } = getEscapeAwareSplitStringForRipgrep(pattern);
+	if (fixedStart === undefined || fixedEnd === undefined) {
+		return [strInBraces];
+	}
+
+	let arr = splitGlobAware(strInBraces, ',');
+
+	if (!arr.length) {
+		// occurs if the braces are empty.
+		arr = [''];
+	}
+
+	const ends = performBraceExpansionForRipgrep(fixedEnd);
+
+	return arr.flatMap((elem) => {
+		const start = fixedStart + elem;
+		return ends.map((end) => {
+			return start + end;
+		});
+	});
 }

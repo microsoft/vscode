@@ -7,10 +7,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
+import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
@@ -102,8 +103,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 
 	private async _invalidateExtensionCollections(): Promise<void> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		const registeredExtensions = await this._extensionService.getExtensions();
+		const registeredExtensions = this._extensionService.extensions;
 		let changes = false;
 		this.collections.forEach((_, extensionIdentifier) => {
 			const isExtensionRegistered = registeredExtensions.some(r => r.identifier.value === extensionIdentifier);

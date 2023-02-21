@@ -3,41 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as env from 'vs/base/common/platform';
+import { isSafari } from 'vs/base/browser/browser';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
-import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationOptions, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession, DebuggerUiMessage } from 'vs/workbench/contrib/debug/common/debug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
-import { IDisposable, dispose, disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { generateUuid } from 'vs/base/common/uuid';
-import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { dispose, disposeIfDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as env from 'vs/base/common/platform';
+import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const $ = dom.$;
 
@@ -86,7 +87,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 		let langId: string | undefined;
 		unverifiedMessage = debugService.getModel().getSessions().map(s => {
 			const dbg = debugService.getAdapterManager().getDebugger(s.configuration.type);
-			const message = dbg?.uiMessages?.[DebuggerUiMessage.UnverifiedBreakpoints];
+			const message = dbg?.strings?.[DebuggerString.UnverifiedBreakpoints];
 			if (message) {
 				if (!langId) {
 					// Lazily compute this, only if needed for some debug adapter
@@ -192,13 +193,13 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	private breakpointHintDecoration: string | null = null;
 	private breakpointWidget: BreakpointWidget | undefined;
-	private breakpointWidgetVisible: IContextKey<boolean>;
+	private breakpointWidgetVisible!: IContextKey<boolean>;
 	private toDispose: IDisposable[] = [];
 	private ignoreDecorationsChangedEvent = false;
 	private ignoreBreakpointsChangeEvent = false;
 	private breakpointDecorations: IBreakpointDecoration[] = [];
 	private candidateDecorations: { decorationId: string; inlineWidget: InlineBreakpointWidget }[] = [];
-	private setDecorationsScheduler: RunOnceScheduler;
+	private setDecorationsScheduler!: RunOnceScheduler;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -212,8 +213,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
-		this.registerListeners();
 		this.setDecorationsScheduler.schedule();
+		this.registerListeners();
 	}
 
 	/**
@@ -291,23 +292,21 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
-						const { choice } = await this.dialogService.show(
-							severity.Info,
-							enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
-							[
-								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-								nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-								nls.localize('cancel', "Cancel")
+						await this.dialogService.prompt({
+							type: severity.Info,
+							message: enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
+							buttons: [
+								{
+									label: nls.localize({ key: 'removeLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Remove {0}", breakpointType),
+									run: () => breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()))
+								},
+								{
+									label: nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize({ key: 'disable', comment: ['&& denotes a mnemonic'] }, "&&Disable") : nls.localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, "&&Enable"), breakpointType),
+									run: () => breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp))
+								}
 							],
-							{ cancelId: 2 },
-						);
-
-						if (choice === 0) {
-							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-						}
-						if (choice === 1) {
-							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
-						}
+							cancelButton: true
+						});
 					} else {
 						if (!enabled) {
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
@@ -674,10 +673,16 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			this.domNode.classList.add(...cssClass.split(' '));
 		}
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async e => {
-			if (this.breakpoint) {
-				await this.debugService.removeBreakpoints(this.breakpoint.getId());
-			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+			switch (this.breakpoint?.enabled) {
+				case undefined:
+					await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
+					break;
+				case true:
+					await this.debugService.removeBreakpoints(this.breakpoint.getId());
+					break;
+				case false:
+					this.debugService.enableOrDisableBreakpoints(true, this.breakpoint);
+					break;
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
@@ -787,7 +792,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hcDark: '#E51400', hcLight: '#E51400' }, nls.localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
+export const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hcDark: '#E51400', hcLight: '#E51400' }, nls.localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
 const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpointDisabledForeground', { dark: '#848484', light: '#848484', hcDark: '#848484', hcLight: '#848484' }, nls.localize('debugIcon.breakpointDisabledForeground', 'Icon color for disabled breakpoints.'));
 const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hcDark: '#848484', hcLight: '#848484' }, nls.localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
 const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#BE8700', hcDark: '#FFCC00', hcLight: '#BE8700' }, nls.localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));

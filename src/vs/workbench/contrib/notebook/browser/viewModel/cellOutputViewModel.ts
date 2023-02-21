@@ -47,15 +47,7 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number] {
 		const mimeTypes = this._notebookService.getOutputMimeTypeInfo(textModel, kernelProvides, this.model);
-		let index = -1;
-		if (this._pickedMimeType) {
-			index = mimeTypes.findIndex(mimeType => mimeType.rendererId === this._pickedMimeType!.rendererId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTrusted);
-		}
-
-		// there is at least one mimetype which is safe and can be rendered by the core
-		if (index === -1) {
-			index = mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted);
-		}
+		const index = mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted);
 
 		return [mimeTypes, Math.max(index, 0)];
 	}

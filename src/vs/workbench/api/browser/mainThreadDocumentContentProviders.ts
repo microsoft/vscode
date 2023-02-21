@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,7 +20,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
 
-	private readonly _resourceContentProvider = new Map<number, IDisposable>();
+	private readonly _resourceContentProvider = new DisposableMap<number>();
 	private readonly _pendingUpdate = new Map<string, CancellationTokenSource>();
 	private readonly _proxy: ExtHostDocumentContentProvidersShape;
 
@@ -35,7 +35,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 	}
 
 	dispose(): void {
-		dispose(this._resourceContentProvider.values());
+		this._resourceContentProvider.dispose();
 		dispose(this._pendingUpdate.values());
 	}
 
@@ -56,11 +56,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 	}
 
 	$unregisterTextContentProvider(handle: number): void {
-		const registration = this._resourceContentProvider.get(handle);
-		if (registration) {
-			registration.dispose();
-			this._resourceContentProvider.delete(handle);
-		}
+		this._resourceContentProvider.deleteAndDispose(handle);
 	}
 
 	$onVirtualDocumentChange(uri: UriComponents, value: string): void {

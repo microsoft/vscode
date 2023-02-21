@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as fileSchemes from '../utils/fileSchemes';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 
 interface DidApplyRefactoringCommand_Args {
@@ -48,7 +46,7 @@ class DidApplyRefactoringCommand implements Command {
 		});
 
 		if (!args.codeAction.edit?.size) {
-			vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
+			vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 			return;
 		}
 
@@ -82,7 +80,7 @@ class SelectRefactorCommand implements Command {
 	) { }
 
 	public async execute(args: SelectRefactorCommand_Args): Promise<void> {
-		const file = this.client.toOpenedFilePath(args.document);
+		const file = this.client.toOpenTsFilePath(args.document);
 		if (!file) {
 			return;
 		}
@@ -100,7 +98,7 @@ class SelectRefactorCommand implements Command {
 
 		if (tsAction.edit) {
 			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
-				vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
+				vscode.window.showErrorMessage(vscode.l10n.t("Could not apply refactoring"));
 				return;
 			}
 		}
@@ -135,7 +133,7 @@ const Extract_Interface = Object.freeze<CodeActionKind>({
 });
 
 const Move_NewFile = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.Refactor.append('move').append('newFile'),
+	kind: vscode.CodeActionKind.RefactorMove.append('newFile'),
 	matches: refactor => refactor.name.startsWith('Move to a new file')
 });
 
@@ -194,7 +192,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 	public renameLocation?: Proto.Location;
 
 	public async resolve(token: vscode.CancellationToken): Promise<undefined> {
-		const file = this.client.toOpenedFilePath(this.document);
+		const file = this.client.toOpenTsFilePath(this.document);
 		if (!file) {
 			return;
 		}
@@ -251,7 +249,6 @@ class SelectCodeAction extends vscode.CodeAction {
 type TsCodeAction = InlinedCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
-	public static readonly minVersion = API.v240;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -273,7 +270,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				kind: vscode.CodeActionKind.Refactor,
 				command: {
 					command: LearnMoreAboutRefactoringsCommand.id,
-					title: localize('refactor.documentation.title', "Learn more about JS/TS refactorings")
+					title: vscode.l10n.t("Learn more about JS/TS refactorings")
 				}
 			}
 		]
@@ -288,12 +285,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (!this.shouldTrigger(context, rangeOrSelection)) {
 			return undefined;
 		}
-		if (!this.client.toOpenedFilePath(document)) {
+		if (!this.client.toOpenTsFilePath(document)) {
 			return undefined;
 		}
 
 		const response = await this.client.interruptGetErr(() => {
-			const file = this.client.toOpenedFilePath(document);
+			const file = this.client.toOpenTsFilePath(document);
 			if (!file) {
 				return undefined;
 			}
@@ -441,11 +438,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 
 		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction(
-				localize('extractConstant.disabled.title', "Extract to constant"),
+				vscode.l10n.t("Extract to constant"),
 				Extract_Constant.kind);
 
 			disabledAction.disabled = {
-				reason: localize('extractConstant.disabled.reason', "The current selection cannot be extracted"),
+				reason: vscode.l10n.t("The current selection cannot be extracted"),
 			};
 			disabledAction.isPreferred = true;
 
@@ -454,11 +451,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 
 		if (!actions.some(action => action.kind && Extract_Function.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction(
-				localize('extractFunction.disabled.title', "Extract to function"),
+				vscode.l10n.t("Extract to function"),
 				Extract_Function.kind);
 
 			disabledAction.disabled = {
-				reason: localize('extractFunction.disabled.reason', "The current selection cannot be extracted"),
+				reason: vscode.l10n.t("The current selection cannot be extracted"),
 			};
 			actions.push(disabledAction);
 		}
@@ -507,7 +504,6 @@ export function register(
 	telemetryReporter: TelemetryReporter,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptRefactorProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeActionsProvider(selector.semantic,

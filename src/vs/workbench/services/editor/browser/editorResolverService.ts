@@ -19,7 +19,7 @@ import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPick
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,7 +27,7 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { Emitter } from 'vs/base/common/event';
+import { PauseableEmitter } from 'vs/base/common/event';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
@@ -42,7 +42,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	readonly _serviceBrand: undefined;
 
 	// Events
-	private readonly _onDidChangeEditorRegistrations = this._register(new Emitter<void>());
+	private readonly _onDidChangeEditorRegistrations = this._register(new PauseableEmitter<void>());
 	readonly onDidChangeEditorRegistrations = this._onDidChangeEditorRegistrations.event;
 
 	// Constants
@@ -114,7 +114,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		const options = untypedEditor.options;
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
@@ -178,12 +177,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return ResolvedStatus.NONE;
 		}
 
-		// If it's the currently active editor we shouldn't do anything
-		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? activeEditor.matches(untypedEditor) : false;
-		if (activeEditor && isActive) {
-			return { editor: activeEditor, options, group };
-		}
 		const input = await this.doResolveEditor(untypedEditor, group, selectedEditor);
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
@@ -214,6 +207,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			editor: this.instantiationService.createInstance(SideBySideEditorInput, editor.label, editor.description, secondaryResolvedEditor.editor, primaryResolvedEditor.editor),
 			options: editor.options
 		};
+	}
+
+	bufferChangeEvents(callback: Function): void {
+		this._onDidChangeEditorRegistrations.pause();
+		try {
+			callback();
+		} finally {
+			this._onDidChangeEditorRegistrations.resume();
+		}
 	}
 
 	registerEditor(
@@ -820,4 +822,4 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 }
 
-registerSingleton(IEditorResolverService, EditorResolverService);
+registerSingleton(IEditorResolverService, EditorResolverService, InstantiationType.Eager);

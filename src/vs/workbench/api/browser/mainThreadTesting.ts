@@ -45,7 +45,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 		this._register(resultService.onResultsChanged(evt => {
 			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
-			const serialized = results?.toJSON();
+			const serialized = results?.toJSONWithMessages();
 			if (serialized) {
 				this.proxy.$publishTestResults([serialized]);
 			}
@@ -171,9 +171,11 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			id: controllerId,
 			label,
 			canRefresh,
+			syncTests: () => this.proxy.$syncTests(),
 			refreshTests: token => this.proxy.$refreshTests(controllerId, token),
 			configureRunProfile: id => this.proxy.$configureRunProfile(controllerId, id),
 			runTests: (reqs, token) => this.proxy.$runControllerTests(reqs, token),
+			startContinuousRun: (reqs, token) => this.proxy.$startContinuousRun(reqs, token),
 			expandTest: (testId, levels) => this.proxy.$expandTest(testId, isFinite(levels) ? levels : -1),
 		};
 

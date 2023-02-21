@@ -109,7 +109,7 @@ export class VariablesView extends ViewPane {
 		}, 400);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -185,7 +185,7 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	override layoutBody(width: number, height: number): void {
+	protected override layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
@@ -295,7 +295,7 @@ function isStackFrame(obj: any): obj is IStackFrame {
 	return obj instanceof StackFrame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
+class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
 
 	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
 		if (!element) {
@@ -402,9 +402,8 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 	) {
-		super(debugService, contextViewService, themeService);
+		super(debugService, contextViewService);
 	}
 
 	get templateId(): string {
@@ -413,6 +412,10 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+	}
+
+	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		super.renderExpressionElement(node.element, node, data);
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {
@@ -526,9 +529,27 @@ const HEX_EDITOR_EDITOR_ID = 'hexEditor.hexedit';
 
 CommandsRegistry.registerCommand({
 	id: VIEW_MEMORY_ID,
-	handler: async (accessor: ServicesAccessor, arg: IVariablesContext, ctx?: (Variable | Expression)[]) => {
-		if (!arg.sessionId || !arg.variable.memoryReference) {
-			return;
+	handler: async (accessor: ServicesAccessor, arg: IVariablesContext | IExpression, ctx?: (Variable | Expression)[]) => {
+		const debugService = accessor.get(IDebugService);
+		let sessionId: string;
+		let memoryReference: string;
+		if ('sessionId' in arg) { // IVariablesContext
+			if (!arg.sessionId || !arg.variable.memoryReference) {
+				return;
+			}
+			sessionId = arg.sessionId;
+			memoryReference = arg.variable.memoryReference;
+		} else { // IExpression
+			if (!arg.memoryReference) {
+				return;
+			}
+			const focused = debugService.getViewModel().focusedSession;
+			if (!focused) {
+				return;
+			}
+
+			sessionId = focused.getId();
+			memoryReference = arg.memoryReference;
 		}
 
 		const commandService = accessor.get(ICommandService);
@@ -537,7 +558,6 @@ CommandsRegistry.registerCommand({
 		const progressService = accessor.get(IProgressService);
 		const extensionService = accessor.get(IExtensionService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const debugService = accessor.get(IDebugService);
 
 		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
 		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
@@ -548,11 +568,11 @@ CommandsRegistry.registerCommand({
 				}
 			*/
 			telemetryService.publicLog('debug/didViewMemory', {
-				debugType: debugService.getModel().getSession(arg.sessionId)?.configuration.type,
+				debugType: debugService.getModel().getSession(sessionId)?.configuration.type,
 			});
 
 			await editorService.openEditor({
-				resource: getUriForDebugMemory(arg.sessionId, arg.variable.memoryReference),
+				resource: getUriForDebugMemory(sessionId, memoryReference),
 				options: {
 					revealIfOpened: true,
 					override: HEX_EDITOR_EDITOR_ID,

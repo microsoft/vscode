@@ -10,11 +10,11 @@ import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -29,6 +29,7 @@ import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,12 +49,12 @@ const fileCategory = { value: localize('file', "File"), original: 'File' };
 abstract class BaseOpenRecentAction extends Action2 {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
+		iconClass: ThemeIcon.asClassName(Codicon.removeClose),
 		tooltip: localize('remove', "Remove from Recently Opened")
 	};
 
 	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
-		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
+		iconClass: 'dirty-workspace ' + ThemeIcon.asClassName(Codicon.closeDirty),
 		tooltip: localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
 		alwaysVisible: true
 	};
@@ -157,14 +158,13 @@ abstract class BaseOpenRecentAction extends Action2 {
 				// Dirty Folder/Workspace
 				else if (context.button === this.dirtyRecentlyOpenedFolder || context.button === this.dirtyRecentlyOpenedWorkspace) {
 					const isDirtyWorkspace = context.button === this.dirtyRecentlyOpenedWorkspace;
-					const result = await dialogService.confirm({
-						type: 'question',
+					const { confirmed } = await dialogService.confirm({
 						title: isDirtyWorkspace ? localize('dirtyWorkspace', "Workspace with Unsaved Files") : localize('dirtyFolder', "Folder with Unsaved Files"),
 						message: isDirtyWorkspace ? localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
 						detail: isDirtyWorkspace ? localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
 					});
 
-					if (result.confirmed) {
+					if (confirmed) {
 						hostService.openWindow(
 							[context.item.openable], {
 							remoteAuthority: context.item.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
@@ -196,7 +196,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			resource = recent.folderUri;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FOLDER);
 			openable = { folderUri: resource };
-			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: true });
+			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: Verbosity.LONG });
 		}
 
 		// Workspace
@@ -204,7 +204,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			resource = recent.workspace.configPath;
 			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.ROOT_FOLDER);
 			openable = { workspaceUri: resource };
-			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 			isWorkspace = true;
 		}
 
@@ -289,7 +289,7 @@ class ToggleFullScreenAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 				original: 'Toggle Full Screen'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -323,7 +323,7 @@ export class ReloadWindowAction extends Action2 {
 		super({
 			id: ReloadWindowAction.ID,
 			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -350,7 +350,7 @@ class ShowAboutDialogAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
 				original: 'About'
 			},
-			category: CATEGORIES.Help,
+			category: Categories.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,

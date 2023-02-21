@@ -15,9 +15,8 @@ import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -30,12 +29,12 @@ export interface IWorkbench {
 	commands: {
 
 		/**
-		* Allows to execute any command if known with the provided arguments.
-		*
-		* @param command Identifier of the command to execute.
-		* @param rest Parameters passed to the command function.
-		* @return A promise that resolves to the returned value of the given command.
-		*/
+		 * Allows to execute any command if known with the provided arguments.
+		 *
+		 * @param command Identifier of the command to execute.
+		 * @param rest Parameters passed to the command function.
+		 * @return A promise that resolves to the returned value of the given command.
+		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
@@ -76,11 +75,6 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-
-		/**
-		 * Current workbench telemetry level.
-		 */
-		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	window: {
@@ -99,6 +93,7 @@ export interface IWorkbench {
 	};
 
 	workspace: {
+
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, a tunnelFactory can be used to support other ips.
@@ -107,7 +102,7 @@ export interface IWorkbench {
 		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
-		openTunnel(tunnelOptions: ITunnelOptions): Thenable<ITunnel>;
+		openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel>;
 	};
 
 	/**
@@ -152,6 +147,8 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * A provider for resource URIs.
+	 *
+	 * *Note*: This will only be invoked after the `connectionToken` is resolved.
 	 */
 	readonly resourceUriProvider?: IResourceUriProvider;
 
@@ -175,12 +172,6 @@ export interface IWorkbenchConstructionOptions {
 	 * The identifier of an edit session associated with the current workspace.
 	 */
 	readonly editSessionId?: string;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
-	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
 
 	//#endregion
 
@@ -253,7 +244,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened (unless `force` is specified).
+	 * Optional default layout to apply on first time the workspace is opened
+	 * (unless `force` is specified). This includes visibility of views and
+	 * editors including editor grid layout.
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -261,6 +254,15 @@ export interface IWorkbenchConstructionOptions {
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
 	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+	//#region Profile options
+
+	/**
+	 * URI of the profile to preview.
+	 */
+	readonly profileToPreview?: UriComponents;
 
 	//#endregion
 
@@ -394,11 +396,6 @@ export interface ITunnelOptions {
 
 	label?: string;
 
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
-
 	privacy?: string;
 
 	protocol?: string;
@@ -420,11 +417,6 @@ export interface ITunnel {
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
-
-	/**
-	 * @deprecated Use privacy instead
-	 */
-	public?: boolean;
 
 	privacy?: string;
 
@@ -587,47 +579,66 @@ export interface IInitialColorTheme {
 }
 
 export interface IDefaultView {
+
+	/**
+	 * The identifier of the view to show by default.
+	 */
 	readonly id: string;
-}
-
-/**
- * @deprecated use `IDefaultEditor.options` instead
- */
-export interface IPosition {
-	readonly line: number;
-	readonly column: number;
-}
-
-/**
- * @deprecated use `IDefaultEditor.options` instead
- */
-export interface IRange {
-	readonly start: IPosition;
-	readonly end: IPosition;
 }
 
 export interface IDefaultEditor {
 
+	/**
+	 * The location of the editor in the editor grid layout.
+	 * Editors are layed out in editor groups and the view
+	 * column is counted from top left to bottom right in
+	 * the order of appearance beginning with `1`.
+	 *
+	 * If not provided, the editor will open in the active
+	 * group.
+	 */
+	readonly viewColumn?: number;
+
+	/**
+	 * The resource of the editor to open.
+	 */
 	readonly uri: UriComponents;
-	readonly options?: IEditorOptions;
 
+	/**
+	 * Optional extra options like which editor
+	 * to use or which text to select.
+	 */
+	readonly options?: ITextEditorOptions;
+
+	/**
+	 * Will not open an untitled editor in case
+	 * the resource does not exist.
+	 */
 	readonly openOnlyIfExists?: boolean;
-
-	/**
-	 * @deprecated use `options` instead
-	 */
-	readonly selection?: IRange;
-
-	/**
-	 * @deprecated use `options.override` instead
-	 */
-	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
 
+	/**
+	 * A list of views to show by default.
+	 */
 	readonly views?: IDefaultView[];
+
+	/**
+	 * A list of editors to show by default.
+	 */
 	readonly editors?: IDefaultEditor[];
+
+	/**
+	 * The layout to use for the workbench.
+	 */
+	readonly layout?: {
+
+		/**
+		 * The layout of the editor area.
+		 */
+		readonly editors?: EditorGroupLayout;
+	};
 
 	/**
 	 * Forces this layout to be applied even if this isn't
@@ -673,6 +684,11 @@ export interface IDevelopmentOptions {
 	 * Current logging level. Default is `LogLevel.Info`.
 	 */
 	readonly logLevel?: LogLevel;
+
+	/**
+	 * Extension log level.
+	 */
+	readonly extensionLogLevel?: [string, LogLevel][];
 
 	/**
 	 * Location of a module containing extension tests to run once the workbench is open.

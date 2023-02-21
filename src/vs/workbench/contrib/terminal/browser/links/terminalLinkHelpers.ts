@@ -38,7 +38,7 @@ export function convertLinkRangeToBuffer(
 	let startOffset = 0;
 	const startWrappedLineCount = Math.ceil(range.startColumn / bufferWidth);
 	for (let y = 0; y < Math.min(startWrappedLineCount); y++) {
-		const lineLength = Math.min(bufferWidth, range.startColumn - y * bufferWidth);
+		const lineLength = Math.min(bufferWidth, (range.startColumn - 1) - y * bufferWidth);
 		let lineOffset = 0;
 		const line = lines[y];
 		// Sanity check for line, apparently this can happen but it's not clear under what
@@ -65,9 +65,8 @@ export function convertLinkRangeToBuffer(
 	let endOffset = 0;
 	const endWrappedLineCount = Math.ceil(range.endColumn / bufferWidth);
 	for (let y = Math.max(0, startWrappedLineCount - 1); y < endWrappedLineCount; y++) {
-		const start = (y === startWrappedLineCount - 1 ? (range.startColumn + startOffset) % bufferWidth : 0);
+		const start = (y === startWrappedLineCount - 1 ? (range.startColumn - 1 + startOffset) % bufferWidth : 0);
 		const lineLength = Math.min(bufferWidth, range.endColumn + startOffset - y * bufferWidth);
-		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
 		let lineOffset = 0;
 		const line = lines[y];
 		// Sanity check for line, apparently this can happen but it's not clear under what
@@ -76,16 +75,26 @@ export function convertLinkRangeToBuffer(
 		if (!line) {
 			break;
 		}
-		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
-			const cell = line.getCell(x)!;
+		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
+			const cell = line.getCell(x);
+			// This is unexpected but it means the character doesn't exist, so we shouldn't add to
+			// the offset
+			if (!cell) {
+				break;
+			}
 			const width = cell.getWidth();
-			// Offset for 0 cells following wide characters
+			const chars = cell.getChars();
+			// Offset for null cells following wide characters
 			if (width === 2) {
 				lineOffset++;
 			}
 			// Offset for early wrapping when the last cell in row is a wide character
-			if (x === bufferWidth - 1 && cell.getChars() === '') {
+			if (x === bufferWidth - 1 && chars === '') {
 				lineOffset++;
+			}
+			// Offset multi-code characters like emoji
+			if (chars.length > 1) {
+				lineOffset -= chars.length - 1;
 			}
 		}
 		endOffset += lineOffset;
@@ -124,7 +133,7 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is
 	// more of a sanity check as the wrapped line should already be trimmed down at this point.
-	const maxLineLength = Math.max(2048 / cols * 2);
+	const maxLineLength = Math.max(2048, cols * 2);
 	lineEnd = Math.min(lineEnd, lineStart + maxLineLength);
 	let content = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
@@ -138,44 +147,100 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 	return content;
 }
 
-export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
-	if (position.y < range.start.y || position.y > range.end.y) {
-		return false;
+export function getXtermRangesByAttr(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): IBufferRange[] {
+	let bufferRangeStart: IBufferCellPosition | undefined = undefined;
+	let lastFgAttr: number = -1;
+	let lastBgAttr: number = -1;
+	const ranges: IBufferRange[] = [];
+	for (let y = lineStart; y <= lineEnd; y++) {
+		const line = buffer.getLine(y);
+		if (!line) {
+			continue;
+		}
+		for (let x = 0; x < cols; x++) {
+			const cell = line.getCell(x);
+			if (!cell) {
+				break;
+			}
+			// HACK: Re-construct the attributes from fg and bg, this is hacky as it relies
+			// upon the internal buffer bit layout
+			const thisFgAttr = (
+				cell.isBold() |
+				cell.isInverse() |
+				cell.isStrikethrough() |
+				cell.isUnderline()
+			);
+			const thisBgAttr = (
+				cell.isDim() |
+				cell.isItalic()
+			);
+			if (lastFgAttr === -1 || lastBgAttr === -1) {
+				bufferRangeStart = { x, y };
+			} else {
+				if (lastFgAttr !== thisFgAttr || lastBgAttr !== thisBgAttr) {
+					// TODO: x overflow
+					const bufferRangeEnd = { x, y };
+					ranges.push({
+						start: bufferRangeStart!,
+						end: bufferRangeEnd
+					});
+					bufferRangeStart = { x, y };
+				}
+			}
+			lastFgAttr = thisFgAttr;
+			lastBgAttr = thisBgAttr;
+		}
 	}
-	if (position.y === range.start.y && position.x < range.start.x) {
-		return false;
-	}
-	if (position.y === range.end.y && position.x > range.end.x) {
-		return false;
-	}
-	return true;
+	return ranges;
 }
+
+
+// export function positionIsInRange(position: IBufferCellPosition, range: IBufferRange): boolean {
+// 	if (position.y < range.start.y || position.y > range.end.y) {
+// 		return false;
+// 	}
+// 	if (position.y === range.start.y && position.x < range.start.x) {
+// 		return false;
+// 	}
+// 	if (position.y === range.end.y && position.x > range.end.x) {
+// 		return false;
+// 	}
+// 	return true;
+// }
 
 /**
  * For shells with the CommandDetection capability, the cwd for a command relative to the line of
  * the particular link can be used to narrow down the result for an exact file match.
  */
-export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, pathSeparator: string): string | undefined {
+export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, osPath: IPath): string[] | undefined {
 	const cwd = capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
 	if (!cwd) {
 		return undefined;
 	}
-	if (!text.includes(pathSeparator)) {
-		text = cwd + pathSeparator + text;
+	const result: string[] = [];
+	const sep = osPath.sep;
+	if (!text.includes(sep)) {
+		result.push(osPath.resolve(cwd + sep + text));
 	} else {
 		let commonDirs = 0;
 		let i = 0;
-		const cwdPath = cwd.split(pathSeparator).reverse();
-		const linkPath = text.split(pathSeparator);
+		const cwdPath = cwd.split(sep).reverse();
+		const linkPath = text.split(sep);
+		// Get all results as candidates, prioritizing the link with the most common directories.
+		// For example if in the directory /home/common and the link is common/file, the result
+		// should be: `['/home/common/common/file', '/home/common/file']`. The first is the most
+		// likely as cwd detection is active.
 		while (i < cwdPath.length) {
+			result.push(osPath.resolve(cwd + sep + linkPath.slice(commonDirs).join(sep)));
 			if (cwdPath[i] === linkPath[i]) {
 				commonDirs++;
+			} else {
+				break;
 			}
 			i++;
 		}
-		text = cwd + pathSeparator + linkPath.slice(commonDirs).join(pathSeparator);
 	}
-	return text;
+	return result;
 }
 
 export function osPathModule(os: OperatingSystem): IPath {

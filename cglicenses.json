@@ -33,20 +33,6 @@
 		]
 	},
 	{
-		// Reason: Waiting for https://github.com/segmentio/noop-logger/issues/2
-		"name": "noop-logger",
-		"fullLicenseText": [
-			"This project is licensed under the MIT license.",
-			"Copyrights are respective of each contributor listed at the beginning of each definition file.",
-			"",
-			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
-			"",
-			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
-			"",
-			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
-		]
-	},
-	{
 		// Reason: The license at https://github.com/rbuckton/reflect-metadata/blob/master/LICENSE
 		// does not include a clear Copyright statement (it's in https://github.com/rbuckton/reflect-metadata/blob/master/CopyrightNotice.txt).
 		"name": "reflect-metadata",
@@ -104,36 +90,6 @@
 	},
 	{
 		// Reason: Repository lacks license text.
-		// https://github.com/othiym23/emitter-listener/blob/master/package.json declares BSD-2-Clause.
-		// https://github.com/othiym23/emitter-listener/issues/3
-		"name": "emitter-listener",
-		"fullLicenseText": [
-			"BSD 2-Clause \"Simplified\" License",
-			"Copyright (c) 2018, Forrest L Norvell <ogd@aoaioxxysz.net>",
-			"",
-			"Redistribution and use in source and binary forms, with or without",
-			"modification, are permitted provided that the following conditions are met:",
-			"",
-			"1. Redistributions of source code must retain the above copyright notice, this",
-			"   list of conditions and the following disclaimer.",
-			"2. Redistributions in binary form must reproduce the above copyright notice,",
-			"   this list of conditions and the following disclaimer in the documentation",
-			"   and/or other materials provided with the distribution.",
-			"",
-			"THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND",
-			"ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED",
-			"WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE",
-			"DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR",
-			"ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES",
-			"(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;",
-			"LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND",
-			"ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT",
-			"(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS",
-			"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-		]
-	},
-	{
-		// Reason: Repository lacks license text.
 		// https://github.com/tjwebb/fnv-plus/blob/master/package.json declares MIT.
 		// https://github.com/tjwebb/fnv-plus/issues/14
 		"name": "@enonic/fnv-plus",
@@ -175,23 +131,6 @@
 		]
 	},
 	{
-		// Reason: This product includes AVC coding technology. MPEG LA LLC requires this notice.
-		"name": "H.264/AVC Video Standard",
-		"fullLicenseText": [
-			"This product is licensed under the AVC patent portfolio license for the personal",
-			"and non-commercial use of a consumer to (i) encode video in compliance with the AVC standard (\"AVC VIDEO\")",
-			"and/or (ii) decode AVC video that was encoded by a consumer",
-			"engaged in a personal and non-commercial activity and/or was obtained from a video provider",
-			"licensed to provide AVC video. No license is granted or shall be implied for any other use.",
-			"Additional information may be obtained from MPEG LA LLC. See http://www.MPEGLA.COM.",
-			"",
-			"For clarification purposes, this notice does not limit or inhibit the use of the product",
-			"for normal business uses that are personal to that business which do not include",
-			"(i) redistribution of the product to third parties, or",
-			"(ii) creation of content with AVC Standard compliant technologies for distribution to third parties."
-		]
-	},
-	{
 		// Reason: Missing license file
 		"name": "@tokenizer/token",
 		"fullLicenseText": [
@@ -220,5 +159,188 @@
 			"",
 			"THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
+	},
+	{
+		// Reason: The substack org has been deleted on GH
+		"name": "concat-map",
+		"fullLicenseText": [
+			"This software is released under the MIT license:",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of",
+			"this software and associated documentation files (the \"Software\"), to deal in",
+			"the Software without restriction, including without limitation the rights to",
+			"use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of",
+			"the Software, and to permit persons to whom the Software is furnished to do so,",
+			"subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS",
+			"FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR",
+			"COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER",
+			"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN",
+			"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+		]
+	},
+	{
+		// Reason: The substack org has been deleted on GH
+		"name": "github-from-package",
+		"fullLicenseText": [
+			"This software is released under the MIT license:",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of",
+			"this software and associated documentation files (the \"Software\"), to deal in",
+			"the Software without restriction, including without limitation the rights to",
+			"use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of",
+			"the Software, and to permit persons to whom the Software is furnished to do so,",
+			"subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS",
+			"FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR",
+			"COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER",
+			"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN",
+			"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+		]
+	},
+	{
+		// Reason: The substack org has been deleted on GH
+		"name": "minimist",
+		"fullLicenseText": [
+			"This software is released under the MIT license:",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of",
+			"this software and associated documentation files (the \"Software\"), to deal in",
+			"the Software without restriction, including without limitation the rights to",
+			"use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of",
+			"the Software, and to permit persons to whom the Software is furnished to do so,",
+			"subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS",
+			"FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR",
+			"COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER",
+			"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN",
+			"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+		]
+	},
+	{
+		// Reason: The substack org has been deleted on GH
+		"name": "mkdirp",
+		"fullLicenseText": [
+			"Copyright 2010 James Halliday (mail@substack.net)",
+			"",
+			"This project is free software released under the MIT/X11 license:",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in",
+			"all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN",
+			"THE SOFTWARE."
+		]
+	},
+	{
+		// Reason: repo URI is wrong on crate, pending https://github.com/warp-tech/russh/pull/53
+		"name": "russh-cryptovec",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/warp-tech/russh/1da80d0d599b6ee2d257c544c0d6af4f649c9029/LICENSE-2.0.txt"
+	},
+	{
+		// Reason: repo URI is wrong on crate, pending https://github.com/warp-tech/russh/pull/53
+		"name": "russh-keys",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/warp-tech/russh/1da80d0d599b6ee2d257c544c0d6af4f649c9029/LICENSE-2.0.txt"
+	},
+	{
+		// Reason: license is in a subdirectory in repo
+		"name": "dirs-next",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/af4aa39daba0ac68e222962a5aca17360158b7cc/dirs/LICENSE-MIT"
+	},
+	{
+		// Reason: license is in a subdirectory in repo
+		"name": "openssl",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl/LICENSE"
+	},
+	{
+		// Reason: license is in a subdirectory in repo
+		"name": "openssl-sys",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl-sys/LICENSE-MIT"
+	},
+	{
+		// Reason: Missing license file
+		"name": "openssl-macros",
+		"fullLicenseText": [
+			"This software is released under the MIT license:",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of",
+			"this software and associated documentation files (the \"Software\"), to deal in",
+			"the Software without restriction, including without limitation the rights to",
+			"use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of",
+			"the Software, and to permit persons to whom the Software is furnished to do so,",
+			"subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS",
+			"FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR",
+			"COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER",
+			"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN",
+			"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+		]
+	},
+	{ // Reason: Missing license file
+		"name": "emitter-listener",
+		"fullLicenseText": [
+			"This software is released under the BSD-2-Clause license:",
+			"Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:",
+			"",
+			"1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.",
+			"",
+			"2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer",
+			"in the documentation and/or other materials provided with the distribution.",
+			"",
+			"THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT",
+			"NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE",
+			"COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,",
+			"BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED",
+			"AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT",
+			"OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
+		]
+	},
+	{ // Reason: Missing license file
+		"name": "const_format_proc_macros",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
+	},
+	{ // Reason: Missing license file
+		"name": "const_format",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
+	},
+	{ // License is MIT/Apache and tool doesn't look in subfolders
+		"name": "toml",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml/LICENSE-MIT"
+	},
+	{ // License is MIT/Apache and tool doesn't look in subfolders
+		"name": "dirs-sys-next",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/master/dirs-sys/LICENSE-MIT"
 	}
 ]
