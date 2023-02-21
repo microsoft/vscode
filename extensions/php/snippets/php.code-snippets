@@ -177,6 +177,11 @@
 		"body": "${1:Type} $${2:var}${3: = ${4:null}}$5",
 		"description": "Parameter definition"
 	},
+	"property": {
+		"prefix": "property",
+		"body": "${1|public ,private ,protected |}${2|static ,readonly |}${3:Type} $${4:var}${5: = ${6:null}};$0",
+		"description": "Property"
+	},
 	"property promotion": {
 		"prefix": "property_promoted",
 		"body": "${1|public ,private ,protected |}${2:readonly }${3:Type} $${4:var}${5: = ${6:null}}$7",
