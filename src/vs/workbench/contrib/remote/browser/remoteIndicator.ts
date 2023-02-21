@@ -464,7 +464,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
-			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled()) {
+			if (this.extensionGalleryService.isEnabled()) {
 				items.push({
 					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
