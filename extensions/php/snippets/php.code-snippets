@@ -262,6 +262,19 @@
 		],
 		"description": "Try catch block"
 	},
+	"Try Catch Finally Block": {
+		"prefix": "try_finally",
+		"body": [
+			"try {",
+			"\t${1://code...}",
+			"} catch (${2:\\Throwable} ${3:\\$th}) {",
+			"\t${4://throw \\$th;}",
+			"} finally {",
+			"\t$0",
+			"}"
+		],
+		"description": "Try catch finally block"
+	},
 	"while …": {
 		"prefix": "while",
 		"body": [
