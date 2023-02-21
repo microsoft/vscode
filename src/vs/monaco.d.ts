@@ -4046,7 +4046,7 @@ declare namespace monaco.editor {
 		/**
 		 * Model to choose for sticky scroll by default
 		 */
-		model?: 'Outline Model' | 'Folding Model';
+		defaultModel?: 'Outline Model' | 'Folding Model';
 	}
 
 	/**

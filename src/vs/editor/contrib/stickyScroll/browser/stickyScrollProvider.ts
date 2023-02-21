@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { OutlineModel, OutlineElement, OutlineGroup } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/config/editorOptions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
@@ -18,6 +18,7 @@ import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class StickyRange {
 	constructor(
@@ -34,6 +35,11 @@ export class StickyLineCandidate {
 	) { }
 }
 
+enum DefaultModel {
+	FOLDING_MODEL = 'Folding Model',
+	OUTLINE_MODEL = 'Outline Model'
+}
+
 export class StickyLineCandidateProvider extends Disposable {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
@@ -42,6 +48,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	public readonly onDidChangeStickyScroll = this._onDidChangeStickyScroll.event;
 
 	private readonly _editor: ICodeEditor;
+	private _options: Readonly<Required<IEditorStickyScrollOptions>> | undefined;
 	private readonly _languageFeaturesService: ILanguageFeaturesService;
 	private readonly _updateSoon: RunOnceScheduler;
 
@@ -72,8 +79,9 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	private readConfiguration() {
-		const options = this._editor.getOption(EditorOption.stickyScroll);
-		if (options.enabled === false) {
+
+		this._options = this._editor.getOption(EditorOption.stickyScroll);
+		if (this._options.enabled === false) {
 			this._sessionStore.clear();
 			return;
 		} else {
@@ -118,7 +126,23 @@ export class StickyLineCandidateProvider extends Disposable {
 			}
 		}, 75) : undefined;
 
-		// get elements from outline or folding model
+		// get elements from outline or folding model depending on which model is set as the default
+		const firstStickyModelProvider = (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL ? this.stickyModelFromOutlineModel : this.stickyModelFromFoldingModel).bind(this);
+		const secondStickyModelProvider = (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL ? this.stickyModelFromFoldingModel : this.stickyModelFromOutlineModel).bind(this);
+
+		console.log(this._options!.defaultModel);
+
+		const status1 = await firstStickyModelProvider(model, modelVersionId, token);
+		if (status1 === undefined) {
+			return;
+		} else if (status1 === false) {
+			const status2 = await secondStickyModelProvider(model, modelVersionId, token);
+			if (status2 === undefined) { return; }
+		}
+		clearTimeout(resetHandle);
+	}
+
+	private async stickyModelFromOutlineModel(model: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, model, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -126,21 +150,27 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (outlineModel.children.size !== 0) {
 			const { stickyOutlineElement, providerID } = StickyOutlineElement.fromOutlineModel(outlineModel, this._model?.outlineProviderId);
 			this._model = new StickyOutlineModel(model.uri, modelVersionId, stickyOutlineElement, providerID);
-
+			return true;
 		} else {
-			const foldingController = FoldingController.get(this._editor);
-			const foldingModel = await foldingController?.getFoldingModel();
-			if (token.isCancellationRequested) {
-				return;
-			}
-			if (foldingModel && foldingModel.regions.length !== 0) {
-				const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel);
-				this._model = new StickyOutlineModel(model.uri, modelVersionId, foldingElement, undefined);
-			} else {
-				this._model = undefined;
-			}
+			this._model = undefined;
+			return false;
 		}
-		clearTimeout(resetHandle);
+	}
+
+	private async stickyModelFromFoldingModel(model: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
+		const foldingController = FoldingController.get(this._editor);
+		const foldingModel = await foldingController?.getFoldingModel();
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (foldingModel && foldingModel.regions.length !== 0) {
+			const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel);
+			this._model = new StickyOutlineModel(model.uri, modelVersionId, foldingElement, undefined);
+			return true;
+		} else {
+			this._model = undefined;
+			return false;
+		}
 	}
 
 	private updateIndex(index: number) {

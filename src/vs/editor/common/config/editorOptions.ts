@@ -2652,7 +2652,7 @@ export interface IEditorStickyScrollOptions {
 	/**
 	 * Model to choose for sticky scroll by default
 	 */
-	model?: 'Outline Model' | 'Folding Model';
+	defaultModel?: 'Outline Model' | 'Folding Model';
 }
 
 /**
@@ -2663,27 +2663,27 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, model: 'Outline Model' };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'Outline Model' };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
 					default: defaults.maxLineCount,
 					minimum: 1,
 					maximum: 10,
-					description: nls.localize('editor.stickyScroll.', "Defines the maximum number of sticky lines to show.")
+					description: nls.localize('editor.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show.")
 				},
-				'editor.stickyScroll.model': {
+				'editor.stickyScroll.defaultModel': {
 					type: 'string',
 					enum: ['Outline Model', 'Folding Model'],
-					default: defaults.model,
-					description: nls.localize('editor.stickyScroll.model', "Defines the model to use for defining the lines to stick.")
+					default: defaults.defaultModel,
+					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. The other model will act as fallback.")
 				},
 			}
 		);
@@ -2697,7 +2697,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
-			model: stringSet<'Outline Model' | 'Folding Model'>(input.model, this.defaultValue.model, ['Outline Model', 'Folding Model']),
+			defaultModel: stringSet<'Outline Model' | 'Folding Model'>(input.defaultModel, this.defaultValue.defaultModel, ['Outline Model', 'Folding Model']),
 		};
 	}
 }
