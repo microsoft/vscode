@@ -10,6 +10,8 @@ export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
 export interface Settings {
 	readonly markdown: {
+		readonly preferredMdPathExtensionStyle: 'auto' | 'includeExtension' | 'removeExtension';
+
 		readonly occurrencesHighlight: {
 			readonly enabled: boolean;
 		};

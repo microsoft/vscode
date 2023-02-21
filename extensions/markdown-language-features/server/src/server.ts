@@ -62,18 +62,26 @@ export async function startServer(connection: Connection, serverConfig: {
 	let mdLs: md.IMdLanguageService | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
-		const config = getLsConfiguration(initOptions ?? {});
-
 		const configurationManager = new ConfigurationManager(connection);
+		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
 
-		const workspace = serverConfig.workspaceFactory({ connection, config, workspaceFolders: params.workspaceFolders });
+		const mdConfig = getLsConfiguration(initOptions ?? {});
+
+		const workspace = serverConfig.workspaceFactory({ connection, config: mdConfig, workspaceFolders: params.workspaceFolders });
 		mdLs = md.createLanguageService({
 			workspace,
 			parser: serverConfig.parser,
 			logger: serverConfig.logger,
-			markdownFileExtensions: config.markdownFileExtensions,
-			excludePaths: config.excludePaths,
+			...mdConfig,
+			get preferredMdPathExtensionStyle() {
+				switch (configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
+					case 'includeExtension': return md.PreferredMdPathExtensionStyle.includeExtension;
+					case 'removeExtension': return md.PreferredMdPathExtensionStyle.removeExtension;
+					case 'auto':
+					default:
+						return md.PreferredMdPathExtensionStyle.auto;
+				}
+			}
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
