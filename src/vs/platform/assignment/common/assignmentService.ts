@@ -72,7 +72,11 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	}
 
 	private async setupTASClient(): Promise<TASClient> {
-		const targetPopulation = this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders;
+
+		const targetPopulation = this.productService.quality === 'stable' ?
+			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
+				TargetPopulation.Exploration : TargetPopulation.Insiders);
+
 		const machineId = await this.getMachineId();
 		const filterProvider = new AssignmentFilterProvider(
 			this.productService.version,

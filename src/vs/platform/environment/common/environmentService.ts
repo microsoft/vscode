@@ -278,8 +278,8 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	) { }
 }
 
-export function parseExtensionHostDebugPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId, args.extensionEnvironment);
+export function parseExtensionHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IExtensionHostDebugParams {
+	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuilt, args.debugId, args.extensionEnvironment);
 }
 
 export function parseDebugParams(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuilt: boolean, debugId?: string, environmentString?: string): IExtensionHostDebugParams {

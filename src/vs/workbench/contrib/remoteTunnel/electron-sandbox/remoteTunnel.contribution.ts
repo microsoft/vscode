@@ -40,7 +40,7 @@ import { ITunnelApplicationConfig } from 'vs/base/common/product';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
-	original: 'Remote Tunnels',
+	original: 'Remote-Tunnels',
 	value: localize('remoteTunnel.category', 'Remote Tunnels')
 };
 
@@ -74,10 +74,11 @@ enum RemoteTunnelCommandIds {
 	learnMore = 'workbench.remoteTunnel.actions.learnMore',
 }
 
+// name shown in nofications
 namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
 	export const turnOff = localize('remoteTunnel.actions.turnOff', 'Turn off Remote Tunnel Access...');
-	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Log');
+	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Remote Tunnel Service Log');
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Machine Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with VS Code Tunnels');
@@ -737,7 +738,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			} else {
 				quickPick.title = localize('manage.title.off', 'Remote Machine Access not enabled');
 			}
-			items.push({ id: RemoteTunnelCommandIds.showLog, label: RemoteTunnelCommandLabels.showLog });
+			items.push({ id: RemoteTunnelCommandIds.showLog, label: localize('manage.showLog', 'Show Log') });
 			items.push({ type: 'separator' });
 			items.push({ id: RemoteTunnelCommandIds.configure, label: localize('manage.machineName', 'Change Host Name'), description: this.connectionInfo?.hostName });
 			items.push({ id: RemoteTunnelCommandIds.turnOff, label: RemoteTunnelCommandLabels.turnOff, description: account ? `${account.label} (${account.description})` : undefined });

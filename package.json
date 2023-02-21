@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.76.0",
-  "distro": "cd6d83a02668b3ee1577d32ede0540c6e71b8119",
+  "distro": "d1298afbfabd0c7765a358bacbc66a179d2b0039",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -86,7 +86,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "8.0.0",
+    "vscode-textmate": "9.0.0",
     "xterm": "5.2.0-beta.29",
     "xterm-addon-canvas": "0.4.0-beta.7",
     "xterm-addon-search": "0.11.0",

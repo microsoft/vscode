@@ -88,6 +88,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	constructor(
 		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
+		private pendingEdit: string | undefined,
 		private owner: string,
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
@@ -139,6 +140,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CONTEXT_MENU, e => {
 			return this.onContextMenu(e);
 		}));
+
+		if (pendingEdit) {
+			this.switchToEditMode();
+		}
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
@@ -431,12 +436,13 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this.parentThread);
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(this.configurationService), this._contextKeyService, this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
-		this._commentEditor.setValue(this.commentBodyValue);
+		this._commentEditor.setValue(this.pendingEdit ?? this.commentBodyValue);
+		this.pendingEdit = undefined;
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
 
@@ -478,6 +484,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._register(this._commentEditor);
 		this._register(this._commentEditorModel);
+	}
+
+	getPendingEdit(): string | undefined {
+		const model = this._commentEditor?.getModel();
+		if (model && model.getValueLength() > 0) {
+			return model.getValue();
+		}
+		return undefined;
 	}
 
 	private removeCommentEditor() {
