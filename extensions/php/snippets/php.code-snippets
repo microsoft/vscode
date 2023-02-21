@@ -19,6 +19,36 @@
 		"body": "'$1' => $2$0",
 		"description": "Key-Value pair"
 	},
+	"$_COOKIE": {
+		"prefix": "$SGC",
+		"body": "\\$_COOKIE[$1]$0",
+		"description": "$_COOKIE Superglobal"
+	},
+	"$_GET": {
+		"prefix": "$SGG",
+		"body": "\\$_GET[$1]$0",
+		"description": "$_GET Superglobal"
+	},
+	"$_FILES": {
+		"prefix": "$SGF",
+		"body": "\\$_FILES[$1]$0",
+		"description": "$_FILES Superglobal"
+	},
+	"$_POST": {
+		"prefix": "$SGP",
+		"body": "\\$_POST[$1]$0",
+		"description": "$_POST Superglobal"
+	},
+	"$_REQUEST": {
+		"prefix": "$SGR",
+		"body": "\\$_REQUEST[$1]$0",
+		"description": "$_REQUEST Superglobal"
+	},
+	"$_SERVER": {
+		"prefix": "$SGS",
+		"body": "\\$_SERVER[$1]$0",
+		"description": "$_SERVER Superglobal"
+	},
 	"$a <=> $b": {
 		"prefix": "spaceship",
 		"body": "(${1:$$a} <=> ${2:$$b} === ${3|0,1,-1|})",
@@ -164,6 +194,11 @@
 	"goto": {
 		"prefix": "goto",
 		"body": "goto $0;"
+	},
+	"globals": {
+		"prefix": "globals",
+		"body": "\\$GLOBALS[$1]$0",
+		"description": "Superglobal $GLOBALS variable"
 	},
 	"heredoc": {
 		"prefix": "heredoc",
