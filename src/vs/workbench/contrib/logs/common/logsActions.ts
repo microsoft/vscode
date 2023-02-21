@@ -129,7 +129,7 @@ export class SetLogLevelAction extends Action {
 	}
 
 	private getLogLevelEntries(defaultLogLevel: LogLevel, currentLogLevel: LogLevel): LogLevelQuickPickItem[] {
-		const button: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.arrowSwap), tooltip: nls.localize('resetLogLevel', "Set as Default Log Level") };
+		const button: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.checkAll), tooltip: nls.localize('resetLogLevel', "Set as Default Log Level") };
 		return [
 			{ label: this.getLabel(LogLevel.Trace, currentLogLevel), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Trace ? [button] : undefined },
 			{ label: this.getLabel(LogLevel.Debug, currentLogLevel), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Debug ? [button] : undefined },
