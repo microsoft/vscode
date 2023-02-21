@@ -23,7 +23,7 @@ import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/
 import { toExtensionManagementError } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export class ExtensionsDownloader extends Disposable {
 
@@ -61,17 +61,25 @@ export class ExtensionsDownloader extends Disposable {
 
 		if (this.shouldVerifySignature(extension)) {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+			const verbose: boolean = this.logService.getLevel() === LogLevel.Trace;
+
 			try {
-				const verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, this.logService);
+				const verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, verbose);
 				if (verified) {
 					verificationStatus = ExtensionVerificationStatus.Verified;
 				}
 				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
+
+				await this.delete(signatureArchiveLocation);
 			} catch (error) {
 				await this.delete(signatureArchiveLocation);
 
 				const sigError = error as ExtensionSignatureVerificationError;
 				const code: string = sigError.code;
+
+				if (verbose && sigError.output) {
+					this.logService.trace(`Extension signature verification details for ${extension.identifier.id} ${extension.version}:\n${error.output}`);
+				}
 
 				if (code === 'UnknownError') {
 					verificationStatus = ExtensionVerificationStatus.UnknownError;
