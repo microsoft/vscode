@@ -736,7 +736,6 @@ export function createRandomIPCHandle(): string {
 	// Mac/Unix: use socket file and prefer
 	// XDG_RUNTIME_DIR over tmpDir
 	let result: string;
-
 	if (XDG_RUNTIME_DIR) {
 		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
 	} else {
@@ -760,12 +759,18 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 	// Mac/Unix: use socket file and prefer
 	// XDG_RUNTIME_DIR over user data path
 	// unless portable
-	let result: string;
+	// Trim the version and type values for
+	// the socket to prevent too large
+	// file names causing issues:
+	// https://unix.stackexchange.com/questions/367008/why-is-socket-path-length-limited-to-a-hundred-chars
+
 	const versionForSocket = version.substr(0, 4);
 	const typeForSocket = type.substr(0, 6);
+	const scopeForSocket = scope.substr(0, 8);
 
+	let result: string;
 	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${versionForSocket}-${typeForSocket}.sock`);
+		result = join(XDG_RUNTIME_DIR, `vscode-${scopeForSocket}-${versionForSocket}-${typeForSocket}.sock`);
 	} else {
 		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}
