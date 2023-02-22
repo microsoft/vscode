@@ -94,7 +94,7 @@ class DefaultLogLevelsService implements IDefaultLogLevelsService {
 
 	private async _writeLogLevelsToArgv(logLevels: ParsedArgvLogLevels): Promise<void> {
 		const logLevelsValue: string[] = [];
-		if (logLevels.default) {
+		if (!isUndefined(logLevels.default)) {
 			logLevelsValue.push(LogLevelToString(logLevels.default));
 		}
 		for (const [extension, logLevel] of logLevels.extensions ?? []) {
