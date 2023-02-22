@@ -12,6 +12,7 @@ import * as MarkdownItType from 'markdown-it';
 
 import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
+import { TextDecoder } from 'util';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
@@ -69,6 +70,7 @@ export class ExtensionLinter {
 	private timer: NodeJS.Timer | undefined;
 	private markdownIt: MarkdownItType.MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
+	private textDecoder = new TextDecoder();
 
 	constructor() {
 		this.disposables.push(
@@ -346,8 +348,8 @@ export class ExtensionLinter {
 		}
 		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
 		try {
-			const document = await workspace.openTextDocument(file);
-			return parseTree(document.getText());
+			const fileContents = await workspace.fs.readFile(file); // #174888
+			return parseTree(this.textDecoder.decode(fileContents));
 		} catch (err) {
 			return undefined;
 		}
