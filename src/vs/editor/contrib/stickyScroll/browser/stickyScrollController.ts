@@ -74,11 +74,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
-		this._register(focusTracker.onDidFocus(_ => {
-			console.log('on did focus');
-		}));
 		this._register(focusTracker.onDidBlur(_ => {
-			console.log('on did blur');
+			console.log('On did blur');
 			this._disposeFocusStickyScrollStore();
 		}));
 	}
@@ -98,6 +95,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _disposeFocusStickyScrollStore() {
 		console.log('Entered into the dispose');
 		this._focusedStickyElement!.classList.remove('focus');
+		this._stickyScrollWidget.getDomNode().blur();
 		this._stickyScrollFocusedContextKey.set(false);
 		this._focusDisposableStore!.dispose();
 	}
@@ -119,28 +117,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focusedStickyElement = rootNode.lastElementChild! as HTMLDivElement;
 		this._focusedStickyElement.classList.add('focus');
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
-		// this._focusedStickyElement.focus();
 
-		rootNode.focus();
-
-		/*
-		// When scrolling remove focus
-		const onScroll = this._editor.onDidScrollChange(() => {
-			this._disposeFocusStickyScrollStore();
-		});
-		// When clicking anywere remove focus
-		const onMouseUp = this._editor.onMouseUp(() => {
-			this._disposeFocusStickyScrollStore();
-		});
 		// Whenever the mouse hovers on the sticky scroll remove the keyboard focus
-		const onStickyScrollWidgetHover = this._stickyScrollWidget.onHover(() => {
-			this._disposeFocusStickyScrollStore();
-		});
-
-		this._focusDisposableStore.add(onScroll);
-		this._focusDisposableStore.add(onMouseUp);
-		this._focusDisposableStore.add(onStickyScrollWidgetHover);
-		*/
+		this._focusDisposableStore.add(this._stickyScrollWidget.onMouseOver(() => {
+			this._focusedStickyElement!.classList.remove('focus');
+		}));
+		this._focusDisposableStore.add(this._stickyScrollWidget.onMouseOut(() => {
+			const { lastMouseFocusedStickyLine, lastMouseFocusedStickyLineIndex } = this._stickyScrollWidget.lastMouseFocusedStickyLineAndIndex();
+			this._focusedStickyElement = lastMouseFocusedStickyLine;
+			this._focusedStickyElementIndex = lastMouseFocusedStickyLineIndex;
+			this._focusedStickyElement!.classList.add('focus');
+		}));
+		rootNode.focus();
 	}
 
 	public focusNext(): void {
@@ -149,7 +137,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._focusedStickyElementIndex!++;
 			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
-			// this._focusedStickyElement.focus();
 		}
 	}
 
@@ -159,7 +146,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._focusedStickyElementIndex!--;
 			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
-			// this._focusedStickyElement.focus();
 		}
 	}
 

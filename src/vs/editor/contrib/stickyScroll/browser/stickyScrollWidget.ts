@@ -48,6 +48,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _hoverOnColumn: number = -1;
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
 	private _candidateDefinitionsLength: number = -1;
+	private _lastMouseFocusedStickyLine: HTMLDivElement | undefined;
+	private _lastMouseFocusedStickyLineIndex: number | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -59,13 +61,22 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
+		this._rootDomNode.tabIndex = 0;
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OVER, () => this._onHover.fire()));
+		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OVER, () => this._onMouseOver.fire()));
+		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OUT, () => this._onMouseOut.fire()));
 		this._register(this._updateLinkGesture());
 	}
 
-	private readonly _onHover = this._register(new Emitter<void>());
-	public readonly onHover: Event<void> = this._onHover.event;
+	private readonly _onMouseOver = this._register(new Emitter<void>());
+	public readonly onMouseOver: Event<void> = this._onMouseOver.event;
+
+	private readonly _onMouseOut = this._register(new Emitter<void>());
+	public readonly onMouseOut: Event<void> = this._onMouseOut.event;
+
+	public lastMouseFocusedStickyLineAndIndex(): { lastMouseFocusedStickyLine: HTMLDivElement | undefined; lastMouseFocusedStickyLineIndex: number | undefined } {
+		return { lastMouseFocusedStickyLine: this._lastMouseFocusedStickyLine, lastMouseFocusedStickyLineIndex: this._lastMouseFocusedStickyLineIndex };
+	}
 
 	private _updateLinkGesture(): IDisposable {
 
@@ -268,6 +279,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		this._disposableStore.add(dom.addDisposableListener(child, 'mouseover', (e) => {
+			this._lastMouseFocusedStickyLine = child;
+			this._lastMouseFocusedStickyLineIndex = index;
 			if (this._editor.hasModel()) {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
