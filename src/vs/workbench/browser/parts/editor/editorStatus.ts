@@ -294,7 +294,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-
+	private _previousViewContext: 'terminal' | 'editor' | undefined;
 	private readonly state = new State();
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
@@ -321,6 +321,19 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
 		this._register(Event.runAndSubscribe(TabFocus.onDidChangeTabFocus, () => this.onTabFocusModeChange()));
+		const viewKey = new Set<string>();
+		viewKey.add('focusedView');
+		this._register(this.contextKeyService.onDidChangeContext((c) => {
+			if (c.affectsSome(viewKey)) {
+				const terminalFocus = this.contextKeyService.getContextKeyValue('focusedView') === 'terminal';
+				const context = terminalFocus ? 'terminal' : 'editor';
+				if (this._previousViewContext === context) {
+					return;
+				}
+				this._previousViewContext = context;
+				this.onTabFocusModeChange();
+			}
+		}));
 	}
 
 	private registerCommands(): void {
