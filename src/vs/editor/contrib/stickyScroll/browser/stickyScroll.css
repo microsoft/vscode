@@ -23,7 +23,7 @@
 }
 
 .monaco-editor.hc-black .sticky-widget,
-.monaco-editor.hc-white .sticky-widget {
+.monaco-editor.hc-light .sticky-widget {
 	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 

@@ -85,7 +85,11 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 			// About
 			else {
-				await this.nativeImpl.about();
+				if (this.useCustomDialog) {
+					await this.browserImpl.about();
+				} else {
+					await this.nativeImpl.about();
+				}
 			}
 
 			this.currentDialog.close(result);

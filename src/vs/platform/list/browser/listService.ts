@@ -1380,7 +1380,7 @@ configurationRegistry.registerConfiguration({
 		[fastScrollSensitivityKey]: {
 			type: 'number',
 			default: 5,
-			description: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing `Alt`.")
+			markdownDescription: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		[defaultFindModeSettingKey]: {
 			type: 'string',

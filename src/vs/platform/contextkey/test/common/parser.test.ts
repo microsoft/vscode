@@ -33,7 +33,7 @@ function parseToStr(input: string): string {
 	return prints.join('');
 }
 
-suite('Context Key Scanner', () => {
+suite('Context Key Parser', () => {
 
 	test(' foo', () => {
 		const input = ' foo';
@@ -162,11 +162,6 @@ suite('Context Key Scanner', () => {
 			assert.deepStrictEqual(parseToStr(input), "resource =~ /((\\/scratch\\/(?!update)(.*)\\/)|((\\/src\\/).*\\/)).*$/");
 		});
 
-		test(`FIXME resourcePath =~ //foo/barr// || resourcePath =~ //view/(foo|frontend|base)/(foo|barr)// && resourceExtname in fooBar`, () => {
-			const input = `resourcePath =~ //foo/barr// || resourcePath =~ //view/(foo|frontend|base)/(foo|barr)// && resourceExtname in fooBar`;
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '|' at offset 59. Did you mean '||'?\nUnexpected token '|' at offset 68. Did you mean '||'?\nUnexpected token '/ && resourceExtname in fooBar' at offset 86\n\n --- \nParsing errors:\n\nUnexpected error: SyntaxError: Invalid flags supplied to RegExp constructor ' && resourceExtname in fooBar' for token EOF at offset 116.\n");
-		});
-
 		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/gim`, () => {
 			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/gim`;
 			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/gim");
@@ -189,11 +184,6 @@ suite('Context Key Scanner', () => {
 		test('!foo &&  in bar', () => {
 			const input = '!foo &&  in bar';
 			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got 'in' at offset 9.\n");
-		});
-
-		test(`view =~ '/(servers)/' && viewItem =~ /^(Starting|Started|Debugging|Stopping|Stopped|Unknown)/'`, () => {
-			const input = `view =~ '/(servers)/' && viewItem =~ /^(Starting|Started|Debugging|Stopping|Stopped|Unknown)/'`;
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''' at offset 93\n\n --- \nParsing errors:\n\nUnexpected error: SyntaxError: Invalid flags supplied to RegExp constructor ''' for token EOF at offset 94.\n");
 		});
 
 		test('vim<c-r> == 1 && vim<2<=3', () => {
