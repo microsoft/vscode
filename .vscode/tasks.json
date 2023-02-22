@@ -262,15 +262,7 @@
 			"type": "shell",
 			"command": "node_modules/.bin/http-server --cors --port 5001 -a 127.0.0.1 -s -c-1",
 			"isBackground": true,
-			"problemMatcher": {
-				"pattern": {
-					"regexp": ""
-				},
-				"background": {
-					"beginsPattern": ".*",
-					"endsPattern": ".*"
-				}
-			},
+			"problemMatcher": [],
 			"dependsOn": [
 				"Core - Build"
 			]

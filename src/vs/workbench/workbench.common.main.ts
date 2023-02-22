@@ -86,7 +86,9 @@ import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
+import 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
+import 'vs/workbench/services/remote/common/remoteExtensionsScanner';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -100,6 +102,8 @@ import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import 'vs/editor/common/services/languageFeaturesService';
+import 'vs/editor/common/services/semanticTokensStylingService';
+import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

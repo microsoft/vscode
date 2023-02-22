@@ -16,6 +16,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { URI } from 'vs/base/common/uri';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class ToggleDevToolsAction extends Action2 {
 
@@ -68,7 +69,6 @@ export class ConfigureRuntimeArgumentsAction extends Action2 {
 	}
 }
 
-
 export class ToggleSharedProcessAction extends Action2 {
 
 	constructor() {
@@ -76,6 +76,7 @@ export class ToggleSharedProcessAction extends Action2 {
 			id: 'workbench.action.toggleSharedProcess',
 			title: { value: localize('toggleSharedProcess', "Toggle Shared Process"), original: 'Toggle Shared Process' },
 			category: Categories.Developer,
+			precondition: ContextKeyExpr.has('config.window.experimental.sharedProcessUseUtilityProcess').negate(),
 			f1: true
 		});
 	}
@@ -130,5 +131,3 @@ export class OpenUserDataFolderAction extends Action2 {
 		return nativeHostService.showItemInFolder(itemToShow.fsPath);
 	}
 }
-
-

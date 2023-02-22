@@ -1053,7 +1053,7 @@ export interface IXtermTerminal {
 	/**
 	 * Focuses the accessible buffer, updating its contents
 	 */
-	focusAccessibleBuffer(): void;
+	focusAccessibleBuffer(): Promise<void>;
 }
 
 export interface IInternalXtermTerminal {

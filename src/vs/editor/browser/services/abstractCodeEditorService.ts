@@ -21,11 +21,17 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onWillCreateCodeEditor = this._register(new Emitter<void>());
+	public readonly onWillCreateCodeEditor = this._onWillCreateCodeEditor.event;
+
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
 
 	private readonly _onCodeEditorRemove: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorRemove: Event<ICodeEditor> = this._onCodeEditorRemove.event;
+
+	private readonly _onWillCreateDiffEditor = this._register(new Emitter<void>());
+	public readonly onWillCreateDiffEditor = this._onWillCreateDiffEditor.event;
 
 	private readonly _onDiffEditorAdd: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
 	public readonly onDiffEditorAdd: Event<IDiffEditor> = this._onDiffEditorAdd.event;
@@ -55,6 +61,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		this._globalStyleSheet = null;
 	}
 
+	willCreateCodeEditor(): void {
+		this._onWillCreateCodeEditor.fire();
+	}
+
 	addCodeEditor(editor: ICodeEditor): void {
 		this._codeEditors[editor.getId()] = editor;
 		this._onCodeEditorAdd.fire(editor);
@@ -68,6 +78,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	listCodeEditors(): ICodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
+	}
+
+	willCreateDiffEditor(): void {
+		this._onWillCreateDiffEditor.fire();
 	}
 
 	addDiffEditor(editor: IDiffEditor): void {

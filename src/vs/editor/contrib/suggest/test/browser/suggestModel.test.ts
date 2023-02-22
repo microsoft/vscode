@@ -1087,8 +1087,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async function (model, editor) {
 
-			// editor.updateOptions({ suggest: { selectQuickSuggestions: 'whenQuickSuggestion' } });
-
 			await assertEvent(model.onDidSuggest, () => {
 				editor.setValue('foo');
 				editor.setSelection(new Selection(1, 4, 1, 4));

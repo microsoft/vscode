@@ -7,19 +7,23 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { getCodiconAriaLabel, IParsedLabelWithIcons, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ltrim } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -41,6 +45,7 @@ interface IListElement {
 	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
+	readonly saneTooltip?: string | IMarkdownString | HTMLElement;
 	readonly labelHighlights?: IMatch[];
 	readonly descriptionHighlights?: IMatch[];
 	readonly detailHighlights?: IMatch[];
@@ -60,6 +65,8 @@ class ListElement implements IListElement, IDisposable {
 	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
+	saneTooltip?: string | IMarkdownString | HTMLElement;
+	element?: HTMLElement;
 	hidden = false;
 	private readonly _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
@@ -159,6 +166,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
 		data.element = element;
+		element.element = withNullAsUndefined(data.entry);
 		const mainItem: QuickPickItem = element.item ? element.item : element.separator!;
 
 		data.checkbox.checked = element.checked;
@@ -306,11 +314,13 @@ export class QuickInputList {
 	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
+	private _lastHover: IHoverWidget | undefined;
+	private _toggleHover: IDisposable | undefined;
 
 	constructor(
 		private parent: HTMLElement,
 		id: string,
-		options: IQuickInputOptions,
+		private options: IQuickInputOptions,
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
@@ -381,6 +391,40 @@ export class QuickInputList {
 				this.list.setSelection([e.index]);
 			}
 		}));
+
+		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
+		// onMouseOver triggers every time a new element has been moused over
+		// even if it's on the same list item.
+		this.disposables.push(this.list.onMouseOver(async e => {
+			// If we hover over an anchor element, we don't want to show the hover because
+			// the anchor may have a tooltip that we want to show instead.
+			if (e.browserEvent.target instanceof HTMLAnchorElement) {
+				delayer.cancel();
+				return;
+			}
+			if (
+				// anchors are an exception as called out above so we skip them here
+				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				// check if the mouse is still over the same element
+				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
+			) {
+				return;
+			}
+			await delayer.trigger(async () => {
+				if (e.element) {
+					this.showHover(e.element);
+				}
+			});
+		}));
+		this.disposables.push(this.list.onMouseOut(e => {
+			// onMouseOut triggers every time a new element has been moused over
+			// even if it's on the same list item. We only want one event, so we
+			// check if the mouse is still over the same element.
+			if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
+				return;
+			}
+			delayer.cancel();
+		}));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
 			this._onChangedCheckedCount,
@@ -389,7 +433,8 @@ export class QuickInputList {
 			this._onButtonTriggered,
 			this._onSeparatorButtonTriggered,
 			this._onLeave,
-			this._onKeyDown
+			this._onKeyDown,
+			delayer
 		);
 	}
 
@@ -475,7 +520,7 @@ export class QuickInputList {
 			const saneLabel = item.label ? item.label.replace(/\r?\n/g, ' ') : '';
 			const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
 
-			let saneMeta, saneDescription, saneDetail, labelHighlights, descriptionHighlights, detailHighlights;
+			let saneMeta, saneDescription, saneDetail, labelHighlights, descriptionHighlights, detailHighlights, saneTooltip;
 			if (item.type !== 'separator') {
 				saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
 				saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
@@ -483,6 +528,7 @@ export class QuickInputList {
 				labelHighlights = item.highlights?.label;
 				descriptionHighlights = item.highlights?.description;
 				detailHighlights = item.highlights?.detail;
+				saneTooltip = item.tooltip;
 			}
 			const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
 				.map(s => getCodiconAriaLabel(s))
@@ -512,6 +558,7 @@ export class QuickInputList {
 				saneAriaLabel,
 				saneDescription,
 				saneDetail,
+				saneTooltip,
 				labelHighlights,
 				descriptionHighlights,
 				detailHighlights,
@@ -659,6 +706,30 @@ export class QuickInputList {
 		this.list.domFocus();
 	}
 
+	/**
+	 * Disposes of the hover and shows a new one for the given index if it has a tooltip.
+	 * @param element The element to show the hover for
+	 */
+	private showHover(element: ListElement): void {
+		if (this._lastHover && !this._lastHover.isDisposed) {
+			this.options.hoverDelegate.onDidHideHover?.();
+			this._lastHover?.dispose();
+		}
+		if (!element.element || !element.saneTooltip) {
+			return;
+		}
+		this._lastHover = this.options.hoverDelegate.showHover({
+			content: element.saneTooltip!,
+			target: element.element!,
+			linkHandler: (url) => {
+				this.options.linkOpenerDelegate(url);
+			},
+			showPointer: true,
+			container: this.container,
+			hoverPosition: HoverPosition.RIGHT
+		}, false);
+	}
+
 	layout(maxHeight?: number): void {
 		this.list.getHTMLElement().style.maxHeight = maxHeight ? `calc(${Math.floor(maxHeight / 44) * 44}px)` : '';
 		this.list.layout();
@@ -794,6 +865,37 @@ export class QuickInputList {
 
 	style(styles: IListStyles) {
 		this.list.style(styles);
+	}
+
+	toggleHover() {
+		const element = this.list.getFocusedElements()[0];
+		if (!element.saneTooltip) {
+			return;
+		}
+
+		// if there's a hover already, hide it (toggle off)
+		if (this._lastHover && !this._lastHover.isDisposed) {
+			this._lastHover.dispose();
+			return;
+		}
+
+		// If there is no hover, show it (toggle on)
+		const focused = this.list.getFocusedElements()[0];
+		if (!focused) {
+			return;
+		}
+		this.showHover(focused);
+		const store = new DisposableStore();
+		store.add(this.list.onDidChangeFocus(e => {
+			if (e.indexes.length) {
+				this.showHover(e.elements[0]);
+			}
+		}));
+		if (this._lastHover) {
+			store.add(this._lastHover);
+		}
+		this._toggleHover = store;
+		this.elementDisposables.push(this._toggleHover);
 	}
 }
 

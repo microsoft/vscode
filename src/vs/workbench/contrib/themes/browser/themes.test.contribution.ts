@@ -10,7 +10,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
 import type { IGrammar, StateStack } from 'vscode-textmate';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
@@ -92,7 +92,7 @@ class Snapper {
 	constructor(
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@ITextMateService private readonly textMateService: ITextMateService
+		@ITextMateTokenizationService private readonly textMateService: ITextMateTokenizationService
 	) {
 	}
 
