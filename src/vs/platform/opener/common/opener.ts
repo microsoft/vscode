@@ -51,7 +51,7 @@ export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 export type ResolveExternalUriOptions = { readonly allowTunneling?: boolean };
 
 export interface IResolvedExternalUri extends IDisposable {
-	resolved: URI;
+	resolved: URI | URL;
 }
 
 export interface IOpener {
@@ -68,7 +68,7 @@ export interface IValidator {
 }
 
 export interface IExternalUriResolver {
-	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI; dispose(): void } | undefined>;
+	resolveExternalUri(resource: URI, options?: OpenOptions): Promise<{ resolved: URI | URL; dispose(): void } | undefined>;
 }
 
 export interface IOpenerService {
