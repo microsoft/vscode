@@ -109,6 +109,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (UTILITY_SHARED_PROCESS_HINT.exec(cmd)) {
 						return 'shared-process';
 					}
+
+					return 'utility-process';
 				} else if (matches[1] === 'extensionHost') {
 					return 'extension-host'; // normalize remote extension host type
 				}
