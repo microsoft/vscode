@@ -55,6 +55,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			const UTILITY_EXTENSION_HOST_HINT = /--vscode-utility-kind=extensionHost/i;
 			const UTILITY_FILE_WATCHER_HOST_HINT = /--vscode-utility-kind=fileWatcher/i;
 			const UTILITY_SHARED_PROCESS_HINT = /--vscode-utility-kind=shared-process/i;
+			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/i;
 			const WINDOWS_CONSOLE_HOST = /conhost\.exe/i;
@@ -70,9 +71,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				return 'winpty-process';
 			}
 
-			//find windows console host process
+			// find windows console host process
 			if (WINDOWS_CONSOLE_HOST.exec(cmd)) {
 				return 'console-window-host (Windows internal process)';
+			}
+
+			// find node.js processes
+			if (NODEJS_PROCESS_HINT.exec(cmd)) {
+				return 'electron-nodejs';
 			}
 
 			// find "--type=xxxx"
@@ -126,7 +132,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			if (result) {
 				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-					return `electron_node ${result}`;
+					return `electron-nodejs ${result}`;
 				}
 			}
 			return cmd;
