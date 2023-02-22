@@ -284,12 +284,12 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				data.actionbar.clear();
 				const slowExtensionAction = this._createSlowExtensionAction(element);
 				if (slowExtensionAction) {
-					data.actionbar.push(slowExtensionAction, { icon: true, label: true });
+					data.actionbar.push(slowExtensionAction, { icon: false, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
 					const reportExtensionIssueAction = this._createReportExtensionIssueAction(element);
 					if (reportExtensionIssueAction) {
-						data.actionbar.push(reportExtensionIssueAction, { icon: true, label: true });
+						data.actionbar.push(reportExtensionIssueAction, { icon: false, label: true });
 					}
 				}
 
