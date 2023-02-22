@@ -127,13 +127,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			if (result) {
 				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-					return `electron-nodejs ${result}`;
+					return `electron-nodejs (${result})`;
 				}
 			}
 
 			// find Electron node.js processes
 			if (NODEJS_PROCESS_HINT.exec(cmd)) {
-				return 'electron-nodejs';
+				return `electron-nodejs (${cmd})`;
 			}
 
 			return cmd;
