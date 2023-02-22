@@ -8,9 +8,7 @@ import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 
-	// BUG: app.getPreferredSystemLanguages() doesn't seem to return anything here on Linux: https://github.com/microsoft/vscode/blob/3ba29f37d6b9f3f2257b48f2b90f0699ea581be4/src/main.js#L100-L113
-	// but it should when we move to Electron 22 so we can re-enable this test then.
-	(process.platform === 'linux' ? describe.skip : describe)('Localization', () => {
+	describe('Localization', () => {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
