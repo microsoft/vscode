@@ -48,8 +48,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _hoverOnColumn: number = -1;
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
 	private _candidateDefinitionsLength: number = -1;
-	private _lastMouseFocusedStickyLine: HTMLDivElement | undefined;
-	private _lastMouseFocusedStickyLineIndex: number | undefined;
+	private _lastFocusedStickyLine: HTMLDivElement | undefined;
+	private _lastFocusedStickyLineIndex: number | undefined;
+	private _focused: boolean;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -62,6 +63,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.tabIndex = 0;
+		this._focused = false;
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OVER, () => this._onMouseOver.fire()));
 		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OUT, () => this._onMouseOut.fire()));
@@ -75,7 +77,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	public readonly onMouseOut: Event<void> = this._onMouseOut.event;
 
 	public lastMouseFocusedStickyLineAndIndex(): { lastMouseFocusedStickyLine: HTMLDivElement | undefined; lastMouseFocusedStickyLineIndex: number | undefined } {
-		return { lastMouseFocusedStickyLine: this._lastMouseFocusedStickyLine, lastMouseFocusedStickyLineIndex: this._lastMouseFocusedStickyLineIndex };
+		return { lastMouseFocusedStickyLine: this._lastFocusedStickyLine, lastMouseFocusedStickyLineIndex: this._lastFocusedStickyLineIndex };
 	}
 
 	private _updateLinkGesture(): IDisposable {
@@ -175,6 +177,18 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	get codeLineCount(): number {
 		return this._lineNumbers.length;
+	}
+
+	set focused(focused: boolean) {
+		this._focused = focused;
+	}
+
+	set lastFocusedStickyLine(lastFocusedStickyLine: HTMLDivElement | undefined) {
+		this._lastFocusedStickyLine = lastFocusedStickyLine;
+	}
+
+	set lastFocusedStickyLineIndex(lastFocusedStickyLineIndex: number | undefined) {
+		this._lastFocusedStickyLineIndex = lastFocusedStickyLineIndex;
 	}
 
 	getCurrentLines(): readonly number[] {
@@ -279,8 +293,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		this._disposableStore.add(dom.addDisposableListener(child, 'mouseover', (e) => {
-			this._lastMouseFocusedStickyLine = child;
-			this._lastMouseFocusedStickyLineIndex = index;
+			this._lastFocusedStickyLine = child;
+			this._lastFocusedStickyLineIndex = index;
 			if (this._editor.hasModel()) {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
@@ -294,6 +308,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	private _renderRootNode(): void {
+		console.log('Inside of render root node');
 		if (!this._editor._getViewModel()) {
 			return;
 		}
@@ -305,8 +320,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
 		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
+
 		if (minimapSide === 'left') {
 			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+		}
+		console.log('focused? : ', this._focused);
+		if (this._focused) {
+			console.log(this._lastFocusedStickyLine);
+			this._lastFocusedStickyLine?.classList.add('focus');
 		}
 	}
 

@@ -94,13 +94,17 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _disposeFocusStickyScrollStore() {
 		console.log('Entered into the dispose');
+		this._stickyScrollWidget.focused = false;
 		this._focusedStickyElement!.classList.remove('focus');
 		this._stickyScrollWidget.getDomNode().blur();
+		this._stickyScrollWidget.lastFocusedStickyLine = undefined;
+		this._stickyScrollWidget.lastFocusedStickyLineIndex = undefined;
 		this._stickyScrollFocusedContextKey.set(false);
 		this._focusDisposableStore!.dispose();
 	}
 
 	public focus(): void {
+		this._stickyScrollWidget.focused = true;
 		const focusState = this._stickyScrollFocusedContextKey.get();
 		console.log('inside focus ', focusState);
 		const rootNode = this._stickyScrollWidget.getDomNode();
@@ -117,6 +121,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focusedStickyElement = rootNode.lastElementChild! as HTMLDivElement;
 		this._focusedStickyElement.classList.add('focus');
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
+		this._stickyScrollWidget.lastFocusedStickyLine = this._focusedStickyElement;
+		this._stickyScrollWidget.lastFocusedStickyLineIndex = this._focusedStickyElementIndex;
 
 		// Whenever the mouse hovers on the sticky scroll remove the keyboard focus
 		this._focusDisposableStore.add(this._stickyScrollWidget.onMouseOver(() => {
@@ -137,6 +143,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._focusedStickyElementIndex!++;
 			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
+			this._stickyScrollWidget.lastFocusedStickyLine = this._focusedStickyElement;
+			this._stickyScrollWidget.lastFocusedStickyLineIndex = this._focusedStickyElementIndex!;
 		}
 	}
 
@@ -146,6 +154,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._focusedStickyElementIndex!--;
 			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
 			this._focusedStickyElement.classList.add('focus');
+			this._stickyScrollWidget.lastFocusedStickyLine = this._focusedStickyElement;
+			this._stickyScrollWidget.lastFocusedStickyLineIndex = this._focusedStickyElementIndex!;
 		}
 	}
 
