@@ -258,11 +258,6 @@ export class IssueMainService implements IIssueMainService {
 				const savedPosition = this.stateService.getItem<IWindowState>(processExplorerWindowState, undefined);
 				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
-				// Correct dimensions to take scale/dpr into account
-				const displayToUse = screen.getDisplayNearestPoint({ x: position.x!, y: position.y! });
-				position.width /= displayToUse.scaleFactor;
-				position.height /= displayToUse.scaleFactor;
-
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
 					title: localize('processExplorer', "Process Explorer"),
