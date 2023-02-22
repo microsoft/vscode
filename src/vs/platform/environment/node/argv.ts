@@ -157,6 +157,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'force-user-env': { type: 'boolean' },
 	'force-disable-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
+	'disable-gpu-sandbox': { type: 'boolean' },
 	'logsPath': { type: 'string' },
 	'__enable-file-policy': { type: 'boolean' },
 	'editSessionId': { type: 'string' },
