@@ -11,7 +11,7 @@ import {
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -36,6 +36,23 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+interface SortOptions extends LSPFormattingOptions {
+}
+
+interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	readonly uri: string;
+	/**
+	 * The format options
+	 */
+	readonly options: SortOptions;
+}
+
+namespace DocumentSortingRequest {
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+}
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -144,6 +161,37 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
+	}));
+
+	toDispose.push(commands.registerCommand('json.sort', async () => {
+
+		if (isClientReady) {
+			const textEditor = window.activeTextEditor;
+			if (textEditor) {
+				const document = textEditor.document;
+				const filesConfig = workspace.getConfiguration('files', document);
+				const options: SortOptions = {
+					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
+					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
+					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+				};
+				const params: DocumentSortingParams = {
+					uri: document.uri.toString(),
+					options
+				};
+				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const success = await textEditor.edit(mutator => {
+					for (const edit of textEdits) {
+						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+					}
+				});
+				if (!success) {
+					window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
+				}
+			}
+		}
 	}));
 
 	// Options to control the language client

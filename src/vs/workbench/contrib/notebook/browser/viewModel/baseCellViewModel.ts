@@ -487,13 +487,16 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
-	getPositionScrollTopOffset(line: number, column: number): number {
+	getPositionScrollTopOffset(range: Selection | Range): number {
 		if (!this._textEditor) {
 			return 0;
 		}
 
+
+		const position = range instanceof Selection ? range.getPosition() : range.getStartPosition();
+
 		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
+		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {

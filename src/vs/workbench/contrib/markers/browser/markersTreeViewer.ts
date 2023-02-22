@@ -385,10 +385,10 @@ class MarkerWidget extends Disposable {
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
-					// TODO@sandeep: these widgets should be disposed
 					const container = dom.$('.marker-code');
 					const code = new HighlightedLabel(container);
-					new Link(parent, { href: marker.code.target.toString(), label: container, title: marker.code.target.toString() }, undefined, this._openerService);
+					const link = marker.code.target.toString(true);
+					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._openerService));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}

@@ -41,6 +41,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -84,6 +85,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -464,7 +466,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
-			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled()) {
+			if (this.extensionGalleryService.isEnabled() && this.hasAdditionalRemoteExtensions()) {
 				items.push({
 					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
@@ -507,6 +509,18 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.onDidHide(itemUpdater.dispose);
 
 		quickPick.show();
+	}
+
+	private hasAdditionalRemoteExtensions() {
+		const extensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
+		for (const [_, extension] of Object.entries(extensionTips)) {
+			const { extensionId: recommendedExtensionId } = extension;
+			// if this recommended extension isn't already installed, return early
+			if (!this.extensionService.extensions.some((extension) => extension.id?.toLowerCase() === recommendedExtensionId.toLowerCase())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private hasRemoteMenuCommands(ignoreInstallAdditional: boolean): boolean {

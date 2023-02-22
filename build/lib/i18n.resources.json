@@ -493,6 +493,10 @@
 		{
 			"name": "vs/workbench/services/userDataProfile",
 			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/localization",
+			"project": "vscode-workbench"
 		}
 	]
 }
