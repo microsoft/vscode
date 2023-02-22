@@ -545,27 +545,32 @@ function getSettings(): Settings {
 		}
 	};
 
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri) => {
-		for (const setting of schemaSettings) {
-			const url = getSchemaId(setting, folderUri);
-			if (url) {
-				const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
-				schemas.push(schemaSetting);
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri?: Uri) => {
+
+		if (schemaSettings) {
+			for (const setting of schemaSettings) {
+				const url = getSchemaId(setting, folderUri);
+				if (url) {
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
+					schemas.push(schemaSetting);
+				}
 			}
 		}
 	};
 
-	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings);
+	const schemaConfigInfo = workspace.getConfiguration('json', null).inspect<JSONSchemaSettings[]>('schemas');
+	if (schemaConfigInfo) {
+		if (workspace.workspaceFile) {
+			collectSchemaSettings(schemaConfigInfo.workspaceValue, workspace.workspaceFile);
+		}
+		collectSchemaSettings(schemaConfigInfo.globalValue);
 	}
+
 	const folders = workspace.workspaceFolders;
 	if (folders) {
 		for (const folder of folders) {
 			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
-			if (schemaConfigInfo && Array.isArray(schemaConfigInfo.workspaceFolderValue)) {
-				collectSchemaSettings(schemaConfigInfo.workspaceFolderValue, folder.uri);
-			}
+			collectSchemaSettings(schemaConfigInfo?.workspaceFolderValue, folder.uri);
 		}
 	}
 	return settings;
