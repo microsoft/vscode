@@ -518,7 +518,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
-	color: var(--vscode-editorGutter-commentGlyphForegroundUnresolved);
+	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
