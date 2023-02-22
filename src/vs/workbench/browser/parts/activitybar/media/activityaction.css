@@ -181,8 +181,8 @@
 	right: 6px;
 	padding: 2px 3px;
 	border-radius: 7px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-profileBadge-background);
+	color: var(--vscode-profileBadge-foreground);
 	border: 2px solid var(--vscode-activityBar-background);
 }
 
