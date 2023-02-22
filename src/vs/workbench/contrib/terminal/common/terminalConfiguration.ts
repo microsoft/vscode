@@ -107,7 +107,7 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		[TerminalSettingId.TabFocusMode]: {
-			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation. this overrides {0} when the terminal is focused.", '`#editor.tabFocusMode#`'),
+			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation."),
 			type: 'boolean',
 			default: false
 		},
