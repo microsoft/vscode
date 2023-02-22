@@ -812,6 +812,7 @@ class AccessibleBuffer extends DisposableStore {
 			readOnly: true
 		};
 		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		this._accessibleBuffer.tabIndex = -1;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this.add(configurationService.onDidChangeConfiguration(e => {
