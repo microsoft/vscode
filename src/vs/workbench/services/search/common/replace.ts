@@ -222,7 +222,6 @@ export class ReplacePattern {
 				}
 
 				const nextChCode = replaceString.charCodeAt(i);
-				let replaceWithCharacter: string | null = null;
 
 				switch (nextChCode) {
 					case CharCode.Digit0:
@@ -257,11 +256,6 @@ export class ReplacePattern {
 						}
 						break;
 					}
-				}
-
-				if (replaceWithCharacter) {
-					result += replaceString.substring(substrFrom, i - 1) + replaceWithCharacter;
-					substrFrom = i + 1;
 				}
 			}
 		}
