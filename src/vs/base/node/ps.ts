@@ -76,11 +76,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				return 'console-window-host (Windows internal process)';
 			}
 
-			// find node.js processes
-			if (NODEJS_PROCESS_HINT.exec(cmd)) {
-				return 'electron-nodejs';
-			}
-
 			// find "--type=xxxx"
 			let matches = TYPE.exec(cmd);
 			if (matches && matches.length === 2) {
@@ -135,6 +130,12 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					return `electron-nodejs ${result}`;
 				}
 			}
+
+			// find Electron node.js processes
+			if (NODEJS_PROCESS_HINT.exec(cmd)) {
+				return 'electron-nodejs';
+			}
+
 			return cmd;
 		}
 
