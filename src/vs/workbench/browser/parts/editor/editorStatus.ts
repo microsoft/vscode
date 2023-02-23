@@ -53,6 +53,7 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -294,7 +295,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-
+	private _previousViewContext: 'terminal' | 'editor' | undefined;
 	private readonly state = new State();
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
@@ -308,7 +309,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -321,6 +323,28 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
 		this._register(Event.runAndSubscribe(TabFocus.onDidChangeTabFocus, () => this.onTabFocusModeChange()));
+		const viewKey = new Set<string>();
+		viewKey.add('focusedView');
+		this._register(this.contextKeyService.onDidChangeContext((c) => {
+			if (c.affectsSome(viewKey)) {
+				const terminalFocus = this.contextKeyService.getContextKeyValue('focusedView') === 'terminal';
+				const context = terminalFocus ? 'terminal' : 'editor';
+				if (this._previousViewContext === context) {
+					return;
+				}
+				this._previousViewContext = context;
+				this.onTabFocusModeChange();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabFocusMode')) {
+				TabFocus.setTabFocusMode(this.configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
+				this.onTabFocusModeChange();
+			} else if (e.affectsConfiguration(TerminalSettingId.TabFocusMode)) {
+				TabFocus.setTabFocusMode(this.configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
+				this.onTabFocusModeChange();
+			}
+		}));
 	}
 
 	private registerCommands(): void {
@@ -820,7 +844,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private onTabFocusModeChange(): void {
 		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode(this.contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? TabFocusContext.Terminal : TabFocusContext.Editor) };
-
 		this.updateState(info);
 	}
 

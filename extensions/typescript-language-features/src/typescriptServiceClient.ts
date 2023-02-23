@@ -605,11 +605,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.lastStart = Date.now();
 					startService = false;
 					this.hasServerFatallyCrashedTooManyTimes = true;
-					prompt = vscode.window.showErrorMessage(
-						this.pluginManager.plugins.length
-							? vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}", pluginExtensionList)
-							: vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
-						reportIssueItem);
+					if (this.pluginManager.plugins.length) {
+						prompt = vscode.window.showErrorMessage<vscode.MessageItem>(
+							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
+					} else {
+						prompt = vscode.window.showErrorMessage(
+							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
+							reportIssueItem);
+					}
 
 					/* __GDPR__
 						"serviceExited" : {
@@ -623,22 +626,28 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					if (!this._isPromptingAfterCrash) {
-						prompt = vscode.window.showWarningMessage(
-							this.pluginManager.plugins.length
-								? vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}", pluginExtensionList)
-								: vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes."),
-							reportIssueItem);
+						if (this.pluginManager.plugins.length) {
+							prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
+								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
+						} else {
+							prompt = vscode.window.showWarningMessage(
+								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes."),
+								reportIssueItem);
+						}
 					}
 				}
 			} else if (['vscode-insiders', 'code-oss'].includes(vscode.env.uriScheme)) {
 				// Prompt after a single restart
 				this.numberRestarts = 0;
 				if (!this._isPromptingAfterCrash) {
-					prompt = vscode.window.showWarningMessage(
-						this.pluginManager.plugins.length
-							? vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}", pluginExtensionList)
-							: vscode.l10n.t("The JS/TS language service crashed."),
-						reportIssueItem);
+					if (this.pluginManager.plugins.length) {
+						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
+							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
+					} else {
+						prompt = vscode.window.showWarningMessage(
+							vscode.l10n.t("The JS/TS language service crashed."),
+							reportIssueItem);
+					}
 				}
 			}
 
@@ -1047,7 +1056,7 @@ function getReportIssueArgsForError(
 			[
 				`**Global TypeScript Server Plugins**`,
 				`❗️ Please test with extensions disabled. Extensions are the root cause of most TypeScript server crashes`,
-				globalPlugins.map(plugin => `- \`${plugin.name}\``).join('\n')
+				globalPlugins.map(plugin => `- \`${plugin.name}\` contributed by the \`${plugin.extension.id}\` extension`).join('\n')
 			].join('\n\n')
 		);
 	}

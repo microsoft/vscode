@@ -1231,6 +1231,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						title: { value: nls.localize('defineKeybinding.start', "Define Keybinding"), original: 'Define Keybinding' },
 						f1: true,
 						precondition: when,
+						keybinding: {
+							weight: KeybindingWeight.WorkbenchContrib,
+							when,
+							primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK)
+						},
 						menu: {
 							id: MenuId.EditorContent,
 							when,

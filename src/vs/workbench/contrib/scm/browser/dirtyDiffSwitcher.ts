@@ -50,6 +50,11 @@ export class SwitchQuickDiffViewItem extends SelectActionViewItem<IQuickDiffSele
 	protected override getActionContext(_: string, index: number): IQuickDiffSelectItem {
 		return this.optionsItems[index];
 	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.setFocusable(true);
+	}
 }
 
 export class SwitchQuickDiffBaseAction extends Action {

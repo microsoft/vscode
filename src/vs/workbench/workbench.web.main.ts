@@ -180,7 +180,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
-import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export {
 
@@ -195,6 +195,7 @@ export {
 	GroupOrientation,
 	LogLevel,
 	RemoteAuthorityResolverError,
+	RemoteAuthorityResolverErrorCode,
 
 	// Facade API
 	env,
