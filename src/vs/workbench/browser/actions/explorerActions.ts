@@ -64,7 +64,7 @@ class SwitchToContigiousFindMatchType extends Action2 {
 	constructor() {
 		super({
 			id: SwitchToContigiousFindMatchType.ID,
-			title: { value: localize('contigiousFindMatchType', 'Switch to Contigious Find Match Type'), original: 'Switch to Contigious Find Match Type' },
+			title: { value: localize('contiguousFindMatchType', 'Switch to Contiguous Find Match Type'), original: 'Switch to Contiguous Find Match Type' },
 			category: explorerCategory,
 			f1: true,
 			precondition: undefined
