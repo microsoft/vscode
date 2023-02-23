@@ -45,7 +45,7 @@ interface DocumentSortingParams {
 	 */
 	readonly uri: string;
 	/**
-	 * The format options
+	 * The sort options
 	 */
 	readonly options: SortOptions;
 }
