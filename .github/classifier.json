@@ -105,7 +105,7 @@
 		"image-preview": {"assign": ["mjbvz"]},
 		"inlay-hints": {"assign": ["jrieken", "hediet"]},
 		"inline-completions": {"assign": ["hediet"]},
-		"install-update": {"assign": ["joaomoreno"]},
+		"install-update": {"assign": ["joaomoreno"], "accuracy": 0.85},
 		"intellisense-config": {"assign": ["rzhao271"]},
 		"interactive-playground": {"assign": ["chrmarti"]},
 		"interactive-window": {"assign": ["amunger", "rebornix"]},
