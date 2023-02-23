@@ -82,4 +82,4 @@ class SwitchToContigiousFindMatchType extends Action2 {
 
 registerAction2(ToggleFindMatchType);
 registerAction2(SwitchToFuzzyFindMatchType);
-registerAction2(SwitchToContigiousFindMatchType);
+registerAction2(SwitchToContiguousFindMatchType);
