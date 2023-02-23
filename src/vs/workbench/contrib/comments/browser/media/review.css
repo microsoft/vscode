@@ -367,9 +367,14 @@
 	margin: 10px 0;
 }
 
+.review-widget .body .edit-container .form-actions {
+	padding-top: 10px;
+}
+
 .review-widget .body .edit-textarea {
 	height: 90px;
 	margin: 5px 0 10px 0;
+	margin-right: 12px;
 }
 
 .review-widget .body .comment-form .monaco-text-button,
