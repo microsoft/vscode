@@ -109,6 +109,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (UTILITY_SHARED_PROCESS_HINT.exec(cmd)) {
 						return 'shared-process';
 					}
+
+					return 'utility-process';
 				} else if (matches[1] === 'extensionHost') {
 					return 'extension-host'; // normalize remote extension host type
 				}
@@ -127,13 +129,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			if (result) {
 				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-					return `electron-nodejs ${result}`;
+					return `electron-nodejs (${result})`;
 				}
 			}
 
 			// find Electron node.js processes
 			if (NODEJS_PROCESS_HINT.exec(cmd)) {
-				return 'electron-nodejs';
+				return `electron-nodejs (${cmd})`;
 			}
 
 			return cmd;

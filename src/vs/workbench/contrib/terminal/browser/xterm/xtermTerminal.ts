@@ -12,7 +12,7 @@ import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -776,7 +776,10 @@ class AccessibleBuffer extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
+	private _commandFinishedDisposable: IDisposable | undefined;
+	private _refreshSelection: boolean = true;
 	private _registered: boolean = false;
+	private _lastContentLength: number = 0;
 	private _font: ITerminalFont;
 
 	constructor(
@@ -812,6 +815,7 @@ class AccessibleBuffer extends DisposableStore {
 			readOnly: true
 		};
 		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		this._accessibleBuffer.tabIndex = -1;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this.add(configurationService.onDidChangeConfiguration(e => {
@@ -823,27 +827,45 @@ class AccessibleBuffer extends DisposableStore {
 
 	async focus(): Promise<void> {
 		await this._updateBufferEditor();
+	}
+
+	private async _updateBufferEditor(): Promise<void> {
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
+		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER.Scheme, fragment }));
+		if (model) {
+			this._bufferEditor.setModel(model);
+		}
+
+		if (!this._registered) {
+			this.add(this._terminal.raw.registerBufferElementProvider({ provideBufferElements: () => this._editorContainer }));
+			// When this is created, the element isn't yet attached so the dimensions are tiny
+			this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
+			this._registered = true;
+		}
+
+		if (!this._commandFinishedDisposable && commandDetection) {
+			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
+			this.add(this._commandFinishedDisposable);
+		}
+
+		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
+			let lineNumber = 1;
+			const lineCount = model?.getLineCount();
+			if (lineCount && model) {
+				lineNumber = commandDetection ? lineCount - 1 : lineCount > 2 ? lineCount - 2 : 1;
+			}
+			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
+			this._refreshSelection = false;
+			this._lastContentLength = fragment.length;
+		}
+
 		// Updates xterm's accessibleBufferActive property
 		// such that mouse events do not cause the terminal buffer
 		// to steal the focus
 		this._accessibleBuffer.focus();
 		this._bufferEditor.focus();
-	}
-
-	private async _updateBufferEditor(): Promise<void> {
-		if (!this._registered) {
-			// Registration is delayed until focus so the capability has time to have been added
-			this.add(this._terminal.raw.registerBufferElementProvider({ provideBufferElements: () => this._editorContainer }));
-			this._registered = true;
-		}
-		// When this is created, the element isn't yet attached so the dimensions are tiny
-		this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
-		const commandDetection = this._capabilities.has(TerminalCapability.CommandDetection);
-		const fragment = commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
-		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER.Scheme, fragment }));
-		if (model) {
-			this._bufferEditor.setModel(model);
-		}
 	}
 
 	async _getTextModel(resource: URI): Promise<ITextModel | null> {
@@ -886,7 +908,7 @@ class AccessibleBuffer extends DisposableStore {
 			}
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
-			if (!isWrapped || i === end - 1) {
+			if (currentLine && !isWrapped || i === end - 1) {
 				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
 				currentLine = '';
 			}

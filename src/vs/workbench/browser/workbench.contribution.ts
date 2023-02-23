@@ -272,7 +272,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.centeredLayoutFixedWidth': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('centeredLayoutDynamicWidth', "Controls wether the centered layout tries to maintain constant width when the window is resized.")
+				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
 			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
