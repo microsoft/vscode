@@ -53,6 +53,7 @@ import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -308,7 +309,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -331,6 +333,15 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 					return;
 				}
 				this._previousViewContext = context;
+				this.onTabFocusModeChange();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabFocusMode')) {
+				TabFocus.setTabFocusMode(this.configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
+				this.onTabFocusModeChange();
+			} else if (e.affectsConfiguration(TerminalSettingId.TabFocusMode)) {
+				TabFocus.setTabFocusMode(this.configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
 				this.onTabFocusModeChange();
 			}
 		}));
@@ -833,7 +844,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private onTabFocusModeChange(): void {
 		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode(this.contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? TabFocusContext.Terminal : TabFocusContext.Editor) };
-
 		this.updateState(info);
 	}
 
