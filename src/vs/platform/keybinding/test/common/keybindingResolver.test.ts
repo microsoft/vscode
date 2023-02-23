@@ -405,7 +405,7 @@ suite('KeybindingResolver', () => {
 			let previousChord: (string | null) = null;
 			for (let i = 0, len = expectedKeybinding.chords.length; i < len; i++) {
 				const chord = getDispatchStr(<KeyCodeChord>expectedKeybinding.chords[i]);
-				const result = resolver.resolve(ctx, previousChord, chord);
+				const result = resolver.resolve(ctx, previousChord ? [previousChord] : null, chord);
 				if (i === len - 1) {
 					// if it's the final chord, then we should find a valid command,
 					// and there should not be a chord.

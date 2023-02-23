@@ -61,14 +61,14 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, when: ContextKeyExpression | undefined): boolean {
-		// TODO@chords
-		if (keypressFirstPart && defaultKb.chords[0] !== keypressFirstPart) {
-			return false;
-		}
-		// TODO@chords
-		if (keypressChordPart && defaultKb.chords[1] !== keypressChordPart) {
-			return false;
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypress: string[] | null, when: ContextKeyExpression | undefined): boolean {
+		// TODO@chords done
+		if (keypress) {
+			for (let i = 0; i < keypress.length; i++) {
+				if (keypress[i] !== defaultKb.chords[i]) {
+					return false;
+				}
+			}
 		}
 
 		// `true` means always, as does `undefined`
@@ -127,11 +127,9 @@ export class KeybindingResolver {
 			}
 			let isRemoved = false;
 			for (const commandRemoval of commandRemovals) {
-				// TODO@chords
-				const keypressFirstChord = commandRemoval.chords[0];
-				const keypressSecondChord = commandRemoval.chords[1];
+				// TODO@chords done
 				const when = commandRemoval.when;
-				if (this._isTargetedForRemoval(rule, keypressFirstChord, keypressSecondChord, when)) {
+				if (this._isTargetedForRemoval(rule, commandRemoval.chords, when)) {
 					isRemoved = true;
 					break;
 				}
@@ -162,13 +160,12 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			const conflictHasMultipleChords = (conflict.chords.length > 1);
-			const itemHasMultipleChords = (item.chords.length > 1);
-
-			// TODO@chords
-			if (conflictHasMultipleChords && itemHasMultipleChords && conflict.chords[1] !== item.chords[1]) {
-				// The conflict only shares the first chord with this command
-				continue;
+			// TODO@chords done
+			for (let i = 1; i < conflict.chords.length && i < item.chords.length; i++) {
+				if (conflict.chords[i] !== item.chords[i]) {
+					// The conflict diverges at the ith step
+					continue;
+				}
 			}
 
 			if (KeybindingResolver.whenIsEntirelyIncluded(conflict.when, item.when)) {
@@ -272,14 +269,13 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {
+	public resolve(context: IContext, currentChord: string[] | null, keypress: string): IResolveResult | null {
 		this._log(`| Resolving ${keypress}${currentChord ? ` chorded from ${currentChord}` : ``}`);
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
 		if (currentChord !== null) {
 			// Fetch all chord bindings for `currentChord`
-
-			const candidates = this._map.get(currentChord);
+			const candidates = this._map.get(currentChord[0]);
 			if (typeof candidates === 'undefined') {
 				// No chords starting with `currentChord`
 				this._log(`\\ No keybinding entries.`);
@@ -289,8 +285,19 @@ export class KeybindingResolver {
 			lookupMap = [];
 			for (let i = 0, len = candidates.length; i < len; i++) {
 				const candidate = candidates[i];
-				// TODO@chords
-				if (candidate.chords[1] === keypress) {
+				// TODO@chords done
+				if (candidate.chords.length <= currentChord.length) {
+					continue;
+				}
+
+				let prefixMatches = true;
+				for (let i = 1; i < currentChord.length; i++) {
+					if (candidate.chords[i] !== currentChord[i]) {
+						prefixMatches = false;
+						break;
+					}
+				}
+				if (prefixMatches && candidate.chords[currentChord.length] === keypress) {
 					lookupMap.push(candidate);
 				}
 			}
@@ -316,6 +323,15 @@ export class KeybindingResolver {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return {
 				enterMultiChord: true,
+				leaveMultiChord: false,
+				commandId: null,
+				commandArgs: null,
+				bubble: false
+			};
+		} else if (currentChord !== null && currentChord.length + 1 < result.chords.length) {
+			this._log(`\\ From ${lookupMap.length} keybinding entries, continued chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
+			return {
+				enterMultiChord: false,
 				leaveMultiChord: false,
 				commandId: null,
 				commandArgs: null,
