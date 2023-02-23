@@ -17,7 +17,10 @@ import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -65,6 +68,74 @@ async function navigate(widget: WorkbenchListWidget | undefined, updateFocusFn: 
 	widget.setAnchor(listFocus[0]);
 	ensureDOMFocus(widget);
 }
+
+class ToggleFindMatchType extends Action2 {
+	static readonly ID = 'workbench.action.toggleFindMatchType';
+
+	constructor() {
+		super({
+			id: ToggleFindMatchType.ID,
+			title: { value: localize('toggleFindMatchType', 'Toggle Find Match Type'), original: 'Toggle Find Match Type' },
+			f1: true,
+			precondition: undefined
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
+		const widget = accessor.get(IListService).lastFocusedList;
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.findMatchType = tree.findMatchType === TreeFindMatchType.Fuzzy ? TreeFindMatchType.Contiguous : TreeFindMatchType.Fuzzy;
+		}
+	}
+}
+
+class SwitchToFuzzyFindMatchType extends Action2 {
+	static readonly ID = 'workbench.action.fuzzyFindMatchType';
+
+	constructor() {
+		super({
+			id: SwitchToFuzzyFindMatchType.ID,
+			title: { value: localize('fuzzyFindMatchType', 'Switch to Fuzzy Find Match Type'), original: 'Switch to Fuzzy Find Match Type' },
+			f1: true,
+			precondition: undefined
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
+		const widget = accessor.get(IListService).lastFocusedList;
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.findMatchType = TreeFindMatchType.Fuzzy;
+		}
+	}
+}
+
+class SwitchToContiguousFindMatchType extends Action2 {
+	static readonly ID = 'workbench.action.contiguousFindMatchType';
+
+	constructor() {
+		super({
+			id: SwitchToContiguousFindMatchType.ID,
+			title: { value: localize('contiguousFindMatchType', 'Switch to Contiguous Find Match Type'), original: 'Switch to Contiguous Find Match Type' },
+			f1: true,
+			precondition: undefined
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
+		const widget = accessor.get(IListService).lastFocusedList;
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.findMatchType = TreeFindMatchType.Contiguous;
+		}
+	}
+}
+
+registerAction2(ToggleFindMatchType);
+registerAction2(SwitchToFuzzyFindMatchType);
+registerAction2(SwitchToContiguousFindMatchType);
+
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.focusDown',

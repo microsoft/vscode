@@ -25,7 +25,6 @@ import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
 import 'vs/workbench/browser/actions/quickAccessActions';
-import 'vs/workbench/browser/actions/explorerActions';
 
 //#endregion
 
