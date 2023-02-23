@@ -161,11 +161,16 @@ export class KeybindingResolver {
 			}
 
 			// TODO@chords done
+			let diverges = false;
 			for (let i = 1; i < conflict.chords.length && i < item.chords.length; i++) {
 				if (conflict.chords[i] !== item.chords[i]) {
 					// The conflict diverges at the ith step
+					diverges = true;
 					continue;
 				}
+			}
+			if (diverges) {
+				continue;
 			}
 
 			if (KeybindingResolver.whenIsEntirelyIncluded(conflict.when, item.when)) {
