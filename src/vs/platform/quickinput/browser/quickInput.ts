@@ -955,7 +955,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this._quickNavigate.keybindings;
 			const wasTriggerKeyPressed = quickNavKeys.some(k => {
-				const [firstChord, secondChord] = k.getChords();// TODO@chords
+				const [firstChord, secondChord] = k.getChords();
 				if (secondChord) {
 					return false;
 				}

@@ -144,13 +144,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return this._getResolver().resolve(contextValue, currentChord, firstChord);
 	}
 
-	private _enterMultiChordMode(firstChord: string, keypressLabel: string | null): void {
-		this._currentChord = [{
-			keypress: firstChord,
-			label: keypressLabel
-		}];
-		this._currentChordStatusMessage = this._notificationService.status(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
-		const chordEnterTime = Date.now();
+	private _scheduleLeaveChordMode(): void {
+		const chordLastInteractedTime = Date.now();
 		this._currentChordChecker.cancelAndSet(() => {
 
 			if (!this._documentHasFocus()) {
@@ -159,17 +154,25 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 				return;
 			}
 
-			if (Date.now() - chordEnterTime > 5000) {
+			if (Date.now() - chordLastInteractedTime > 5000) {
 				// 5 seconds elapsed => leave chord mode
 				this._leaveChordMode();
 			}
 
 		}, 500);
+	}
+
+	private _enterMultiChordMode(firstChord: string, keypressLabel: string | null): void {
+		this._currentChord = [{
+			keypress: firstChord,
+			label: keypressLabel
+		}];
+		this._currentChordStatusMessage = this._notificationService.status(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
+		this._scheduleLeaveChordMode();
 		IME.disable();
 	}
 
 	private _continueMultiChordMode(nextChord: string, keypressLabel: string | null): void {
-		// TODO@dyedgreen: Maybe assert this is true instead?
 		this._currentChord = this._currentChord ? this._currentChord : [];
 		this._currentChord.push({
 			keypress: nextChord,
@@ -177,23 +180,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		});
 		const fullKeypressLabel = this._currentChord.map(({ label }) => label).join(', ');
 		this._currentChordStatusMessage = this._notificationService.status(nls.localize('next.chord', "({0}) was pressed. Waiting for next key of chord...", fullKeypressLabel));
-		// TODO@dyedgreen: Don't repeat this code ...
-		const chordEnterTime = Date.now();
-		this._currentChordChecker.cancelAndSet(() => {
-
-			if (!this._documentHasFocus()) {
-				// Focus has been lost => leave chord mode
-				this._leaveChordMode();
-				return;
-			}
-
-			if (Date.now() - chordEnterTime > 5000) {
-				// 5 seconds elapsed => leave chord mode
-				this._leaveChordMode();
-			}
-
-		}, 500);
-		IME.disable();
+		this._scheduleLeaveChordMode();
 	}
 
 	private _leaveChordMode(): void {
@@ -287,7 +274,6 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 		if (isSingleModiferChord) {
 			const [dispatchKeyname,] = keybinding.getSingleModifierDispatchChords();
-			// TODO@dyedgreen: Does this make sense?
 			firstChord = dispatchKeyname;
 			currentChord = null;
 		} else {

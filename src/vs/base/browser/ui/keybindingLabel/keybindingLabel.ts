@@ -93,7 +93,7 @@ export class KeybindingLabel {
 		this.clear();
 
 		if (this.keybinding) {
-			const chords = this.keybinding.getChords();// TODO@chords done
+			const chords = this.keybinding.getChords();
 			if (chords[0]) {
 				this.renderChord(this.domNode, chords[0], this.matches ? this.matches.firstPart : null);
 			}

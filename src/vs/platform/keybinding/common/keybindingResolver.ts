@@ -56,13 +56,11 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			// TODO@chords
 			this._addKeyPress(k.chords[0], k);
 		}
 	}
 
 	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypress: string[] | null, when: ContextKeyExpression | undefined): boolean {
-		// TODO@chords done
 		if (keypress) {
 			for (let i = 0; i < keypress.length; i++) {
 				if (keypress[i] !== defaultKb.chords[i]) {
@@ -127,7 +125,6 @@ export class KeybindingResolver {
 			}
 			let isRemoved = false;
 			for (const commandRemoval of commandRemovals) {
-				// TODO@chords done
 				const when = commandRemoval.when;
 				if (this._isTargetedForRemoval(rule, commandRemoval.chords, when)) {
 					isRemoved = true;
@@ -160,7 +157,6 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			// TODO@chords done
 			let diverges = false;
 			for (let i = 1; i < conflict.chords.length && i < item.chords.length; i++) {
 				if (conflict.chords[i] !== item.chords[i]) {
@@ -290,7 +286,6 @@ export class KeybindingResolver {
 			lookupMap = [];
 			for (let i = 0, len = candidates.length; i < len; i++) {
 				const candidate = candidates[i];
-				// TODO@chords done
 				if (candidate.chords.length <= currentChord.length) {
 					continue;
 				}
@@ -323,7 +318,6 @@ export class KeybindingResolver {
 			return null;
 		}
 
-		// TODO@chords
 		if (currentChord === null && result.chords.length > 1 && result.chords[1] !== null) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return {
