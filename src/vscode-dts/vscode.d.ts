@@ -4077,27 +4077,6 @@ declare module 'vscode' {
 	/**
 	 * Value-object describing what options formatting should use.
 	 */
-	export interface SortingOptions {
-
-		/**
-		 * Size of a tab in spaces.
-		 */
-		tabSize: number;
-
-		/**
-		 * Prefer spaces over tabs.
-		 */
-		insertSpaces: boolean;
-
-		/**
-		 * Signature for further properties.
-		 */
-		[key: string]: boolean | number | string;
-	}
-
-	/**
-	 * Value-object describing what options formatting should use.
-	 */
 	export interface FormattingOptions {
 
 		/**
