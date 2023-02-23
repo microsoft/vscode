@@ -58,12 +58,12 @@ class SwitchToFuzzyFindMatchType extends Action2 {
 	}
 }
 
-class SwitchToContigiousFindMatchType extends Action2 {
+class SwitchToContiguousFindMatchType extends Action2 {
 	static readonly ID = 'workbench.action.contiguousFindMatchType';
 
 	constructor() {
 		super({
-			id: SwitchToContigiousFindMatchType.ID,
+			id: SwitchToContiguousFindMatchType.ID,
 			title: { value: localize('contiguousFindMatchType', 'Switch to Contiguous Find Match Type'), original: 'Switch to Contiguous Find Match Type' },
 			category: explorerCategory,
 			f1: true,
