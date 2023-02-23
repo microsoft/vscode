@@ -202,8 +202,7 @@ class MarkerLineFeature implements LineFeature {
 								m.severity === this.severity &&
 								m.startLineNumber <= position.lineNumber &&
 								position.lineNumber <= m.endLineNumber &&
-								m.startColumn <= position.column &&
-								position.column <= m.endColumn
+								m.startColumn <= position.column
 						);
 					return hasMarker;
 				},
