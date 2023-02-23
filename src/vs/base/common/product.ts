@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
+import { PlatformName } from 'vs/base/common/platform';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -198,11 +199,13 @@ export interface IExeBasedExtensionTip {
 export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
 }
 
 export interface ISurveyData {
