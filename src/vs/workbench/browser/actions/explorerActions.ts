@@ -59,7 +59,7 @@ class SwitchToFuzzyFindMatchType extends Action2 {
 }
 
 class SwitchToContigiousFindMatchType extends Action2 {
-	static readonly ID = 'workbench.action.contigiousFindMatchType';
+	static readonly ID = 'workbench.action.contiguousFindMatchType';
 
 	constructor() {
 		super({
