@@ -46,7 +46,7 @@ export class ToggleStickyScroll extends Action2 {
 	}
 }
 
-const weight = KeybindingWeight.EditorContrib + 1000;
+const weight = KeybindingWeight.EditorContrib + 10000;
 
 export class FocusStickyScroll extends EditorAction2 {
 
@@ -145,31 +145,6 @@ export class GoToStickyScrollLine extends EditorAction2 {
 		const stickyScrollController = StickyScrollController.get(editor);
 		if (stickyScrollController) {
 			stickyScrollController.goToFocused();
-		}
-	}
-}
-
-
-export class CancelFocusStickyScroll extends EditorAction2 {
-	constructor() {
-		super({
-			id: 'editor.action.cancelFocusStickyScroll',
-			title: {
-				value: localize('cancelFocusStickyScroll.title', "Cancel focus sticky scroll"),
-				original: 'Cancel focus sticky scroll'
-			},
-			precondition: EditorContextKeys.stickyScrollFocused.isEqualTo(true),
-			keybinding: {
-				weight,
-				primary: KeyCode.LeftArrow
-			}
-		});
-	}
-
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.cancelFocus();
 		}
 	}
 }

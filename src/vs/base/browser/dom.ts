@@ -875,8 +875,6 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 	private _refreshStateHandler: () => void;
 
-	private _element: HTMLElement | Window;
-
 	private static hasFocusWithin(element: HTMLElement): boolean {
 		const shadowRoot = getShadowRoot(element);
 		const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
@@ -886,19 +884,9 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	constructor(element: HTMLElement | Window) {
 		super();
 		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
-		this._element = element;
-
-		if (this._element instanceof HTMLElement && (<HTMLElement>this._element).classList.contains('sticky-widget')) {
-			console.log('hasFocus of constructor: ', hasFocus);
-		}
 		let loosingFocus = false;
 
 		const onFocus = () => {
-			if (this._element instanceof HTMLElement && (<HTMLElement>this._element).classList.contains('sticky-widget')) {
-				console.log('Inside of onFocus');
-				console.log('hasFocus : ', hasFocus);
-			}
-
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -907,11 +895,6 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		const onBlur = () => {
-			if (this._element instanceof HTMLElement && (<HTMLElement>this._element).classList.contains('sticky-widget')) {
-				console.log('Inside of onBlur');
-				console.log('hasFocus : ', hasFocus);
-			}
-
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {

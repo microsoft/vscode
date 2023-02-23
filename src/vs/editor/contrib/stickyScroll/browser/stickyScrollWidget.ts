@@ -2,30 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import * as dom from 'vs/base/browser/dom';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { Position } from 'vs/editor/common/core/position';
-import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import 'vs/css!./stickyScroll';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { Emitter, Event } from 'vs/base/common/event';
-
-interface CustomMouseEvent {
-	detail: string;
-	element: HTMLElement;
-}
+import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./stickyScroll';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -46,129 +33,28 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
-	private _stickyRangeProjectedOnEditor: IRange | undefined;
-	private _candidateDefinitionsLength: number = -1;
 	private _lastFocusedStickyLine: HTMLDivElement | undefined;
-	private _lastFocusedStickyLineIndex: number | undefined;
-	private _focused: boolean;
+	private _lastMouseFocusedStickyLine: HTMLDivElement | undefined;
+	private _lastMouseFocusedStickyLineIndex: number | undefined;
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@IInstantiationService private readonly _instaService: IInstantiationService
+		private readonly _editor: ICodeEditor
 	) {
 		super();
 		this._layoutInfo = this._editor.getLayoutInfo();
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.className = 'sticky-widget';
-		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.tabIndex = 0;
-		this._focused = false;
+		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
-		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OVER, () => this._onMouseOver.fire()));
-		this._register(dom.addDisposableListener(this._rootDomNode, dom.EventType.MOUSE_OUT, () => this._onMouseOut.fire()));
-		this._register(this._updateLinkGesture());
 	}
 
-	private readonly _onMouseOver = this._register(new Emitter<void>());
-	public readonly onMouseOver: Event<void> = this._onMouseOver.event;
-
-	private readonly _onMouseOut = this._register(new Emitter<void>());
-	public readonly onMouseOut: Event<void> = this._onMouseOut.event;
-
-	public lastMouseFocusedStickyLineAndIndex(): { lastMouseFocusedStickyLine: HTMLDivElement | undefined; lastMouseFocusedStickyLineIndex: number | undefined } {
-		return { lastMouseFocusedStickyLine: this._lastFocusedStickyLine, lastMouseFocusedStickyLineIndex: this._lastFocusedStickyLineIndex };
+	get hoverOnLine(): number {
+		return this._hoverOnLine;
 	}
 
-	private _updateLinkGesture(): IDisposable {
-
-		const linkGestureStore = new DisposableStore();
-		const sessionStore = new DisposableStore();
-		linkGestureStore.add(sessionStore);
-		const gesture = new ClickLinkGesture(this._editor, true);
-		linkGestureStore.add(gesture);
-
-		linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
-			if (!this._editor.hasModel() || !mouseEvent.hasTriggerModifier) {
-				sessionStore.clear();
-				return;
-			}
-			const targetMouseEvent = mouseEvent.target as unknown as CustomMouseEvent;
-			if (targetMouseEvent.detail === this.getId()
-				&& targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
-
-				const text = targetMouseEvent.element.innerText;
-				if (this._hoverOnColumn === -1) {
-					return;
-				}
-				const lineNumber = this._hoverOnLine;
-				const column = this._hoverOnColumn;
-
-				const stickyPositionProjectedOnEditor = new Range(lineNumber, column, lineNumber, column + text.length);
-				if (!stickyPositionProjectedOnEditor.equalsRange(this._stickyRangeProjectedOnEditor)) {
-					this._stickyRangeProjectedOnEditor = stickyPositionProjectedOnEditor;
-					sessionStore.clear();
-				} else if (targetMouseEvent.element.style.textDecoration === 'underline') {
-					return;
-				}
-
-				const cancellationToken = new CancellationTokenSource();
-				sessionStore.add(toDisposable(() => cancellationToken.dispose(true)));
-
-				let currentHTMLChild: HTMLElement;
-
-				getDefinitionsAtPosition(this._languageFeatureService.definitionProvider, this._editor.getModel(), new Position(lineNumber, column + 1), cancellationToken.token).then((candidateDefinitions => {
-					if (cancellationToken.token.isCancellationRequested) {
-						return;
-					}
-					if (candidateDefinitions.length !== 0) {
-						this._candidateDefinitionsLength = candidateDefinitions.length;
-						const childHTML: HTMLElement = targetMouseEvent.element;
-						if (currentHTMLChild !== childHTML) {
-							sessionStore.clear();
-							currentHTMLChild = childHTML;
-							currentHTMLChild.style.textDecoration = 'underline';
-							sessionStore.add(toDisposable(() => {
-								currentHTMLChild.style.textDecoration = 'none';
-							}));
-						} else if (!currentHTMLChild) {
-							currentHTMLChild = childHTML;
-							currentHTMLChild.style.textDecoration = 'underline';
-							sessionStore.add(toDisposable(() => {
-								currentHTMLChild.style.textDecoration = 'none';
-							}));
-						}
-					} else {
-						sessionStore.clear();
-					}
-				}));
-			} else {
-				sessionStore.clear();
-			}
-		}));
-		linkGestureStore.add(gesture.onCancel(() => {
-			sessionStore.clear();
-		}));
-		linkGestureStore.add(gesture.onExecute(async e => {
-			if ((e.target as unknown as CustomMouseEvent).detail !== this.getId()) {
-				return;
-			}
-			if (e.hasTriggerModifier) {
-				// Control click
-				if (this._candidateDefinitionsLength > 1) {
-					this._editor.revealPosition({ lineNumber: this._hoverOnLine, column: 1 });
-				}
-				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
-
-			} else if (!e.isRightClick) {
-				// Normal click
-				const position = { lineNumber: this._hoverOnLine, column: this._hoverOnColumn };
-				this._editor.revealPosition(position);
-				this._editor.setSelection(Range.fromPositions(position));
-				this._editor.focus();
-			}
-		}));
-		return linkGestureStore;
+	get hoverOnColumn(): number {
+		return this._hoverOnColumn;
 	}
 
 	get lineNumbers(): number[] {
@@ -179,33 +65,59 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers.length;
 	}
 
-	set focused(focused: boolean) {
-		this._focused = focused;
+	get lastFocusedStickyLine(): HTMLDivElement | undefined {
+		return this._lastFocusedStickyLine;
 	}
 
-	set lastFocusedStickyLine(lastFocusedStickyLine: HTMLDivElement | undefined) {
-		this._lastFocusedStickyLine = lastFocusedStickyLine;
+	get lastMouseFocusedStickyLine(): HTMLDivElement | undefined {
+		return this._lastMouseFocusedStickyLine;
 	}
 
-	set lastFocusedStickyLineIndex(lastFocusedStickyLineIndex: number | undefined) {
-		this._lastFocusedStickyLineIndex = lastFocusedStickyLineIndex;
+	get lastMouseFocusedStickyLineIndex(): number | undefined {
+		return this._lastMouseFocusedStickyLineIndex;
 	}
 
 	getCurrentLines(): readonly number[] {
 		return this._lineNumbers;
 	}
 
-	setState(state: StickyScrollWidgetState): void {
+	setState(state: StickyScrollWidgetState, indexOfLineToFocus?: number): void {
+		dom.clearNode(this._rootDomNode);
 		this._disposableStore.clear();
 		this._lineNumbers.length = 0;
-		dom.clearNode(this._rootDomNode);
-
 		this._lastLineRelativePosition = state.lastLineRelativePosition;
 		this._lineNumbers = state.lineNumbers;
-		this._renderRootNode();
+		this._renderRootNode(indexOfLineToFocus);
 	}
 
-	private _renderChildNode(index: number, line: number): HTMLElement {
+	private _renderRootNode(indexOfLineToFocus?: number): void {
+
+		if (!this._editor._getViewModel()) {
+			return;
+		}
+		for (const [index, line] of this._lineNumbers.entries()) {
+			const childNode = this._renderChildNode(index, line);
+
+			// When a line is set to be focused, add the focus classname to it
+			if (indexOfLineToFocus && index === indexOfLineToFocus) {
+				childNode.classList.add('focus');
+				this._lastFocusedStickyLine = childNode;
+			}
+			this._rootDomNode.appendChild(childNode);
+		}
+
+		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
+		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
+		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
+		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
+
+		if (minimapSide === 'left') {
+			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
+		}
+	}
+
+	private _renderChildNode(index: number, line: number): HTMLDivElement {
 
 		const child = document.createElement('div');
 		const viewModel = this._editor._getViewModel();
@@ -292,12 +204,17 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			child.style.top = this._lastLineRelativePosition + 'px';
 		}
 
+		// Each child has a listener which fires when the mouse hovers over the child
 		this._disposableStore.add(dom.addDisposableListener(child, 'mouseover', (e) => {
-			this._lastFocusedStickyLine = child;
-			this._lastFocusedStickyLineIndex = index;
+			// Store the last mouse focused sticky line as well as its index for the focus feature
+			this._lastMouseFocusedStickyLine = child;
+			this._lastMouseFocusedStickyLineIndex = index;
+
 			if (this._editor.hasModel()) {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
+
+				// Line and column number of the hover needed for the control clicking feature
 				this._hoverOnLine = line;
 				// TODO: workaround to find the column index, perhaps need a more solid solution
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
@@ -305,30 +222,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 
 		return child;
-	}
-
-	private _renderRootNode(): void {
-		console.log('Inside of render root node');
-		if (!this._editor._getViewModel()) {
-			return;
-		}
-		for (const [index, line] of this._lineNumbers.entries()) {
-			this._rootDomNode.appendChild(this._renderChildNode(index, line));
-		}
-		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const widgetHeight: number = this._lineNumbers.length * editorLineHeight + this._lastLineRelativePosition;
-		this._rootDomNode.style.display = widgetHeight > 0 ? 'block' : 'none';
-		this._rootDomNode.style.height = widgetHeight.toString() + 'px';
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-
-		if (minimapSide === 'left') {
-			this._rootDomNode.style.marginLeft = this._editor.getLayoutInfo().minimap.minimapCanvasOuterWidth + 'px';
-		}
-		console.log('focused? : ', this._focused);
-		if (this._focused) {
-			console.log(this._lastFocusedStickyLine);
-			this._lastFocusedStickyLine?.classList.add('focus');
-		}
 	}
 
 	getId(): string {

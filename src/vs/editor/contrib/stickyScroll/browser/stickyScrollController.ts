@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -12,11 +12,22 @@ import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidge
 import { IStickyLineCandidateProvider, StickyLineCandidateProvider, StickyRange } from './stickyScrollProvider';
 import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
+import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
+import { Position } from 'vs/editor/common/core/position';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as dom from 'vs/base/browser/dom';
+
+interface CustomMouseEvent {
+	detail: string;
+	element: HTMLElement;
+}
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -25,7 +36,6 @@ export interface IStickyScrollController {
 	focusNext(): void;
 	focusPrevious(): void;
 	goToFocused(): void;
-	cancelFocus(): void;
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 }
@@ -41,43 +51,57 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _widgetState: StickyScrollWidgetState;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
+	private _stickyElements: HTMLCollection | undefined;
+	private _numberStickyElements: number | undefined;
+
+	private _stickyRangeProjectedOnEditor: IRange | undefined;
+	private _candidateDefinitionsLength: number = -1;
+
+	private _focused: boolean = false;
 	private _focusDisposableStore: DisposableStore | undefined;
 	private _focusedStickyElement: HTMLDivElement | undefined;
 	private _focusedStickyElementIndex: number | undefined;
-	private _stickyElements: HTMLCollection | undefined;
-	private _numberStickyElements: number | undefined;
 	private _stickyScrollFocusedContextKey: IContextKey<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IInstantiationService instaService: IInstantiationService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._stickyScrollWidget = new StickyScrollWidget(this._editor, languageFeaturesService, instaService);
-		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService);
-		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService);
-		this._widgetState = new StickyScrollWidgetState([], 0);
-
+		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
+		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, this._languageFeaturesService);
 		this._register(this._stickyScrollWidget);
 		this._register(this._stickyLineCandidateProvider);
+
+		// The line numbers to stick
+		this._widgetState = new StickyScrollWidgetState([], 0);
+
+		// Read the initial configuration to check if sticky scroll is enabled
+		this._readConfiguration();
+		// If the editor option for sticky scroll has changed, read the configuration again
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
 				this._readConfiguration();
 			}
 		}));
-		this._readConfiguration();
+
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
 			this._onContextMenu(event);
 		}));
 
+		// Context key which indicates if the sticky scroll is focused or not
+		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService);
+		// Create a focus tracker to track the focus on the sticky scroll widget
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		this._register(focusTracker.onDidBlur(_ => {
-			console.log('On did blur');
 			this._disposeFocusStickyScrollStore();
 		}));
+
+		// Register the click link gesture to allow the user to click on the sticky scroll widget to go to the definition
+		this._register(this._createClickLinkGesture());
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -88,75 +112,73 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		return this._widgetState;
 	}
 
+	// Get function to allow actions to use the sticky scroll controller
 	public static get(editor: ICodeEditor): IStickyScrollController | null {
 		return editor.getContribution<StickyScrollController>(StickyScrollController.ID);
 	}
 
 	private _disposeFocusStickyScrollStore() {
-		console.log('Entered into the dispose');
-		this._stickyScrollWidget.focused = false;
-		this._focusedStickyElement!.classList.remove('focus');
-		this._stickyScrollWidget.getDomNode().blur();
-		this._stickyScrollWidget.lastFocusedStickyLine = undefined;
-		this._stickyScrollWidget.lastFocusedStickyLineIndex = undefined;
+		this._focused = false;
 		this._stickyScrollFocusedContextKey.set(false);
+		this._focusedStickyElement?.classList.remove('focus');
+		this._stickyScrollWidget.getDomNode().blur();
 		this._focusDisposableStore!.dispose();
 	}
 
 	public focus(): void {
-		this._stickyScrollWidget.focused = true;
+		this._focused = true;
 		const focusState = this._stickyScrollFocusedContextKey.get();
-		console.log('inside focus ', focusState);
 		const rootNode = this._stickyScrollWidget.getDomNode();
 		this._stickyElements = rootNode.children;
 		this._numberStickyElements = this._stickyElements.length;
 
 		if (focusState === true || this._numberStickyElements === 0) {
-			// Already focused so return
-			// Or no line to focus on
+			// If lready focused or no line to focus on, return
 			return;
 		}
 		this._focusDisposableStore = new DisposableStore();
 		this._stickyScrollFocusedContextKey.set(true);
 		this._focusedStickyElement = rootNode.lastElementChild! as HTMLDivElement;
 		this._focusedStickyElement.classList.add('focus');
+		// The first line focused is the bottom most line
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
-		this._stickyScrollWidget.lastFocusedStickyLine = this._focusedStickyElement;
-		this._stickyScrollWidget.lastFocusedStickyLineIndex = this._focusedStickyElementIndex;
 
 		// Whenever the mouse hovers on the sticky scroll remove the keyboard focus
-		this._focusDisposableStore.add(this._stickyScrollWidget.onMouseOver(() => {
-			this._focusedStickyElement!.classList.remove('focus');
+		this._focusDisposableStore.add(dom.addDisposableListener(rootNode, dom.EventType.MOUSE_OVER, () => {
+			this._focusedStickyElement?.classList.remove('focus');
 		}));
-		this._focusDisposableStore.add(this._stickyScrollWidget.onMouseOut(() => {
-			const { lastMouseFocusedStickyLine, lastMouseFocusedStickyLineIndex } = this._stickyScrollWidget.lastMouseFocusedStickyLineAndIndex();
-			this._focusedStickyElement = lastMouseFocusedStickyLine;
-			this._focusedStickyElementIndex = lastMouseFocusedStickyLineIndex;
-			this._focusedStickyElement!.classList.add('focus');
+		// Whenever the mouse leaves the sticky scroll, set the keyboard focus to be on the last line hovered
+		this._focusDisposableStore.add(dom.addDisposableListener(rootNode, dom.EventType.MOUSE_OUT, () => {
+			this._focusedStickyElement = this._stickyScrollWidget.lastMouseFocusedStickyLine;
+			this._focusedStickyElementIndex = this._stickyScrollWidget.lastMouseFocusedStickyLineIndex;
+			this._focusedStickyElement?.classList.add('focus');
+		}));
+
+		// When scrolling, remove the focus
+		this._focusDisposableStore.add(this._editor.onDidScrollChange(() => {
+			this._disposeFocusStickyScrollStore();
 		}));
 		rootNode.focus();
 	}
 
 	public focusNext(): void {
 		if (this._focusedStickyElement && this._focusedStickyElementIndex! < this._numberStickyElements! - 1) {
-			this._focusedStickyElement.classList.remove('focus');
-			this._focusedStickyElementIndex!++;
-			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
-			this._focusedStickyElement.classList.add('focus');
-			this._stickyScrollWidget.lastFocusedStickyLine = this._focusedStickyElement;
-			this._stickyScrollWidget.lastFocusedStickyLineIndex = this._focusedStickyElementIndex!;
+			this._focusNav(true);
 		}
 	}
 
 	public focusPrevious(): void {
 		if (this._focusedStickyElement && this._focusedStickyElementIndex! > 0) {
-			this._focusedStickyElement.classList.remove('focus');
-			this._focusedStickyElementIndex!--;
-			this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
-			this._focusedStickyElement.classList.add('focus');
-			this._stickyScrollWidget.lastFocusedStickyLine = this._focusedStickyElement;
-			this._stickyScrollWidget.lastFocusedStickyLineIndex = this._focusedStickyElementIndex!;
+			this._focusNav(false);
 		}
+	}
+
+	// True is next, false is previous
+	private _focusNav(direction: boolean): void {
+		this._focusedStickyElement!.classList.remove('focus');
+		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex! + 1 : this._focusedStickyElementIndex! - 1;
+		this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement;
+		this._focusedStickyElement.classList.add('focus');
 	}
 
 	public goToFocused(): void {
@@ -165,8 +187,95 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._disposeFocusStickyScrollStore();
 	}
 
-	public cancelFocus(): void {
-		this._disposeFocusStickyScrollStore();
+	private _createClickLinkGesture(): IDisposable {
+
+		const linkGestureStore = new DisposableStore();
+		const sessionStore = new DisposableStore();
+		linkGestureStore.add(sessionStore);
+		const gesture = new ClickLinkGesture(this._editor, true);
+		linkGestureStore.add(gesture);
+
+		linkGestureStore.add(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
+			if (!this._editor.hasModel() || !mouseEvent.hasTriggerModifier) {
+				sessionStore.clear();
+				return;
+			}
+			const targetMouseEvent = mouseEvent.target as unknown as CustomMouseEvent;
+			if (targetMouseEvent.detail === this._stickyScrollWidget.getId()
+				&& targetMouseEvent.element.innerText === targetMouseEvent.element.innerHTML) {
+
+				const text = targetMouseEvent.element.innerText;
+				if (this._stickyScrollWidget.hoverOnColumn === -1) {
+					return;
+				}
+				const lineNumber = this._stickyScrollWidget.hoverOnLine;
+				const column = this._stickyScrollWidget.hoverOnColumn;
+
+				const stickyPositionProjectedOnEditor = new Range(lineNumber, column, lineNumber, column + text.length);
+				if (!stickyPositionProjectedOnEditor.equalsRange(this._stickyRangeProjectedOnEditor)) {
+					this._stickyRangeProjectedOnEditor = stickyPositionProjectedOnEditor;
+					sessionStore.clear();
+				} else if (targetMouseEvent.element.style.textDecoration === 'underline') {
+					return;
+				}
+
+				const cancellationToken = new CancellationTokenSource();
+				sessionStore.add(toDisposable(() => cancellationToken.dispose(true)));
+
+				let currentHTMLChild: HTMLElement;
+
+				getDefinitionsAtPosition(this._languageFeaturesService.definitionProvider, this._editor.getModel(), new Position(lineNumber, column + 1), cancellationToken.token).then((candidateDefinitions => {
+					if (cancellationToken.token.isCancellationRequested) {
+						return;
+					}
+					if (candidateDefinitions.length !== 0) {
+						this._candidateDefinitionsLength = candidateDefinitions.length;
+						const childHTML: HTMLElement = targetMouseEvent.element;
+						if (currentHTMLChild !== childHTML) {
+							sessionStore.clear();
+							currentHTMLChild = childHTML;
+							currentHTMLChild.style.textDecoration = 'underline';
+							sessionStore.add(toDisposable(() => {
+								currentHTMLChild.style.textDecoration = 'none';
+							}));
+						} else if (!currentHTMLChild) {
+							currentHTMLChild = childHTML;
+							currentHTMLChild.style.textDecoration = 'underline';
+							sessionStore.add(toDisposable(() => {
+								currentHTMLChild.style.textDecoration = 'none';
+							}));
+						}
+					} else {
+						sessionStore.clear();
+					}
+				}));
+			} else {
+				sessionStore.clear();
+			}
+		}));
+		linkGestureStore.add(gesture.onCancel(() => {
+			sessionStore.clear();
+		}));
+		linkGestureStore.add(gesture.onExecute(async e => {
+			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId()) {
+				return;
+			}
+			if (e.hasTriggerModifier) {
+				// Control click
+				if (this._candidateDefinitionsLength > 1) {
+					this._editor.revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
+				}
+				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
+
+			} else if (!e.isRightClick) {
+				// Normal click
+				const position = { lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn };
+				this._editor.revealPosition(position);
+				this._editor.setSelection(Range.fromPositions(position));
+				this._editor.focus();
+			}
+		}));
+		return linkGestureStore;
 	}
 
 	private _onContextMenu(event: MouseEvent) {
@@ -231,7 +340,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();
-			this._stickyScrollWidget.setState(this._widgetState);
+			// When the sticky scroll widget is focused, call the setState function with an additional parameter indicating the line to focus
+			if (this._focused) {
+				this._stickyScrollWidget.setState(this._widgetState, this._focusedStickyElementIndex);
+				this._focusedStickyElement = this._stickyScrollWidget.lastFocusedStickyLine;
+			} else {
+				this._stickyScrollWidget.setState(this._widgetState);
+			}
 		}
 	}
 
