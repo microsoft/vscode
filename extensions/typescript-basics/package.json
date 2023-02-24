@@ -70,7 +70,8 @@
           "storage.type.function.arrow",
           "keyword.operator.bitwise.shift",
           "meta.brace.angle",
-          "punctuation.definition.tag"
+          "punctuation.definition.tag",
+          "keyword.operator.assignment.compound.bitwise.ts"
         ],
         "tokenTypes": {
           "meta.template.expression": "other",
