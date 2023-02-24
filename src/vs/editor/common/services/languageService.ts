@@ -98,20 +98,20 @@ export class LanguageService extends Disposable implements ILanguageService {
 		return firstOrDefault(languageIds, null);
 	}
 
-	public createById(languageId: string | null | undefined): ILanguageSelection {//
+	public createById(languageId: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
-	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {//
+	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
 			const languageId = this.getLanguageIdByMimeType(mimeType);
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
-	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {//
+	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
 		return new LanguageSelection(this.onDidChange, () => {
 			const languageId = this.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createAndGetLanguageIdentifier(languageId);
