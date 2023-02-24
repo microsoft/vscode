@@ -110,10 +110,10 @@ import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 
 /* eslint-disable local/code-layering, local/code-import-patterns */
 // TODO@bpasero layer is not allowed in utility process
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
