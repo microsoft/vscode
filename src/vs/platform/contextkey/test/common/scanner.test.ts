@@ -185,7 +185,7 @@ suite('Context Key Scanner', () => {
 
 		test(`foo === '`, () => {
 			const input = `foo === '`;
-			assert.deepStrictEqual(scan(input), ([{ type: "Str", lexeme: "foo", offset: 0 }, { type: "==", offset: 4 }, { type: "ErrorToken", offset: 6, lexeme: "=" }, { type: "ErrorToken", offset: 8, lexeme: "'" }, { type: "EOF", offset: 9 }]));
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "==", offset: 4 }, { type: "ErrorToken", offset: 6, lexeme: "=" }, { type: "ErrorToken", offset: 8, lexeme: "'" }, { type: "EOF", offset: 9 }]));
 		});
 
 		test(`foo && 'bar - unterminated single quote`, () => {
@@ -195,9 +195,7 @@ suite('Context Key Scanner', () => {
 
 		test(`foo === bar'`, () => {
 			const input = `foo === bar'`;
-			const tokens = new Scanner().reset(input).scan();
-			const r = tokens.filter(t => t.type === TokenType.Error).map(Scanner.reportError);
-			assert.deepStrictEqual(r, (["Unexpected token '=' at offset 6. Did you mean '==' or '=~'?", "Unexpected token ''' at offset 11"]));
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "==", offset: 4 }, { type: "ErrorToken", offset: 6, lexeme: "=" }, { type: "Str", offset: 8, lexeme: "bar" }, { type: "ErrorToken", offset: 11, lexeme: "'" }, { type: "EOF", offset: 12 }]));
 		});
 
 		test('vim<c-r> == 1 && vim<2 <= 3', () => {
@@ -228,6 +226,11 @@ suite('Context Key Scanner', () => {
 		test(`resourcePath =~ //foo/barr// || resourcePath =~ //view/(jarrr|doooor|bees)/(web|templates)// && resourceExtname in foo.Bar`, () => {
 			const input = `resourcePath =~ //foo/barr// || resourcePath =~ //view/(jarrr|doooor|bees)/(web|templates)// && resourceExtname in foo.Bar`;
 			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "resourcePath" }, { type: "=~", offset: 13 }, { type: "RegexStr", offset: 16, lexeme: "//" }, { type: "Str", offset: 18, lexeme: "foo/barr//" }, { type: "||", offset: 29 }, { type: "Str", offset: 32, lexeme: "resourcePath" }, { type: "=~", offset: 45 }, { type: "RegexStr", offset: 48, lexeme: "//" }, { type: "Str", offset: 50, lexeme: "view/" }, { type: "(", offset: 55 }, { type: "Str", offset: 56, lexeme: "jarrr" }, { type: "ErrorToken", offset: 61, lexeme: "|" }, { type: "Str", offset: 62, lexeme: "doooor" }, { type: "ErrorToken", offset: 68, lexeme: "|" }, { type: "Str", offset: 69, lexeme: "bees" }, { type: ")", offset: 73 }, { type: "RegexStr", offset: 74, lexeme: "/(web|templates)/" }, { type: "ErrorToken", offset: 91, lexeme: "/ && resourceExtname in foo.Bar" }, { type: "EOF", offset: 122 }]));
+		});
+
+		test(`foo =~ /file:\// || bar`, () => {
+			const input = JSON.parse('"foo =~ /file:\// || bar"');
+			assert.deepStrictEqual(scan(input), ([{ type: "Str", offset: 0, lexeme: "foo" }, { type: "=~", offset: 4 }, { type: "RegexStr", offset: 7, lexeme: "/file:/" }, { type: "ErrorToken", offset: 14, lexeme: "/ || bar" }, { type: "EOF", offset: 22 }]));
 		});
 	});
 });

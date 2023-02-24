@@ -7,8 +7,9 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Event } from 'vs/base/common/event';
 import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { Scanner, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
+import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from 'vs/nls';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
@@ -254,21 +255,21 @@ or ::= and { '||' and }*
 and ::= term { '&&' term }*
 
 term ::=
-	| '!' (KEY | 'true' | 'false')
+	| '!' (CONTEXT | 'true' | 'false') // we do not yet support negation of arbitrary expressions
 	| primary
 
 primary ::=
 	| 'true'
 	| 'false'
 	| '(' expression ')'
-	| KEY '=~' REGEX
-	| KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
+	| CONTEXT '=~' REGEX
+	| CONTEXT [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
 
 value ::=
 	| 'true'
 	| 'false'
-	| 'in'      	// we support `in` as a value because there's an extension that uses it, ie "when": "languageId = in"
-	| KEY
+	| 'in'      	// we support `in` as a value because there's an extension that uses it, ie "when": "languageId == in"
+	| VALUE 		// matched by the same regex as CONTEXT; consider putting the value in single quotes if it's a string (e.g., with spaces)
 	| SINGLE_QUOTED_STR
 	| EMPTY_STR  	// this allows "when": "foo == " which's used by existing extensions
 
@@ -276,14 +277,34 @@ value ::=
 */
 
 export type ParserConfig = {
+	/**
+	 * with this option enabled, the parser can recover from regex parsing errors, e.g., unescaped slashes: `/src//` is accepted as `/src\//` would be
+	 */
 	regexParsingWithErrorRecovery: boolean;
 };
 
 const defaultConfig: ParserConfig = {
-	regexParsingWithErrorRecovery: true // with this option enabled, the parser can recover from regex parsing errors, e.g., unescaped slashes
+	regexParsingWithErrorRecovery: true
 };
 
 class ParseError extends Error { }
+
+export type ParsingError = {
+	message: string;
+	offset: number;
+	lexeme: string;
+	additionalInfo?: string;
+};
+
+const errorEmptyString = localize('contextkey.parser.error.emptyString', "Empty context key expression");
+const hintEmptyString = localize('contextkey.parser.error.emptyString.hint', "Did you forget to write an expression? You can also put 'false' or 'true' to always evaluate to false or true, respectively.");
+const errorDontSupportArbitraryNegation = localize('contextkey.parser.error.dontSupportArbitraryNegation', "Negation of arbitrary expressions is not supported.");
+const errorNoInAfterNot = localize('contextkey.parser.error.noInAfterNot', "'in' after 'not'.");
+const errorClosingParenthesis = localize('contextkey.parser.error.closingParenthesis', "closing parenthesis ')'");
+const errorUnexpectedToken = localize('contextkey.parser.error.unexpectedToken', "Unexpected token");
+const hintUnexpectedToken = localize('contextkey.parser.error.unexpectedToken.hint', "Did you forget to put && or || before the token?");
+const errorUnexpectedEOF = localize('contextkey.parser.error.unexpectedEOF', "Unexpected end of expression");
+const hintUnexpectedEOF = localize('contextkey.parser.error.unexpectedEOF.hint', "Did you forget to put a context key?");
 
 /**
  * A parser for context key expressions.
@@ -312,13 +333,13 @@ export class Parser {
 	// lifetime note: `_tokens`, `_current`, and `_parsingErrors` must be reset between calls to `parse`
 	private _tokens: Token[] = [];
 	private _current = 0; 					// invariant: 0 <= this._current < this._tokens.length ; any incrementation of this value must first call `_isAtEnd`
-	private _parsingErrors: string[] = [];
+	private _parsingErrors: ParsingError[] = [];
 
-	get lexingErrors(): Readonly<Token[]> {
-		return this._scanner.errorTokens;
+	get lexingErrors(): Readonly<LexingError[]> {
+		return this._scanner.errors;
 	}
 
-	get parsingErrors(): Readonly<string[]> {
+	get parsingErrors(): Readonly<ParsingError[]> {
 		return this._parsingErrors;
 	}
 
@@ -334,12 +355,12 @@ export class Parser {
 	parse(input: string): ContextKeyExpression | undefined {
 
 		if (input === '') {
-			this._parsingErrors.push('Expected an expression but got an empty string');
+			this._parsingErrors.push({ message: errorEmptyString, offset: 0, lexeme: '', additionalInfo: hintEmptyString });
 			return undefined;
 		}
 
 		this._tokens = this._scanner.reset(input).scan();
-		// @ulugbekna: we do not stop parsing if there are lexing errors to be able to reconstruct regexes with unescaped slashes
+		// @ulugbekna: we do not stop parsing if there are lexing errors to be able to reconstruct regexes with unescaped slashes; TODO@ulugbekna: make this respect config option for recovery
 
 		this._current = 0;
 		this._parsingErrors = [];
@@ -347,13 +368,15 @@ export class Parser {
 		try {
 			const expr = this._expr();
 			if (!this._isAtEnd()) {
-				throw this._errUnexpected(this._peek());
+				const peek = this._peek();
+				const additionalInfo = peek.type === TokenType.Str ? hintUnexpectedToken : undefined;
+				this._parsingErrors.push({ message: errorUnexpectedToken, offset: peek.offset, lexeme: Scanner.getLexeme(peek), additionalInfo });
+				throw new ParseError();
 			}
 			return expr;
 		} catch (e) {
 			if (!(e instanceof ParseError)) {
-				const token = this._peek();
-				this._parsingErrors.push(`Unexpected error: ${e} for token ${Scanner.getLexeme(token)} at offset ${token.offset}.`);
+				throw e;
 			}
 			return undefined;
 		}
@@ -399,7 +422,7 @@ export class Parser {
 					this._advance();
 					return ContextKeyExpr.true();
 				default:
-					throw this._errExpectedButGot(`KEY, 'true', or 'false'`, expr);
+					throw this._errExpectedButGot('CONTEXT | true | false', expr, errorDontSupportArbitraryNegation);
 			}
 		}
 		return this._primary();
@@ -420,12 +443,12 @@ export class Parser {
 			case TokenType.LParen: {
 				this._advance();
 				const expr = this._expr();
-				this._consume(TokenType.RParen, `')'`);
+				this._consume(TokenType.RParen, errorClosingParenthesis);
 				return expr;
 			}
 
 			case TokenType.Str: {
-				// KEY
+				// CONTEXT
 				const key = peek.lexeme;
 				this._advance();
 
@@ -443,8 +466,13 @@ export class Parser {
 						const regexLexeme = expr.lexeme;
 						const closingSlashIndex = regexLexeme.lastIndexOf('/');
 						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
-						const regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
-						return ContextKeyExpr.regex(key, regexp);
+						let regexp: RegExp | null;
+						try {
+							regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+						} catch (e) {
+							throw this._errExpectedButGot(`REGEX`, expr);
+						}
+						return ContextKeyRegexExpr.create(key, regexp);
 					}
 
 					switch (expr.type) {
@@ -512,7 +540,9 @@ export class Parser {
 									const caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
 									try {
 										regex = new RegExp(value, caseIgnoreFlag);
-									} catch (_e) { }
+									} catch (_e) {
+										// FIXME@ulugbekna - handle error
+									}
 								}
 							}
 
@@ -530,7 +560,7 @@ export class Parser {
 
 				// [ 'not' 'in' value ]
 				if (this._matchOne(TokenType.Not)) {
-					this._consume(TokenType.In, `'in' after 'not'`);
+					this._consume(TokenType.In, errorNoInAfterNot);
 					const right = this._value();
 					return ContextKeyExpr.notIn(key, right);
 				}
@@ -592,8 +622,12 @@ export class Parser {
 				}
 			}
 
+			case TokenType.EOF:
+				this._parsingErrors.push({ message: errorUnexpectedEOF, offset: peek.offset, lexeme: '', additionalInfo: hintUnexpectedEOF });
+				throw new ParseError();
+
 			default:
-				throw this._errExpectedButGot(`'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ]`, this._peek());
+				throw this._errExpectedButGot(`true | false | CONTEXT \n\t| CONTEXT '=~' REGEX \n\t| CONTEXT ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
 
 		}
 	}
@@ -650,17 +684,11 @@ export class Parser {
 		throw this._errExpectedButGot(message, this._peek());
 	}
 
-	private _errExpectedButGot(expected: string, got: Token) {
-		return this._error(`Expected ${expected} but got '${Scanner.getLexeme(got)}' at offset ${got.offset}.`);
-	}
-
-	private _errUnexpected(token: Token) {
-		return this._error(`Unexpected '${Scanner.getLexeme(token)}' at offset ${token.offset}.`);
-	}
-
-	// TODO@ulugbekna: the whole error reporting needs reworking - especially, when we introduce it to package.json linting
-	private _error(errMsg: string) {
-		this._parsingErrors.push(errMsg);
+	private _errExpectedButGot(expected: string, got: Token, additionalInfo?: string) {
+		const message = localize('contextkey.parser.error.expectedButGot', "Expected: {0}\nReceived: '{1}'.", expected, Scanner.getLexeme(got));
+		const offset = got.offset;
+		const lexeme = Scanner.getLexeme(got);
+		this._parsingErrors.push({ message, offset, lexeme, additionalInfo });
 		return new ParseError();
 	}
 
