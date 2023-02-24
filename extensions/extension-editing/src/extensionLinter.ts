@@ -12,6 +12,8 @@ import * as MarkdownItType from 'markdown-it';
 
 import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
+import { TextDecoder } from 'util';
+import { JsonStringScanner } from './jsonReconstruct';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
@@ -36,6 +38,7 @@ const implicitActivationEvent = l10n.t("This activation event cannot be explicit
 const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
 const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75 as VS Code will generate these automatically from your package.json contribution declarations.");
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
+const parsingErrorHeader = l10n.t("Error when parsing when clause:");
 
 enum Context {
 	ICON,
@@ -206,7 +209,7 @@ export class ExtensionLinter {
 			return [];
 		}
 
-		const whens: JsonNode[] = [];
+		const whenClauses: JsonNode[] = [];
 
 		function findWhens(node: JsonNode | undefined, clauseName: string) {
 			if (node) {
@@ -218,7 +221,7 @@ export class ExtensionLinter {
 							switch (value.type) {
 								case 'string':
 									if (key.value === clauseName && typeof value.value === 'string' /* careful: `.value` MUST be a string 1) because a when/enablement clause is string; so also, type cast to string below is safe */) {
-										whens.push(value);
+										whenClauses.push(value);
 									}
 								case 'object':
 								case 'array':
@@ -244,16 +247,26 @@ export class ExtensionLinter {
 
 		findWhens(findNodeAtLocation(contributesNode, ['commands']), 'enablement');
 
-		const parseResults = await commands.executeCommand<string[]>('_parseWhenExpressions', whens.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
+		const parseResults = await commands.executeCommand<{ errorMessage: string; offset: number; length: number }[][]>('_parseWhenClausesForErrors', whenClauses.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
 
 		const diagnostics: Diagnostic[] = [];
 		for (let i = 0; i < parseResults.length; ++i) {
-			const parseRes = parseResults[i];
-			if (parseRes) {
-				const start = whens[i].offset;
-				const end = whens[i].offset + whens[i].length;
-				const range = new Range(document.positionAt(start), document.positionAt(end));
-				diagnostics.push(new Diagnostic(range, parseRes, DiagnosticSeverity.Warning));
+			const whenClauseJSONNode = whenClauses[i];
+
+			const jsonStringScanner = new JsonStringScanner(document.getText(), whenClauseJSONNode.offset + 1);
+
+			for (const error of parseResults[i]) {
+				const realOffset = jsonStringScanner.getOffsetInEncoded(error.offset);
+				const realOffsetEnd = jsonStringScanner.getOffsetInEncoded(error.offset + error.length);
+				const start = document.positionAt(realOffset /* +1 to account for the quote (I think) */);
+				const end = document.positionAt(realOffsetEnd);
+				const errMsg = `${parsingErrorHeader}\n\n${error.errorMessage}`;
+				const diagnostic = new Diagnostic(new Range(start, end), errMsg, DiagnosticSeverity.Error);
+				diagnostic.code = {
+					value: 'See docs',
+					target: Uri.parse('https://code.visualstudio.com/api/references/when-clause-contexts'),
+				};
+				diagnostics.push(diagnostic);
 			}
 		}
 		return diagnostics;
