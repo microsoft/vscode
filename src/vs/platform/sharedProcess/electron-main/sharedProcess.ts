@@ -42,7 +42,19 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
-	private readonly useUtilityProcess = canUseUtilityProcess && this.configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
+	private readonly useUtilityProcess = (() => {
+		let useUtilityProcess = false;
+		if (canUseUtilityProcess) {
+			const sharedProcessUseUtilityProcess = this.configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
+			if (typeof sharedProcessUseUtilityProcess === 'boolean') {
+				useUtilityProcess = sharedProcessUseUtilityProcess;
+			} else {
+				useUtilityProcess = typeof product.quality === 'string' && product.quality !== 'stable';
+			}
+		}
+
+		return useUtilityProcess;
+	})();
 
 	constructor(
 		private readonly machineId: string,
