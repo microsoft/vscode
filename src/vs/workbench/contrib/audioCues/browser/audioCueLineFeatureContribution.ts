@@ -202,7 +202,7 @@ class MarkerLineFeature implements LineFeature {
 						.some(
 							(m) => {
 								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
-								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column);
+								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
 							});
 					return hasMarker;
 				},
