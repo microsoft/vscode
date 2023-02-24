@@ -5,7 +5,6 @@
 
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -175,17 +174,6 @@ export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFi
 
 		return this._testEncoding;
 	}
-}
-
-export class TestSharedProcessService implements ISharedProcessService {
-
-	declare readonly _serviceBrand: undefined;
-
-	getChannel(channelName: string): any { return undefined; }
-
-	registerChannel(channelName: string, channel: any): void { }
-
-	notifyRestored(): void { }
 }
 
 export class TestNativeHostService implements INativeHostService {
