@@ -115,7 +115,7 @@ import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/exten
 /* eslint-disable local/code-layering, local/code-import-patterns */
 // TODO@bpasero layer is not allowed in utility process
 import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 

@@ -13,7 +13,7 @@ import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen,
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 
 class WorkbenchNativeHostService extends NativeHostService {
 

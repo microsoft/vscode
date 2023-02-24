@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageDatabase } from 'vs/base/parts/storage/common/storage';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUserDataProfileStorageService, IProfileStorageChanges, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { isProfileUsingDefaultStorage, IStorageService } from 'vs/platform/storage/common/storage';
