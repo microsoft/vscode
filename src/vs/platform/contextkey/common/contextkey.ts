@@ -126,23 +126,6 @@ export abstract class ContextKeyExpr {
 		return ContextKeySmallerEqualsExpr.create(key, value);
 	}
 
-	/**
-	 * Warning: experimental; the API might change.
-	 */
-	public static deserializeOrErrorNew(serialized: string | null | undefined): { type: 'ok'; expr: ContextKeyExpression } | { type: 'error'; readonly lexingErrors: string[]; readonly parsingErrors: readonly string[] } {
-		if (!serialized) {
-			return { type: 'error', lexingErrors: [], parsingErrors: [] };
-		}
-
-		const parser = new Parser();
-		const expr = parser.parse(serialized);
-		if (expr === undefined) {
-			return { type: 'error', lexingErrors: parser.lexingErrors.map(token => Scanner.reportError(token)), parsingErrors: parser.parsingErrors };
-		} else {
-			return { type: 'ok', expr };
-		}
-	}
-
 	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
 		if (!serialized) {
 			return undefined;
