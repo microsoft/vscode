@@ -7,7 +7,6 @@ import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +36,6 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
 		const langService = accessor.get(ILanguageService);
-		const modelService = accessor.get(IModelService);
 
 		const editor = getCodeEditor(editorService.activeTextEditorControl);
 		if (!editor || !editor.hasModel()) {
@@ -62,7 +60,7 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 			}]);
 
 			// set language if possible
-			modelService.setMode(editor.getModel(), langService.createById(selection.langId), ApplyFileSnippetAction.Id);
+			editor.getModel().setLanguage(langService.createById(selection.langId), ApplyFileSnippetAction.Id);
 
 			editor.focus();
 		}
