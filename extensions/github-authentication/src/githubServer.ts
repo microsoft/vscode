@@ -597,7 +597,7 @@ export class GitHubServer implements IGitHubServer {
 		/* __GDPR__
 			"session" : {
 				"owner": "TylerLeonhardt",
-				"isEdu": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"isEdu": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"isManaged": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
