@@ -651,7 +651,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			commentsMap.set(vscodeComment, commentUniqueId);
 		}
 
-		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
+		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath : undefined;
 
 		return {
 			mode: vscodeComment.mode,
