@@ -189,7 +189,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					return undefined;
 				}
 				return {
-					...codeLens,
+					...result,
 					range: model.validateRange(result.range),
 				};
 			}
