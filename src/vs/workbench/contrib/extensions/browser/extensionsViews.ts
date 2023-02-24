@@ -221,6 +221,10 @@ export class ExtensionsListView extends ViewPane {
 			messageContainer,
 			messageSeverityIcon
 		};
+
+		if (this.queryResult) {
+			this.setModel(this.queryResult.model);
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -284,7 +288,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	count(): number {
-		return this.list ? this.list.length : 0;
+		return this.queryResult?.model.length ?? 0;
 	}
 
 	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
@@ -551,7 +555,7 @@ export class ExtensionsListView extends ViewPane {
 			const reloadRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
-				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+				if (e.outdated && !e.pinned) {
 					outdated.push(e);
 				}
 				else if (e.reloadRequiredStatus) {
@@ -836,6 +840,7 @@ export class ExtensionsListView extends ViewPane {
 			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
+			|| ExtensionsListView.isRemoteRecommendedExtensionsQuery(query.value)
 			|| /@recommended:all/i.test(query.value)
 			|| ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isRecommendedExtensionsQuery(query.value);
@@ -860,6 +865,11 @@ export class ExtensionsListView extends ViewPane {
 		// Exe recommendations
 		if (ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)) {
 			return this.getExeRecommendationsModel(query, options, token);
+		}
+
+		// Remote recommendations
+		if (ExtensionsListView.isRemoteRecommendedExtensionsQuery(query.value)) {
+			return this.getRemoteRecommendationsModel(query, options, token);
 		}
 
 		// All recommendations
@@ -928,6 +938,14 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(installableRecommendations);
 	}
 
+	private async getRemoteRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:remotes/g, '').trim().toLowerCase();
+		const recommendations = this.extensionRecommendationsService.getRemoteRecommendations();
+		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-remotes' }, token))
+			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
+		return new PagedModel(installableRecommendations);
+	}
+
 	private async getExeRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const exe = query.value.replace(/@exe:/g, '').trim().toLowerCase();
 		const { important, others } = await this.extensionRecommendationsService.getExeBasedRecommendations(exe.startsWith('"') ? exe.substring(1, exe.length - 1) : exe);
@@ -986,21 +1004,35 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(result, options));
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any) {
+	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
-			this.list.scrollTop = 0;
+			if (!donotResetScrollTop) {
+				this.list.scrollTop = 0;
+			}
 			this.updateBody(error);
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
+		}
+	}
+
+	private updateModel(model: IPagedModel<IExtension>) {
+		if (this.list) {
+			this.list.model = new DelayedPagedModel(model);
+			this.updateBody();
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
 		}
 	}
 
 	private updateBody(error?: any): void {
-		const count = this.count();
-		if (this.bodyTemplate && this.badge) {
+		if (this.bodyTemplate) {
 
+			const count = this.count();
 			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
 			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
-			this.badge.setCount(count);
 
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
@@ -1018,6 +1050,7 @@ export class ExtensionsListView extends ViewPane {
 				alert(this.bodyTemplate.messageBox.textContent);
 			}
 		}
+
 		this.updateSize();
 	}
 
@@ -1025,13 +1058,6 @@ export class ExtensionsListView extends ViewPane {
 		if (this.options.flexibleHeight) {
 			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
 			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
-	private updateModel(model: IPagedModel<IExtension>) {
-		if (this.list) {
-			this.list.model = new DelayedPagedModel(model);
-			this.updateBody();
 		}
 	}
 
@@ -1150,6 +1176,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isExeRecommendedExtensionsQuery(query: string): boolean {
 		return /@exe:.+/i.test(query);
+	}
+
+	static isRemoteRecommendedExtensionsQuery(query: string): boolean {
+		return /@recommended:remotes/i.test(query);
 	}
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {

@@ -101,7 +101,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined {
 		let defaultProfileName: string | undefined;
 		if (os) {
-			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
+			defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
 			if (!defaultProfileName || typeof defaultProfileName !== 'string') {
 				return undefined;
 			}

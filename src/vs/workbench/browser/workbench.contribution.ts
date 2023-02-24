@@ -269,6 +269,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
 			},
+			'workbench.editor.centeredLayoutFixedWidth': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
+			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
@@ -331,6 +336,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.commandPalette.preserveInput': {
 				'type': 'boolean',
 				'description': localize('preserveInput', "Controls whether the last typed input to the command palette should be restored when opening it the next time."),
+				'default': false
+			},
+			'workbench.commandPalette.experimental.suggestCommands': {
+				'type': 'boolean',
+				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
@@ -469,6 +479,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
+			'workbench.tips.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+			},
 		}
 	});
 
@@ -487,6 +502,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('rootName', "`${rootName}`: name of the workspace with optional remote name and workspace indicator if applicable (e.g. myFolder, myRemoteFolder [SSH] or myWorkspace (Workspace))."),
 		localize('rootNameShort', "`${rootNameShort}`: shortened name of the workspace without suffixes (e.g. myFolder, myRemoteFolder or myWorkspace)."),
 		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
+		localize('profileName', "`${profileName}`: name of the profile in which the workspace is opened (e.g. Data Science (Profile)). Ignored if default profile is used."),
 		localize('appName', "`${appName}`: e.g. VS Code."),
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
 		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
@@ -503,10 +519,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'default': (() => {
 					if (isMacintosh && isNative) {
-						return '${activeEditorShort}${separator}${rootName}'; // macOS has native dirty indicator
+						return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
 					}
 
-					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
+					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
 					if (isWeb) {
 						return base + '${separator}${remoteName}'; // Web: always show remote name
 					}

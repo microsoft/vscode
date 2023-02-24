@@ -48,8 +48,8 @@ suite('Workbench - Test Results Service', () => {
 	});
 
 	class TestLiveTestResult extends LiveTestResult {
-		public override setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
-			super.setAllToState(state, taskId, when);
+		public setAllToStatePublic(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
+			this.setAllToState(state, taskId, when);
 		}
 	}
 
@@ -121,14 +121,14 @@ suite('Workbench - Test Results Service', () => {
 
 		test('setAllToState', () => {
 			changed.clear();
-			r.setAllToState(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToStatePublic(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestResultState.Unset]: 1,
 				[TestResultState.Queued]: 3,
 			});
 
-			r.setAllToState(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToStatePublic(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestResultState.Unset]: 1,
@@ -186,7 +186,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('markComplete', () => {
-			r.setAllToState(TestResultState.Queued, 't', () => true);
+			r.setAllToStatePublic(TestResultState.Queued, 't', () => true);
 			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed);
 			changed.clear();
 
@@ -208,7 +208,7 @@ suite('Workbench - Test Results Service', () => {
 		let results: TestResultService;
 
 		class TestTestResultService extends TestResultService {
-			override persistScheduler = { schedule: () => this.persistImmediately() } as any;
+			protected override persistScheduler = { schedule: () => this.persistImmediately() } as any;
 		}
 
 		setup(() => {
@@ -365,6 +365,16 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(await ctrl.getRange(7, 6), VSBuffer.fromString('890123'));
 			assert.deepStrictEqual(await ctrl.getRange(15, 5), VSBuffer.fromString('67890'));
 			assert.deepStrictEqual(await ctrl.getRange(15, 10), VSBuffer.fromString('67890'));
+		});
+
+		test('corrects offsets for marked ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			const a1 = ctrl.append(VSBuffer.fromString('12345'), 1);
+			const a2 = ctrl.append(VSBuffer.fromString('67890'), 1234);
+
+			assert.deepStrictEqual(await ctrl.getRange(a1.offset, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(await ctrl.getRange(a2.offset, 5), VSBuffer.fromString('67890'));
 		});
 
 		test('reads stored output ranges', async () => {

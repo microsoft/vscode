@@ -322,7 +322,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(panelViews.allViewDescriptors.map(v => v.id), ['view3']);
 
 		const actual = JSON.parse(instantiationService.get(IStorageService).get('views.customizations', StorageScope.PROFILE)!);
-		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {} });
+		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {}, viewContainerBadgeEnablementStates: {} });
 
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedPanel.id), null);
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedSidebar.id), null);
@@ -485,7 +485,7 @@ suite('ViewDescriptorService', () => {
 		const sidebarViews = testObject.getViewContainerModel(sidebarContainer);
 		assert.deepStrictEqual(sidebarViews.allViewDescriptors.map(v => v.id), ['view2', 'view3']);
 
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 		assert.deepStrictEqual(sidebarViews.allViewDescriptors.map(v => v.id), ['view1', 'view2', 'view3']);
 	});
 
@@ -513,13 +513,13 @@ suite('ViewDescriptorService', () => {
 		ViewsRegistry.registerViews(viewDescriptors, sidebarContainer);
 
 		const testObject = aViewDescriptorService();
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedViewContainerId), null);
 		assert.deepStrictEqual(testObject.isViewContainerRemovedPermanently(generatedViewContainerId), true);
 
 		const actual = JSON.parse(storageService.get('views.customizations', StorageScope.PROFILE)!);
-		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {} });
+		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {}, viewContainerBadgeEnablementStates: {} });
 	});
 
 	test('custom locations take precedence when default view container of views change', async function () {
@@ -611,7 +611,7 @@ suite('ViewDescriptorService', () => {
 		ViewsRegistry.registerViews(viewDescriptors, viewContainer1);
 
 		const testObject = aViewDescriptorService();
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer1);
 		assert.deepStrictEqual(testObject.getViewContainerLocation(viewContainer1), ViewContainerLocation.AuxiliaryBar);
@@ -653,7 +653,7 @@ suite('ViewDescriptorService', () => {
 		];
 		ViewsRegistry.registerViews(viewDescriptors, viewContainer);
 
-		testObject.onDidRegisterExtensions();
+		testObject.whenExtensionsRegistered();
 
 		const viewContainer1Views = testObject.getViewContainerModel(viewContainer);
 		assert.deepStrictEqual(viewContainer1Views.allViewDescriptors.map(v => v.id), ['view2']);

@@ -45,7 +45,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
@@ -219,6 +219,7 @@ suite('ExtensionRecommendationsService Test', () => {
 			onDidInstallExtensions: didInstallEvent.event,
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
+			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
@@ -389,16 +390,6 @@ suite('ExtensionRecommendationsService Test', () => {
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
-	});
-
-	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
-		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(TestExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				assert.ok(!prompted);
-			});
-		});
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {

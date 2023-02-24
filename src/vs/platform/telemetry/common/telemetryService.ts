@@ -207,7 +207,7 @@ ${deprecatedSettingNote}
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
+	'order': 1,
 	'type': 'object',
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
 	'properties': {

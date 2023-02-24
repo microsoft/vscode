@@ -68,13 +68,14 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private configure() {
 		const config = this.configurationService.getValue<IHTTPConfiguration | undefined>('http');
+
 		this.proxyUrl = config?.proxy;
 		this.strictSSL = !!config?.proxyStrictSSL;
 		this.authorization = config?.proxyAuthorization;
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request (node) - begin', options.url);
+		this.logService.trace(`RequestService#request (${options.isChromiumNetwork ? 'electron' : 'nodejs'}) - begin: ${options.type} ${options.url}`);
 
 		const { proxyUrl, strictSSL } = this;
 
@@ -84,7 +85,7 @@ export class RequestService extends Disposable implements IRequestService {
 		} catch (error) {
 			if (!this.shellEnvErrorLogged) {
 				this.shellEnvErrorLogged = true;
-				this.logService.error('RequestService#request (node) resolving shell environment failed', error);
+				this.logService.error(`RequestService#request (${options.isChromiumNetwork ? 'electron' : 'nodejs'}) - resolving shell environment failed: ${error}`);
 			}
 		}
 
@@ -105,13 +106,13 @@ export class RequestService extends Disposable implements IRequestService {
 		}
 
 		try {
-			const res = await this._request(options, token);
+			const result = await this.doRequest(options, token);
 
-			this.logService.trace('RequestService#request (node) - success', options.url);
+			this.logService.trace(`RequestService#request (${options.isChromiumNetwork ? 'electron' : 'nodejs'}) -   end: ${options.type} ${options.url} ${result.res.statusCode}`);
 
-			return res;
+			return result;
 		} catch (error) {
-			this.logService.trace('RequestService#request (node) - error', options.url, error);
+			this.logService.error(`RequestService#request (${options.isChromiumNetwork ? 'electron' : 'nodejs'}) - error: ${options.type} ${options.url} ${error}`);
 
 			throw error;
 		}
@@ -120,13 +121,12 @@ export class RequestService extends Disposable implements IRequestService {
 	private async getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
 		const endpoint = parseUrl(options.url!);
 		const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
+
 		return module.request;
 	}
 
-	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-
-		return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
-
+	private doRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 			const endpoint = parseUrl(options.url!);
 			const rawRequest = options.getRawRequest
 				? options.getRawRequest(options)
@@ -150,11 +150,11 @@ export class RequestService extends Disposable implements IRequestService {
 			const req = rawRequest(opts, (res: http.IncomingMessage) => {
 				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-					this._request({
+					this.doRequest({
 						...options,
 						url: res.headers['location'],
 						followRedirects: followRedirects - 1
-					}, token).then(c, e);
+					}, token).then(resolve, reject);
 				} else {
 					let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
@@ -167,11 +167,11 @@ export class RequestService extends Disposable implements IRequestService {
 						stream = res.pipe(createGunzip());
 					}
 
-					c({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
+					resolve({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
 				}
 			});
 
-			req.on('error', e);
+			req.on('error', reject);
 
 			if (options.timeout) {
 				req.setTimeout(options.timeout);
@@ -194,7 +194,8 @@ export class RequestService extends Disposable implements IRequestService {
 
 			token.onCancellationRequested(() => {
 				req.abort();
-				e(new CancellationError());
+
+				reject(new CancellationError());
 			});
 		});
 	}

@@ -189,7 +189,15 @@ export class NodeSocket implements ISocket {
 }
 
 const enum Constants {
-	MinHeaderByteSize = 2
+	MinHeaderByteSize = 2,
+	/**
+	 * If we need to write a large buffer, we will split it into 256KB chunks and
+	 * send each chunk as a websocket message. This is to prevent that the sending
+	 * side is stuck waiting for the entire buffer to be compressed before writing
+	 * to the underlying socket or that the receiving side is stuck waiting for the
+	 * entire message to be received before processing the bytes.
+	 */
+	MaxWebSocketMessageLength = 256 * 1024 // 256 KB
 }
 
 const enum ReadState {
@@ -272,7 +280,14 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		}));
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
-		this._register(this.socket.onClose((e) => this._onClose.fire(e)));
+		this._register(this.socket.onClose(async (e) => {
+			// Delay surfacing the close event until the async inflating is done
+			// and all data has been emitted
+			if (this._flowManager.isProcessingReadQueue()) {
+				await Event.toPromise(this._flowManager.onDidFinishProcessingReadQueue);
+			}
+			this._onClose.fire(e);
+		}));
 	}
 
 	public override dispose(): void {
@@ -300,7 +315,23 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	}
 
 	public write(buffer: VSBuffer): void {
-		this._flowManager.writeMessage(buffer);
+		// If we write many logical messages (let's say 1000 messages of 100KB) during a single process tick, we do
+		// this thing where we install a process.nextTick timer and group all of them together and we then issue a
+		// single WebSocketNodeSocket.write with a 100MB buffer.
+		//
+		// The first problem is that the actual writing to the underlying node socket will only happen after all of
+		// the 100MB have been deflated (due to waiting on zlib flush). The second problem is on the reading side,
+		// where we will get a single WebSocketNodeSocket.onData event fired when all the 100MB have arrived,
+		// delaying processing the 1000 received messages until all have arrived, instead of processing them as each
+		// one arrives.
+		//
+		// We therefore split the buffer into chunks, and issue a write for each chunk.
+
+		let start = 0;
+		while (start < buffer.byteLength) {
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)));
+			start += Constants.MaxWebSocketMessageLength;
+		}
 	}
 
 	private _write(buffer: VSBuffer, compressed: boolean): void {
@@ -465,6 +496,9 @@ class WebSocketFlowManager extends Disposable {
 	private readonly _writeQueue: VSBuffer[] = [];
 	private readonly _readQueue: { data: VSBuffer; isCompressed: boolean; isLastFrameOfMessage: boolean }[] = [];
 
+	private readonly _onDidFinishProcessingReadQueue = this._register(new Emitter<void>());
+	public readonly onDidFinishProcessingReadQueue = this._onDidFinishProcessingReadQueue.event;
+
 	private readonly _onDidFinishProcessingWriteQueue = this._register(new Emitter<void>());
 	public readonly onDidFinishProcessingWriteQueue = this._onDidFinishProcessingWriteQueue.event;
 
@@ -565,6 +599,11 @@ class WebSocketFlowManager extends Disposable {
 			}
 		}
 		this._isProcessingReadQueue = false;
+		this._onDidFinishProcessingReadQueue.fire();
+	}
+
+	public isProcessingReadQueue(): boolean {
+		return (this._isProcessingReadQueue);
 	}
 
 	/**
@@ -759,11 +798,20 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 	// Mac/Unix: use socket file and prefer
 	// XDG_RUNTIME_DIR over user data path
 	// unless portable
+	// Trim the version and type values for
+	// the socket to prevent too large
+	// file names causing issues:
+	// https://unix.stackexchange.com/questions/367008/why-is-socket-path-length-limited-to-a-hundred-chars
+
+	const versionForSocket = version.substr(0, 4);
+	const typeForSocket = type.substr(0, 6);
+	const scopeForSocket = scope.substr(0, 8);
+
 	let result: string;
 	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
+		result = join(XDG_RUNTIME_DIR, `vscode-${scopeForSocket}-${versionForSocket}-${typeForSocket}.sock`);
 	} else {
-		result = join(directoryPath, `${version}-${type}.sock`);
+		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}
 
 	// Validate length

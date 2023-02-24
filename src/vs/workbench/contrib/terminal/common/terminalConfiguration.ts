@@ -18,7 +18,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
-	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
@@ -106,6 +106,11 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
+		[TerminalSettingId.TabFocusMode]: {
+			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation."),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
 			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
@@ -188,6 +193,12 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 4.5,
 			tags: ['accessibility']
+		},
+		[TerminalSettingId.TabStopWidth]: {
+			markdownDescription: localize('terminal.integrated.tabStopWidth', "The number of cells in a tab stop."),
+			type: 'number',
+			minimum: 1,
+			default: 8
 		},
 		[TerminalSettingId.FastScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
@@ -448,8 +459,8 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['off', 'on', 'notRemote'],
 			enumDescriptions: [
 				localize('enableFileLinks.off', "Always off."),
-				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace."),
-				localize('enableFileLinks.on', "Always on.")
+				localize('enableFileLinks.on', "Always on."),
+				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace.")
 			],
 			default: 'on'
 		},
@@ -563,11 +574,17 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
+		[TerminalSettingId.ShellIntegrationSuggestEnabled]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
-		},
+		}
 	}
 };
 

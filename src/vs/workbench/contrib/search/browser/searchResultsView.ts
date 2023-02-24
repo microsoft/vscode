@@ -18,7 +18,7 @@ import { ISearchConfigurationProperties } from 'vs/workbench/services/search/com
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot } from 'vs/workbench/contrib/search/browser/searchModel';
 import { isEqual } from 'vs/base/common/resources';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -98,7 +98,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
 		const compressed = node.element;
 		const folder = compressed.elements[compressed.elements.length - 1];
-		folder.compressionStartParent = compressed.elements[0];
 		const label = compressed.elements.map(e => e.name());
 
 		if (folder.resource) {
@@ -134,7 +133,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
@@ -149,7 +148,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 
 	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
 		const folderMatch = node.element;
-		folderMatch.compressionStartParent = undefined;
 		if (folderMatch.resource) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource);
 			if (workspaceFolder && isEqual(workspaceFolder.uri, folderMatch.resource)) {
@@ -220,7 +218,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
@@ -299,7 +297,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 

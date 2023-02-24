@@ -34,7 +34,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -62,8 +61,9 @@ import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIn
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { defaultButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 
 const $ = DOM.$;
 
@@ -1607,17 +1607,18 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	renderTemplate(container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'enum');
 
-		const selectBox = new SelectBox([], 0, this._contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
-		});
-
-		common.toDispose.add(selectBox);
-		common.toDispose.add(attachSelectBoxStyler(selectBox, this._themeService, {
+		const styles = getSelectBoxStyles({
 			selectBackground: settingsSelectBackground,
 			selectForeground: settingsSelectForeground,
 			selectBorder: settingsSelectBorder,
 			selectListBorder: settingsSelectListBorder
-		}));
+		});
+
+		const selectBox = new SelectBox([], 0, this._contextViewService, styles, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
+
+		common.toDispose.add(selectBox);
 		selectBox.render(common.controlElement);
 		const selectElement = common.controlElement.querySelector('select');
 		if (selectElement) {
@@ -1757,7 +1758,8 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
 
 		template.onChange = undefined;
-		template.inputBox.value = dataElement.value;
+		template.inputBox.value = typeof dataElement.value === 'number' ?
+			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
@@ -2046,7 +2048,7 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, backticksGroup, quotesGroup) => {
+	return text.replace(/`#([^#\s`]+)#`|'#([^#\s']+)#'/g, (match, backticksGroup, quotesGroup) => {
 		const settingKey: string = backticksGroup ?? quotesGroup;
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
@@ -2249,7 +2251,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		renderers: ITreeRenderer<any, void, any>[],
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageService languageService: ILanguageService,
@@ -2271,18 +2272,18 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				renderIndentGuides: RenderIndentGuides.None
 			},
 			instantiationService,
 			contextKeyService,
 			listService,
-			themeService,
 			configurationService,
 		);
 
 		this.getHTMLElement().classList.add('settings-editor-tree');
 
-		this.disposables.add(attachStyler(themeService, {
+		this.style(getListStyles({
 			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
@@ -2297,9 +2298,9 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground,
 			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}, colors => {
-			this.style(colors);
+			listInactiveFocusOutline: editorBackground,
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined,
 		}));
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {

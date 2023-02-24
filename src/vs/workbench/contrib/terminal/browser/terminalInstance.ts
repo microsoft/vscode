@@ -11,21 +11,21 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { AutoOpenBarrier, Promises, timeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { isString, withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -48,7 +48,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMarkProperties, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, PosixShellType, ProcessPropertyType, ShellIntegrationStatus, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -56,11 +55,12 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
+import * as strings from 'vs/base/common/strings';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
@@ -74,12 +74,11 @@ import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/bro
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalQuickFixAddon, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
-import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { deserializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -87,10 +86,17 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import type { IMarker, ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 const enum Constants {
 	/**
@@ -116,6 +122,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
+		Terminal.strings.accessibleBuffer = nls.localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
@@ -165,7 +172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
 	private _aliases: string[][] | undefined;
-	private _shellType: TerminalShellType;
+	private _shellType: TerminalShellType | undefined;
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
@@ -176,8 +183,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _terminalShellIntegrationEnabledContextKey: IContextKey<boolean>;
-	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
-	private _navigationModeActiveContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _fixedCols: number | undefined;
@@ -195,7 +200,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = new TerminalWidgetManager();
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget; disposable: IDisposable } | undefined;
-	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 	private _dndObserver: IDisposable | undefined;
 	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
 	private _lastLayoutDimensions: dom.Dimension | undefined;
@@ -292,9 +296,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
-	get shellType(): TerminalShellType { return this._shellType; }
+	get shellType(): TerminalShellType | undefined { return this._shellType; }
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
-	get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return this._wrapperElement.contains(document.activeElement) ?? false; }
@@ -369,6 +372,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
+		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
@@ -451,8 +455,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(scopedContextKeyService);
 		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(scopedContextKeyService);
 		this._terminalHasTextContextKey = TerminalContextKeys.textSelected.bindTo(scopedContextKeyService);
-		this._terminalA11yTreeFocusContextKey = TerminalContextKeys.a11yTreeFocus.bindTo(scopedContextKeyService);
-		this._navigationModeActiveContextKey = TerminalContextKeys.navigationModeActive.bindTo(scopedContextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
@@ -471,7 +473,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			return findWidget;
 		});
-
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
@@ -585,6 +586,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel()));
+		this._register(this.onDidBlur(() => this.xterm?.suggestController?.hideSuggestWidget()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -621,9 +623,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	registerQuickFixProvider(...options: ITerminalQuickFixOptions[]): void {
+	private _registerQuickFixProvider(quickFixAddon: ITerminalQuickFixAddon, ...options: ITerminalQuickFixOptions[]): void {
 		for (const actionOption of options) {
-			this.quickFix?.registerCommandFinishedListener(actionOption);
+			quickFixAddon.registerCommandFinishedListener(actionOption);
 		}
 	}
 
@@ -734,11 +736,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.disableShellIntegrationReporting);
+		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this._terminalSuggestWidgetVisibleContextKey, this.disableShellIntegrationReporting);
 		this.xterm = xterm;
 		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
 		this.xterm?.raw.loadAddon(this._quickFixAddon);
-		this.registerQuickFixProvider(gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr());
+		this._registerQuickFixProvider(this._quickFixAddon, gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr(), pwshUnixCommandNotFoundError(), pwshGeneralError());
 		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		this.updateAccessibilitySupport();
 		this.xterm.onDidRequestRunCommand(e => {
@@ -748,6 +750,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.sendText(e.command.command, e.noNewLine ? false : true);
 			}
 		});
+		this.xterm.onDidRequestFocus(() => this.focus());
+		this.xterm.onDidRequestSendText(e => this.sendText(e, false));
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		const initialTextWrittenPromise = this._shellLaunchConfig.initialText ? new Promise<void>(r => this._writeInitialText(xterm, r)) : undefined;
@@ -909,8 +913,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
-		if (this.findWidget.hasValue()) {
-			this._container.appendChild(this.findWidget.getValue().getDomNode());
+		if (this.findWidget.hasValue) {
+			this._container.appendChild(this.findWidget.value.getDomNode());
 		}
 		setTimeout(() => this._initDragAndDrop(container));
 	}
@@ -933,8 +937,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(xtermElement);
 
 		this._container.appendChild(this._wrapperElement);
-		if (this.findWidget.hasValue()) {
-			this._container.appendChild(this.findWidget.getValue().getDomNode());
+		if (this.findWidget.hasValue) {
+			this._container.appendChild(this.findWidget.value.getDomNode());
 		}
 
 		const xterm = this.xterm;
@@ -944,7 +948,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
-		this._register(xterm.onDidChangeFindResults(() => this.findWidget.getValue().updateResultCount()));
+		this._register(xterm.onDidChangeFindResults(() => this.findWidget.value.updateResultCount()));
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
 				this._setShellIntegrationContextKey();
@@ -1020,7 +1024,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
 				return false;
 			}
 
@@ -1120,6 +1124,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
+	showAccessibilityHelp(): void {
+		if (!this.xterm?.raw.buffer || !this._container) {
+			return;
+		}
+		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this).attach(this._wrapperElement);
+	}
+
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 		if (this.hasSelection() || (asHtml && command)) {
@@ -1193,8 +1204,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			detail += `\n…`;
 		}
 
-		const confirmation = await this._dialogService.confirm({
-			type: 'question',
+		const { confirmed, checkboxChecked } = await this._dialogService.confirm({
 			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste {0} lines of text into the terminal?", textForLines.length),
 			detail,
 			primaryButton: nls.localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
@@ -1203,11 +1213,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 
-		if (confirmation.confirmed && confirmation.checkboxChecked) {
+		if (confirmed && checkboxChecked) {
 			await this._configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
 		}
 
-		return confirmation.confirmed;
+		return confirmed;
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
@@ -1334,6 +1344,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Send it to the process
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
+		this.xterm?.suggestController?.handleNonXtermData(text);
 		this.xterm?.scrollToBottom();
 	}
 
@@ -1341,7 +1352,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.sendText(await this.preparePathForShell(originalPath), addNewLine);
 	}
 
-	preparePathForShell(originalPath: string | URI): Promise<string> {
+	async preparePathForShell(originalPath: string | URI): Promise<string> {
+		// Wait for shell type to be ready
+		await this.processReady;
 		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
@@ -1517,7 +1530,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
+		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
@@ -1765,7 +1778,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
-		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset).then(error => {
+		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
@@ -1843,15 +1856,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	updateAccessibilitySupport(): void {
-		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
-		if (isEnabled && this.xterm?.raw) {
-			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey, this._navigationModeActiveContextKey);
-			this.xterm!.raw.loadAddon(this._navigationModeAddon);
-		} else {
-			this._navigationModeAddon?.dispose();
-			this._navigationModeAddon = undefined;
-		}
-		this.xterm!.raw.options.screenReaderMode = isEnabled;
+		this.xterm!.raw.options.screenReaderMode = this._accessibilityService.isScreenReaderOptimized();
 	}
 
 	private _setCommandsToSkipShell(commands: string[]): void {
@@ -1944,7 +1949,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	setShellType(shellType: TerminalShellType) {
+	setShellType(shellType: TerminalShellType | undefined) {
 		this._shellType = shellType;
 		if (shellType) {
 			this._terminalShellTypeContextKey.set(shellType?.toString());
@@ -1952,19 +1957,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
+		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
-			let label: string;
 			if (title && title.length > 0) {
-				label = nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title);
+				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
 			} else {
-				label = nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId);
+				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
 			}
-			const navigateUpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusPrevious)?.getLabel();
-			const navigateDownKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.NavigationModeFocusNext)?.getLabel();
-			if (navigateUpKeybinding && navigateDownKeybinding) {
-				label += `\n${nls.localize('terminalNavigationMode', "Use {0} and {1} to navigate the terminal buffer", navigateUpKeybinding, navigateDownKeybinding)}`;
+			const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (!screenReaderOptimized) {
+				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
 			}
-			xterm.textarea.setAttribute('aria-label', label);
+			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ShowTerminalAccessibilityHelp)?.getLabel();
+			if (accessibilityHelpKeybinding) {
+				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
+			}
+			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
 		}
 	}
 
@@ -2272,7 +2280,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async changeIcon() {
 		type Item = IQuickPickItem & { icon: TerminalIcon };
 		const items: Item[] = [];
-		for (const icon of Codicon.getAll()) {
+		for (const icon of getAllCodicons()) {
 			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
 		}
 		const result = await this._quickInputService.pick(items, {
@@ -2322,6 +2330,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		quickPick.hide();
 		document.body.removeChild(styleElement);
+	}
+
+	selectPreviousSuggestion(): void {
+		this.xterm?.suggestController?.selectPreviousSuggestion();
+	}
+
+	selectPreviousPageSuggestion(): void {
+		this.xterm?.suggestController?.selectPreviousPageSuggestion();
+	}
+
+	selectNextSuggestion(): void {
+		this.xterm?.suggestController?.selectNextSuggestion();
+	}
+
+	selectNextPageSuggestion(): void {
+		this.xterm?.suggestController?.selectNextPageSuggestion();
+	}
+
+	async acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): Promise<void> {
+		this.xterm?.suggestController?.acceptSelectedSuggestion(suggestion);
+	}
+
+	hideSuggestWidget(): void {
+		this.xterm?.suggestController?.hideSuggestWidget();
 	}
 }
 
@@ -2529,7 +2561,10 @@ export class TerminalLabelComputer extends Disposable {
 
 		// Only set cwdFolder if detection is on
 		if (templateProperties.cwd && detection && (!this._instance.shellLaunchConfig.isFeatureTerminal || labelType === TerminalLabelType.Title)) {
-			const cwdUri = URI.from({ scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file, path: this._instance.cwd });
+			const cwdUri = URI.from({
+				scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file,
+				path: this._instance.cwd ? path.resolve(this._instance.cwd) : undefined
+			});
 			// Multi-root workspaces always show cwdFolder to disambiguate them, otherwise only show
 			// when it differs from the workspace folder in which it was launched from
 			let showCwd = false;
@@ -2622,76 +2657,113 @@ export function parseExitResult(
 	return { code, message };
 }
 
-/**
- * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
- * included trying to prepare the path for WSL if needed.
- *
- * @param originalPath The path to be escaped and formatted.
- * @param executable The executable off the shellLaunchConfig.
- * @param title The terminal's title.
- * @param shellType The type of shell the path is being sent to.
- * @param backend The backend for the terminal.
- * @returns An escaped version of the path to be execuded in the terminal.
- */
-async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType, backend: ITerminalBackend | undefined, os: OperatingSystem | undefined): Promise<string> {
-	let originalPath: string;
-	if (isString(resource)) {
-		originalPath = resource;
-	} else {
-		originalPath = resource.fsPath;
-		// Apply backend OS-specific formatting to the path since URI.fsPath uses the frontend's OS
-		if (isWindows && os !== OperatingSystem.Windows) {
-			originalPath = originalPath.replace(/\\/g, '\/');
-		} else if (!isWindows && os === OperatingSystem.Windows) {
-			originalPath = originalPath.replace(/\//g, '\\');
-		}
-	}
+const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
+const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
+const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
+const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
+const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
+const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
+const goToRecentNoShellIntegration = nls.localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command ({0}) enables screen readers to easily navigate to a directory that has been used in the terminal.');
+const goToRecentNoKbNoShellIntegration = nls.localize('goToRecentDirectoryNoKbNoShellIntegration', 'The Go to Recent Directory command enables screen readers to easily navigate to a directory that has been used in the terminal and is currently not triggerable by a keybinding.');
+const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
+const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
+const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
+const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
+const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
+const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
+const newWithProfile = nls.localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.');
+const newWithProfileNoKb = nls.localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.');
+const accessibilitySettings = nls.localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.');
 
-	if (!executable) {
-		return originalPath;
-	}
+class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
+	readonly id = 'help';
+	private _container: HTMLElement | undefined;
+	private _domNode: FastDomNode<HTMLElement>;
+	private _contentDomNode: FastDomNode<HTMLElement>;
+	private readonly _hasShellIntegration: boolean;
+	private readonly _markdownRenderer: MarkdownRenderer;
 
-	const hasSpace = originalPath.includes(' ');
-	const hasParens = originalPath.includes('(') || originalPath.includes(')');
-
-	const pathBasename = path.basename(executable, '.exe');
-	const isPowerShell = pathBasename === 'pwsh' ||
-		title === 'pwsh' ||
-		pathBasename === 'powershell' ||
-		title === 'powershell';
-
-
-	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
-		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
-	}
-
-	if (hasParens && isPowerShell) {
-		return `& '${originalPath}'`;
-	}
-
-	if (os === OperatingSystem.Windows) {
-		// 17063 is the build number where wsl path was introduced.
-		// Update Windows uriPath to be executed in WSL.
-		if (shellType !== undefined) {
-			if (shellType === WindowsShellType.GitBash) {
-				return originalPath.replace(/\\/g, '/');
+	constructor(
+		instance: ITerminalInstance,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService private readonly _openerService: IOpenerService
+	) {
+		super();
+		this._hasShellIntegration = instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
+		this._domNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode.setClassName('terminal-accessibility-help');
+		this._contentDomNode.setAttribute('role', 'document');
+		this._domNode.setDisplay('none');
+		this._domNode.setAttribute('role', 'dialog');
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.appendChild(this._contentDomNode);
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
+			if (e.keyCode === KeyCode.Escape) {
+				this.hide();
+				instance.focus();
 			}
-			else if (shellType === WindowsShellType.Wsl) {
-				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-			}
-			else if (hasSpace) {
-				return `"${originalPath}"`;
-			}
-			return originalPath;
-		}
-		const lowerExecutable = executable.toLowerCase();
-		if (lowerExecutable.includes('wsl') || (lowerExecutable.includes('bash.exe') && !lowerExecutable.toLowerCase().includes('git'))) {
-			return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
-		} else if (hasSpace) {
-			return `"${originalPath}"`;
-		}
-		return originalPath;
+		}));
+		this._register(instance.onDidFocus(() => this.hide()));
+		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
 	}
 
-	return escapeNonWindowsPath(originalPath);
+	public hide(): void {
+		if (!this._container) {
+			return;
+		}
+		this._domNode.setDisplay('none');
+		this._contentDomNode.setDisplay('none');
+		this._domNode.setAttribute('aria-hidden', 'true');
+	}
+
+	attach(container: HTMLElement): void {
+		this._container = container;
+		this._domNode.setDisplay('block');
+		this._domNode.setAttribute('aria-hidden', 'false');
+		this._contentDomNode.domNode.tabIndex = 0;
+		this._buildContent();
+		container.appendChild(this._contentDomNode.domNode);
+		this._contentDomNode.domNode.focus();
+	}
+
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+		const kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return strings.format(msg, kb.getAriaLabel());
+		}
+		return strings.format(noKbMsg, commandId);
+	}
+
+	private _buildContent(): void {
+		const content = [];
+		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
+		if (this._hasShellIntegration) {
+			content.push(shellIntegration);
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+		} else {
+			content.push(this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecentNoShellIntegration, goToRecentNoKbNoShellIntegration));
+		}
+		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, newWithProfile, newWithProfileNoKb));
+		content.push(accessibilitySettings);
+		content.push(readMoreLink, dismiss);
+		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
+		const anchorElements = element.querySelectorAll('a');
+		for (const a of anchorElements) {
+			a.tabIndex = 0;
+		}
+		this._contentDomNode.domNode.appendChild(element);
+		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
+	}
+}
+function renderElementAsMarkdown(markdownRenderer: MarkdownRenderer, openerSerivce: IOpenerService, text: string, disposables: DisposableStore): HTMLElement {
+	const result = markdownRenderer.render({ value: text, isTrusted: true }, {
+		actionHandler: {
+			callback: (content: string) => openerSerivce.open(content),
+			disposables
+		}
+	});
+	return result.element;
 }

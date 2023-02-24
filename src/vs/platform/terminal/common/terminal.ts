@@ -9,10 +9,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
-
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -62,6 +60,7 @@ export const enum TerminalSettingId {
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
 	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
+	TabStopWidth = 'terminal.integrated.tabStopWidth',
 	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
 	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
 	BellDuration = 'terminal.integrated.bellDuration',
@@ -85,6 +84,7 @@ export const enum TerminalSettingId {
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
+	TabFocusMode = 'terminal.integrated.tabFocusMode',
 	EnvMacOs = 'terminal.integrated.env.osx',
 	EnvLinux = 'terminal.integrated.env.linux',
 	EnvWindows = 'terminal.integrated.env.windows',
@@ -112,6 +112,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
+	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
@@ -134,7 +135,7 @@ export const enum WindowsShellType {
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -208,7 +209,7 @@ export enum TerminalIpcChannels {
 	/**
 	 * Deals with logging from the pty host process.
 	 */
-	Log = 'log',
+	Logger = 'logger',
 	/**
 	 * Enables the detection of unresponsive pty hosts.
 	 */
@@ -596,6 +597,7 @@ export interface IShellLaunchConfigDto {
 export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
+		suggestEnabled: boolean;
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
@@ -756,12 +758,16 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	/**
-	 * Whether the terminal profile contains a potentially unsafe path. For example, the path
-	 *  `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
+	 * Whether the terminal profile contains a potentially unsafe {@link path}. For example, the path
+	 * `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
 	 * user in a multi-user environment. As such, we don't want to blindly present it as a profile
 	 * without a warning.
 	 */
 	isUnsafePath?: boolean;
+	/**
+	 * An additional unsafe path that must exist, for example a script that appears in {@link args}.
+	 */
+	requiresUnsafePath?: string;
 	isAutoDetected?: boolean;
 	/**
 	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
@@ -794,6 +800,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
+	requiresPath?: string | ITerminalUnsafePath;
 }
 
 type OneOrN<T> = T | T[];
@@ -835,7 +842,6 @@ export interface IShellIntegration {
 
 export interface ITerminalContributions {
 	profiles?: ITerminalProfileContribution[];
-	quickFixes?: ITerminalCommandSelector[];
 }
 
 export const enum ShellIntegrationStatus {

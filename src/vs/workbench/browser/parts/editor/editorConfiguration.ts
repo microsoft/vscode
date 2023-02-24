@@ -14,8 +14,8 @@ import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ByteSize, getLargeFileConfirmationLimit } from 'vs/platform/files/common/files';
 
 export class DynamicEditorConfigurations extends Disposable implements IWorkbenchContribution {
 
@@ -137,7 +137,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			properties: {
 				'workbench.editorAssociations': {
 					type: 'object',
-					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
 					patternProperties: {
 						'.*': {
 							type: 'string',
@@ -155,10 +155,10 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			properties: {
 				'workbench.editorLargeFileConfirmation': {
 					type: 'number',
-					default: isWeb ? 10 : this.environmentService.remoteAuthority ? 50 : 1024,
+					default: getLargeFileConfirmationLimit(this.environmentService.remoteAuthority) / ByteSize.MB,
 					minimum: 1,
 					scope: ConfigurationScope.RESOURCE,
-					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor."),
+					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor. Note that this setting may not apply to all editor types and environments."),
 				}
 			}
 		};

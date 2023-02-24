@@ -7,7 +7,6 @@ import { workbenchInstantiationService as browserWorkbenchInstantiationService, 
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -36,7 +35,7 @@ import { TestContextService, TestProductService } from 'vs/workbench/test/common
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
+import { INativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -75,6 +74,7 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
 	logLevel: LogLevel.Error,
+	loggers: { global: [], window: [] },
 	mainPid: 0,
 	appRoot: '',
 	userEnv: {},
@@ -86,7 +86,8 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	homeDir: homeDir,
 	tmpDir: tmpdir(),
 	userDataDir: getUserDataPath(args, product.nameShort),
-	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE] },
+	profiles: { profile: NULL_PROFILE, all: [NULL_PROFILE], home: URI.file(homeDir) },
+	preferUtilityProcess: false,
 	...args
 };
 

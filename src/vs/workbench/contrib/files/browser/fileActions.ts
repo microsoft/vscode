@@ -42,6 +42,7 @@ import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCo
 import { timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { trim, rtrim } from 'vs/base/common/strings';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -120,8 +121,8 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		}
 
 		const response = await dialogService.confirm({
-			message,
 			type: 'warning',
+			message,
 			detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
 			primaryButton
 		});
@@ -164,8 +165,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			primaryButton,
 			checkbox: {
 				label: nls.localize('doNotAskAgain', "Do not ask me again")
-			},
-			type: 'question'
+			}
 		});
 	}
 
@@ -175,10 +175,10 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		detail += detail ? '\n' : '';
 		detail += deleteDetail;
 		confirmation = await dialogService.confirm({
+			type: 'warning',
 			message,
 			detail,
-			primaryButton,
-			type: 'warning'
+			primaryButton
 		});
 	}
 
@@ -216,9 +216,9 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		}
 
 		const res = await dialogService.confirm({
+			type: 'warning',
 			message: errorMessage,
 			detail: detailMessage,
-			type: 'warning',
 			primaryButton
 		});
 
@@ -467,8 +467,12 @@ async function askForOverwrite(fileService: IFileService, dialogService: IDialog
 		return true;
 	}
 	// Ask for overwrite confirmation
-	const result = await dialogService.show(Severity.Warning, nls.localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", basename(targetResource.path)), [nls.localize('replaceButtonLabel', "Replace"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
-	return result.choice === 0;
+	const { confirmed } = await dialogService.confirm({
+		type: Severity.Warning,
+		message: nls.localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", basename(targetResource.path)),
+		primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
+	});
+	return confirmed;
 }
 
 // Global Compare with
@@ -578,7 +582,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	override get class(): string {
-		return 'explorer-action ' + Codicon.saveAll.classNames;
+		return 'explorer-action ' + ThemeIcon.asClassName(Codicon.saveAll);
 	}
 
 	protected doRun(context: unknown): Promise<void> {
@@ -592,7 +596,7 @@ export class CloseGroupAction extends Action {
 	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, Codicon.closeAll.classNames);
+		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
 	}
 
 	override run(context?: unknown): Promise<void> {
@@ -672,7 +676,7 @@ export class ShowOpenedFileInNewWindow extends Action2 {
 			if (fileService.hasProvider(fileResource)) {
 				hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
-				dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
+				dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 			}
 		}
 	}

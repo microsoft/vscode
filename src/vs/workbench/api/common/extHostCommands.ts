@@ -27,7 +27,8 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { TrustedTelemetryValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 interface CommandHandler {
 	callback: Function;
@@ -51,16 +52,19 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
+	readonly #extHostTelemetry: IExtHostTelemetry;
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	readonly converter: CommandsConverter;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IExtHostTelemetry extHostTelemetry: IExtHostTelemetry
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
+		this.#extHostTelemetry = extHostTelemetry;
 		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
@@ -255,6 +259,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				throw err;
 			}
 
+			if (command.extension?.identifier) {
+				const reported = this.#extHostTelemetry.onExtensionError(command.extension.identifier, err);
+				this._logService.trace('forwarded error to extension?', reported, command.extension?.identifier);
+			}
+
 			throw new class CommandError extends Error {
 				readonly id = id;
 				readonly source = command!.extension?.displayName ?? command!.extension?.name;
@@ -274,7 +283,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
-			id: TrustedTelemetryValue<string>;
+			id: TelemetryTrustedValue<string>;
 			duration: number;
 		};
 		type ExtensionActionTelemetryMeta = {
@@ -286,7 +295,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
-			id: new TrustedTelemetryValue(id),
+			id: new TelemetryTrustedValue(id),
 			duration: duration,
 		});
 	}

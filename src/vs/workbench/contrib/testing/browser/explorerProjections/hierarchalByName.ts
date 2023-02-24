@@ -17,7 +17,7 @@ import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes'
 /**
  * Type of test element in the list.
  */
-export const enum ListElementType {
+const enum ListElementType {
 	/** The element is a leaf test that should be shown in the list */
 	Leaf,
 	/** The element is not runnable, but doesn't have any nested leaf tests */

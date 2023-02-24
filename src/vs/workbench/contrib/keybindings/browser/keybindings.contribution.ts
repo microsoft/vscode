@@ -8,7 +8,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
+import { rendererLogId } from 'vs/workbench/common/logConstants';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 
 class ToggleKeybindingsLogAction extends Action2 {
@@ -26,7 +26,7 @@ class ToggleKeybindingsLogAction extends Action2 {
 		const logging = accessor.get(IKeybindingService).toggleLogging();
 		if (logging) {
 			const outputService = accessor.get(IOutputService);
-			outputService.showChannel(rendererLogChannelId);
+			outputService.showChannel(rendererLogId);
 		}
 	}
 }
