@@ -112,11 +112,11 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { NativeStorageService } from 'vs/platform/storage/common/storageService';
 
 /* eslint-disable local/code-layering, local/code-import-patterns */
 // TODO@bpasero layer is not allowed in utility process
 import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 
 // TODO@bpasero remove these once utility process is the only way
 import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';

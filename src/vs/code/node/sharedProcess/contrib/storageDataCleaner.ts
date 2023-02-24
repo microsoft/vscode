@@ -14,9 +14,6 @@ import { StorageClient } from 'vs/platform/storage/common/storageIpc';
 import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
 import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
 import { INativeHostService } from 'vs/platform/native/common/native';
-
-/* eslint-disable local/code-layering, local/code-import-patterns */
-// TODO@bpasero layer is not allowed in utility process//
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
