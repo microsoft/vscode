@@ -106,10 +106,10 @@ import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
 import { RemoteTunnelService } from 'vs/platform/remoteTunnel/node/remoteTunnelService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 
 /* eslint-disable local/code-layering, local/code-import-patterns */
 // TODO@bpasero layer is not allowed in utility process
-import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
@@ -119,8 +119,10 @@ import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/stora
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+
+// TODO@bpasero remove these once utility process is the only way
+import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
-import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
 
 class SharedProcessMain extends Disposable {
 
@@ -289,7 +291,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
-		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
+		services.set(IRequestService, new RequestChannelClient(mainProcessService.getChannel('request')));
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
