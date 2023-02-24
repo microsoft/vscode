@@ -18,9 +18,11 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
+const _amdLoaderGlobal = this;
+const _commonjsGlobal = typeof global === 'object' ? global : {};
 var AMDLoader;
 (function (AMDLoader) {
-    AMDLoader.global = globalThis;
+    AMDLoader.global = _amdLoaderGlobal;
     class Environment {
         get isWindows() {
             this._detect();
@@ -58,7 +60,7 @@ var AMDLoader;
             this._isWindows = Environment._isWindows();
             this._isNode = (typeof module !== 'undefined' && !!module.exports);
             this._isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
-            this._isWebWorker = (typeof globalThis.importScripts === 'function');
+            this._isWebWorker = (typeof AMDLoader.global.importScripts === 'function');
             this._isElectronNodeIntegrationWebWorker = this._isWebWorker && (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'worker');
         }
         static _isWindows() {
@@ -202,9 +204,9 @@ var AMDLoader;
         static getHighPerformanceTimestamp() {
             if (!this.PERFORMANCE_NOW_PROBED) {
                 this.PERFORMANCE_NOW_PROBED = true;
-                this.HAS_PERFORMANCE_NOW = (globalThis.performance && typeof globalThis.performance.now === 'function');
+                this.HAS_PERFORMANCE_NOW = (AMDLoader.global.performance && typeof AMDLoader.global.performance.now === 'function');
             }
-            return (this.HAS_PERFORMANCE_NOW ? globalThis.performance.now() : Date.now());
+            return (this.HAS_PERFORMANCE_NOW ? AMDLoader.global.performance.now() : Date.now());
         }
     }
     Utilities.NEXT_ANONYMOUS_ID = 1;
@@ -617,7 +619,7 @@ var AMDLoader;
         load(moduleManager, scriptSrc, callback, errorback) {
             if (/^node\|/.test(scriptSrc)) {
                 let opts = moduleManager.getConfig().getOptionsLiteral();
-                let nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || globalThis.nodeRequire));
+                let nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
                 let pieces = scriptSrc.split('|');
                 let moduleExports = null;
                 try {
@@ -653,9 +655,9 @@ var AMDLoader;
         const { trustedTypesPolicy } = moduleManager.getConfig().getOptionsLiteral();
         try {
             const func = (trustedTypesPolicy
-                ? globalThis.eval(trustedTypesPolicy.createScript('', 'true'))
+                ? self.eval(trustedTypesPolicy.createScript('', 'true'))
                 : new Function('true'));
-            func.call(globalThis);
+            func.call(self);
             return true;
         }
         catch (err) {
@@ -675,7 +677,7 @@ var AMDLoader;
         load(moduleManager, scriptSrc, callback, errorback) {
             if (/^node\|/.test(scriptSrc)) {
                 const opts = moduleManager.getConfig().getOptionsLiteral();
-                const nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || globalThis.nodeRequire));
+                const nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
                 const pieces = scriptSrc.split('|');
                 let moduleExports = null;
                 try {
@@ -690,7 +692,7 @@ var AMDLoader;
             }
             else {
                 const { trustedTypesPolicy } = moduleManager.getConfig().getOptionsLiteral();
-                const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
+                const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
                 if (!isCrossOrigin && this._canUseEval(moduleManager)) {
                     // use `fetch` if possible because `importScripts`
                     // is synchronous and can lead to deadlocks on Safari
@@ -702,9 +704,9 @@ var AMDLoader;
                     }).then((text) => {
                         text = `${text}\n//# sourceURL=${scriptSrc}`;
                         const func = (trustedTypesPolicy
-                            ? globalThis.eval(trustedTypesPolicy.createScript('', text))
+                            ? self.eval(trustedTypesPolicy.createScript('', text))
                             : new Function(text));
-                        func.call(globalThis);
+                        func.call(self);
                         callback();
                     }).then(undefined, errorback);
                     return;
@@ -797,7 +799,7 @@ var AMDLoader;
                 // run script
                 const dirname = that._path.dirname(filename);
                 const require = makeRequireFunction(this);
-                const args = [this.exports, require, this, filename, dirname, process, globalThis, Buffer];
+                const args = [this.exports, require, this, filename, dirname, process, _commonjsGlobal, Buffer];
                 const result = compileWrapper.apply(this.exports, args);
                 // cached data aftermath
                 that._handleCachedData(script, scriptSource, cachedDataPath, !options.cachedData, moduleManager);
@@ -807,7 +809,7 @@ var AMDLoader;
         }
         load(moduleManager, scriptSrc, callback, errorback) {
             const opts = moduleManager.getConfig().getOptionsLiteral();
-            const nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || globalThis.nodeRequire));
+            const nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
             const nodeInstrumenter = (opts.nodeInstrumenter || function (c) { return c; });
             this._init(nodeRequire);
             this._initNodeRequire(nodeRequire, moduleManager);
@@ -863,7 +865,7 @@ var AMDLoader;
                 return globalDefineFunc.apply(null, arguments);
             };
             localDefineFunc.amd = globalDefineFunc.amd;
-            ret.call(globalThis, moduleManager.getGlobalAMDRequireFunc(), localDefineFunc, options.filename, this._path.dirname(options.filename));
+            ret.call(AMDLoader.global, moduleManager.getGlobalAMDRequireFunc(), localDefineFunc, options.filename, this._path.dirname(options.filename));
             recorder.record(32 /* LoaderEventType.NodeEndEvaluatingScript */, options.filename);
             if (receivedDefineCall) {
                 callback();
@@ -1106,7 +1108,7 @@ var AMDLoader;
         static _safeInvokeFunction(callback, args) {
             try {
                 return {
-                    returnedValue: callback.apply(globalThis, args),
+                    returnedValue: callback.apply(AMDLoader.global, args),
                     producedError: null
                 };
             }
@@ -1128,7 +1130,7 @@ var AMDLoader;
                 return this._safeInvokeFunction(callback, dependenciesValues);
             }
             return {
-                returnedValue: callback.apply(globalThis, dependenciesValues),
+                returnedValue: callback.apply(AMDLoader.global, dependenciesValues),
                 producedError: null
             };
         }
@@ -1580,7 +1582,7 @@ var AMDLoader;
             result.config = (params, shouldOverwrite = false) => {
                 this.configure(params, shouldOverwrite);
             };
-            result.__$__nodeRequire = globalThis.nodeRequire;
+            result.__$__nodeRequire = AMDLoader.global.nodeRequire;
             return result;
         }
         _loadModule(moduleId) {
@@ -1847,12 +1849,12 @@ var AMDLoader;
     };
     RequireFunc.define = DefineFunc;
     function init() {
-        if (typeof globalThis.require !== 'undefined' || typeof require !== 'undefined') {
-            const _nodeRequire = (globalThis.require || require);
+        if (typeof AMDLoader.global.require !== 'undefined' || typeof require !== 'undefined') {
+            const _nodeRequire = (AMDLoader.global.require || require);
             if (typeof _nodeRequire === 'function' && typeof _nodeRequire.resolve === 'function') {
                 // re-expose node's require function
                 const nodeRequire = AMDLoader.ensureRecordedNodeRequire(moduleManager.getRecorder(), _nodeRequire);
-                globalThis.nodeRequire = nodeRequire;
+                AMDLoader.global.nodeRequire = nodeRequire;
                 RequireFunc.nodeRequire = nodeRequire;
                 RequireFunc.__$__nodeRequire = nodeRequire;
             }
@@ -1862,17 +1864,17 @@ var AMDLoader;
         }
         else {
             if (!env.isElectronRenderer) {
-                globalThis.define = DefineFunc;
+                AMDLoader.global.define = DefineFunc;
             }
-            globalThis.require = RequireFunc;
+            AMDLoader.global.require = RequireFunc;
         }
     }
     AMDLoader.init = init;
-    if (typeof globalThis.define !== 'function' || !globalThis.define.amd) {
+    if (typeof AMDLoader.global.define !== 'function' || !AMDLoader.global.define.amd) {
         moduleManager = new AMDLoader.ModuleManager(env, AMDLoader.createScriptLoader(env), DefineFunc, RequireFunc, AMDLoader.Utilities.getHighPerformanceTimestamp());
         // The global variable require can configure the loader
-        if (typeof globalThis.require !== 'undefined' && typeof globalThis.require !== 'function') {
-            RequireFunc.config(globalThis.require);
+        if (typeof AMDLoader.global.require !== 'undefined' && typeof AMDLoader.global.require !== 'function') {
+            RequireFunc.config(AMDLoader.global.require);
         }
         // This define is for the local closure defined in node in the case that the loader is concatenated
         define = function () {
