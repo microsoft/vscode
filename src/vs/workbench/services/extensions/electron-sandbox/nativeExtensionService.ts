@@ -27,7 +27,7 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { getRemoteName, parseAuthorityWithPort } from 'vs/platform/remote/common/remoteHosts';

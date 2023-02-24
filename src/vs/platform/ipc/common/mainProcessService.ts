@@ -3,19 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IChannel, IPCServer, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
+
+export interface IMainProcessService {
+	readonly _serviceBrand: undefined;
+	getChannel(channelName: string): IChannel;
+	registerChannel(channelName: string, channel: IServerChannel<string>): void;
+}
 
 /**
- * An implementation of `IMainProcessService` that leverages MessagePorts.
+ * An implementation of `IMainProcessService` that leverages `IPCServer`.
  */
-export class MessagePortMainProcessService implements IMainProcessService {
+export class MainProcessService implements IMainProcessService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private server: MessagePortServer,
+		private server: IPCServer,
 		private router: StaticRouter
 	) { }
 

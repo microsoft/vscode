@@ -9,7 +9,7 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import product from 'vs/platform/product/common/product';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IProductService } from 'vs/platform/product/common/productService';
 
