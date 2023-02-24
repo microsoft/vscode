@@ -420,10 +420,8 @@ export class SearchWidget extends Widget {
 			toggleStyles: options.toggleStyles
 		}, this.contextKeyService, true));
 
-		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {
-			if (!viaKeyboard) {
-				this._onPreserveCaseChange.fire(this.replaceInput.getPreserveCase());
-			}
+		this._register(this.replaceInput.onDidOptionChange(() => {
+			this._onPreserveCaseChange.fire(this.replaceInput.getPreserveCase());
 		}));
 
 		this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));

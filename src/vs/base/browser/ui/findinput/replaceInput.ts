@@ -242,6 +242,7 @@ export class ReplaceInput extends Widget {
 
 	public setPreserveCase(value: boolean): void {
 		this.preserveCase.checked = value;
+		this._onDidOptionChange.fire(true);
 	}
 
 	public focusOnPreserve(): void {
