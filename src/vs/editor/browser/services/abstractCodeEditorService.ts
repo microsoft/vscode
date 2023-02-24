@@ -239,8 +239,11 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			this._transientWatchers[uri] = w;
 		}
 
-		w.set(key, value);
-		this._onDidChangeTransientModelProperty.fire(model);
+		const previousValue = w.get(key);
+		if (previousValue !== value) {
+			w.set(key, value);
+			this._onDidChangeTransientModelProperty.fire(model);
+		}
 	}
 
 	public getTransientModelProperty(model: ITextModel, key: string): any {
