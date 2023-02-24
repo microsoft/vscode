@@ -364,6 +364,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
+
+		this._languageService.requestRichLanguageFeatures(languageId);
 	}
 
 	public override dispose(): void {
@@ -1907,6 +1909,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public setMode(languageId: string, source?: string): void {
 		this.tokenization.setLanguageId(languageId, source);
+		this._languageService.requestRichLanguageFeatures(languageId);
 	}
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {

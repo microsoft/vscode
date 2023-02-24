@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
@@ -39,9 +38,6 @@ import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	public _serviceBrand: undefined;
-
-	private readonly _onDidEncounterLanguage: Emitter<string> = this._register(new Emitter<string>());
-	public readonly onDidEncounterLanguage: Event<string> = this._onDidEncounterLanguage.event;
 
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _createdModes: string[] = [];
@@ -80,7 +76,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			this._updateTheme(this._themeService.getColorTheme(), false);
 		}));
 
-		this._languageService.onDidEncounterLanguage((languageId) => {
+		this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
 		});
 	}
@@ -284,7 +280,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				if (!this._encounteredLanguages[encodedLanguageId]) {
 					const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 					this._encounteredLanguages[encodedLanguageId] = true;
-					this._onDidEncounterLanguage.fire(languageId);
+					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
 			});
 
