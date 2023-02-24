@@ -11,7 +11,7 @@ import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/commo
 import { IProductService } from 'vs/platform/product/common/productService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ILogService } from 'vs/platform/log/common/log';
 
