@@ -506,7 +506,7 @@ class CellInfoContentProvider {
 			}
 
 			model.setValue(newResult.content);
-			model.setMode(newResult.mode.languageId);
+			model.setLanguage(newResult.mode.languageId);
 		});
 
 		const once = model.onWillDispose(() => {

@@ -196,7 +196,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
 		const languageSelection = this.getOrCreateLanguage(this.resource, this.languageService, this.preferredLanguageId, firstLineText);
 
-		this.modelService.setMode(this.textEditorModel, languageSelection);
+		this.textEditorModel.setLanguage(languageSelection);
 	}
 
 	override setLanguageId(languageId: string, source?: string): void {
