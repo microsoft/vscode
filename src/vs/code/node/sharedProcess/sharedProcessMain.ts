@@ -145,9 +145,14 @@ class SharedProcessMain extends Disposable {
 	private registerListeners(): void {
 
 		// Shared process lifecycle
-		const onExit = async () => {
-			this.lifecycleService?.fireOnWillShutdown();
-			this.dispose();
+		let didExit = false;
+		const onExit = () => {
+			if (!didExit) {
+				didExit = true;
+
+				this.lifecycleService?.fireOnWillShutdown();
+				this.dispose();
+			}
 		};
 		process.once('exit', onExit);
 		if (isUtilityProcess(process)) {

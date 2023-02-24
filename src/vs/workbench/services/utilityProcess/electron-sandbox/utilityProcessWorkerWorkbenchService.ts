@@ -132,6 +132,14 @@ export class UtilityProcessWorkerWorkbenchService extends Disposable implements 
 		const client = disposables.add(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
 		this.logService.trace('Renderer->UtilityProcess#createWorkerChannel: connection established');
 
+		onDidTerminate.then(({ reason }) => {
+			if (reason?.code === 0) {
+				this.logService.trace(`[UtilityProcessWorker]: terminated normally with code ${reason.code}, signal: ${reason.signal}`);
+			} else {
+				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason?.code}, signal: ${reason?.signal}`);
+			}
+		});
+
 		return { client, onDidTerminate, dispose: () => disposables.dispose() };
 	}
 

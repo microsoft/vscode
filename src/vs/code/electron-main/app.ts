@@ -1248,13 +1248,13 @@ export class CodeApplication extends Disposable {
 			// Logging
 			switch (type) {
 				case WindowError.PROCESS_GONE:
-					this.logService.error(`SharedProcess: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+					this.logService.error(`[SharedProcess] renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 					break;
 				case WindowError.UNRESPONSIVE:
-					this.logService.error('SharedProcess: detected unresponsive');
+					this.logService.error('[SharedProcess]  detected unresponsive');
 					break;
 				case WindowError.LOAD:
-					this.logService.error(`SharedProcess: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
+					this.logService.error(`[SharedProcess]  failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 					break;
 			}
 
