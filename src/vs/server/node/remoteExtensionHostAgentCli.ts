@@ -85,6 +85,7 @@ class CliMain extends Disposable {
 
 		const environmentService = new ServerEnvironmentService(this.args, productService);
 		services.set(IServerEnvironmentService, environmentService);
+
 		const logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
