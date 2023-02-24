@@ -105,6 +105,7 @@ import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration 
 import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
 import { RemoteTunnelService } from 'vs/platform/remoteTunnel/node/remoteTunnelService';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 
 /* eslint-disable local/code-layering, local/code-import-patterns */
 // TODO@bpasero layer is not allowed in utility process
@@ -120,7 +121,6 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandb
 import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
 
 class SharedProcessMain extends Disposable {
 
