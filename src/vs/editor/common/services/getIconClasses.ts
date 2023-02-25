@@ -17,7 +17,8 @@ const fileIconWildcardChainRegex = /\*(?:\.\*)+/;
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
 	// we always set these base classes even if we do not have a path
-	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
+	const kindClass = fileKind === FileKind.ROOT_FOLDER ? 'rootfolder-icon' : fileKind === FileKind.FOLDER ? 'folder-icon' : 'file-icon';
+	const classes = [kindClass];
 	if (resource) {
 
 		// Get the path and name of the resource. For data-URIs, we need to parse specially
@@ -30,7 +31,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			if (match) {
 				name = cssEscape(match[2].toLowerCase());
 				if (match[1]) {
-					classes.push(`${cssEscape(match[1].toLowerCase())}-name-dir-icon`); // parent directory
+					classes.push(`${cssEscape(match[1].toLowerCase())}-dirname-${kindClass}`); // parent directory
 				}
 
 			} else {

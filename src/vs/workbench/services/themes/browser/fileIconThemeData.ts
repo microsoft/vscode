@@ -292,7 +292,7 @@ export class FileIconThemeLoader {
 				if (folderNames) {
 					for (const key in folderNames) {
 						const selectors: string[] = [];
-						const name = handleParentFolder(key.toLowerCase(), selectors);
+						const name = handleParentFolder(key.toLowerCase(), selectors, 'folder');
 						const mode = name.indexOf('*') !== -1 ? 'glob' : 'name';
 
 						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
@@ -311,7 +311,7 @@ export class FileIconThemeLoader {
 				if (folderNamesExpanded) {
 					for (const key in folderNamesExpanded) {
 						const selectors: string[] = [];
-						const name = handleParentFolder(key.toLowerCase(), selectors);
+						const name = handleParentFolder(key.toLowerCase(), selectors, 'folder');
 						const mode = name.indexOf('*') !== -1 ? 'glob' : 'name';
 
 						selectors.push(`.${escapeCSS(name)}-${mode}-folder-icon`);
@@ -341,7 +341,7 @@ export class FileIconThemeLoader {
 				if (fileExtensions) {
 					for (const key in fileExtensions) {
 						const selectors: string[] = [];
-						const name = handleParentFolder(key.toLowerCase(), selectors);
+						const name = handleParentFolder(key.toLowerCase(), selectors, 'file');
 
 						const segments = name.split('.');
 						if (segments.length) {
@@ -361,7 +361,7 @@ export class FileIconThemeLoader {
 				if (fileNames) {
 					for (const key in fileNames) {
 						const selectors: string[] = [];
-						const fileName = handleParentFolder(key.toLowerCase(), selectors);
+						const fileName = handleParentFolder(key.toLowerCase(), selectors, 'file');
 						const mode = fileName.indexOf('*') !== -1 ? 'glob' : 'name';
 
 						selectors.push(`.${escapeCSS(fileName)}-${mode}-file-icon`);
@@ -461,11 +461,11 @@ export class FileIconThemeLoader {
 
 }
 
-function handleParentFolder(key: string, selectors: string[]): string {
+function handleParentFolder(key: string, selectors: string[], kind: string): string {
 	const lastIndexOfSlash = key.lastIndexOf('/');
 	if (lastIndexOfSlash >= 0) {
 		const parentFolder = key.substring(0, lastIndexOfSlash);
-		selectors.push(`.${escapeCSS(parentFolder)}-name-dir-icon`);
+		selectors.push(`.${escapeCSS(parentFolder)}-dirname-${kind}-icon`);
 		return key.substring(lastIndexOfSlash + 1);
 	}
 	return key;
