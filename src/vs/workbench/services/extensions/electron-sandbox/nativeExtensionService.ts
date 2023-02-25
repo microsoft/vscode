@@ -140,7 +140,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		return this._extensionScanner.scannedExtensions;
 	}
 
-	protected _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
+	private _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
 		return {
 			getInitData: async (): Promise<ILocalProcessExtensionHostInitData & IWebWorkerExtensionHostInitData> => {
 				if (isInitialStart) {
@@ -585,7 +585,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		extensionHostManager.start(this._registry.getAllExtensionDescriptions(), extensions.map(extension => extension.identifier));
 	}
 
-	public _onExtensionHostExit(code: number): void {
+	protected _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
 

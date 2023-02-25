@@ -1101,7 +1101,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected abstract _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
 	protected abstract _scanAndHandleExtensions(): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
-	public abstract _onExtensionHostExit(code: number): void;
+	protected abstract _onExtensionHostExit(code: number): void;
 }
 
 interface IExtensionHostCrashInfo {

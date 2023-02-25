@@ -153,7 +153,7 @@ suite('ExtensionService', () => {
 		protected _scanSingleExtension(extension: IExtension): Promise<Readonly<IRelaxedExtensionDescription> | null> {
 			throw new Error('Method not implemented.');
 		}
-		public _onExtensionHostExit(code: number): void {
+		protected _onExtensionHostExit(code: number): void {
 			throw new Error('Method not implemented.');
 		}
 	}
