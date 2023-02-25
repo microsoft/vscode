@@ -143,7 +143,6 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 		this.updateTextEmitter.fire(message);
 		this.windowProg.value.report({ message });
 		const nextProgress = collected.runSoFar / collected.totalWillBeRun;
-		console.log({ increment: nextProgress - this.lastProgress, total: 1 });
 		this.testViewProg.value!.report({ increment: (nextProgress - this.lastProgress) * 1000, total: 1 });
 		this.lastProgress = nextProgress;
 	}
