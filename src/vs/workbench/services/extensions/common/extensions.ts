@@ -6,14 +6,15 @@
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -131,23 +132,6 @@ export interface IExtensionHostProfile {
 	 * Get the aggregated time per segmentId
 	 */
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
-}
-
-export const enum ExtensionHostKind {
-	LocalProcess = 1,
-	LocalWebWorker = 2,
-	Remote = 3
-}
-
-export function extensionHostKindToString(kind: ExtensionHostKind | null): string {
-	if (kind === null) {
-		return 'None';
-	}
-	switch (kind) {
-		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
-		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
-		case ExtensionHostKind.Remote: return 'Remote';
-	}
 }
 
 export interface IExtensionHost {

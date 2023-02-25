@@ -3,40 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost, toExtensionDescription, ExtensionRunningLocation, ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
+import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
+import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionHostKind, ExtensionRunningPreference, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { ExtensionRunningLocation, IExtensionHost, IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
-	private _disposables = new DisposableStore();
 	private _remoteInitData: IRemoteExtensionHostInitData | null = null;
 
 	constructor(
@@ -88,11 +87,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._initFetchFileSystem();
 	}
 
-	override dispose(): void {
-		this._disposables.dispose();
-		super.dispose();
-	}
-
 	protected async _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		if (extension.location.scheme === Schemas.vscodeRemote) {
 			return this._remoteExtensionsScannerService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
@@ -108,8 +102,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _initFetchFileSystem(): void {
 		const provider = new FetchFileSystemProvider();
-		this._disposables.add(this._fileService.registerProvider(Schemas.http, provider));
-		this._disposables.add(this._fileService.registerProvider(Schemas.https, provider));
+		this._register(this._fileService.registerProvider(Schemas.http, provider));
+		this._register(this._fileService.registerProvider(Schemas.https, provider));
 	}
 
 	private _createLocalExtensionHostDataProvider(desiredRunningLocation: ExtensionRunningLocation): IWebWorkerExtensionHostDataProvider {

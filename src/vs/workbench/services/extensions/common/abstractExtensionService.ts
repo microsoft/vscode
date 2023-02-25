@@ -3,41 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
+import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, IExtension, IExtensionContributions, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, RemoteRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { createExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription, IExtension, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { ExtensionHostKind, ExtensionRunningPreference, determineExtensionHostKinds, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionPointContribution, ExtensionRunningLocation, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkActivateWorkspaceContainsExtension, checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -47,23 +48,6 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
-}
-
-export const enum ExtensionRunningPreference {
-	None,
-	Local,
-	Remote
-}
-
-export function extensionRunningPreferenceToString(preference: ExtensionRunningPreference) {
-	switch (preference) {
-		case ExtensionRunningPreference.None:
-			return 'None';
-		case ExtensionRunningPreference.Local:
-			return 'Local';
-		case ExtensionRunningPreference.Remote:
-			return 'Remote';
-	}
 }
 
 class LockCustomer {
@@ -434,7 +418,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: Map<string, ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
-		const extensionHostKinds = ExtensionHostKindClassifier.determineExtensionHostKinds(
+		const extensionHostKinds = determineExtensionHostKinds(
 			localExtensions,
 			remoteExtensions,
 			(extension) => this._getExtensionKind(extension),
@@ -1366,112 +1350,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected abstract _scanAndHandleExtensions(): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	public abstract _onExtensionHostExit(code: number): void;
-}
-
-class ExtensionWithKind {
-
-	constructor(
-		public readonly desc: IExtensionDescription,
-		public readonly kind: ExtensionKind[]
-	) { }
-
-	public get key(): string {
-		return ExtensionIdentifier.toKey(this.desc.identifier);
-	}
-
-	public get isUnderDevelopment(): boolean {
-		return this.desc.isUnderDevelopment;
-	}
-}
-
-class ExtensionInfo {
-
-	constructor(
-		public readonly local: ExtensionWithKind | null,
-		public readonly remote: ExtensionWithKind | null,
-	) { }
-
-	public get key(): string {
-		if (this.local) {
-			return this.local.key;
-		}
-		return this.remote!.key;
-	}
-
-	public get identifier(): ExtensionIdentifier {
-		if (this.local) {
-			return this.local.desc.identifier;
-		}
-		return this.remote!.desc.identifier;
-	}
-
-	public get kind(): ExtensionKind[] {
-		// in case of disagreements between extension kinds, it is always
-		// better to pick the local extension because it has a much higher
-		// chance of being up-to-date
-		if (this.local) {
-			return this.local.kind;
-		}
-		return this.remote!.kind;
-	}
-}
-
-class ExtensionHostKindClassifier {
-
-	private static _toExtensionWithKind(
-		extensions: IExtensionDescription[],
-		getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[]
-	): Map<string, ExtensionWithKind> {
-		const result = new Map<string, ExtensionWithKind>();
-		extensions.forEach((desc) => {
-			const ext = new ExtensionWithKind(desc, getExtensionKind(desc));
-			result.set(ext.key, ext);
-		});
-		return result;
-	}
-
-	public static determineExtensionHostKinds(
-		_localExtensions: IExtensionDescription[],
-		_remoteExtensions: IExtensionDescription[],
-		getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
-		pickExtensionHostKind: (extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionHostKind | null
-	): Map<string, ExtensionHostKind | null> {
-		const localExtensions = this._toExtensionWithKind(_localExtensions, getExtensionKind);
-		const remoteExtensions = this._toExtensionWithKind(_remoteExtensions, getExtensionKind);
-
-		const allExtensions = new Map<string, ExtensionInfo>();
-		const collectExtension = (ext: ExtensionWithKind) => {
-			if (allExtensions.has(ext.key)) {
-				return;
-			}
-			const local = localExtensions.get(ext.key) || null;
-			const remote = remoteExtensions.get(ext.key) || null;
-			const info = new ExtensionInfo(local, remote);
-			allExtensions.set(info.key, info);
-		};
-		localExtensions.forEach((ext) => collectExtension(ext));
-		remoteExtensions.forEach((ext) => collectExtension(ext));
-
-		const extensionHostKinds = new Map<string, ExtensionHostKind | null>();
-		allExtensions.forEach((ext) => {
-			const isInstalledLocally = Boolean(ext.local);
-			const isInstalledRemotely = Boolean(ext.remote);
-
-			const isLocallyUnderDevelopment = Boolean(ext.local && ext.local.isUnderDevelopment);
-			const isRemotelyUnderDevelopment = Boolean(ext.remote && ext.remote.isUnderDevelopment);
-
-			let preference = ExtensionRunningPreference.None;
-			if (isLocallyUnderDevelopment && !isRemotelyUnderDevelopment) {
-				preference = ExtensionRunningPreference.Local;
-			} else if (isRemotelyUnderDevelopment && !isLocallyUnderDevelopment) {
-				preference = ExtensionRunningPreference.Remote;
-			}
-
-			extensionHostKinds.set(ext.key, pickExtensionHostKind(ext.identifier, ext.kind, isInstalledLocally, isInstalledRemotely, preference));
-		});
-
-		return extensionHostKinds;
-	}
 }
 
 class ProposedApiController {

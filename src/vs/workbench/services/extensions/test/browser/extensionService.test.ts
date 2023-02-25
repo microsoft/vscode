@@ -4,40 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExtensionService as BrowserExtensionService } from 'vs/workbench/services/extensions/browser/extensionService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mock } from 'vs/base/test/common/mock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ExtensionKind, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, IExtension, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { createServices, TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { TestInstantiationService, createServices } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { WorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { AbstractExtensionService, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionHostKind, ExtensionRunningLocation, IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { mock } from 'vs/base/test/common/mock';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionService as BrowserExtensionService } from 'vs/workbench/services/extensions/browser/extensionService';
+import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionHostKind, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { ExtensionRunningLocation, IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { WorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemoteAgentService, TestRemoteExtensionsScannerService, TestUserDataProfileService, TestWebExtensionsScannerService, TestWorkbenchExtensionEnablementService, TestWorkbenchExtensionManagementService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('BrowserExtensionService', () => {
 	test('pickRunningLocation', () => {
