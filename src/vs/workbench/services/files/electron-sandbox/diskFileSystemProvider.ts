@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
 import { FileSystemProviderCapabilities, IFileDeleteOptions, IStat, FileType, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';

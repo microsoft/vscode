@@ -21,7 +21,8 @@ import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspac
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { SharedProcessService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -233,7 +234,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home), mainProcessService.getChannel('userDataProfiles'));
+		const userDataProfilesService = new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'));
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme), userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);

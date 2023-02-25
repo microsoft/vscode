@@ -351,7 +351,7 @@ suite('Untitled text editors', () => {
 		await input.resolve();
 
 		assert.ok(!input.model.hasLanguageSetExplicitly);
-		accessor.modelService.setMode(model.textEditorModel!, accessor.languageService.createById(language));
+		model.textEditorModel!.setLanguage(accessor.languageService.createById(language));
 		assert.ok(input.model.hasLanguageSetExplicitly);
 
 		assert.strictEqual(model.getLanguageId(), language);
@@ -373,8 +373,7 @@ suite('Untitled text editors', () => {
 		await input.resolve();
 
 		assert.ok(!input.model.hasLanguageSetExplicitly);
-		accessor.modelService.setMode(
-			model.textEditorModel!,
+		model.textEditorModel!.setLanguage(
 			accessor.languageService.createById(language),
 			// This is really what this is testing
 			LanguageDetectionLanguageEventSource);

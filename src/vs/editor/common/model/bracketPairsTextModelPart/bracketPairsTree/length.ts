@@ -238,3 +238,7 @@ export function lengthOfStringObj(str: string): LengthObj {
 export function lengthHash(length: Length): number {
 	return length as any;
 }
+
+export function lengthMax(length1: Length, length2: Length): Length {
+	return length1 > length2 ? length1 : length2;
+}

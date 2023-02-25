@@ -800,7 +800,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					));
 
 					if (contribution.qualifiedName) {
-						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, contribution.group ?? command.category, when, contribution.remoteGroup);
+						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, contribution.category ?? command.category, when, contribution.remoteGroup);
 					}
 				}
 			}
@@ -988,6 +988,7 @@ interface ICommand {
 	when: string;
 	documentation?: string;
 	qualifiedName?: string;
+	category?: string;
 	remoteGroup?: string;
 }
 

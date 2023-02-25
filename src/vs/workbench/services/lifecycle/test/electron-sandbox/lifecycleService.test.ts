@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeLifecycleService } from 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
-import { workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 
 suite('Lifecycleservice', function () {
 
@@ -28,7 +28,7 @@ suite('Lifecycleservice', function () {
 	setup(async () => {
 		disposables = new DisposableStore();
 
-		const instantiationService = workbenchInstantiationService(disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		lifecycleService = instantiationService.createInstance(TestLifecycleService);
 	});
 

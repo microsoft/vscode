@@ -6,6 +6,7 @@
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { PlatformToString, platform } from 'vs/base/common/platform';
 
 export class RemoteRecommendations extends ExtensionRecommendations {
 
@@ -20,7 +21,8 @@ export class RemoteRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		const extensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
-		this._recommendations = Object.entries(extensionTips).map(([_, extension]) => ({
+		const currentPlatform = PlatformToString(platform);
+		this._recommendations = Object.values(extensionTips).filter(({ supportedPlatforms }) => !supportedPlatforms || supportedPlatforms.includes(currentPlatform)).map(extension => ({
 			extensionId: extension.extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.Application,

@@ -594,6 +594,13 @@ export class GitHubServer implements IGitHubServer {
 			return;
 		}
 
+		/* __GDPR__
+			"session" : {
+				"owner": "TylerLeonhardt",
+				"isEdu": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"isManaged": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this._telemetryReporter.sendTelemetryEvent('session', {
 			isEdu: edu ?? 'unknown',
 			isManaged: managed ?? 'unknown'

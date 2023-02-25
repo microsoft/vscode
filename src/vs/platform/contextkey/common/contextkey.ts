@@ -238,14 +238,12 @@ export abstract class ContextKeyExpr {
 	private static _deserializeRegexValue(serializedValue: string): RegExp | null {
 
 		if (isFalsyOrWhitespace(serializedValue)) {
-			console.warn('missing regexp-value for =~-expression');
 			return null;
 		}
 
 		const start = serializedValue.indexOf('/');
 		const end = serializedValue.lastIndexOf('/');
-		if (start === end || start < 0 /* || to < 0 */) {
-			console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+		if (start === end || start < 0) {
 			return null;
 		}
 
@@ -253,8 +251,7 @@ export abstract class ContextKeyExpr {
 		const caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
 		try {
 			return new RegExp(value, caseIgnoreFlag);
-		} catch (e) {
-			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+		} catch (_e) {
 			return null;
 		}
 	}
@@ -499,23 +496,21 @@ export class Parser {
 
 							let regex: RegExp | null = null;
 
-							if (isFalsyOrWhitespace(serializedValue)) {
-								console.warn('missing regexp-value for =~-expression');
-							} else {
+							if (!isFalsyOrWhitespace(serializedValue)) {
 								const start = serializedValue.indexOf('/');
 								const end = serializedValue.lastIndexOf('/');
-								if (start === end || start < 0 /* || to < 0 */) {
-									console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
-								} else {
+								if (start !== end && start >= 0) {
 
 									const value = serializedValue.slice(start + 1, end);
 									const caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
 									try {
 										regex = new RegExp(value, caseIgnoreFlag);
-									} catch (e) {
-										console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
-									}
+									} catch (_e) { }
 								}
+							}
+
+							if (regex === null) {
+								throw this._errExpectedButGot('REGEX', expr);
 							}
 
 							return ContextKeyRegexExpr.create(key, regex);

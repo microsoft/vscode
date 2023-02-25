@@ -183,8 +183,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
 				};
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, codeLens, token);
+			resolveCodeLens: async (model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
+				const result = await this._proxy.$resolveCodeLens(handle, codeLens, token);
+				if (!result) {
+					return undefined;
+				}
+				return {
+					...result,
+					range: model.validateRange(result.range),
+				};
 			}
 		};
 

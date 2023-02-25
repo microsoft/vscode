@@ -41,7 +41,7 @@ suite('CodeEditorWidget', () => {
 				invoked = true;
 			}));
 
-			viewModel.model.setMode('testMode');
+			viewModel.model.setLanguage('testMode');
 
 			assert.deepStrictEqual(invoked, true);
 
@@ -55,7 +55,7 @@ suite('CodeEditorWidget', () => {
 			const languageService = instantiationService.get(ILanguageService);
 			const disposables = new DisposableStore();
 			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
-			viewModel.model.setMode('testMode');
+			viewModel.model.setLanguage('testMode');
 
 			let invoked = false;
 			disposables.add(editor.onDidChangeModelLanguageConfiguration((e) => {

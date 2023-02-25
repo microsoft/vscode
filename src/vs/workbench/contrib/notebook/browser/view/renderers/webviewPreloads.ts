@@ -366,11 +366,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return false;
 			}
 
+			// scroll up
 			if (event.deltaY < 0 && node.scrollTop > 0) {
+				// there is still some content to scroll
 				return true;
 			}
 
+			// scroll down
 			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+				// per https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight
+				// scrollTop is not rounded but scrollHeight and clientHeight are
+				// so we need to check if the difference is less than some threshold
+				if (node.scrollHeight - node.scrollTop - node.clientHeight < 2) {
+					continue;
+				}
+
+				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
+				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+					continue;
+				}
+
 				return true;
 			}
 		}

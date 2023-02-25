@@ -16,7 +16,7 @@ import { IDiagnosticsService, IWorkspaceInformation } from 'vs/platform/diagnost
 import { IRequestService } from 'vs/platform/request/common/request';
 import { isWindows } from 'vs/base/common/platform';
 import { getRemotes, AllowedSecondLevelDomains, getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): Promise<string[]> {

@@ -1312,7 +1312,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<ICodeWindow> {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const filesConfig = this.configurationService.getValue<{ experimental?: { watcherUseUtilityProcess?: boolean } } | undefined>('files');
 
 		const lastActiveWindow = this.getLastActiveWindow();
 		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
@@ -1322,6 +1321,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			window = options.windowToUse || lastActiveWindow;
 			if (window) {
 				window.focus();
+			}
+		}
+
+		let preferUtilityProcess = false;
+		if (canUseUtilityProcess) {
+			if (typeof windowConfig?.experimental?.sharedProcessUseUtilityProcess === 'boolean') {
+				preferUtilityProcess = windowConfig.experimental.sharedProcessUseUtilityProcess;
+			} else {
+				preferUtilityProcess = typeof product.quality === 'string' && product.quality !== 'stable';
 			}
 		}
 
@@ -1390,7 +1398,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			preferUtilityProcess: canUseUtilityProcess ? (filesConfig?.experimental?.watcherUseUtilityProcess ?? windowConfig?.experimental?.sharedProcessUseUtilityProcess ?? false) : false
+			preferUtilityProcess
 		};
 
 		// New window
