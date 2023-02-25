@@ -203,7 +203,14 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
-		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values()).filter(extensionId => extensionHost.containsExtension(extensionId));
+
+		const activatedExtensions: ExtensionIdentifier[] = [];
+		for (const extensionStatus of this._extensionStatus.values()) {
+			if (extensionStatus.isActivated && extensionHost.containsExtension(extensionStatus.id)) {
+				activatedExtensions.push(extensionStatus.id);
+			}
+		}
+
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {

@@ -136,8 +136,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _registryLock: Lock;
 
 	private readonly _installedExtensionsReady: Barrier;
-	private readonly _isDev: boolean;
-	private readonly _extensionsMessages: ExtensionIdentifierMap<IMessage[]>;
+	protected readonly _extensionStatus = new ExtensionIdentifierMap<ExtensionStatus>();
 	private readonly _allRequestedActivateEvents = new Set<string>();
 	private readonly _extensionsProposedApi: ExtensionsProposedApi;
 	private readonly _isExtensionDevHost: boolean;
@@ -152,11 +151,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private readonly _remoteCrashTracker = new ExtensionHostCrashTracker();
 
-	// --- Members used per extension host process
 	private _extensionHostManagers: IExtensionHostManager[];
-	protected _extensionHostActiveExtensions: ExtensionIdentifierMap<ExtensionIdentifier>;
-	private _extensionHostActivationTimes: ExtensionIdentifierMap<ActivationTimes>;
-	private _extensionHostExtensionRuntimeErrors: ExtensionIdentifierMap<Error[]>;
 
 	constructor(
 		private readonly _extensionHostKindPicker: IExtensionHostKindPicker,
@@ -190,14 +185,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._registryLock = new Lock();
 
 		this._installedExtensionsReady = new Barrier();
-		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
-		this._extensionsMessages = new ExtensionIdentifierMap<IMessage[]>();
 		this._extensionsProposedApi = _instantiationService.createInstance(ExtensionsProposedApi);
 
 		this._extensionHostManagers = [];
-		this._extensionHostActiveExtensions = new ExtensionIdentifierMap<ExtensionIdentifier>();
-		this._extensionHostActivationTimes = new ExtensionIdentifierMap<ActivationTimes>();
-		this._extensionHostExtensionRuntimeErrors = new ExtensionIdentifierMap<Error[]>();
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -270,7 +260,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._extensionHostManagers.filter(extHostManager => extHostManager.kind === kind);
 	}
 
-	protected _getExtensionHostManagerByRunningLocation(runningLocation: ExtensionRunningLocation): IExtensionHostManager | null {
+	private _getExtensionHostManagerByRunningLocation(runningLocation: ExtensionRunningLocation): IExtensionHostManager | null {
 		for (const extensionHostManager of this._extensionHostManagers) {
 			if (extensionHostManager.representsRunningLocation(runningLocation)) {
 				return extensionHostManager;
@@ -434,7 +424,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return false;
 		}
 
-		if (this._extensionHostActiveExtensions.has(extensionDescription.identifier)) {
+		if (this._extensionStatus.get(extensionDescription.identifier)?.isActivated) {
 			// Extension is running, cannot remove it safely
 			return false;
 		}
@@ -583,7 +573,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#region Stopping / Starting / Restarting
 
 	public stopExtensionHosts(): void {
-		const previouslyActivatedExtensionIds = Array.from(this._extensionHostActiveExtensions.values());
+		const previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
+		for (const extensionStatus of this._extensionStatus.values()) {
+			if (extensionStatus.isActivated) {
+				previouslyActivatedExtensionIds.push(extensionStatus.id);
+			}
+		}
 
 		// See https://github.com/microsoft/vscode/issues/152204
 		// Dispose extension hosts in reverse creation order because the local extension host
@@ -592,9 +587,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._extensionHostManagers[i].dispose();
 		}
 		this._extensionHostManagers = [];
-		this._extensionHostActiveExtensions = new ExtensionIdentifierMap<ExtensionIdentifier>();
-		this._extensionHostActivationTimes = new ExtensionIdentifierMap<ActivationTimes>();
-		this._extensionHostExtensionRuntimeErrors = new ExtensionIdentifierMap<Error[]>();
+		for (const extensionStatus of this._extensionStatus.values()) {
+			extensionStatus.clearRuntimeStatus();
+		}
 
 		if (previouslyActivatedExtensionIds.length > 0) {
 			this._onDidChangeExtensionsStatus.fire(previouslyActivatedExtensionIds);
@@ -719,7 +714,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _logExtensionHostCrash(extensionHost: IExtensionHostManager): void {
-		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values()).filter(extensionId => extensionHost.containsExtension(extensionId));
+
+		const activatedExtensions: ExtensionIdentifier[] = [];
+		for (const extensionStatus of this._extensionStatus.values()) {
+			if (extensionStatus.isActivated && extensionHost.containsExtension(extensionStatus.id)) {
+				activatedExtensions.push(extensionStatus.id);
+			}
+		}
+
 		if (activatedExtensions.length > 0) {
 			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
 		} else {
@@ -838,10 +840,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
 			for (const extension of extensions) {
+				const extensionStatus = this._extensionStatus.get(extension.identifier);
 				result[extension.identifier.value] = {
-					messages: this._extensionsMessages.get(extension.identifier) || [],
-					activationTimes: this._extensionHostActivationTimes.get(extension.identifier),
-					runtimeErrors: this._extensionHostExtensionRuntimeErrors.get(extension.identifier) || [],
+					messages: extensionStatus?.messages ?? [],
+					activationTimes: extensionStatus?.activationTimes ?? undefined,
+					runtimeErrors: extensionStatus?.runtimeErrors ?? [],
 					runningLocation: this._runningLocations.getRunningLocation(extension.identifier),
 				};
 			}
@@ -958,11 +961,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		perf.mark('code/didHandleExtensionPoints');
 	}
 
-	private _handleExtensionPointMessage(msg: IMessage) {
-		if (!this._extensionsMessages.has(msg.extensionId)) {
-			this._extensionsMessages.set(msg.extensionId, []);
+	private _getOrCreateExtensionStatus(extensionId: ExtensionIdentifier): ExtensionStatus {
+		if (!this._extensionStatus.has(extensionId)) {
+			this._extensionStatus.set(extensionId, new ExtensionStatus(extensionId));
 		}
-		this._extensionsMessages.get(msg.extensionId)!.push(msg);
+		return this._extensionStatus.get(extensionId)!;
+	}
+
+	private _handleExtensionPointMessage(msg: IMessage) {
+		const extensionStatus = this._getOrCreateExtensionStatus(msg.extensionId);
+		extensionStatus.addMessage(msg);
 
 		const extension = this._registry.getExtensionDescription(msg.extensionId);
 		const strMsg = `[${msg.extensionId.value}]: ${msg.message}`;
@@ -983,7 +991,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._logService.info(strMsg);
 		}
 
-		if (!this._isDev && msg.extensionId) {
+		if (msg.extensionId && this._environmentService.isBuilt && !this._environmentService.isExtensionDevelopment) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			type ExtensionsMessageClassification = {
 				owner: 'alexdima';
@@ -1052,11 +1060,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
-		this._extensionHostActiveExtensions.set(extensionId, extensionId);
+		const extensionStatus = this._getOrCreateExtensionStatus(extensionId);
+		extensionStatus.onWillActivate();
 	}
 
 	private _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
-		this._extensionHostActivationTimes.set(extensionId, new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
+		const extensionStatus = this._getOrCreateExtensionStatus(extensionId);
+		extensionStatus.setActivationTimes(new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
@@ -1078,10 +1088,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
-		if (!this._extensionHostExtensionRuntimeErrors.has(extensionId)) {
-			this._extensionHostExtensionRuntimeErrors.set(extensionId, []);
-		}
-		this._extensionHostExtensionRuntimeErrors.get(extensionId)!.push(err);
+		const extensionStatus = this._getOrCreateExtensionStatus(extensionId);
+		extensionStatus.addRuntimeError(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
@@ -1091,6 +1099,55 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected abstract _scanAndHandleExtensions(): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	protected abstract _onExtensionHostExit(code: number): void;
+}
+
+export class ExtensionStatus {
+
+	private readonly _messages: IMessage[] = [];
+	public get messages(): IMessage[] {
+		return this._messages;
+	}
+
+	private _activationTimes: ActivationTimes | null = null;
+	public get activationTimes(): ActivationTimes | null {
+		return this._activationTimes;
+	}
+
+	private _runtimeErrors: Error[] = [];
+	public get runtimeErrors(): Error[] {
+		return this._runtimeErrors;
+	}
+
+	private _isActivated: boolean = false;
+	public get isActivated(): boolean {
+		return this._isActivated;
+	}
+
+	constructor(
+		public readonly id: ExtensionIdentifier,
+	) { }
+
+	public clearRuntimeStatus(): void {
+		this._isActivated = false;
+		this._activationTimes = null;
+		this._runtimeErrors = [];
+	}
+
+	public addMessage(msg: IMessage): void {
+		this._messages.push(msg);
+	}
+
+	public setActivationTimes(activationTimes: ActivationTimes) {
+		this._activationTimes = activationTimes;
+	}
+
+	public addRuntimeError(err: Error): void {
+		this._runtimeErrors.push(err);
+	}
+
+	public onWillActivate() {
+		this._isActivated = true;
+	}
 }
 
 interface IExtensionHostCrashInfo {
