@@ -14,7 +14,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
+import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';

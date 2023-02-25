@@ -84,7 +84,7 @@ export class CompletionItem {
 	) {
 		this.textLabel = typeof completion.label === 'string'
 			? completion.label
-			: completion.label.label;
+			: completion.label?.label;
 
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
@@ -397,7 +397,8 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 		};
 
 		const resolving: Promise<any>[] = [];
-		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter: triggerCharacter ?? undefined, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
+		const actualPosition = ref.object.textEditorModel.validatePosition(position);
+		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, actualPosition, undefined, { triggerCharacter: triggerCharacter ?? undefined, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
 		for (const item of completions.items) {
 			if (resolving.length < (maxItemsToResolve ?? 0)) {
 				resolving.push(item.resolve(CancellationToken.None));

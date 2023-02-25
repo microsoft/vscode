@@ -7,6 +7,7 @@ import { IChannel, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 
 type ChannelClientCtor<T> = { new(channel: IChannel, ...args: any[]): T };
 type Remote = { getChannel(channelName: string): IChannel };
@@ -43,14 +44,6 @@ function isRemoteServiceWithChannelClientOptions<T>(obj: unknown): obj is IRemot
 }
 
 //#region Main Process
-
-export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
-
-export interface IMainProcessService {
-	readonly _serviceBrand: undefined;
-	getChannel(channelName: string): IChannel;
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
-}
 
 class MainProcessRemoteServiceStub<T extends object> extends RemoteServiceStub<T> {
 	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @IMainProcessService ipcService: IMainProcessService, @IInstantiationService instantiationService: IInstantiationService) {

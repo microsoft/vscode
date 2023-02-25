@@ -5,7 +5,7 @@
 
 (function () {
 
-	const MonacoEnvironment = (<any>self).MonacoEnvironment;
+	const MonacoEnvironment = (<any>globalThis).MonacoEnvironment;
 	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
 	const trustedTypesPolicy = (
@@ -29,10 +29,10 @@
 		try {
 			const func = (
 				trustedTypesPolicy
-					? self.eval(<any>trustedTypesPolicy.createScript('', 'true'))
+					? globalThis.eval(<any>trustedTypesPolicy.createScript('', 'true'))
 					: new Function('true')
 			);
-			func.call(self);
+			func.call(globalThis);
 			return true;
 		} catch (err) {
 			return false;
@@ -41,12 +41,12 @@
 
 	function loadAMDLoader() {
 		return new Promise<void>((resolve, reject) => {
-			if (typeof (<any>self).define === 'function' && (<any>self).define.amd) {
+			if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
 				return resolve();
 			}
 			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';
 
-			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, self.origin.length) !== self.origin);
+			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
 			if (!isCrossOrigin && canUseEval()) {
 				// use `fetch` if possible because `importScripts`
 				// is synchronous and can lead to deadlocks on Safari
@@ -59,10 +59,10 @@
 					text = `${text}\n//# sourceURL=${loaderSrc}`;
 					const func = (
 						trustedTypesPolicy
-							? self.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
+							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
 							: new Function(text)
 					);
-					func.call(self);
+					func.call(globalThis);
 					resolve();
 				}).then(undefined, reject);
 				return;
@@ -92,12 +92,13 @@
 			require([moduleId], function (ws) {
 				setTimeout(function () {
 					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
-						(<any>self).postMessage(msg, transfer);
+						(<any>globalThis).postMessage(msg, transfer);
 					}, null);
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
+					globalThis.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
 					while (beforeReadyMessages.length > 0) {
-						self.onmessage(beforeReadyMessages.shift()!);
+						const e = beforeReadyMessages.shift()!;
+						messageHandler.onmessage(e.data, e.ports);
 					}
 				}, 0);
 			});
@@ -107,13 +108,13 @@
 	// If the loader is already defined, configure it immediately
 	// This helps in the bundled case, where we must load nls files
 	// and they need a correct baseUrl to be loaded.
-	if (typeof (<any>self).define === 'function' && (<any>self).define.amd) {
+	if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
 		configureAMDLoader();
 	}
 
 	let isFirstMessage = true;
 	const beforeReadyMessages: MessageEvent[] = [];
-	self.onmessage = (message: MessageEvent) => {
+	globalThis.onmessage = (message: MessageEvent) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);
 			return;

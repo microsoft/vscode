@@ -45,4 +45,3 @@ export class ExtensionRecommendationNotificationServiceChannel implements IServe
 		throw new Error(`Call not found: ${command}`);
 	}
 }
-

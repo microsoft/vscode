@@ -84,11 +84,8 @@ export class PlaywrightDriver {
 			return this.page.waitForLoadState('load');
 		}
 
-		// Desktop: via `window` event
-		return new Promise<void>(resolve => {
-			// https://playwright.dev/docs/api/class-electronapplication#electron-application-event-window
-			(this.application as playwright.ElectronApplication).on('window', () => resolve());
-		});
+		// Desktop: already loaded when `electron.firstWindow()` returns
+		return;
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {

@@ -16,7 +16,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
@@ -270,7 +270,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
 				type: 'boolean',
 				description: localize('experimentalUseSharedProcessUseUtilityProcess', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: false, //typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			}

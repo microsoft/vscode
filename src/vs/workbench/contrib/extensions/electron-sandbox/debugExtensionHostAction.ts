@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action } from 'vs/base/common/actions';
 import { ExtensionHostKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/common/ports';

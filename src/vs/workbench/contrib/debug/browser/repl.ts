@@ -342,7 +342,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.modelChangeListener.dispose();
 			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
 			if (this.model && activeEditorControl.hasModel()) {
-				this.model.setMode(activeEditorControl.getModel().getLanguageId());
+				this.model.setLanguage(activeEditorControl.getModel().getLanguageId());
 			}
 		}
 	}
