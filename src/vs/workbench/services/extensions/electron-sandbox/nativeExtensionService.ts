@@ -38,13 +38,14 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { AbstractExtensionService, ExtensionHostCrashTracker, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionHostKind, ExtensionRunningPreference, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { AbstractExtensionService, ExtensionHostCrashTracker } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { filterByRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
 import { IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
@@ -59,8 +60,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
-	private readonly _enableLocalWebWorker: boolean;
-	private readonly _lazyLocalWebWorker: boolean;
+	private readonly _webWorkerExtHostEnablement: LocalWebWorkerExtHostEnablement;
 	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private readonly _localCrashTracker = new ExtensionHostCrashTracker();
@@ -91,6 +91,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService
 	) {
 		super(
+			new NativeExtensionHostKindPicker(environmentService, configurationService, logService),
 			instantiationService,
 			notificationService,
 			environmentService,
@@ -109,7 +110,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			userDataProfileService
 		);
 
-		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
+		this._webWorkerExtHostEnablement = determineLocalWebWorkerExtHostEnablement(environmentService, configurationService);
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 
@@ -125,28 +126,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._initialize();
 			}, 50 /*max delay*/);
 		});
-	}
-
-	private _isLocalWebWorkerEnabled(): [boolean, boolean] {
-		let isEnabled: boolean;
-		let isLazy: boolean;
-		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {
-			isEnabled = true;
-			isLazy = false;
-		} else {
-			const config = this._configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
-			if (config === true) {
-				isEnabled = true;
-				isLazy = false;
-			} else if (config === 'auto') {
-				isEnabled = true;
-				isLazy = true;
-			} else {
-				isEnabled = false;
-				isLazy = false;
-			}
-		}
-		return [isEnabled, isLazy];
 	}
 
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
@@ -177,7 +156,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				} else {
 					// restart case
 					const allExtensions = await this.getExtensions();
-					const myExtensions = this._filterByRunningLocation(allExtensions, desiredRunningLocation);
+					const myExtensions = this._runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
 					return {
 						autoStart: true,
 						allExtensions: allExtensions,
@@ -198,51 +177,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		};
 	}
 
-	protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
-		const result = NativeExtensionService.pickExtensionHostKind(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
-		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionHostKindToString(result)}`);
-		return result;
-	}
-
-	public static pickExtensionHostKind(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference, hasRemoteExtHost: boolean, hasWebWorkerExtHost: boolean): ExtensionHostKind | null {
-		const result: ExtensionHostKind[] = [];
-		for (const extensionKind of extensionKinds) {
-			if (extensionKind === 'ui' && isInstalledLocally) {
-				// ui extensions run locally if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionHostKind.LocalProcess;
-				} else {
-					result.push(ExtensionHostKind.LocalProcess);
-				}
-			}
-			if (extensionKind === 'workspace' && isInstalledRemotely) {
-				// workspace extensions run remotely if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
-					return ExtensionHostKind.Remote;
-				} else {
-					result.push(ExtensionHostKind.Remote);
-				}
-			}
-			if (extensionKind === 'workspace' && !hasRemoteExtHost) {
-				// workspace extensions also run locally if there is no remote
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionHostKind.LocalProcess;
-				} else {
-					result.push(ExtensionHostKind.LocalProcess);
-				}
-			}
-			if (extensionKind === 'web' && isInstalledLocally && hasWebWorkerExtHost) {
-				// web worker extensions run in the local web worker if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionHostKind.LocalWebWorker;
-				} else {
-					result.push(ExtensionHostKind.LocalWebWorker);
-				}
-			}
-		}
-		return (result.length > 0 ? result[0] : null);
-	}
-
 	protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
@@ -253,8 +187,8 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
-				if (this._enableLocalWebWorker) {
-					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+				if (this._webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled) {
+					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, (this._webWorkerExtHostEnablement === LocalWebWorkerExtHostEnablement.Lazy), this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 				}
 				return null;
 			}
@@ -606,9 +540,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		this._initializeRunningLocation(localExtensions, remoteExtensions);
 
 		// remove non-UI extensions from the local extensions
-		const localProcessExtensions = this._filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalProcess);
-		const localWebWorkerExtensions = this._filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
-		remoteExtensions = this._filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
+		const localProcessExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalProcess);
+		const localWebWorkerExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
+		remoteExtensions = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
@@ -647,7 +581,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	private _startExtensionHost(extensionHostManager: IExtensionHostManager, _extensions: IExtensionDescription[]): void {
-		const extensions = this._filterByExtensionHostManager(_extensions, extensionHostManager);
+		const extensions = this._runningLocations.filterByExtensionHostManager(_extensions, extensionHostManager);
 		extensionHostManager.start(this._registry.getAllExtensionDescriptions(), extensions.map(extension => extension.identifier));
 	}
 
@@ -729,6 +663,88 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		}
 		return true;
+	}
+}
+
+function determineLocalWebWorkerExtHostEnablement(environmentService: IWorkbenchEnvironmentService, configurationService: IConfigurationService): LocalWebWorkerExtHostEnablement {
+	if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {
+		return LocalWebWorkerExtHostEnablement.Eager;
+	} else {
+		const config = configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
+		if (config === true) {
+			return LocalWebWorkerExtHostEnablement.Eager;
+		} else if (config === 'auto') {
+			return LocalWebWorkerExtHostEnablement.Lazy;
+		} else {
+			return LocalWebWorkerExtHostEnablement.Disabled;
+		}
+	}
+}
+
+const enum LocalWebWorkerExtHostEnablement {
+	Disabled = 0,
+	Eager = 1,
+	Lazy = 2
+}
+
+export class NativeExtensionHostKindPicker implements IExtensionHostKindPicker {
+
+	private readonly _hasRemoteExtHost: boolean;
+	private readonly _hasWebWorkerExtHost: boolean;
+
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		this._hasRemoteExtHost = Boolean(environmentService.remoteAuthority);
+		const webWorkerExtHostEnablement = determineLocalWebWorkerExtHostEnablement(environmentService, configurationService);
+		this._hasWebWorkerExtHost = (webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled);
+	}
+
+	public pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
+		const result = NativeExtensionHostKindPicker.pickExtensionHostKind(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, this._hasRemoteExtHost, this._hasWebWorkerExtHost);
+		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionHostKindToString(result)}`);
+		return result;
+	}
+
+	public static pickExtensionHostKind(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference, hasRemoteExtHost: boolean, hasWebWorkerExtHost: boolean): ExtensionHostKind | null {
+		const result: ExtensionHostKind[] = [];
+		for (const extensionKind of extensionKinds) {
+			if (extensionKind === 'ui' && isInstalledLocally) {
+				// ui extensions run locally if possible
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionHostKind.LocalProcess;
+				} else {
+					result.push(ExtensionHostKind.LocalProcess);
+				}
+			}
+			if (extensionKind === 'workspace' && isInstalledRemotely) {
+				// workspace extensions run remotely if possible
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
+					return ExtensionHostKind.Remote;
+				} else {
+					result.push(ExtensionHostKind.Remote);
+				}
+			}
+			if (extensionKind === 'workspace' && !hasRemoteExtHost) {
+				// workspace extensions also run locally if there is no remote
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionHostKind.LocalProcess;
+				} else {
+					result.push(ExtensionHostKind.LocalProcess);
+				}
+			}
+			if (extensionKind === 'web' && isInstalledLocally && hasWebWorkerExtHost) {
+				// web worker extensions run in the local web worker if possible
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionHostKind.LocalWebWorker;
+				} else {
+					result.push(ExtensionHostKind.LocalWebWorker);
+				}
+			}
+		}
+		return (result.length > 0 ? result[0] : null);
 	}
 }
 

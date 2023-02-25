@@ -24,7 +24,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWo
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionHostKind, ExtensionRunningPreference, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { IExtensionHost, IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -61,6 +61,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super(
+			new BrowserExtensionHostKindPicker(logService),
 			instantiationService,
 			notificationService,
 			environmentService,
@@ -111,7 +112,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return {
 			getInitData: async (): Promise<IWebWorkerExtensionHostInitData> => {
 				const allExtensions = await this.getExtensions();
-				const localWebWorkerExtensions = this._filterByRunningLocation(allExtensions, desiredRunningLocation);
+				const localWebWorkerExtensions = this._runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
 				return {
 					autoStart: true,
 					allExtensions: allExtensions,
@@ -129,47 +130,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return this._remoteInitData!;
 			}
 		};
-	}
-
-	protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
-		const result = ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference);
-		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionHostKindToString(result)}`);
-		return result;
-	}
-
-	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
-		const result: ExtensionHostKind[] = [];
-		let canRunRemotely = false;
-		for (const extensionKind of extensionKinds) {
-			if (extensionKind === 'ui' && isInstalledRemotely) {
-				// ui extensions run remotely if possible (but only as a last resort)
-				if (preference === ExtensionRunningPreference.Remote) {
-					return ExtensionHostKind.Remote;
-				} else {
-					canRunRemotely = true;
-				}
-			}
-			if (extensionKind === 'workspace' && isInstalledRemotely) {
-				// workspace extensions run remotely if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
-					return ExtensionHostKind.Remote;
-				} else {
-					result.push(ExtensionHostKind.Remote);
-				}
-			}
-			if (extensionKind === 'web' && (isInstalledLocally || isInstalledRemotely)) {
-				// web worker extensions run in the local web worker if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionHostKind.LocalWebWorker;
-				} else {
-					result.push(ExtensionHostKind.LocalWebWorker);
-				}
-			}
-		}
-		if (canRunRemotely) {
-			result.push(ExtensionHostKind.Remote);
-		}
-		return (result.length > 0 ? result[0] : null);
 	}
 
 	protected _createExtensionHost(runningLocation: ExtensionRunningLocation, _isInitialStart: boolean): IExtensionHost | null {
@@ -220,9 +180,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._initializeRunningLocation(localExtensions, remoteExtensions);
 
 		// Some remote extensions could run locally in the web worker, so store them
-		const remoteExtensionsThatNeedToRunLocally = this._filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.LocalWebWorker);
-		localExtensions = this._filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
-		remoteExtensions = this._filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
+		const remoteExtensionsThatNeedToRunLocally = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.LocalWebWorker);
+		localExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
+		remoteExtensions = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
 
 		// Add locally the remote extensions that need to run locally in the web worker
 		for (const ext of remoteExtensionsThatNeedToRunLocally) {
@@ -264,6 +224,54 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		if (typeof automatedWindow.codeAutomationExit === 'function') {
 			automatedWindow.codeAutomationExit(code);
 		}
+	}
+}
+
+export class BrowserExtensionHostKindPicker implements IExtensionHostKindPicker {
+
+	constructor(
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
+		const result = BrowserExtensionHostKindPicker.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference);
+		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionHostKindToString(result)}`);
+		return result;
+	}
+
+	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
+		const result: ExtensionHostKind[] = [];
+		let canRunRemotely = false;
+		for (const extensionKind of extensionKinds) {
+			if (extensionKind === 'ui' && isInstalledRemotely) {
+				// ui extensions run remotely if possible (but only as a last resort)
+				if (preference === ExtensionRunningPreference.Remote) {
+					return ExtensionHostKind.Remote;
+				} else {
+					canRunRemotely = true;
+				}
+			}
+			if (extensionKind === 'workspace' && isInstalledRemotely) {
+				// workspace extensions run remotely if possible
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
+					return ExtensionHostKind.Remote;
+				} else {
+					result.push(ExtensionHostKind.Remote);
+				}
+			}
+			if (extensionKind === 'web' && (isInstalledLocally || isInstalledRemotely)) {
+				// web worker extensions run in the local web worker if possible
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionHostKind.LocalWebWorker;
+				} else {
+					result.push(ExtensionHostKind.LocalWebWorker);
+				}
+			}
+		}
+		if (canRunRemotely) {
+			result.push(ExtensionHostKind.Remote);
+		}
+		return (result.length > 0 ? result[0] : null);
 	}
 }
 

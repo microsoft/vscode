@@ -40,6 +40,10 @@ export function extensionRunningPreferenceToString(preference: ExtensionRunningP
 	}
 }
 
+export interface IExtensionHostKindPicker {
+	pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null;
+}
+
 export function determineExtensionHostKinds(
 	_localExtensions: IExtensionDescription[],
 	_remoteExtensions: IExtensionDescription[],
