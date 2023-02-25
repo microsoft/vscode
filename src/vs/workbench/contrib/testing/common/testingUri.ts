@@ -3,14 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from 'vs/base/common/assert';
 import { URI } from 'vs/base/common/uri';
 
 export const TEST_DATA_SCHEME = 'vscode-test-data';
 
 export const enum TestUriType {
+	AllOutput,
 	ResultMessage,
 	ResultActualOutput,
 	ResultExpectedOutput,
+}
+
+interface IAllOutputReference {
+	type: TestUriType.AllOutput;
+	resultId: string;
 }
 
 interface IResultTestUri {
@@ -30,12 +37,14 @@ interface IResultTestOutputReference extends IResultTestUri {
 }
 
 export type ParsedTestUri =
+	| IAllOutputReference
 	| IResultTestMessageReference
 	| IResultTestOutputReference;
 
 const enum TestUriParts {
 	Results = 'results',
 
+	AllOutput = 'output',
 	Messages = 'message',
 	Text = 'TestFailureMessage',
 	ActualOutput = 'ActualOutput',
@@ -63,10 +72,22 @@ export const parseTestUri = (uri: URI): ParsedTestUri | undefined => {
 		}
 	}
 
+	if (request[0] === TestUriParts.AllOutput) {
+		return { resultId: locationId, type: TestUriType.AllOutput };
+	}
+
 	return undefined;
 };
 
 export const buildTestUri = (parsed: ParsedTestUri): URI => {
+	if (parsed.type === TestUriType.AllOutput) {
+		return URI.from({
+			scheme: TEST_DATA_SCHEME,
+			authority: TestUriParts.Results,
+			path: ['', parsed.resultId, TestUriParts.AllOutput].join('/'),
+		});
+	}
+
 	const uriParts = {
 		scheme: TEST_DATA_SCHEME,
 		authority: TestUriParts.Results
@@ -86,6 +107,6 @@ export const buildTestUri = (parsed: ParsedTestUri): URI => {
 		case TestUriType.ResultMessage:
 			return msgRef(parsed.resultId, parsed.taskIndex, parsed.messageIndex, TestUriParts.Text);
 		default:
-			throw new Error('Invalid test uri');
+			assertNever(parsed, 'Invalid test uri');
 	}
 };

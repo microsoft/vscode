@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IRemoteService } from 'vs/platform/ipc/common/services';
 
 type ChannelClientCtor<T> = { new(channel: IChannel, ...args: any[]): T };
 type Remote = { getChannel(channelName: string): IChannel };
@@ -61,13 +62,7 @@ export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, ch
 
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 
-export interface ISharedProcessService {
-
-	readonly _serviceBrand: undefined;
-
-	getChannel(channelName: string): IChannel;
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
-
+export interface ISharedProcessService extends IRemoteService {
 	notifyRestored(): void;
 }
 
