@@ -24,6 +24,7 @@
 		"out-build/**": true,
 		"out-vscode/**": true,
 		"i18n/**": true,
+		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
