@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
@@ -148,22 +148,22 @@ export class ExtensionHostExtensions {
 		};
 
 		for (const oldExtension of this._allExtensions) {
-			const newExtension = newExtensionsMap.get(ExtensionIdentifier.toKey(oldExtension.identifier));
+			const newExtension = newExtensionsMap.get(oldExtension.identifier);
 			if (!newExtension) {
 				toRemove.push(oldExtension.identifier);
-				oldExtensionsMap.delete(ExtensionIdentifier.toKey(oldExtension.identifier));
+				oldExtensionsMap.delete(oldExtension.identifier);
 				continue;
 			}
 			if (!extensionsAreTheSame(oldExtension, newExtension)) {
 				// The new extension is different than the old one
 				// (e.g. maybe it executes in a different location)
 				toRemove.push(oldExtension.identifier);
-				oldExtensionsMap.delete(ExtensionIdentifier.toKey(oldExtension.identifier));
+				oldExtensionsMap.delete(oldExtension.identifier);
 				continue;
 			}
 		}
 		for (const newExtension of allExtensions) {
-			const oldExtension = oldExtensionsMap.get(ExtensionIdentifier.toKey(newExtension.identifier));
+			const oldExtension = oldExtensionsMap.get(newExtension.identifier);
 			if (!oldExtension) {
 				toAdd.push(newExtension);
 				continue;
@@ -172,20 +172,20 @@ export class ExtensionHostExtensions {
 				// The new extension is different than the old one
 				// (e.g. maybe it executes in a different location)
 				toRemove.push(oldExtension.identifier);
-				oldExtensionsMap.delete(ExtensionIdentifier.toKey(oldExtension.identifier));
+				oldExtensionsMap.delete(oldExtension.identifier);
 				continue;
 			}
 		}
 
-		const myOldExtensionsSet = extensionIdentifiersArrayToSet(this._myExtensions);
-		const myNewExtensionsSet = extensionIdentifiersArrayToSet(myExtensions);
+		const myOldExtensionsSet = new ExtensionIdentifierSet(this._myExtensions);
+		const myNewExtensionsSet = new ExtensionIdentifierSet(myExtensions);
 		for (const oldExtensionId of this._myExtensions) {
-			if (!myNewExtensionsSet.has(ExtensionIdentifier.toKey(oldExtensionId))) {
+			if (!myNewExtensionsSet.has(oldExtensionId)) {
 				myToRemove.push(oldExtensionId);
 			}
 		}
 		for (const newExtensionId of myExtensions) {
-			if (!myOldExtensionsSet.has(ExtensionIdentifier.toKey(newExtensionId))) {
+			if (!myOldExtensionsSet.has(newExtensionId)) {
 				myToAdd.push(newExtensionId);
 			}
 		}
@@ -198,16 +198,16 @@ export class ExtensionHostExtensions {
 	public delta(extensionsDelta: IExtensionDescriptionDelta): void {
 		const { toRemove, toAdd, myToRemove, myToAdd } = extensionsDelta;
 		// First handle removals
-		const toRemoveSet = extensionIdentifiersArrayToSet(toRemove);
-		const myToRemoveSet = extensionIdentifiersArrayToSet(myToRemove);
+		const toRemoveSet = new ExtensionIdentifierSet(toRemove);
+		const myToRemoveSet = new ExtensionIdentifierSet(myToRemove);
 		for (let i = 0; i < this._allExtensions.length; i++) {
-			if (toRemoveSet.has(ExtensionIdentifier.toKey(this._allExtensions[i].identifier))) {
+			if (toRemoveSet.has(this._allExtensions[i].identifier)) {
 				this._allExtensions.splice(i, 1);
 				i--;
 			}
 		}
 		for (let i = 0; i < this._myExtensions.length; i++) {
-			if (myToRemoveSet.has(ExtensionIdentifier.toKey(this._myExtensions[i]))) {
+			if (myToRemoveSet.has(this._myExtensions[i])) {
 				this._myExtensions.splice(i, 1);
 				i--;
 			}
@@ -231,77 +231,10 @@ export class ExtensionHostExtensions {
 	}
 }
 
-export class ExtensionIdentifierSet implements Set<ExtensionIdentifier> {
-
-	readonly [Symbol.toStringTag]: string = 'ExtensionIdentifierSet';
-
-	private readonly _map = new Map<string, ExtensionIdentifier>();
-	private readonly _toKey = ExtensionIdentifier.toKey;
-
-	constructor(values?: Iterable<ExtensionIdentifier>) {
-		if (values) {
-			for (const value of values) {
-				this.add(value);
-			}
-		}
-	}
-
-	get size(): number {
-		return this._map.size;
-	}
-
-	add(value: ExtensionIdentifier): this {
-		this._map.set(this._toKey(value), value);
-		return this;
-	}
-
-	clear(): void {
-		this._map.clear();
-	}
-
-	delete(value: ExtensionIdentifier): boolean {
-		return this._map.delete(this._toKey(value));
-	}
-
-	has(value: ExtensionIdentifier): boolean {
-		return this._map.has(this._toKey(value));
-	}
-
-	forEach(callbackfn: (value: ExtensionIdentifier, value2: ExtensionIdentifier, set: Set<ExtensionIdentifier>) => void, thisArg?: any): void {
-		this._map.forEach(value => callbackfn.call(thisArg, value, value, this));
-	}
-
-	*entries(): IterableIterator<[ExtensionIdentifier, ExtensionIdentifier]> {
-		for (const [_key, value] of this._map) {
-			yield [value, value];
-		}
-	}
-
-	keys(): IterableIterator<ExtensionIdentifier> {
-		return this._map.values();
-	}
-
-	values(): IterableIterator<ExtensionIdentifier> {
-		return this._map.values();
-	}
-
-	[Symbol.iterator](): IterableIterator<ExtensionIdentifier> {
-		return this._map.values();
-	}
-}
-
-export function extensionIdentifiersArrayToSet(extensionIds: ExtensionIdentifier[]): Set<string> {
-	const result = new Set<string>();
-	for (const extensionId of extensionIds) {
-		result.add(ExtensionIdentifier.toKey(extensionId));
-	}
-	return result;
-}
-
-function extensionDescriptionArrayToMap(extensions: IExtensionDescription[]): Map<string, IExtensionDescription> {
-	const result = new Map<string, IExtensionDescription>();
+function extensionDescriptionArrayToMap(extensions: IExtensionDescription[]): ExtensionIdentifierMap<IExtensionDescription> {
+	const result = new ExtensionIdentifierMap<IExtensionDescription>();
 	for (const extension of extensions) {
-		result.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+		result.set(extension.identifier, extension);
 	}
 	return result;
 }

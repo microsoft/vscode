@@ -21,7 +21,7 @@ import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -105,16 +105,16 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		const extensionsDescriptions = this._extensionService.extensions.filter((extension) => {
 			return Boolean(extension.main) || Boolean(extension.browser);
 		});
-		const marketplaceMap: { [id: string]: IExtension } = Object.create(null);
+		const marketplaceMap = new ExtensionIdentifierMap<IExtension>();
 		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
 		for (const extension of marketPlaceExtensions) {
-			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
+			marketplaceMap.set(extension.identifier.id, extension);
 		}
 
 		const statusMap = this._extensionService.getExtensionsStatus();
 
 		// group profile segments by extension
-		const segments: { [id: string]: number[] } = Object.create(null);
+		const segments = new ExtensionIdentifierMap<number[]>();
 
 		const profileInfo = this._getProfileInfo();
 		if (profileInfo) {
@@ -123,10 +123,10 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				const id = profileInfo.ids[i];
 				const delta = profileInfo.deltas[i];
 
-				let extensionSegments = segments[ExtensionIdentifier.toKey(id)];
+				let extensionSegments = segments.get(id);
 				if (!extensionSegments) {
 					extensionSegments = [];
-					segments[ExtensionIdentifier.toKey(id)] = extensionSegments;
+					segments.set(id, extensionSegments);
 				}
 
 				extensionSegments.push(currentStartTime);
@@ -141,7 +141,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			let extProfileInfo: IExtensionProfileInformation | null = null;
 			if (profileInfo) {
-				const extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
+				const extensionSegments = segments.get(extensionDescription.identifier) || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -157,7 +157,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			result[i] = {
 				originalIndex: i,
 				description: extensionDescription,
-				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
+				marketplaceInfo: marketplaceMap.get(extensionDescription.identifier),
 				status: statusMap[extensionDescription.identifier.value],
 				profileInfo: extProfileInfo || undefined,
 				unresponsiveProfile: this._getUnresponsiveProfile(extensionDescription.identifier)

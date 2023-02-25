@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Emitter } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
 
@@ -35,7 +35,7 @@ export class ExtensionDescriptionRegistry {
 	public readonly onDidChange = this._onDidChange.event;
 
 	private _extensionDescriptions: IExtensionDescription[];
-	private _extensionsMap!: Map<string, IExtensionDescription>;
+	private _extensionsMap!: ExtensionIdentifierMap<IExtensionDescription>;
 	private _extensionsArr!: IExtensionDescription[];
 	private _activationMap!: Map<string, IExtensionDescription[]>;
 
@@ -48,18 +48,18 @@ export class ExtensionDescriptionRegistry {
 		// Ensure extensions are stored in the order: builtin, user, under development
 		this._extensionDescriptions.sort(extensionCmp);
 
-		this._extensionsMap = new Map<string, IExtensionDescription>();
+		this._extensionsMap = new ExtensionIdentifierMap<IExtensionDescription>();
 		this._extensionsArr = [];
 		this._activationMap = new Map<string, IExtensionDescription[]>();
 
 		for (const extensionDescription of this._extensionDescriptions) {
-			if (this._extensionsMap.has(ExtensionIdentifier.toKey(extensionDescription.identifier))) {
+			if (this._extensionsMap.has(extensionDescription.identifier)) {
 				// No overwriting allowed!
 				console.error('Extension `' + extensionDescription.identifier.value + '` is already registered');
 				continue;
 			}
 
-			this._extensionsMap.set(ExtensionIdentifier.toKey(extensionDescription.identifier), extensionDescription);
+			this._extensionsMap.set(extensionDescription.identifier, extensionDescription);
 			this._extensionsArr.push(extensionDescription);
 
 			if (Array.isArray(extensionDescription.activationEvents)) {
@@ -147,14 +147,12 @@ export class ExtensionDescriptionRegistry {
 			}
 		};
 
-		const descs = new Map<string, IExtensionDescription>();
+		const descs = new ExtensionIdentifierMap<IExtensionDescription>();
 		for (const extensionDescription of extensionDescriptions) {
-			const extensionId = ExtensionIdentifier.toKey(extensionDescription.identifier);
-			descs.set(extensionId, extensionDescription);
+			descs.set(extensionDescription.identifier, extensionDescription);
 			if (extensionDescription.extensionDependencies) {
-				for (const _depId of extensionDescription.extensionDependencies) {
-					const depId = ExtensionIdentifier.toKey(_depId);
-					G.addArc(extensionId, depId);
+				for (const depId of extensionDescription.extensionDependencies) {
+					G.addArc(ExtensionIdentifier.toKey(extensionDescription.identifier), ExtensionIdentifier.toKey(depId));
 				}
 			}
 		}
@@ -192,7 +190,7 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
-		return this._extensionsMap.has(ExtensionIdentifier.toKey(extensionId));
+		return this._extensionsMap.has(extensionId);
 	}
 
 	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
@@ -205,7 +203,7 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
-		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
+		const extension = this._extensionsMap.get(extensionId);
 		return extension ? extension : undefined;
 	}
 
@@ -258,7 +256,6 @@ function extensionCmp(a: IExtensionDescription, b: IExtensionDescription): numbe
 }
 
 function removeExtensions(arr: IExtensionDescription[], toRemove: ExtensionIdentifier[]): IExtensionDescription[] {
-	const toRemoveSet = new Set<string>();
-	toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
-	return arr.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
+	const toRemoveSet = new ExtensionIdentifierSet(toRemove);
+	return arr.filter(extension => !toRemoveSet.has(extension.identifier));
 }

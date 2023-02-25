@@ -10,7 +10,7 @@ import { randomPort } from 'vs/base/common/ports';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -32,7 +32,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private readonly _onDidChangeLastProfile: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeLastProfile: Event<void> = this._onDidChangeLastProfile.event;
 
-	private readonly _unresponsiveProfiles = new Map<string, IExtensionHostProfile>();
+	private readonly _unresponsiveProfiles = new ExtensionIdentifierMap<IExtensionHostProfile>();
 	private _profile: IExtensionHostProfile | null;
 	private _profileSession: ProfileSession | null;
 	private _state: ProfileSessionState = ProfileSessionState.None;
@@ -168,11 +168,11 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	}
 
 	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
-		return this._unresponsiveProfiles.get(ExtensionIdentifier.toKey(extensionId));
+		return this._unresponsiveProfiles.get(extensionId);
 	}
 
 	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void {
-		this._unresponsiveProfiles.set(ExtensionIdentifier.toKey(extensionId), profile);
+		this._unresponsiveProfiles.set(extensionId, profile);
 		this._setLastProfile(profile);
 	}
 

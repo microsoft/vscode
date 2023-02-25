@@ -45,7 +45,7 @@ import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/e
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { filterByRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
+import { filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
 import { IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
@@ -146,8 +146,8 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
 					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
-					const runningLocation = this._determineRunningLocation(localExtensions);
-					const myExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
+					const runningLocation = this._runningLocations.computeRunningLocation(localExtensions, [], false);
+					const myExtensions = filterExtensionDescriptions(localExtensions, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 					return {
 						autoStart: false,
 						allExtensions: localExtensions,

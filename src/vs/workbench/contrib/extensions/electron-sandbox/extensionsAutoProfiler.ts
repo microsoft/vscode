@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -35,7 +35,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 
 export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
-	private readonly _blame = new Set<string>();
+	private readonly _blame = new ExtensionIdentifierSet();
 
 	private _session: CancellationTokenSource | undefined;
 	private _unresponsiveListener: IDisposable | undefined;
@@ -218,10 +218,10 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 		}
 
 		// only blame once per extension, don't blame too often
-		if (this._blame.has(ExtensionIdentifier.toKey(extension.identifier)) || this._blame.size >= 3) {
+		if (this._blame.has(extension.identifier) || this._blame.size >= 3) {
 			return;
 		}
-		this._blame.add(ExtensionIdentifier.toKey(extension.identifier));
+		this._blame.add(extension.identifier);
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(
