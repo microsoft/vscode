@@ -12,12 +12,12 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -30,6 +30,8 @@ import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
+import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
 
 const enum CellEditorRevealType {
 	Line,
@@ -76,6 +78,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
+	override readonly view!: NotebookCellListView<CellViewModel>;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -140,6 +143,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this._webviewElement;
 	}
 
+	get inRenderingTransaction() {
+		return this.view.inRenderingTransaction;
+	}
+
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
@@ -149,11 +156,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._viewContext = viewContext;
 		this._previousFocusedElements = this.getFocusedElements();
@@ -274,6 +280,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 			updateVisibleRanges();
 		}));
+	}
+
+	protected override createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<CellViewModel>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<CellViewModel>): IListView<CellViewModel> {
+		return new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
 	}
 
 	attachWebview(element: HTMLElement) {
@@ -905,7 +915,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	//#endregion
 
 	//#region Reveal Cell Editor Range asynchronously
-	async revealCellRangeAsync(cell: ICellViewModel, range: Range, revealType: CellRevealRangeType): Promise<void> {
+	async revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index < 0) {
@@ -925,7 +935,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	// List items have real dynamic heights, which means after we set `scrollTop` based on the `elementTop(index)`, the element at `index` might still be removed from the view once all relayouting tasks are done.
 	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
 	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.
-	private async _revealRangeInternalAsync(viewIndex: number, range: Range, revealType: CellEditorRevealType): Promise<void> {
+	private async _revealRangeInternalAsync(viewIndex: number, range: Selection | Range, revealType: CellEditorRevealType): Promise<void> {
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
 		const elementTop = this.view.elementTop(viewIndex);
@@ -959,10 +969,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Range, revealType: CellEditorRevealType): Promise<void> {
+	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Selection | Range, revealType: CellEditorRevealType): Promise<void> {
 		const reveal = (viewIndex: number, range: Range, revealType: CellEditorRevealType) => {
 			const element = this.view.element(viewIndex);
-			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			const positionOffset = element.getPositionScrollTopOffset(range);
 			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
 			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
 
@@ -983,10 +993,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Range, revealType: CellEditorRevealType): Promise<void> {
+	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Selection | Range, revealType: CellEditorRevealType): Promise<void> {
 		const reveal = (viewIndex: number, range: Range, revealType: CellEditorRevealType) => {
 			const element = this.view.element(viewIndex);
-			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			const positionOffset = element.getPositionScrollTopOffset(range);
 			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
 			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
 
@@ -1000,14 +1010,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const elementTop = this.view.elementTop(viewIndex);
 		const viewItemOffset = elementTop;
 		const element = this.view.element(viewIndex);
-		const positionOffset = viewItemOffset + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+		const positionOffset = viewItemOffset + element.getPositionScrollTopOffset(range);
 
 		if (positionOffset < scrollTop || positionOffset > wrapperBottom) {
 			// let it render
 			this.view.setScrollTop(positionOffset - this.view.renderHeight / 2);
 
 			// after rendering, it might be pushed down due to markdown cell dynamic height
-			const newPositionOffset = this.view.elementTop(viewIndex) + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			const newPositionOffset = this.view.elementTop(viewIndex) + element.getPositionScrollTopOffset(range);
 			this.view.setScrollTop(newPositionOffset - this.view.renderHeight / 2);
 
 			// reveal editor
@@ -1026,11 +1036,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private _revealRangeCommon(viewIndex: number, range: Range, revealType: CellEditorRevealType, newlyCreated: boolean, alignToBottom: boolean) {
+	private _revealRangeCommon(viewIndex: number, range: Selection | Range, revealType: CellEditorRevealType, newlyCreated: boolean, alignToBottom: boolean) {
 		const element = this.view.element(viewIndex);
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
-		const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+		const positionOffset = element.getPositionScrollTopOffset(range);
 		const elementOriginalHeight = this.view.elementHeight(viewIndex);
 		if (positionOffset >= elementOriginalHeight) {
 			// we are revealing a range that is beyond current element height
@@ -1173,7 +1183,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change.
 
-		if (this.view.elementTop(index) >= this.view.scrollTop) {
+		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
 			return this.view.updateElementHeight(index, size, index);
 		}
 
@@ -1228,11 +1238,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			}
+			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
 		if (styles.listFocusBackground) {

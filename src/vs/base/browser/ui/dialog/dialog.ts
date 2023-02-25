@@ -11,10 +11,11 @@ import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
 import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 
@@ -33,7 +34,7 @@ export interface IDialogOptions {
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
-	readonly icon?: Codicon;
+	readonly icon?: ThemeIcon;
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
 	readonly disableDefaultAction?: boolean;
@@ -358,26 +359,26 @@ export class Dialog extends Disposable {
 
 			const spinModifierClassName = 'codicon-modifier-spin';
 
-			this.iconElement.classList.remove(...Codicon.dialogError.classNamesArray, ...Codicon.dialogWarning.classNamesArray, ...Codicon.dialogInfo.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
+			this.iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.dialogError), ...ThemeIcon.asClassNameArray(Codicon.dialogWarning), ...ThemeIcon.asClassNameArray(Codicon.dialogInfo), ...ThemeIcon.asClassNameArray(Codicon.loading), spinModifierClassName);
 
 			if (this.options.icon) {
-				this.iconElement.classList.add(...this.options.icon.classNamesArray);
+				this.iconElement.classList.add(...ThemeIcon.asClassNameArray(this.options.icon));
 			} else {
 				switch (this.options.type) {
 					case 'error':
-						this.iconElement.classList.add(...Codicon.dialogError.classNamesArray);
+						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.dialogError));
 						break;
 					case 'warning':
-						this.iconElement.classList.add(...Codicon.dialogWarning.classNamesArray);
+						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.dialogWarning));
 						break;
 					case 'pending':
-						this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
+						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), spinModifierClassName);
 						break;
 					case 'none':
 					case 'info':
 					case 'question':
 					default:
-						this.iconElement.classList.add(...Codicon.dialogInfo.classNamesArray);
+						this.iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.dialogInfo));
 						break;
 				}
 			}
@@ -386,7 +387,7 @@ export class Dialog extends Disposable {
 			if (!this.options.disableCloseAction) {
 				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
 
-				const action = this._register(new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), Codicon.dialogClose.classNames, true, async () => {
+				const action = this._register(new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), ThemeIcon.asClassName(Codicon.dialogClose), true, async () => {
 					resolve({
 						button: this.options.cancelId || 0,
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
@@ -428,8 +429,8 @@ export class Dialog extends Disposable {
 
 		this.shadowElement.style.boxShadow = shadowColor;
 
-		this.element.style.color = fgColor?.toString() ?? '';
-		this.element.style.backgroundColor = bgColor?.toString() ?? '';
+		this.element.style.color = fgColor ?? '';
+		this.element.style.backgroundColor = bgColor ?? '';
 		this.element.style.border = border;
 
 		// TODO fix
@@ -476,22 +477,45 @@ export class Dialog extends Disposable {
 	}
 
 	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
-		const buttonMap: ButtonMapEntry[] = [];
-		if (buttons.length === 0) {
-			return buttonMap;
+
+		// Maps each button to its current label and old index
+		// so that when we move them around it's not a problem
+		const buttonMap: ButtonMapEntry[] = buttons.map((label, index) => ({ label, index }));
+
+		if (buttons.length < 2) {
+			return buttonMap; // only need to rearrange if there are 2+ buttons
 		}
 
-		// Maps each button to its current label and old index so that when we move them around it's not a problem
-		buttons.forEach((button, index) => {
-			buttonMap.push({ label: button, index });
-		});
-
-		// macOS/linux: reverse button order if `cancelId` is defined
 		if (isMacintosh || isLinux) {
-			if (cancelId !== undefined && cancelId < buttons.length) {
+
+			// Linux: the GNOME HIG (https://developer.gnome.org/hig/patterns/feedback/dialogs.html?highlight=dialog)
+			// recommend the following:
+			// "Always ensure that the cancel button appears first, before the affirmative button. In left-to-right
+			//  locales, this is on the left. This button order ensures that users become aware of, and are reminded
+			//  of, the ability to cancel prior to encountering the affirmative button."
+
+			// macOS: the HIG (https://developer.apple.com/design/human-interface-guidelines/components/presentation/alerts)
+			// recommend the following:
+			// "Place buttons where people expect. In general, place the button people are most likely to choose on the trailing side in a
+			//  row of buttons or at the top in a stack of buttons. Always place the default button on the trailing side of a row or at the
+			//  top of a stack. Cancel buttons are typically on the leading side of a row or at the bottom of a stack."
+
+			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
 				const cancelButton = buttonMap.splice(cancelId, 1)[0];
-				buttonMap.reverse();
-				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+				buttonMap.splice(1, 0, cancelButton);
+			}
+
+			buttonMap.reverse();
+		} else if (isWindows) {
+
+			// Windows: the HIG (https://learn.microsoft.com/en-us/windows/win32/uxguide/win-dialog-box)
+			// recommend the following:
+			// "One of the following sets of concise commands: Yes/No, Yes/No/Cancel, [Do it]/Cancel,
+			//  [Do it]/[Don't do it], [Do it]/[Don't do it]/Cancel."
+
+			if (typeof cancelId === 'number' && buttonMap[cancelId]) {
+				const cancelButton = buttonMap.splice(cancelId, 1)[0];
+				buttonMap.push(cancelButton);
 			}
 		}
 

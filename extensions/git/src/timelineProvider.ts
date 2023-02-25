@@ -9,6 +9,7 @@ import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
+import { OperationKind, OperationResult } from './operation';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -83,7 +84,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	private repo: Repository | undefined;
 	private repoDisposable: Disposable | undefined;
-	private repoStatusDate: Date | undefined;
+	private repoOperationDate: Date | undefined;
 
 	constructor(private readonly model: Model, private commands: CommandCenter) {
 		this.disposable = Disposable.from(
@@ -102,12 +103,12 @@ export class GitTimelineProvider implements TimelineProvider {
 	}
 
 	async provideTimeline(uri: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
-		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
+		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri}`);
 
 		const repo = this.model.getRepository(uri);
 		if (!repo) {
 			this.repoDisposable?.dispose();
-			this.repoStatusDate = undefined;
+			this.repoOperationDate = undefined;
 			this.repo = undefined;
 
 			return { items: [] };
@@ -117,10 +118,11 @@ export class GitTimelineProvider implements TimelineProvider {
 			this.repoDisposable?.dispose();
 
 			this.repo = repo;
-			this.repoStatusDate = new Date();
+			this.repoOperationDate = new Date();
 			this.repoDisposable = Disposable.from(
 				repo.onDidChangeRepository(uri => this.onRepositoryChanged(repo, uri)),
-				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo))
+				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo)),
+				repo.onDidRunOperation(result => this.onRepositoryOperationRun(repo, result))
 			);
 		}
 
@@ -200,7 +202,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 			const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
 			if (index) {
-				const date = this.repoStatusDate ?? new Date();
+				const date = this.repoOperationDate ?? new Date();
 
 				const item = new GitTimelineItem('~', 'HEAD', l10n.t('Staged Changes'), date.getTime(), 'index', 'git:file:index');
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
@@ -252,7 +254,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
-			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git', 'vscode-local-history'], this);
+			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'vscode-local-history'], this);
 		}
 	}
 
@@ -280,10 +282,25 @@ export class GitTimelineProvider implements TimelineProvider {
 	private onRepositoryStatusChanged(_repo: Repository) {
 		// console.log(`GitTimelineProvider.onRepositoryStatusChanged`);
 
-		// This is less than ideal, but for now just save the last time a status was run and use that as the timestamp for staged items
-		this.repoStatusDate = new Date();
+		const config = workspace.getConfiguration('git.timeline');
+		const showUncommitted = config.get<boolean>('showUncommitted') === true;
 
-		this.fireChanged();
+		if (showUncommitted) {
+			this.fireChanged();
+		}
+	}
+
+	private onRepositoryOperationRun(_repo: Repository, _result: OperationResult) {
+		// console.log(`GitTimelineProvider.onRepositoryOperationRun`);
+
+		// Successful operations that are not read-only and not status operations
+		if (!_result.error && !_result.operation.readOnly && _result.operation.kind !== OperationKind.Status) {
+			// This is less than ideal, but for now just save the last time an
+			// operation was run and use that as the timestamp for staged items
+			this.repoOperationDate = new Date();
+
+			this.fireChanged();
+		}
 	}
 
 	@debounce(500)

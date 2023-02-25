@@ -18,17 +18,16 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { connectRemoteAgentExtensionHost, IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, remoteExtHostLog, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
+import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IRemoteExtensionHostInitData {
 	readonly connectionData: IRemoteConnectionData | null;
@@ -150,14 +149,11 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 						reject('The remote extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
-					let logFile: URI;
-
 					const disposable = protocol.onMessage(msg => {
 
 						if (isMessageOfType(msg, MessageType.Ready)) {
 							// 1) Extension Host is ready to receive messages, initialize it
 							this._createExtHostInitData(isExtensionDevelopmentDebug).then(data => {
-								logFile = data.logFile;
 								protocol.send(VSBuffer.fromString(JSON.stringify(data)));
 							});
 							return;
@@ -170,11 +166,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 							// stop listening for messages here
 							disposable.dispose();
-
-							// Register log channel for remote exthost log
-							const remoteExtHostLoggerResource = { id: remoteExtHostLog, name: localize('remote extension host Log', "Remote Extension Host"), resource: logFile };
-							this._loggerService.registerLoggerResource(remoteExtHostLoggerResource);
-							Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: remoteExtHostLoggerResource.id, label: remoteExtHostLoggerResource.name, file: remoteExtHostLoggerResource.resource, log: true });
 
 							// release this promise
 							this._protocol = protocol;
@@ -225,6 +216,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
@@ -251,9 +243,10 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			loggers: [...this._loggerService.getLoggerResources()],
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: remoteInitData.extensionHostLogsPath,
 			logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
+			logName: localize('remote extension host Log', "Remote Extension Host"),
 			autoStart: true,
 			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 		};

@@ -11,6 +11,7 @@ const codeLineClass = 'code-line';
 export interface CodeLineElement {
 	element: HTMLElement;
 	line: number;
+	codeElement?: HTMLElement;
 }
 
 const getCodeLineElements = (() => {
@@ -19,7 +20,7 @@ const getCodeLineElements = (() => {
 	return (documentVersion: number) => {
 		if (!cachedElements || documentVersion !== cachedVersion) {
 			cachedVersion = documentVersion;
-			cachedElements = [{ element: document.body, line: 0 }];
+			cachedElements = [{ element: document.body, line: -1 }];
 			for (const element of document.getElementsByClassName(codeLineClass)) {
 				const line = +element.getAttribute('data-line')!;
 				if (isNaN(line)) {
@@ -27,9 +28,9 @@ const getCodeLineElements = (() => {
 				}
 
 				if (element.tagName === 'CODE' && element.parentElement && element.parentElement.tagName === 'PRE') {
-					// Fenched code blocks are a special case since the `code-line` can only be marked on
+					// Fenced code blocks are a special case since the `code-line` can only be marked on
 					// the `<code>` element and not the parent `<pre>` element.
-					cachedElements.push({ element: element.parentElement as HTMLElement, line });
+					cachedElements.push({ element: element.parentElement as HTMLElement, line: line, codeElement: element as HTMLElement });
 				} else if (element.tagName === 'UL' || element.tagName === 'OL') {
 					// Skip adding list elements since the first child has the same code line (and should be preferred)
 				} else {

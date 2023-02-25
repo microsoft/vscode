@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 
 // @ts-ignore: interface is implemented via proxy
 export class NativeWorkspacesService implements IWorkspacesService {

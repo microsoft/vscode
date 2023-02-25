@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -25,7 +25,7 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -44,8 +44,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
+import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { Schemas } from 'vs/base/common/network';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -96,12 +96,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
 			onDidChangeProfile: Event.None,
+			onDidUpdateExtensionMetadata: Event.None,
 			async getInstalled() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
-			async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
+			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
-				local.publisherDisplayName = metadata.publisherDisplayName;
-				local.publisherId = metadata.publisherId;
+				local.publisherDisplayName = metadata.publisherDisplayName!;
+				local.publisherId = metadata.publisherId!;
 				return local;
 			},
 			async canInstall() { return true; },
@@ -1491,12 +1492,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onUninstallExtension: Event.None,
 			onDidUninstallExtension: Event.None,
 			onDidChangeProfile: Event.None,
+			onDidUpdateExtensionMetadata: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-			updateMetadata: async (local: ILocalExtension, metadata: IGalleryMetadata) => {
+			updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
 				local.identifier.uuid = metadata.id;
-				local.publisherDisplayName = metadata.publisherDisplayName;
-				local.publisherId = metadata.publisherId;
+				local.publisherDisplayName = metadata.publisherDisplayName!;
+				local.publisherId = metadata.publisherId!;
 				return local;
 			},
 			getTargetPlatform: async () => getTargetPlatform(platform, arch),

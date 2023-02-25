@@ -249,15 +249,6 @@ impl std::fmt::Display for NoAttachedServerError {
 }
 
 #[derive(Debug)]
-pub struct ServerWriteError();
-
-impl std::fmt::Display for ServerWriteError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error writing to the server, it should be restarted")
-	}
-}
-
-#[derive(Debug)]
 pub struct RefreshTokenNotAvailableError();
 
 impl std::fmt::Display for RefreshTokenNotAvailableError {
@@ -380,6 +371,15 @@ impl std::fmt::Display for WindowsNeedsElevation {
 }
 
 #[derive(Debug)]
+pub struct InvalidRpcDataError(pub String);
+
+impl std::fmt::Display for InvalidRpcDataError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "parse error: {}", self.0)
+	}
+}
+
+#[derive(Debug)]
 pub struct CorruptDownload(pub String);
 
 impl std::fmt::Display for CorruptDownload {
@@ -491,7 +491,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	ServerWriteError,
 	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
@@ -505,7 +504,8 @@ makeAnyError!(
 	CorruptDownload,
 	MissingHomeDirectory,
 	CommandFailed,
-	OAuthError
+	OAuthError,
+	InvalidRpcDataError
 );
 
 impl From<reqwest::Error> for AnyError {

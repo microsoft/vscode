@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getLogLevel, ILogService, LogService } from 'vs/platform/log/common/log';
+import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,6 +48,7 @@ import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagemen
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { ServerUserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { LogService } from 'vs/platform/log/common/logService';
 
 class CliMain extends Disposable {
 
@@ -84,7 +85,8 @@ class CliMain extends Disposable {
 
 		const environmentService = new ServerEnvironmentService(this.args, productService);
 		services.set(IServerEnvironmentService, environmentService);
-		const logService: ILogService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
+
+		const logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
 		logService.trace('process arguments:', this.args);
@@ -104,8 +106,13 @@ class CliMain extends Disposable {
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
-		await configurationService.initialize();
 		services.set(IConfigurationService, configurationService);
+
+		// Initialize
+		await Promise.all([
+			configurationService.initialize(),
+			userDataProfilesService.init()
+		]);
 
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));

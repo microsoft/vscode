@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import { CancellationToken, CompletionRegistrationOptions, CompletionRequest, Connection, Disposable, DocumentHighlightRegistrationOptions, DocumentHighlightRequest, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
 import { URI } from 'vscode-uri';
-import { getLsConfiguration, LsConfiguration } from './config';
+import { LsConfiguration, getLsConfiguration } from './config';
 import { ConfigurationManager, Settings } from './configuration';
 import { registerValidateSupport } from './languageFeatures/diagnostics';
 import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
 import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
-import * as l10n from '@vscode/l10n';
 
 interface MdServerInitializationOptions extends LsConfiguration { }
 
@@ -62,18 +62,26 @@ export async function startServer(connection: Connection, serverConfig: {
 	let mdLs: md.IMdLanguageService | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
-		const config = getLsConfiguration(initOptions ?? {});
-
 		const configurationManager = new ConfigurationManager(connection);
+		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
 
-		const workspace = serverConfig.workspaceFactory({ connection, config, workspaceFolders: params.workspaceFolders });
+		const mdConfig = getLsConfiguration(initOptions ?? {});
+
+		const workspace = serverConfig.workspaceFactory({ connection, config: mdConfig, workspaceFolders: params.workspaceFolders });
 		mdLs = md.createLanguageService({
 			workspace,
 			parser: serverConfig.parser,
 			logger: serverConfig.logger,
-			markdownFileExtensions: config.markdownFileExtensions,
-			excludePaths: config.excludePaths,
+			...mdConfig,
+			get preferredMdPathExtensionStyle() {
+				switch (configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
+					case 'includeExtension': return md.PreferredMdPathExtensionStyle.includeExtension;
+					case 'removeExtension': return md.PreferredMdPathExtensionStyle.removeExtension;
+					case 'auto':
+					default:
+						return md.PreferredMdPathExtensionStyle.auto;
+				}
+			}
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
@@ -283,6 +291,15 @@ function registerCompletionsSupport(
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 ): IDisposable {
+	function getIncludeWorkspaceHeaderCompletions(): md.IncludeWorkspaceHeaderCompletions {
+		switch (config.getSettings()?.markdown.suggest.paths.includeWorkspaceHeaderCompletions) {
+			case 'onSingleOrDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onSingleOrDoubleHash;
+			case 'onDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onDoubleHash;
+			case 'never':
+			default: return md.IncludeWorkspaceHeaderCompletions.never;
+		}
+	}
+
 	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
 		const settings = config.getSettings();
 		if (!settings?.markdown.suggest.paths.enabled) {
@@ -291,7 +308,11 @@ function registerCompletionsSupport(
 
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			return ls.getCompletionItems(document, params.position, params.context!, token);
+			// TODO: remove any type after picking up new release with correct types
+			return ls.getCompletionItems(document, params.position, {
+				...(params.context || {}),
+				includeWorkspaceHeaderCompletions: getIncludeWorkspaceHeaderCompletions(),
+			} as any, token);
 		}
 		return [];
 	});

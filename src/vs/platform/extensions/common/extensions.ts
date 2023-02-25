@@ -227,13 +227,6 @@ export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWo
 }
 
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
-}
-
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;
@@ -416,7 +409,7 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
 	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
-		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
+		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
 }

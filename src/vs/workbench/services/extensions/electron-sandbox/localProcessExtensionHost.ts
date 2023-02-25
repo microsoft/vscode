@@ -20,7 +20,7 @@ import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind, NativeLogMarkers } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -28,11 +28,9 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions, localExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { CancellationError, SerializedError } from 'vs/base/common/errors';
@@ -44,6 +42,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -288,7 +287,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 			if (inspectorUrlMatch) {
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
-					console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
+					console.log(`%c[Extension Host] %cdebugger inspector at devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
 				}
 				if (!this._inspectPort) {
 					this._inspectPort = Number(inspectorUrlMatch[2]);
@@ -417,11 +416,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					// stop listening for messages here
 					disposable.dispose();
 
-					// Register log channel for exthost log
-					const localExtHostLoggerResource = { id: localExtHostLog, name: nls.localize('extension host Log', "Extension Host"), resource: this._extensionHostLogFile };
-					this._loggerService.registerLoggerResource(localExtHostLoggerResource);
-					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: localExtHostLoggerResource.id, label: localExtHostLoggerResource.name, file: localExtHostLoggerResource.resource, log: true });
-
 					// release this promise
 					resolve();
 					return;
@@ -448,6 +442,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
@@ -475,9 +470,10 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
-			loggers: [...this._loggerService.getLoggerResources()],
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			logFile: this._extensionHostLogFile,
+			logName: nls.localize('extension host Log', "Extension Host"),
 			autoStart: initData.autoStart,
 			uiKind: UIKind.Desktop
 		};

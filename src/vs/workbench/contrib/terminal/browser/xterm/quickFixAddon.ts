@@ -93,9 +93,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}));
 		}
 		this._register(this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result))));
-		for (const selector of terminalContributionService.quickFixes) {
-			this.registerCommandSelector(selector);
-		}
+		terminalContributionService.terminalQuickFixes.then(quickFixSelectors => {
+			for (const selector of quickFixSelectors) {
+				this.registerCommandSelector(selector);
+			}
+		});
 		this._register(this._quickFixService.onDidRegisterCommandSelector(selector => this.registerCommandSelector(selector)));
 		this._register(this._quickFixService.onDidUnregisterProvider(id => this._commandListeners.delete(id)));
 	}
@@ -166,13 +168,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		this._register(commandDetection.onCommandFinished(async command => await this._resolveQuickFixes(command, this._aliases)));
-
-		// The buffer is not ready by the time command finish
-		// is called. Add the decoration on command start if there are corresponding quick fixes
-		this._register(commandDetection.onCommandStarted(() => {
-			this._registerQuickFixDecoration();
-			this._quickFixes = undefined;
-		}));
 	}
 
 	/**
@@ -181,7 +176,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	 */
 	private async _resolveQuickFixes(command: ITerminalCommand, aliases?: string[][]): Promise<void> {
 		const terminal = this._terminal;
-		if (!terminal) {
+		if (!terminal || command.wasReplayed) {
 			return;
 		}
 		if (command.command !== '' && this._lastQuickFixId) {
@@ -199,6 +194,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 		this._quickFixes = result;
 		this._lastQuickFixId = this._quickFixes[0].id;
+		this._registerQuickFixDecoration();
 	}
 
 	private _disposeQuickFix(id: string, ranQuickFix: boolean): void {
@@ -270,6 +266,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => this.showMenu()));
 		});
 		decoration.onDispose(() => this._currentRenderContext = undefined);
+		this._quickFixes = undefined;
 	}
 }
 

@@ -6,14 +6,16 @@
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchListOptionsUpdate } from 'vs/platform/list/browser/listService';
 import { CellRevealRangeType, CellRevealSyncType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
@@ -22,6 +24,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
+	inRenderingTransaction: boolean;
 	viewModel: NotebookViewModel | null;
 	webviewElement: FastDomNode<HTMLElement> | null;
 	readonly contextKeyService: IContextKeyService;
@@ -63,7 +66,7 @@ export interface INotebookCellList {
 	scrollToBottom(): void;
 	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
 	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
-	revealCellRangeAsync(cell: ICellViewModel, range: Range, revealType: CellRevealRangeType): Promise<void>;
+	revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
@@ -77,7 +80,7 @@ export interface INotebookCellList {
 	style(styles: IListStyles): void;
 	getRenderHeight(): number;
 	getScrollHeight(): number;
-	updateOptions(options: IListOptions<ICellViewModel>): void;
+	updateOptions(options: IWorkbenchListOptionsUpdate): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
 }

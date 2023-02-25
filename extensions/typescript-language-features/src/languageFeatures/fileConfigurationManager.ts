@@ -68,7 +68,7 @@ export default class FileConfigurationManager extends Disposable {
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -193,6 +193,7 @@ export default class FileConfigurationManager extends Disposable {
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			disableLineTextInReferences: true,
 			...getInlayHintsPreferences(config),
 		};
 

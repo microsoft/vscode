@@ -12,7 +12,6 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IViewsService } from 'vs/workbench/common/views';
 import { isNumber } from 'vs/base/common/types';
-import { ILoggerService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
@@ -22,18 +21,15 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 	private readonly _proxy: ExtHostOutputServiceShape;
 	private readonly _outputService: IOutputService;
 	private readonly _viewsService: IViewsService;
-	private readonly _loggerService: ILoggerService;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IOutputService outputService: IOutputService,
 		@IViewsService viewsService: IViewsService,
-		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
 		this._outputService = outputService;
 		this._viewsService = viewsService;
-		this._loggerService = loggerService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostOutputService);
 
@@ -45,16 +41,13 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public async $register(label: string, file: UriComponents, log: boolean, languageId: string | undefined, extensionId: string): Promise<string> {
+	public async $register(label: string, file: UriComponents, languageId: string | undefined, extensionId: string): Promise<string> {
 		const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
 		MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
 		const id = `extension-output-${extensionId}-#${idCounter}-${label}`;
 		const resource = URI.revive(file);
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: resource, log, languageId, extensionId });
-		if (log) {
-			this._loggerService.registerLoggerResource({ resource, id, name: label });
-		}
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: resource, log: false, languageId, extensionId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}

@@ -12,8 +12,8 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { searchRemoveIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, NotebookMatch, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -309,7 +309,7 @@ function performReplace(accessor: ServicesAccessor,
 
 			if (nextFocusElement instanceof Match) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement)) {
+				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof NotebookMatch) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
 					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
