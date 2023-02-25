@@ -30,7 +30,8 @@ import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/commo
 import { ExtensionHostKind, ExtensionRunningPreference, determineExtensionHostKinds, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionPointContribution, ExtensionRunningLocation, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';

@@ -13,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -40,48 +41,6 @@ export interface IMessage {
 	extensionId: ExtensionIdentifier;
 	extensionPointId: string;
 }
-
-export class LocalProcessRunningLocation {
-	public readonly kind = ExtensionHostKind.LocalProcess;
-	constructor(
-		public readonly affinity: number
-	) { }
-	public equals(other: ExtensionRunningLocation) {
-		return (this.kind === other.kind && this.affinity === other.affinity);
-	}
-	public asString(): string {
-		if (this.affinity === 0) {
-			return 'LocalProcess';
-		}
-		return `LocalProcess${this.affinity}`;
-	}
-}
-export class LocalWebWorkerRunningLocation {
-	public readonly kind = ExtensionHostKind.LocalWebWorker;
-	constructor(
-		public readonly affinity: number
-	) { }
-	public equals(other: ExtensionRunningLocation) {
-		return (this.kind === other.kind && this.affinity === other.affinity);
-	}
-	public asString(): string {
-		if (this.affinity === 0) {
-			return 'LocalWebWorker';
-		}
-		return `LocalWebWorker${this.affinity}`;
-	}
-}
-export class RemoteRunningLocation {
-	public readonly kind = ExtensionHostKind.Remote;
-	public readonly affinity = 0;
-	public equals(other: ExtensionRunningLocation) {
-		return (this.kind === other.kind);
-	}
-	public asString(): string {
-		return 'Remote';
-	}
-}
-export type ExtensionRunningLocation = LocalProcessRunningLocation | LocalWebWorkerRunningLocation | RemoteRunningLocation;
 
 export interface IExtensionsStatus {
 	messages: IMessage[];

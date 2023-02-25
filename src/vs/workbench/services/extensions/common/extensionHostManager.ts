@@ -25,7 +25,8 @@ import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/
 import { ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, ExtensionRunningLocation, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 
