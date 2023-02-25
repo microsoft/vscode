@@ -461,25 +461,29 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	getLayout(): EditorGroupLayout {
-		/* example return value:
-			{ orientation: 0, groups: [ { groups: [ { size: 0.4 }, { size: 0.6 } ], size: 0.5 }, { groups: [ {}, {} ], size: 0.5 } ] }
-		*/
-		const serializedGrid: ISerializedGrid = this.gridWidget.serialize()
-		const orientation: GroupOrientation = serializedGrid.orientation == Orientation.HORIZONTAL ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL
-		const root: GroupLayoutArgument = this.serializedNodeToGroupLayoutArgument(serializedGrid.root)
+
+		// Example return value:
+		// { orientation: 0, groups: [ { groups: [ { size: 0.4 }, { size: 0.6 } ], size: 0.5 }, { groups: [ {}, {} ], size: 0.5 } ] }
+
+		const serializedGrid = this.gridWidget.serialize();
+		const orientation = serializedGrid.orientation === Orientation.HORIZONTAL ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
+		const root = this.serializedNodeToGroupLayoutArgument(serializedGrid.root);
 
 		return {
 			orientation,
 			groups: root.groups as GroupLayoutArgument[]
-		}
+		};
 	}
 
 	private serializedNodeToGroupLayoutArgument(serializedNode: ISerializedNode): GroupLayoutArgument {
-		if (serializedNode.type == "branch") {
-			return { size: serializedNode.size, groups: serializedNode.data.map(node => this.serializedNodeToGroupLayoutArgument(node)) }
-		} else {
-			return { size: serializedNode.size }
+		if (serializedNode.type === 'branch') {
+			return {
+				size: serializedNode.size,
+				groups: serializedNode.data.map(node => this.serializedNodeToGroupLayoutArgument(node))
+			};
 		}
+
+		return { size: serializedNode.size };
 	}
 
 	private shouldRestoreFocus(target: Element | undefined): boolean {

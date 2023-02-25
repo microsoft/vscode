@@ -336,18 +336,17 @@ function registerEditorGroupsLayoutCommands(): void {
 		}
 	});
 
-	function getEditorLayout(accessor: ServicesAccessor): EditorGroupLayout {
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		return editorGroupService.getLayout();
-	}
-
 	CommandsRegistry.registerCommand({
 		id: 'vscode.getEditorLayout',
-		handler: (accessor: ServicesAccessor) => getEditorLayout(accessor),
+		handler: (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			return editorGroupService.getLayout();
+		},
 		description: {
 			description: 'Get Editor Layout',
 			args: [],
-			returns: "An editor layout object, in the same format as vscode.setEditorLayout"
+			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
 		}
 	});
 }
