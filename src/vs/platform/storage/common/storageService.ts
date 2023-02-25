@@ -8,13 +8,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IRemoteService } from 'vs/platform/ipc/common/services';
 import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient, WorkspaceStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { isUserDataProfile, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export class NativeStorageService extends AbstractStorageService {
+export class RemoteStorageService extends AbstractStorageService {
 
 	private readonly applicationStorageProfile = this.initialProfiles.defaultProfile;
 	private readonly applicationStorage = this.createApplicationStorage();
@@ -30,14 +30,14 @@ export class NativeStorageService extends AbstractStorageService {
 	constructor(
 		private readonly initialWorkspace: IAnyWorkspaceIdentifier | undefined,
 		private readonly initialProfiles: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
-		private readonly mainProcessService: IMainProcessService,
+		private readonly remoteService: IRemoteService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 	}
 
 	private createApplicationStorage(): IStorage {
-		const storageDataBaseClient = this._register(new ApplicationStorageDatabaseClient(this.mainProcessService.getChannel('storage')));
+		const storageDataBaseClient = this._register(new ApplicationStorageDatabaseClient(this.remoteService.getChannel('storage')));
 		const applicationStorage = this._register(new Storage(storageDataBaseClient));
 
 		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
@@ -63,7 +63,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 			profileStorage = this.applicationStorage;
 		} else {
-			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.mainProcessService.getChannel('storage'), profile));
+			const storageDataBaseClient = this.profileStorageDisposables.add(new ProfileStorageDatabaseClient(this.remoteService.getChannel('storage'), profile));
 			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
 		}
 
@@ -84,7 +84,7 @@ export class NativeStorageService extends AbstractStorageService {
 
 		let workspaceStorage: IStorage | undefined = undefined;
 		if (workspace) {
-			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.mainProcessService.getChannel('storage'), workspace));
+			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.remoteService.getChannel('storage'), workspace));
 			workspaceStorage = this.workspaceStorageDisposables.add(new Storage(storageDataBaseClient));
 
 			this.workspaceStorageDisposables.add(workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
