@@ -12,6 +12,10 @@ export class TextEditInfo {
 		public readonly newLength: Length
 	) {
 	}
+
+	toString(): string {
+		return `[${lengthToObj(this.startOffset)}...${lengthToObj(this.endOffset)}) -> ${lengthToObj(this.newLength)}`;
+	}
 }
 
 export class BeforeEditPositionMapper {
