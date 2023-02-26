@@ -449,7 +449,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		}
 	}
 
-	protected async _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
+	protected async _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
 		this._extensionScanner.startScanningExtensions();
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
@@ -581,28 +581,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				myExtensions: remoteExtensions.map(extension => extension.identifier),
 			});
 		}
-
-		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
-
-		this._startLocalExtensionHosts();
-	}
-
-	private _startLocalExtensionHosts(): void {
-		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
-		for (const extHost of localProcessExtensionHosts) {
-			this._startExtensionHost(extHost);
-		}
-
-		const localWebWorkerExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalWebWorker);
-		for (const extHost of localWebWorkerExtensionHosts) {
-			this._startExtensionHost(extHost);
-		}
-	}
-
-	private _startExtensionHost(extensionHostManager: IExtensionHostManager): void {
-		const allExtensions = this._registry.getAllExtensionDescriptions();
-		const extensions = this._runningLocations.filterByExtensionHostManager(allExtensions, extensionHostManager);
-		extensionHostManager.start(allExtensions, extensions.map(extension => extension.identifier));
 	}
 
 	protected _onExtensionHostExit(code: number): void {

@@ -164,7 +164,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return dedupExtensions(system, user, development, this._logService);
 	}
 
-	protected async _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
+	protected async _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
 		// fetch the remote environment
 		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
 			this._scanWebExtensions(),
@@ -212,8 +212,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				myExtensions: remoteExtensions.map(extension => extension.identifier),
 			};
 		}
-
-		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 	}
 
 	protected _onExtensionHostExit(code: number): void {

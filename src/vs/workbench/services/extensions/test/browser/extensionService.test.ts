@@ -150,7 +150,7 @@ suite('ExtensionService', () => {
 				override runningLocation = runningLocation;
 			};
 		}
-		protected _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
+		protected _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
 		protected _scanSingleExtension(extension: IExtension): Promise<Readonly<IRelaxedExtensionDescription> | null> {

@@ -36,6 +36,7 @@ const LOG_USE_COLORS = true;
 
 export interface IExtensionHostManager {
 	readonly kind: ExtensionHostKind;
+	readonly startup: ExtensionHostStartup;
 	readonly onDidExit: Event<[number, string | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
 	dispose(): void;
@@ -104,6 +105,10 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;
+	}
+
+	public get startup(): ExtensionHostStartup {
+		return this._extensionHost.startup;
 	}
 
 	constructor(
@@ -491,6 +496,10 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;
+	}
+
+	public get startup(): ExtensionHostStartup {
+		return this._extensionHost.startup;
 	}
 
 	constructor(

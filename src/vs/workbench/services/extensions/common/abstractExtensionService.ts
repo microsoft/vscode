@@ -31,7 +31,7 @@ import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -420,7 +420,18 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const lock = await this._registry.acquireLock('_initialize');
 		try {
-			await this._scanAndHandleExtensions(lock);
+			await this._resolveExtensions(lock);
+
+			this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
+
+			// Start extension hosts which are not automatically started
+			const allExtensions = this._registry.getAllExtensionDescriptions();
+			for (const extHostManager of this._extensionHostManagers) {
+				if (extHostManager.startup !== ExtensionHostStartup.EagerAutoStart) {
+					const extensions = this._runningLocations.filterByExtensionHostManager(allExtensions, extHostManager);
+					extHostManager.start(allExtensions, extensions.map(extension => extension.identifier));
+				}
+			}
 		} finally {
 			lock.dispose();
 		}
@@ -846,7 +857,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return enabledExtensions;
 	}
 
-	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
+	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
 		for (const extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
@@ -1007,7 +1018,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#endregion
 
 	protected abstract _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
-	protected abstract _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void>;
+	protected abstract _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	protected abstract _onExtensionHostExit(code: number): void;
 }
