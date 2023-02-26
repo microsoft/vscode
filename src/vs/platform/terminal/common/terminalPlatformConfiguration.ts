@@ -287,7 +287,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 						required: ['source'],
 						properties: {
 							source: {
-								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell. Note that non-standard executable locations are not supported and must be created manually in a new profile.'),
+								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell. Override built-in defaults by adding a profile with the same name and a path specified.'),
 								enum: ['PowerShell', 'Git Bash']
 							},
 							...terminalProfileBaseProperties
