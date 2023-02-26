@@ -467,6 +467,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),

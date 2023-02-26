@@ -241,6 +241,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				logNative: Boolean(this._environmentService.debugExtensionHost.debugId)
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),

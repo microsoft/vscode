@@ -8,6 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
@@ -142,6 +143,7 @@ export class ExtensionHostExtensions {
 		return {
 			toRemove: [],
 			toAdd: this._allExtensions,
+			addActivationEvents: ImplicitActivationEvents.createActivationEventsMap(this._allExtensions),
 			myToRemove: [],
 			myToAdd: this._myExtensions
 		};
@@ -207,7 +209,8 @@ export class ExtensionHostExtensions {
 			}
 		}
 
-		const delta = { toRemove, toAdd, myToRemove, myToAdd };
+		const addActivationEvents = ImplicitActivationEvents.createActivationEventsMap(toAdd);
+		const delta = { toRemove, toAdd, addActivationEvents, myToRemove, myToAdd };
 		this.delta(delta);
 		return delta;
 	}

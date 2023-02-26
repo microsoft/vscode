@@ -307,6 +307,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				logNative: this._environmentService.debugRenderer
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,

@@ -50,7 +50,10 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 	private _extensionsArr!: IExtensionDescription[];
 	private _activationMap!: Map<string, IExtensionDescription[]>;
 
-	constructor(extensionDescriptions: IExtensionDescription[]) {
+	constructor(
+		private readonly _activationEventsReader: IActivationEventsReader,
+		extensionDescriptions: IExtensionDescription[]
+	) {
 		this._extensionDescriptions = extensionDescriptions;
 		this._initialize();
 	}
@@ -73,8 +76,9 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 			this._extensionsMap.set(extensionDescription.identifier, extensionDescription);
 			this._extensionsArr.push(extensionDescription);
 
-			if (Array.isArray(extensionDescription.activationEvents)) {
-				for (let activationEvent of extensionDescription.activationEvents) {
+			const activationEvents = this._activationEventsReader.readActivationEvents(extensionDescription);
+			if (Array.isArray(activationEvents)) {
+				for (let activationEvent of activationEvents) {
 					// TODO@joao: there's no easy way to contribute this
 					if (activationEvent === 'onUri') {
 						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
@@ -235,10 +239,24 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 	}
 }
 
+export interface IActivationEventsReader {
+	readActivationEvents(extensionDescription: IExtensionDescription): string[] | undefined;
+}
+
+export const basicActivationEventsReader: IActivationEventsReader = {
+	readActivationEvents: (extensionDescription: IExtensionDescription): string[] | undefined => {
+		return extensionDescription.activationEvents;
+	}
+};
+
 export class LockableExtensionDescriptionRegistry implements IReadOnlyExtensionDescriptionRegistry {
 
-	private readonly _actual = new ExtensionDescriptionRegistry([]);
+	private readonly _actual: ExtensionDescriptionRegistry;
 	private readonly _lock = new Lock();
+
+	constructor(activationEventsReader: IActivationEventsReader) {
+		this._actual = new ExtensionDescriptionRegistry(activationEventsReader, []);
+	}
 
 	public async acquireLock(customerName: string): Promise<ExtensionDescriptionRegistryLock> {
 		const lock = await this._lock.acquire(customerName);

@@ -43,7 +43,6 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -685,8 +684,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				engines: { vscode: '*' },
 			};
 		}
-
-		ImplicitActivationEvents.updateManifest(manifest);
 
 		const packageNLSUri = webExtension.packageNLSUris?.get(Language.value().toLowerCase());
 		const fallbackPackageNLS = webExtension.defaultManifestTranslations ?? webExtension.fallbackPackageNLSUri;
