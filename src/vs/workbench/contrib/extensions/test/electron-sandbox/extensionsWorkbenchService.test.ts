@@ -5,7 +5,6 @@
 
 import * as sinon from 'sinon';
 import * as assert from 'assert';
-import * as fs from 'fs';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
@@ -25,7 +24,7 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -45,7 +44,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { Schemas } from 'vs/base/common/network';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -119,7 +117,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
-		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
 		instantiationService.stub(IExtensionRecommendationsService, {});
 
 		instantiationService.stub(INotificationService, { prompt: () => null! });
@@ -261,7 +259,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual('1.2.0', actual.version);
 		assert.strictEqual('1.2.0', actual.latestVersion);
 		assert.strictEqual('localDescription2', actual.description);
-		assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
 		assert.strictEqual(undefined, actual.licenseUrl);
 		assert.strictEqual(ExtensionState.Installed, actual.state);
 		assert.strictEqual(undefined, actual.installCount);
@@ -358,7 +355,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.strictEqual('1.2.0', actual.version);
 			assert.strictEqual('1.2.0', actual.latestVersion);
 			assert.strictEqual('localDescription2', actual.description);
-			assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
 			assert.strictEqual(undefined, actual.licenseUrl);
 			assert.strictEqual(ExtensionState.Installed, actual.state);
 			assert.strictEqual(undefined, actual.installCount);

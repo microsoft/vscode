@@ -19,7 +19,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -45,7 +45,6 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
@@ -258,7 +257,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		experimentService = instantiationService.createInstance(TestExperimentService);
 		instantiationService.stub(IExperimentService, experimentService);
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
 
 		onModelAddedEvent = new Emitter<ITextModel>();
 	});

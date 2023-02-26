@@ -26,8 +26,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
@@ -45,9 +44,8 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -79,9 +77,7 @@ function setupTest() {
 	instantiationService = new TestInstantiationService();
 
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
 
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ILogService, NullLogService);
@@ -134,7 +130,7 @@ function setupTest() {
 
 	instantiationService.stub(ILifecycleService, new TestLifecycleService());
 	instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
-	instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+	instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
 	instantiationService.stub(IExtensionRecommendationsService, {});
 	instantiationService.stub(IURLService, NativeURLService);
 
