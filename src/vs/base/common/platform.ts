@@ -44,6 +44,7 @@ export interface INodeProcess {
 	env: IProcessEnvironment;
 	versions?: {
 		electron?: string;
+		chrome?: string;
 	};
 	type?: string;
 	cwd: () => string;

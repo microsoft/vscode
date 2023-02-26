@@ -7,7 +7,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { INodeProcess } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 
 export async function resolveWorkbenchCommonProperties(
@@ -20,6 +20,8 @@ export async function resolveWorkbenchCommonProperties(
 	machineId: string,
 	isInternalTelemetry: boolean,
 	installSourcePath: string,
+	process: INodeProcess,
+	sandboxed: boolean,
 	remoteAuthority?: string
 ): Promise<{ [name: string]: string | boolean | undefined }> {
 	const result = await resolveCommonProperties(fileService, release, hostname, process.arch, commit, version, machineId, isInternalTelemetry, installSourcePath);
@@ -27,9 +29,9 @@ export async function resolveWorkbenchCommonProperties(
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 
 	// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.version.shell'] = process.versions['electron'];
+	result['common.version.shell'] = process.versions?.['electron'];
 	// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.version.renderer'] = process.versions['chrome'];
+	result['common.version.renderer'] = process.versions?.['chrome'];
 	// __GDPR__COMMON__ "common.firstSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.firstSessionDate'] = firstSessionDate;
 	// __GDPR__COMMON__ "common.lastSessionDate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -39,7 +41,7 @@ export async function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
 	// __GDPR__COMMON__ "common.sandboxed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.sandboxed'] = process.sandboxed ? '1' : '0'; // TODO@bpasero remove this property when sandbox is on
+	result['common.sandboxed'] = sandboxed ? '1' : '0'; // TODO@bpasero remove this property when sandbox is on
 	// __GDPR__COMMON__ "common.cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.cli'] = !!process.env['VSCODE_CLI'];
 
