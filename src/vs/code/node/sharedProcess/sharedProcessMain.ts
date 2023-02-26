@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-layering, local/code-import-patterns */
+// TODO@bpasero remove these once utility process is the only way
+import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+
 import { hostname, release } from 'os';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -71,7 +77,8 @@ import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/u
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataProfileStorageService, NativeUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
+import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
+import { NativeUserDataProfileStorageService } from 'vs/platform/userDataProfile/node/userDataProfileStorageService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -112,13 +119,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { NativeStorageService } from 'vs/platform/storage/common/storageService';
-
-/* eslint-disable local/code-layering, local/code-import-patterns */
-// TODO@bpasero remove these once utility process is the only way
-import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
-import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
 
 class SharedProcessMain extends Disposable {
 
@@ -277,7 +278,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)
-		const storageService = new NativeStorageService(undefined, { defaultProfile: userDataProfilesService.defaultProfile, currentProfile: userDataProfilesService.defaultProfile }, mainProcessService, environmentService);
+		const storageService = new RemoteStorageService(undefined, { defaultProfile: userDataProfilesService.defaultProfile, currentProfile: userDataProfilesService.defaultProfile }, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
 		this._register(toDisposable(() => storageService.flush()));
 

@@ -5,10 +5,18 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
-import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-sandbox/workspaceTags';
+import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 function hash(value: string): string {
 	return crypto.createHash('sha1').update(value.toString()).digest('hex');
+}
+
+async function asyncHash(value: string): Promise<string> {
+	return hash(value);
+}
+
+export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): Promise<string[]> {
+	return baseGetHashedRemotesFromConfig(text, stripEndingDotGit, remote => asyncHash(remote));
 }
 
 suite('Telemetry - WorkspaceTags', () => {

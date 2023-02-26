@@ -3,37 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Barrier, IntervalTimer } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as nls from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as nls from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Barrier, IntervalTimer } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
 export interface IExtensionHostManager {
-	readonly extensionHostId: string;
 	readonly kind: ExtensionHostKind;
 	readonly onDidExit: Event<[number, string | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
@@ -56,11 +57,11 @@ export interface IExtensionHostManager {
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
-export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHostId: string, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
+export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
 	if (extensionHost.lazyStart && isInitialStart && initialActivationEvents.length === 0) {
-		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHostId, extensionHost, internalExtensionService);
+		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHost, internalExtensionService);
 	}
-	return instantiationService.createInstance(ExtensionHostManager, extensionHostId, extensionHost, initialActivationEvents, internalExtensionService);
+	return instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 }
 
 type ExtensionHostStartupClassification = {
@@ -106,7 +107,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	constructor(
-		public readonly extensionHostId: string,
 		extensionHost: IExtensionHost,
 		initialActivationEvents: string[],
 		private readonly _internalExtensionService: IInternalExtensionService,
@@ -494,7 +494,6 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	}
 
 	constructor(
-		public readonly extensionHostId: string,
 		extensionHost: IExtensionHost,
 		private readonly _internalExtensionService: IInternalExtensionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -510,7 +509,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 
 	private _createActual(reason: string): ExtensionHostManager {
 		this._logService.info(`Creating lazy extension host: ${reason}`);
-		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this.extensionHostId, this._extensionHost, [], this._internalExtensionService));
+		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, [], this._internalExtensionService));
 		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
 		return this._actual;
 	}

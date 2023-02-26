@@ -12,7 +12,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
@@ -36,7 +36,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		private _commentControllers: Map<ProviderHandle, ExtHostCommentController> = new Map<ProviderHandle, ExtHostCommentController>();
 
-		private _commentControllersByExtension: Map<string, ExtHostCommentController[]> = new Map<string, ExtHostCommentController[]>();
+		private _commentControllersByExtension: ExtensionIdentifierMap<ExtHostCommentController[]> = new ExtensionIdentifierMap<ExtHostCommentController[]>();
 
 
 		constructor(
@@ -150,9 +150,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			const commentController = new ExtHostCommentController(extension, handle, id, label);
 			this._commentControllers.set(commentController.handle, commentController);
 
-			const commentControllers = this._commentControllersByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
+			const commentControllers = this._commentControllersByExtension.get(extension.identifier) || [];
 			commentControllers.push(commentController);
-			this._commentControllersByExtension.set(ExtensionIdentifier.toKey(extension.identifier), commentControllers);
+			this._commentControllersByExtension.set(extension.identifier, commentControllers);
 
 			return commentController.value;
 		}

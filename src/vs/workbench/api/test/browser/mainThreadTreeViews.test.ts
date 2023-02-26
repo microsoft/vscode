@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExtHostTreeViewsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
-import { ITreeItem, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, ITreeViewDescriptor, ITreeView, ViewContainer, IViewDescriptorService, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadTreeViews } from 'vs/workbench/api/browser/mainThreadTreeViews';
-import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { MainThreadTreeViews } from 'vs/workbench/api/browser/mainThreadTreeViews';
+import { ExtHostTreeViewsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Extensions, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
+import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';

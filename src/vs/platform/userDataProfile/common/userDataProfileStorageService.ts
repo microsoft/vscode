@@ -8,7 +8,7 @@ import { IStorage, IStorageDatabase, Storage } from 'vs/base/parts/storage/commo
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractStorageService, IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget, isProfileUsingDefaultStorage } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IRemoteService } from 'vs/platform/ipc/common/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ApplicationStorageDatabaseClient, ProfileStorageDatabaseClient } from 'vs/platform/storage/common/storageIpc';
 import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -126,20 +126,20 @@ export abstract class AbstractUserDataProfileStorageService extends Disposable i
 	protected abstract createStorageDatabase(profile: IUserDataProfile): Promise<IStorageDatabase>;
 }
 
-export class NativeUserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
+export class RemoteUserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
 
 	private readonly _onDidChange: Emitter<IProfileStorageChanges>;
 	readonly onDidChange: Event<IProfileStorageChanges>;
 
 	constructor(
-		@IMainProcessService private readonly mainProcessService: IMainProcessService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
+		private readonly remoteService: IRemoteService,
+		userDataProfilesService: IUserDataProfilesService,
+		storageService: IStorageService,
+		logService: ILogService,
 	) {
 		super(storageService);
 
-		const channel = mainProcessService.getChannel('profileStorageListener');
+		const channel = remoteService.getChannel('profileStorageListener');
 		const disposable = this._register(new MutableDisposable());
 		this._onDidChange = this._register(new Emitter<IProfileStorageChanges>({
 			// Start listening to profile storage changes only when someone is listening
@@ -159,7 +159,7 @@ export class NativeUserDataProfileStorageService extends AbstractUserDataProfile
 	}
 
 	protected async createStorageDatabase(profile: IUserDataProfile): Promise<IStorageDatabase> {
-		const storageChannel = this.mainProcessService.getChannel('storage');
+		const storageChannel = this.remoteService.getChannel('storage');
 		return isProfileUsingDefaultStorage(profile) ? new ApplicationStorageDatabaseClient(storageChannel) : new ProfileStorageDatabaseClient(storageChannel, profile);
 	}
 }

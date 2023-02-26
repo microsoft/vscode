@@ -12,6 +12,7 @@ import { testingColorRunAction, testStatesToIconColors } from 'vs/workbench/cont
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
+export const testingResultsIcon = registerIcon('test-results-icon', Codicon.checklist, localize('testingResultsIcon', 'Icons for test results.'));
 export const testingRunIcon = registerIcon('testing-run-icon', Codicon.run, localize('testingRunIcon', 'Icon of the "run test" action.'));
 export const testingRunAllIcon = registerIcon('testing-run-all-icon', Codicon.runAll, localize('testingRunAllIcon', 'Icon of the "run all tests" action.'));
 // todo: https://github.com/microsoft/vscode-codicons/issues/72
