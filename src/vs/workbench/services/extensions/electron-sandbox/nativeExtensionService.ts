@@ -576,22 +576,25 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
 
+		this._startLocalExtensionHosts();
+	}
+
+	private _startLocalExtensionHosts(): void {
 		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
-		const filteredLocalProcessExtensions = localProcessExtensions.filter(extension => this._registry.containsExtension(extension.identifier));
 		for (const extHost of localProcessExtensionHosts) {
-			this._startExtensionHost(extHost, filteredLocalProcessExtensions);
+			this._startExtensionHost(extHost);
 		}
 
 		const localWebWorkerExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalWebWorker);
-		const filteredLocalWebWorkerExtensions = localWebWorkerExtensions.filter(extension => this._registry.containsExtension(extension.identifier));
 		for (const extHost of localWebWorkerExtensionHosts) {
-			this._startExtensionHost(extHost, filteredLocalWebWorkerExtensions);
+			this._startExtensionHost(extHost);
 		}
 	}
 
-	private _startExtensionHost(extensionHostManager: IExtensionHostManager, _extensions: IExtensionDescription[]): void {
-		const extensions = this._runningLocations.filterByExtensionHostManager(_extensions, extensionHostManager);
-		extensionHostManager.start(this._registry.getAllExtensionDescriptions(), extensions.map(extension => extension.identifier));
+	private _startExtensionHost(extensionHostManager: IExtensionHostManager): void {
+		const allExtensions = this._registry.getAllExtensionDescriptions();
+		const extensions = this._runningLocations.filterByExtensionHostManager(allExtensions, extensionHostManager);
+		extensionHostManager.start(allExtensions, extensions.map(extension => extension.identifier));
 	}
 
 	protected _onExtensionHostExit(code: number): void {
