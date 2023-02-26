@@ -28,7 +28,7 @@ import { ExtensionDescriptionRegistryLock } from 'vs/workbench/services/extensio
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { IExtensionHost, IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostStartup, IExtensionHost, IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -115,7 +115,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				const allExtensions = await this.getExtensions();
 				const localWebWorkerExtensions = this._runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
 				return {
-					autoStart: true,
 					allExtensions: allExtensions,
 					myExtensions: localWebWorkerExtensions.map(extension => extension.identifier)
 				};
@@ -139,7 +138,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return null;
 			}
 			case ExtensionHostKind.LocalWebWorker: {
-				return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, false, this._createLocalExtensionHostDataProvider(runningLocation));
+				return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, ExtensionHostStartup.EagerAutoStart, this._createLocalExtensionHostDataProvider(runningLocation));
 			}
 			case ExtensionHostKind.Remote: {
 				const remoteAgentConnection = this._remoteAgentService.getConnection();

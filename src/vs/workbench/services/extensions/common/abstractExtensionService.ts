@@ -541,7 +541,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return null;
 		}
 
-		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHost, isInitialStart, initialActivationEvents);
+		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHost, initialActivationEvents);
 		processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 		processManager.onDidChangeResponsiveState((responsiveState) => {
 			this._onDidChangeResponsiveChange.fire({
@@ -555,8 +555,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return processManager;
 	}
 
-	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
-		return createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
+	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
+		return createExtensionHostManager(this._instantiationService, extensionHost, initialActivationEvents, this._acquireInternalAPI());
 	}
 
 	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {

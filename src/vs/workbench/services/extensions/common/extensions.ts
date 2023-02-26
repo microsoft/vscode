@@ -93,10 +93,25 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
+export const enum ExtensionHostStartup {
+	/**
+	 * The extension host should be launched immediately and doesn't require a `$startExtensionHost` call.
+	 */
+	EagerAutoStart = 1,
+	/**
+	 * The extension host should be launched immediately and needs a `$startExtensionHost` call.
+	 */
+	EagerManualStart = 2,
+	/**
+	 * The extension host should be launched lazily and only when it has extensions it needs to host. It needs a `$startExtensionHost` call.
+	 */
+	Lazy = 3,
+}
+
 export interface IExtensionHost {
 	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
-	readonly lazyStart: boolean;
+	readonly startup: ExtensionHostStartup;
 	/**
 	 * A collection of extensions which includes information about which
 	 * extension will execute or is executing on this extension host.

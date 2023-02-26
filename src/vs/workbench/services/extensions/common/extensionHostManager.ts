@@ -26,7 +26,7 @@ import { ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/servi
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 
@@ -57,9 +57,9 @@ export interface IExtensionHostManager {
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
-export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
-	if (extensionHost.lazyStart && isInitialStart && initialActivationEvents.length === 0) {
-		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHost, internalExtensionService);
+export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHost: IExtensionHost, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
+	if (extensionHost.startup === ExtensionHostStartup.Lazy && initialActivationEvents.length === 0) {
+		return instantiationService.createInstance(LazyCreateExtensionHostManager, extensionHost, internalExtensionService);
 	}
 	return instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 }
@@ -478,7 +478,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 /**
  * Waits until `start()` and only if it has extensions proceeds to really start.
  */
-class LazyStartExtensionHostManager extends Disposable implements IExtensionHostManager {
+class LazyCreateExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public readonly onDidExit: Event<[number, string | null]>;
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());

@@ -48,7 +48,7 @@ import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/c
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
@@ -151,7 +151,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					const runningLocation = this._runningLocations.computeRunningLocation(localExtensions, [], false);
 					const myExtensions = filterExtensionDescriptions(localExtensions, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 					return {
-						autoStart: false,
 						allExtensions: localExtensions,
 						myExtensions: myExtensions.map(extension => extension.identifier)
 					};
@@ -160,7 +159,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					const allExtensions = await this.getExtensions();
 					const myExtensions = this._runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
 					return {
-						autoStart: true,
 						allExtensions: allExtensions,
 						myExtensions: myExtensions.map(extension => extension.identifier)
 					};
@@ -182,15 +180,25 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
+				const startup = (
+					isInitialStart
+						? ExtensionHostStartup.EagerManualStart
+						: ExtensionHostStartup.EagerAutoStart
+				);
 				if (!process.sandboxed) {
 					// TODO@bpasero remove me once electron utility process has landed
-					return this._instantiationService.createInstance(LegacyNativeLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+					return this._instantiationService.createInstance(LegacyNativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 				}
-				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled) {
-					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, (this._webWorkerExtHostEnablement === LocalWebWorkerExtHostEnablement.Lazy), this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
+					const startup = (
+						isInitialStart
+							? (this._webWorkerExtHostEnablement === LocalWebWorkerExtHostEnablement.Lazy ? ExtensionHostStartup.Lazy : ExtensionHostStartup.EagerManualStart)
+							: ExtensionHostStartup.EagerAutoStart
+					);
+					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(isInitialStart, runningLocation));
 				}
 				return null;
 			}
