@@ -172,16 +172,13 @@ async function transformToTerminalProfiles(
 		let originalPaths: (string | ITerminalUnsafePath)[];
 		let args: string[] | string | undefined;
 		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
-		if ('source' in profile) {
+		// if there are configured args, override the default ones
+		if ('source' in profile && !('path' in profile)) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
 				continue;
 			}
-			if (profile.path) {
-				originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
-			} else {
-				originalPaths = source.paths;
-			}
+			originalPaths = source.paths;
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
 			if (profile.icon) {
