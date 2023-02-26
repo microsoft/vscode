@@ -67,7 +67,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _installedExtensionsReady: Barrier;
 	protected readonly _extensionStatus = new ExtensionIdentifierMap<ExtensionStatus>();
 	private readonly _allRequestedActivateEvents = new Set<string>();
-	private readonly _extensionsProposedApi: ExtensionsProposedApi;
 
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
@@ -79,6 +78,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _extensionHostManagers: IExtensionHostManager[];
 
 	constructor(
+		protected readonly _extensionsProposedApi: ExtensionsProposedApi,
+		private readonly _extensionHostFactory: IExtensionHostFactory,
 		private readonly _extensionHostKindPicker: IExtensionHostKindPicker,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@INotificationService protected readonly _notificationService: INotificationService,
@@ -107,7 +108,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 
 		this._installedExtensionsReady = new Barrier();
-		this._extensionsProposedApi = _instantiationService.createInstance(ExtensionsProposedApi);
 
 		this._extensionHostManagers = [];
 
@@ -282,7 +282,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(toAdd);
+		this._extensionsProposedApi.updateEnabledApiProposals(toAdd);
 
 		// Update extension points
 		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -547,7 +547,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _createExtensionHostManager(runningLocation: ExtensionRunningLocation, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager | null {
-		const extensionHost = this._createExtensionHost(runningLocation, isInitialStart);
+		const extensionHost = this._extensionHostFactory.createExtensionHost(this._runningLocations, runningLocation, isInitialStart);
 		if (!extensionHost) {
 			return null;
 		}
@@ -800,61 +800,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	// --- impl
 
-	protected _checkEnableProposedApi(extensions: IExtensionDescription[]): void {
-		for (const extension of extensions) {
-			this._extensionsProposedApi.updateEnabledApiProposals(extension);
-		}
-	}
-
-	/**
-	 * @argument extensions The extensions to be checked.
-	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
-	 */
-	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
-		// enable or disable proposed API per extension
-		this._checkEnableProposedApi(extensions);
-
-		// keep only enabled extensions
-		return this._filterEnabledExtensions(extensions, ignoreWorkspaceTrust);
-	}
-
-	/**
-	 * @argument extension The extension to be checked.
-	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
-	 */
-	protected _isEnabled(extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
-		return this._filterEnabledExtensions([extension], ignoreWorkspaceTrust).includes(extension);
-	}
-
-	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
+	private _safeInvokeIsEnabled(extension: IExtension): boolean {
 		try {
 			return this._extensionEnablementService.isEnabled(extension);
 		} catch (err) {
 			return false;
 		}
-	}
-
-	private _filterEnabledExtensions(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
-		const enabledExtensions: IExtensionDescription[] = [], extensionsToCheck: IExtensionDescription[] = [], mappedExtensions: IExtension[] = [];
-		for (const extension of extensions) {
-			if (extension.isUnderDevelopment) {
-				// Never disable extensions under development
-				enabledExtensions.push(extension);
-			}
-			else {
-				extensionsToCheck.push(extension);
-				mappedExtensions.push(toExtension(extension));
-			}
-		}
-
-		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions, ignoreWorkspaceTrust ? { trusted: true } : undefined);
-		for (let index = 0; index < enablementStates.length; index++) {
-			if (this._extensionEnablementService.isEnabledEnablementState(enablementStates[index])) {
-				enabledExtensions.push(extensionsToCheck[index]);
-			}
-		}
-
-		return enabledExtensions;
 	}
 
 	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
@@ -1017,10 +968,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
-	protected abstract _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
 	protected abstract _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	protected abstract _onExtensionHostExit(code: number): void;
+}
+
+export interface IExtensionHostFactory {
+	createExtensionHost(runningLocations: ExtensionRunningLocationTracker, runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
 }
 
 class DeltaExtensionsQueueItem {
@@ -1028,6 +982,52 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
+}
+
+/**
+ * @argument extensions The extensions to be checked.
+ * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+ */
+export function checkEnabledAndProposedAPI(extensionEnablementService: IWorkbenchExtensionEnablementService, extensionsProposedApi: ExtensionsProposedApi, extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
+	// enable or disable proposed API per extension
+	extensionsProposedApi.updateEnabledApiProposals(extensions);
+
+	// keep only enabled extensions
+	return filterEnabledExtensions(extensionEnablementService, extensions, ignoreWorkspaceTrust);
+}
+
+/**
+ * Return the subset of extensions that are enabled.
+ * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+ */
+export function filterEnabledExtensions(extensionEnablementService: IWorkbenchExtensionEnablementService, extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
+	const enabledExtensions: IExtensionDescription[] = [], extensionsToCheck: IExtensionDescription[] = [], mappedExtensions: IExtension[] = [];
+	for (const extension of extensions) {
+		if (extension.isUnderDevelopment) {
+			// Never disable extensions under development
+			enabledExtensions.push(extension);
+		} else {
+			extensionsToCheck.push(extension);
+			mappedExtensions.push(toExtension(extension));
+		}
+	}
+
+	const enablementStates = extensionEnablementService.getEnablementStates(mappedExtensions, ignoreWorkspaceTrust ? { trusted: true } : undefined);
+	for (let index = 0; index < enablementStates.length; index++) {
+		if (extensionEnablementService.isEnabledEnablementState(enablementStates[index])) {
+			enabledExtensions.push(extensionsToCheck[index]);
+		}
+	}
+
+	return enabledExtensions;
+}
+
+/**
+ * @argument extension The extension to be checked.
+ * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+ */
+export function extensionIsEnabled(extensionEnablementService: IWorkbenchExtensionEnablementService, extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
+	return filterEnabledExtensions(extensionEnablementService, [extension], ignoreWorkspaceTrust).includes(extension);
 }
 
 export class ExtensionStatus {

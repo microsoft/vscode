@@ -145,11 +145,6 @@ suite('ExtensionService', () => {
 				}
 			};
 		}
-		protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
-			return new class extends mock<IExtensionHost>() {
-				override runningLocation = runningLocation;
-			};
-		}
 		protected _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
