@@ -577,6 +577,9 @@ export class Parser {
 						this._advance();
 
 						const right = this._value();
+						if (this._previous().type === TokenType.QuotedStr) { // to preserve old parser behavior: "foo == 'true'" is preserved as "foo == 'true'", but "foo == true" is optimized as "foo"
+							return ContextKeyExpr.equals(key, right);
+						}
 						switch (right) {
 							case 'true':
 								return ContextKeyExpr.has(key);
@@ -591,6 +594,9 @@ export class Parser {
 						this._advance();
 
 						const right = this._value();
+						if (this._previous().type === TokenType.QuotedStr) { // same as above with "foo != 'true'"
+							return ContextKeyExpr.notEquals(key, right);
+						}
 						switch (right) {
 							case 'true':
 								return ContextKeyExpr.not(key);
