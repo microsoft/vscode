@@ -172,7 +172,7 @@ async function transformToTerminalProfiles(
 		let originalPaths: (string | ITerminalUnsafePath)[];
 		let args: string[] | string | undefined;
 		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
-		// if there are configured args, override the default ones
+		// use calculated values if path is not specified
 		if ('source' in profile && !('path' in profile)) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
