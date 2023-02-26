@@ -28,8 +28,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BrowserExtensionHostKindPicker } from 'vs/workbench/services/extensions/browser/extensionService';
-import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionDescriptionRegistryLock } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { AbstractExtensionService, ResolvedExtensions } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { ExtensionHostKind, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
@@ -145,7 +144,7 @@ suite('ExtensionService', () => {
 				}
 			};
 		}
-		protected _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
+		protected _resolveExtensions(): Promise<ResolvedExtensions> {
 			throw new Error('Method not implemented.');
 		}
 		protected _scanSingleExtension(extension: IExtension): Promise<Readonly<IRelaxedExtensionDescription> | null> {

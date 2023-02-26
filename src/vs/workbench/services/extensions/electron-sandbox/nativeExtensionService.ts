@@ -38,8 +38,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { AbstractExtensionService, ExtensionHostCrashTracker, IExtensionHostFactory, checkEnabledAndProposedAPI, extensionIsEnabled } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionDescriptionRegistryLock } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { AbstractExtensionService, ExtensionHostCrashTracker, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI, extensionIsEnabled } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -59,7 +58,6 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class NativeExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -89,14 +87,13 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService
 	) {
 		const extensionsProposedApi = instantiationService.createInstance(ExtensionsProposedApi);
 		const extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 		const extensionHostFactory = new NativeExtensionHostFactory(
 			extensionsProposedApi,
 			extensionScanner,
-			() => this.getExtensions(),
+			() => this._getExtensions(),
 			instantiationService,
 			environmentService,
 			extensionEnablementService,
@@ -122,8 +119,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			logService,
 			remoteAgentService,
 			remoteExtensionsScannerService,
-			lifecycleService,
-			userDataProfileService
+			lifecycleService
 		);
 
 		this._extensionScanner = extensionScanner;
@@ -157,8 +153,10 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
 
 		const activatedExtensions: ExtensionIdentifier[] = [];
-		for (const extensionStatus of this._extensionStatus.values()) {
-			if (extensionStatus.isActivated && extensionHost.containsExtension(extensionStatus.id)) {
+		const extensionsStatus = this.getExtensionsStatus();
+		for (const key of Object.keys(extensionsStatus)) {
+			const extensionStatus = extensionsStatus[key];
+			if (extensionStatus.activationStarted && extensionHost.containsExtension(extensionStatus.id)) {
 				activatedExtensions.push(extensionStatus.id);
 			}
 		}
@@ -391,7 +389,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		}
 	}
 
-	protected async _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
+	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
 		this._extensionScanner.startScanningExtensions();
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
@@ -447,8 +445,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(lock);
-				return;
+				return this._startLocalExtensionHost();
 			}
 
 			// set the resolved authority
@@ -475,8 +472,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(lock);
-				return;
+				return this._startLocalExtensionHost();
 			}
 
 			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
@@ -486,30 +482,15 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		}
 
-		await this._startLocalExtensionHost(lock, remoteAuthority, remoteEnv, remoteExtensions);
+		return this._startLocalExtensionHost(remoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(lock: ExtensionDescriptionRegistryLock, remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
+	private async _startLocalExtensionHost(remoteExtensions: IExtensionDescription[] = []): Promise<ResolvedExtensions> {
 		// Ensure that the workspace trust state has been fully initialized so
 		// that the extension host can start with the correct set of extensions.
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 
-		remoteExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, remoteExtensions, false);
-		const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._scanAllLocalExtensions(), false);
-		this._initializeRunningLocation(localExtensions, remoteExtensions);
-
-		// remove non-UI extensions from the local extensions
-		const localProcessExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalProcess);
-		const localWebWorkerExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
-		remoteExtensions = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
-
-		const result = this._registry.deltaExtensions(lock, remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
-		if (result.removedDueToLooping.length > 0) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
-			});
-		}
+		return new ResolvedExtensions(await this._scanAllLocalExtensions(), remoteExtensions, /*hasLocalProcess*/true, /*allowRemoteExtensionsInLocalWebWorker*/false);
 	}
 
 	protected _onExtensionHostExit(code: number): void {

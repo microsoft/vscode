@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -13,7 +12,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
@@ -23,8 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
-import { AbstractExtensionService, IExtensionHostFactory, checkEnabledAndProposedAPI } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import { ExtensionDescriptionRegistryLock } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
@@ -59,11 +57,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 	) {
 		const extensionsProposedApi = instantiationService.createInstance(ExtensionsProposedApi);
 		const extensionHostFactory = new BrowserExtensionHostFactory(
-			() => this.getExtensions(),
+			() => this._getExtensions(),
 			instantiationService,
 			remoteAgentService,
 			remoteAuthorityResolverService
@@ -86,8 +84,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			logService,
 			remoteAgentService,
 			remoteExtensionsScannerService,
-			lifecycleService,
-			userDataProfileService
+			lifecycleService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready
@@ -132,38 +129,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return dedupExtensions(system, user, development, this._logService);
 	}
 
-	protected async _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
+	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
 		// fetch the remote environment
-		let [localExtensions, remoteExtensions] = await Promise.all([
+		const [localExtensions, remoteExtensions] = await Promise.all([
 			this._scanWebExtensions(),
 			this._remoteExtensionsScannerService.scanExtensions()
 		]);
-		localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, localExtensions, false);
-		remoteExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, remoteExtensions, false);
 
-		// `determineRunningLocation` will look at the complete picture (e.g. an extension installed on both sides),
-		// takes care of duplicates and picks a running location for each extension
-		this._initializeRunningLocation(localExtensions, remoteExtensions);
-
-		// Some remote extensions could run locally in the web worker, so store them
-		const remoteExtensionsThatNeedToRunLocally = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.LocalWebWorker);
-		localExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
-		remoteExtensions = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
-
-		// Add locally the remote extensions that need to run locally in the web worker
-		for (const ext of remoteExtensionsThatNeedToRunLocally) {
-			if (!includes(localExtensions, ext.identifier)) {
-				localExtensions.push(ext);
-			}
-		}
-
-		const result = this._registry.deltaExtensions(lock, remoteExtensions.concat(localExtensions), []);
-		if (result.removedDueToLooping.length > 0) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
-			});
-		}
+		return new ResolvedExtensions(localExtensions, remoteExtensions, /*hasLocalProcess*/false, /*allowRemoteExtensionsInLocalWebWorker*/true);
 	}
 
 	protected _onExtensionHostExit(code: number): void {
@@ -293,15 +266,6 @@ export class BrowserExtensionHostKindPicker implements IExtensionHostKindPicker 
 		}
 		return (result.length > 0 ? result[0] : null);
 	}
-}
-
-function includes(extensions: IExtensionDescription[], identifier: ExtensionIdentifier): boolean {
-	for (const extension of extensions) {
-		if (ExtensionIdentifier.equals(extension.identifier, identifier)) {
-			return true;
-		}
-	}
-	return false;
 }
 
 registerSingleton(IExtensionService, ExtensionService, InstantiationType.Eager);

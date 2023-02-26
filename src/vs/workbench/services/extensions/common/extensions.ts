@@ -43,7 +43,9 @@ export interface IMessage {
 }
 
 export interface IExtensionsStatus {
+	id: ExtensionIdentifier;
 	messages: IMessage[];
+	activationStarted: boolean;
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
 	runningLocation: ExtensionRunningLocation | null;
