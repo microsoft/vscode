@@ -179,6 +179,7 @@ async function transformToTerminalProfiles(
 				continue;
 			}
 			originalPaths = source.paths;
+
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
 			if (profile.icon) {
