@@ -5,7 +5,7 @@
 
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ExtensionDescriptionRegistryLock, LockableExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -62,8 +62,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
 	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
-	protected readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _registryLock: Lock;
+	protected readonly _registry = new LockableExtensionDescriptionRegistry();
 
 	private readonly _installedExtensionsReady: Barrier;
 	protected readonly _extensionStatus = new ExtensionIdentifierMap<ExtensionStatus>();
@@ -106,9 +105,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
 			}
 		}));
-
-		this._registry = new ExtensionDescriptionRegistry([]);
-		this._registryLock = new Lock();
 
 		this._installedExtensionsReady = new Barrier();
 		this._extensionsProposedApi = _instantiationService.createInstance(ExtensionsProposedApi);
@@ -209,17 +205,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return;
 		}
 
-		let lock: IDisposable | null = null;
+		let lock: ExtensionDescriptionRegistryLock | null = null;
 		try {
 			this._inHandleDeltaExtensions = true;
 
 			// wait for _initialize to finish before hanlding any delta extension events
 			await this._installedExtensionsReady.wait();
 
-			lock = await this._registryLock.acquire('handleDeltaExtensions');
+			lock = await this._registry.acquireLock('handleDeltaExtensions');
 			while (this._deltaExtensionsQueue.length > 0) {
 				const item = this._deltaExtensionsQueue.shift()!;
-				await this._deltaExtensions(item.toAdd, item.toRemove);
+				await this._deltaExtensions(lock, item.toAdd, item.toRemove);
 			}
 		} finally {
 			this._inHandleDeltaExtensions = false;
@@ -227,7 +223,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
+	private async _deltaExtensions(lock: ExtensionDescriptionRegistryLock, _toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
 		let toRemove: IExtensionDescription[] = [];
 		for (let i = 0, len = _toRemove.length; i < len; i++) {
 			const extensionOrId = _toRemove[i];
@@ -274,7 +270,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		// Update the local registry
-		const result = this._registry.deltaExtensions(toAdd, toRemove.map(e => e.identifier));
+		const result = this._registry.deltaExtensions(lock, toAdd, toRemove.map(e => e.identifier));
 		this._onDidChangeExtensions.fire({ added: toAdd, removed: toRemove });
 
 		toRemove = toRemove.concat(result.removedDueToLooping);
@@ -422,9 +418,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		perf.mark('code/willLoadExtensions');
 		this._startExtensionHostsIfNecessary(true, []);
 
-		const lock = await this._registryLock.acquire('_initialize');
+		const lock = await this._registry.acquireLock('_initialize');
 		try {
-			await this._scanAndHandleExtensions();
+			await this._scanAndHandleExtensions(lock);
 		} finally {
 			lock.dispose();
 		}
@@ -656,7 +652,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public async startExtensionHosts(): Promise<void> {
 		this.stopExtensionHosts();
 
-		const lock = await this._registryLock.acquire('startExtensionHosts');
+		const lock = await this._registry.acquireLock('startExtensionHosts');
 		try {
 			this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
 
@@ -1011,7 +1007,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#endregion
 
 	protected abstract _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
-	protected abstract _scanAndHandleExtensions(): Promise<void>;
+	protected abstract _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	protected abstract _onExtensionHostExit(code: number): void;
 }
@@ -1021,69 +1017,6 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
-}
-
-class LockCustomer {
-	public readonly promise: Promise<IDisposable>;
-	private _resolve!: (value: IDisposable) => void;
-
-	constructor(
-		public readonly name: string
-	) {
-		this.promise = new Promise<IDisposable>((resolve, reject) => {
-			this._resolve = resolve;
-		});
-	}
-
-	resolve(value: IDisposable): void {
-		this._resolve(value);
-	}
-}
-
-class Lock {
-	private readonly _pendingCustomers: LockCustomer[] = [];
-	private _isLocked = false;
-
-	public async acquire(customerName: string): Promise<IDisposable> {
-		const customer = new LockCustomer(customerName);
-		this._pendingCustomers.push(customer);
-		this._advance();
-		return customer.promise;
-	}
-
-	private _advance(): void {
-		if (this._isLocked) {
-			// cannot advance yet
-			return;
-		}
-		if (this._pendingCustomers.length === 0) {
-			// no more waiting customers
-			return;
-		}
-
-		const customer = this._pendingCustomers.shift()!;
-
-		this._isLocked = true;
-		let customerHoldsLock = true;
-
-		const logLongRunningCustomerTimeout = setTimeout(() => {
-			if (customerHoldsLock) {
-				console.warn(`The customer named ${customer.name} has been holding on to the lock for 30s. This might be a problem.`);
-			}
-		}, 30 * 1000 /* 30 seconds */);
-
-		const releaseLock = () => {
-			if (!customerHoldsLock) {
-				return;
-			}
-			clearTimeout(logLongRunningCustomerTimeout);
-			customerHoldsLock = false;
-			this._isLocked = false;
-			this._advance();
-		};
-
-		customer.resolve(toDisposable(releaseLock));
-	}
 }
 
 export class ExtensionStatus {

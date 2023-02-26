@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { AbstractExtensionService, ExtensionHostCrashTracker } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionDescriptionRegistryLock } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -440,7 +441,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		}
 	}
 
-	protected async _scanAndHandleExtensions(): Promise<void> {
+	protected async _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
 		this._extensionScanner.startScanningExtensions();
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
@@ -496,7 +497,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost();
+				await this._startLocalExtensionHost(lock);
 				return;
 			}
 
@@ -524,7 +525,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost();
+				await this._startLocalExtensionHost(lock);
 				return;
 			}
 
@@ -535,10 +536,10 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		}
 
-		await this._startLocalExtensionHost(remoteAuthority, remoteEnv, remoteExtensions);
+		await this._startLocalExtensionHost(lock, remoteAuthority, remoteEnv, remoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
+	private async _startLocalExtensionHost(lock: ExtensionDescriptionRegistryLock, remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
 		// Ensure that the workspace trust state has been fully initialized so
 		// that the extension host can start with the correct set of extensions.
 		await this._workspaceTrustManagementService.workspaceTrustInitialized;
@@ -552,7 +553,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const localWebWorkerExtensions = this._runningLocations.filterByExtensionHostKind(localExtensions, ExtensionHostKind.LocalWebWorker);
 		remoteExtensions = this._runningLocations.filterByExtensionHostKind(remoteExtensions, ExtensionHostKind.Remote);
 
-		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
+		const result = this._registry.deltaExtensions(lock, remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
 				severity: Severity.Error,

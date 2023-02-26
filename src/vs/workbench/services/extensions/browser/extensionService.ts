@@ -24,6 +24,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWo
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionDescriptionRegistryLock } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
@@ -164,7 +165,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return dedupExtensions(system, user, development, this._logService);
 	}
 
-	protected async _scanAndHandleExtensions(): Promise<void> {
+	protected async _scanAndHandleExtensions(lock: ExtensionDescriptionRegistryLock): Promise<void> {
 		// fetch the remote environment
 		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
 			this._scanWebExtensions(),
@@ -191,7 +192,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 		}
 
-		const result = this._registry.deltaExtensions(remoteExtensions.concat(localExtensions), []);
+		const result = this._registry.deltaExtensions(lock, remoteExtensions.concat(localExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
 				severity: Severity.Error,
