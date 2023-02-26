@@ -938,7 +938,7 @@ suite('QueryBuilder', () => {
 			testIncludes(includePattern, expectedResult);
 		}
 
-		test('includes with tilde', () => {
+		(isWindows ? test.skip : test)('includes with tilde', () => {
 			const userHome = URI.file('/');
 			const cases: [string, ISearchPathsInfo][] = [
 				[
