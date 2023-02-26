@@ -124,12 +124,14 @@ suite('BrowserExtensionService', () => {
 suite('ExtensionService', () => {
 
 	class MyTestExtensionService extends AbstractExtensionService {
+		private _extHostId = 0;
 		public readonly order: string[] = [];
 		protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
 			throw new Error('Method not implemented.');
 		}
-		protected override _doCreateExtensionHostManager(extensionHostId: string, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
+		protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
 			const order = this.order;
+			const extensionHostId = ++this._extHostId;
 			order.push(`create ${extensionHostId}`);
 			return new class extends mock<IExtensionHostManager>() {
 				override onDidExit = Event.None;

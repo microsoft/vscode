@@ -75,7 +75,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			return;
 		}
 
-		const port = await this._extensionService.getInspectPort(event.extensionHostId, true);
+		const port = await event.getInspectPort(true);
 
 		if (!port) {
 			return;

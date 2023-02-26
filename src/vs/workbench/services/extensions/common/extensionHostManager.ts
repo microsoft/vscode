@@ -35,7 +35,6 @@ const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
 export interface IExtensionHostManager {
-	readonly extensionHostId: string;
 	readonly kind: ExtensionHostKind;
 	readonly onDidExit: Event<[number, string | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
@@ -58,11 +57,11 @@ export interface IExtensionHostManager {
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
-export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHostId: string, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
+export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[], internalExtensionService: IInternalExtensionService): IExtensionHostManager {
 	if (extensionHost.lazyStart && isInitialStart && initialActivationEvents.length === 0) {
-		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHostId, extensionHost, internalExtensionService);
+		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHost, internalExtensionService);
 	}
-	return instantiationService.createInstance(ExtensionHostManager, extensionHostId, extensionHost, initialActivationEvents, internalExtensionService);
+	return instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 }
 
 type ExtensionHostStartupClassification = {
@@ -108,7 +107,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	constructor(
-		public readonly extensionHostId: string,
 		extensionHost: IExtensionHost,
 		initialActivationEvents: string[],
 		private readonly _internalExtensionService: IInternalExtensionService,
@@ -496,7 +494,6 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	}
 
 	constructor(
-		public readonly extensionHostId: string,
 		extensionHost: IExtensionHost,
 		private readonly _internalExtensionService: IInternalExtensionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -512,7 +509,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 
 	private _createActual(reason: string): ExtensionHostManager {
 		this._logService.info(`Creating lazy extension host: ${reason}`);
-		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this.extensionHostId, this._extensionHost, [], this._internalExtensionService));
+		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, [], this._internalExtensionService));
 		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
 		return this._actual;
 	}

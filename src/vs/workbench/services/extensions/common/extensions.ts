@@ -292,9 +292,12 @@ export interface IWillActivateEvent {
 }
 
 export interface IResponsiveStateChangeEvent {
-	extensionHostId: string;
 	extensionHostKind: ExtensionHostKind;
 	isResponsive: boolean;
+	/**
+	 * Return the inspect port or `0`. `0` means inspection is not possible.
+	 */
+	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 }
 
 export const enum ActivationKind {
@@ -399,12 +402,6 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
-	 * Return the inspect port or `0` for a certain extension host.
-	 * `0` means inspection is not possible.
-	 */
-	getInspectPort(extensionHostId: string, tryEnableInspector: boolean): Promise<number>;
-
-	/**
 	 * Return the inspect ports (if inspection is possible) for extension hosts of kind `extensionHostKind`.
 	 */
 	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<number[]>;
@@ -485,7 +482,6 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
-	getInspectPort(_extensionHostId: string, _tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
 	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<number[]> { return Promise.resolve([]); }
 	stopExtensionHosts(): void { }
 	async restartExtensionHost(): Promise<void> { }

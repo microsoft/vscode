@@ -69,15 +69,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected readonly _extensionStatus = new ExtensionIdentifierMap<ExtensionStatus>();
 	private readonly _allRequestedActivateEvents = new Set<string>();
 	private readonly _extensionsProposedApi: ExtensionsProposedApi;
-	private readonly _isExtensionDevHost: boolean;
-	protected readonly _isExtensionDevTestFromCli: boolean;
 
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
 
 	protected readonly _runningLocations: ExtensionRunningLocationTracker;
-
-	private _lastExtensionHostId: number = 0;
 
 	private readonly _remoteCrashTracker = new ExtensionHostCrashTracker();
 
@@ -118,10 +114,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._extensionsProposedApi = _instantiationService.createInstance(ExtensionsProposedApi);
 
 		this._extensionHostManagers = [];
-
-		const devOpts = parseExtensionDevOptions(this._environmentService);
-		this._isExtensionDevHost = devOpts.isExtensionDevHost;
-		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		this._deltaExtensionsQueue = [];
 		this._inHandleDeltaExtensions = false;
@@ -553,27 +545,29 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return null;
 		}
 
-		const extensionHostId = String(++this._lastExtensionHostId);
-		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHostId, extensionHost, isInitialStart, initialActivationEvents);
+		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHost, isInitialStart, initialActivationEvents);
 		processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 		processManager.onDidChangeResponsiveState((responsiveState) => {
 			this._onDidChangeResponsiveChange.fire({
-				extensionHostId: extensionHostId,
 				extensionHostKind: processManager.kind,
-				isResponsive: responsiveState === ResponsiveState.Responsive
+				isResponsive: responsiveState === ResponsiveState.Responsive,
+				getInspectPort: (tryEnableInspector: boolean) => {
+					return processManager.getInspectPort(tryEnableInspector);
+				}
 			});
 		});
 		return processManager;
 	}
 
-	protected _doCreateExtensionHostManager(extensionHostId: string, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
-		return createExtensionHostManager(this._instantiationService, extensionHostId, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
+	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
+		return createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
 	}
 
 	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
 
 		// Unexpected termination
-		if (!this._isExtensionDevHost) {
+		const isExtensionDevHost = parseExtensionDevOptions(this._environmentService).isExtensionDevHost;
+		if (!isExtensionDevHost) {
 			this._onExtensionHostCrashed(extensionHost, code, signal);
 			return;
 		}
@@ -780,15 +774,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 		return result;
-	}
-
-	public async getInspectPort(extensionHostId: string, tryEnableInspector: boolean): Promise<number> {
-		for (const extHostManager of this._extensionHostManagers) {
-			if (extHostManager.extensionHostId === extensionHostId) {
-				return extHostManager.getInspectPort(tryEnableInspector);
-			}
-		}
-		return 0;
 	}
 
 	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<number[]> {

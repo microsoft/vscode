@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { AbstractExtensionService, ExtensionHostCrashTracker } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -600,7 +601,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const connection = this._remoteAgentService.getConnection();
 		connection?.dispose();
 
-		if (this._isExtensionDevTestFromCli) {
+		if (parseExtensionDevOptions(this._environmentService).isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
 			this._nativeHostService.exit(code);
 		} else {
