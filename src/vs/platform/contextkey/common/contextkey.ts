@@ -520,7 +520,12 @@ export class Parser {
 							const regexLexeme = lexemeReconstruction.join('');
 							const closingSlashIndex = regexLexeme.lastIndexOf('/');
 							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
-							const regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+							let regexp: RegExp | null;
+							try {
+								regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
+							} catch (e) {
+								throw this._errExpectedButGot(`REGEX`, expr);
+							}
 							return ContextKeyExpr.regex(key, regexp);
 						}
 
@@ -541,7 +546,7 @@ export class Parser {
 									try {
 										regex = new RegExp(value, caseIgnoreFlag);
 									} catch (_e) {
-										// FIXME@ulugbekna - handle error
+										throw this._errExpectedButGot(`REGEX`, expr);
 									}
 								}
 							}
