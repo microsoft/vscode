@@ -164,7 +164,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			};
 		}
 
-		result = result.filter(element => element.status.activationTimes);
+		result = result.filter(element => element.status.activationStarted);
 
 		// bubble up extensions that have caused slowness
 
@@ -278,9 +278,13 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				data.name.textContent = (element.marketplaceInfo?.displayName || element.description.identifier.value).substr(0, 50);
 				data.version.textContent = element.description.version;
 
-				const activationTimes = element.status.activationTimes!;
-				const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				const activationTimes = element.status.activationTimes;
+				if (activationTimes) {
+					const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
+					data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				} else {
+					data.activationTime.textContent = `Activating...`;
+				}
 
 				data.actionbar.clear();
 				const slowExtensionAction = this._createSlowExtensionAction(element);
@@ -295,61 +299,65 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let title: string;
-				const activationId = activationTimes.activationReason.extensionId.value;
-				const activationEvent = activationTimes.activationReason.activationEvent;
-				if (activationEvent === '*') {
-					title = nls.localize({
-						key: 'starActivation',
-						comment: [
-							'{0} will be an extension identifier'
-						]
-					}, "Activated by {0} on start-up", activationId);
-				} else if (/^workspaceContains:/.test(activationEvent)) {
-					const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+				if (activationTimes) {
+					const activationId = activationTimes.activationReason.extensionId.value;
+					const activationEvent = activationTimes.activationReason.activationEvent;
+					if (activationEvent === '*') {
 						title = nls.localize({
-							key: 'workspaceContainsGlobActivation',
+							key: 'starActivation',
+							comment: [
+								'{0} will be an extension identifier'
+							]
+						}, "Activated by {0} on start-up", activationId);
+					} else if (/^workspaceContains:/.test(activationEvent)) {
+						const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
+						if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+							title = nls.localize({
+								key: 'workspaceContainsGlobActivation',
+								comment: [
+									'{0} will be a glob pattern',
+									'{1} will be an extension identifier'
+								]
+							}, "Activated by {1} because a file matching {0} exists in your workspace", fileNameOrGlob, activationId);
+						} else {
+							title = nls.localize({
+								key: 'workspaceContainsFileActivation',
+								comment: [
+									'{0} will be a file name',
+									'{1} will be an extension identifier'
+								]
+							}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
+						}
+					} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
+						const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
+						title = nls.localize({
+							key: 'workspaceContainsTimeout',
 							comment: [
 								'{0} will be a glob pattern',
 								'{1} will be an extension identifier'
 							]
-						}, "Activated by {1} because a file matching {0} exists in your workspace", fileNameOrGlob, activationId);
+						}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+					} else if (activationEvent === 'onStartupFinished') {
+						title = nls.localize({
+							key: 'startupFinishedActivation',
+							comment: [
+								'This refers to an extension. {0} will be an activation event.'
+							]
+						}, "Activated by {0} after start-up finished", activationId);
+					} else if (/^onLanguage:/.test(activationEvent)) {
+						const language = activationEvent.substr('onLanguage:'.length);
+						title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 					} else {
 						title = nls.localize({
-							key: 'workspaceContainsFileActivation',
+							key: 'workspaceGenericActivation',
 							comment: [
-								'{0} will be a file name',
+								'{0} will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.',
 								'{1} will be an extension identifier'
 							]
-						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
+						}, "Activated by {1} on {0}", activationEvent, activationId);
 					}
-				} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
-					const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
-					title = nls.localize({
-						key: 'workspaceContainsTimeout',
-						comment: [
-							'{0} will be a glob pattern',
-							'{1} will be an extension identifier'
-						]
-					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
-				} else if (activationEvent === 'onStartupFinished') {
-					title = nls.localize({
-						key: 'startupFinishedActivation',
-						comment: [
-							'This refers to an extension. {0} will be an activation event.'
-						]
-					}, "Activated by {0} after start-up finished", activationId);
-				} else if (/^onLanguage:/.test(activationEvent)) {
-					const language = activationEvent.substr('onLanguage:'.length);
-					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
-					title = nls.localize({
-						key: 'workspaceGenericActivation',
-						comment: [
-							'{0} will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.',
-							'{1} will be an extension identifier'
-						]
-					}, "Activated by {1} on {0}", activationEvent, activationId);
+					title = nls.localize('extensionActivating', "Extension is activating...");
 				}
 				data.activationTime.title = title;
 
