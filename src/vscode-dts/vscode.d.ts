@@ -16215,8 +16215,7 @@ declare module 'vscode' {
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
 		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported. New lines must be given
-		 * as CRLF (`\r\n`) rather than LF (`\n`).
+		 * such as colors and text styles, are supported.
 		 *
 		 * @param output Output text to append.
 		 * @param location Indicate that the output was logged at the given
