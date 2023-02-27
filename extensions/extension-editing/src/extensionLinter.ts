@@ -247,7 +247,7 @@ export class ExtensionLinter {
 
 		findWhens(findNodeAtLocation(contributesNode, ['commands']), 'enablement');
 
-		const parseResults = await commands.executeCommand<{ errorMessage: string; offset: number; length: number }[][]>('_parseWhenClausesForErrors', whenClauses.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
+		const parseResults = await commands.executeCommand<{ errorMessage: string; offset: number; length: number }[][]>('_validateWhenClauses', whenClauses.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
 
 		const diagnostics: Diagnostic[] = [];
 		for (let i = 0; i < parseResults.length; ++i) {
