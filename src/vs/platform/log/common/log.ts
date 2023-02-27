@@ -66,11 +66,15 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 	}
 }
 
-export function format(args: any): string {
+function format(args: any, verbose: boolean = false): string {
 	let result = '';
 
 	for (let i = 0; i < args.length; i++) {
 		let a = args[i];
+
+		if (a instanceof Error) {
+			a = toErrorMessage(a, verbose);
+		}
 
 		if (typeof a === 'object') {
 			try {
@@ -274,7 +278,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 
 	trace(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Trace)) {
-			this.log(LogLevel.Trace, format([message, ...args]));
+			this.log(LogLevel.Trace, format([message, ...args], true));
 		}
 	}
 
