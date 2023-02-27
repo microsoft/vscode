@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_CHANNEL_ID, LOG_FILE_NAME } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_ID } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -35,7 +35,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { join } from 'vs/base/common/path';
 import { ITunnelApplicationConfig } from 'vs/base/common/product';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 
@@ -116,9 +115,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		const remoteTunnelServiceLogResource = URI.file(join(environmentService.logsPath, LOG_FILE_NAME));
-
-		this.logger = this._register(loggerService.createLogger(remoteTunnelServiceLogResource, { name: LOGGER_NAME, id: LOG_CHANNEL_ID }));
+		this.logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
@@ -639,7 +636,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 			async run(accessor: ServicesAccessor) {
 				const outputService = accessor.get(IOutputService);
-				outputService.showChannel(LOG_CHANNEL_ID);
+				outputService.showChannel(LOG_ID);
 			}
 		}));
 

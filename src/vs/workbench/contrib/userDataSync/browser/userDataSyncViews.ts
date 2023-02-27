@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, getLastSyncResourceUri, SyncResource, ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, getLastSyncResourceUri, SyncResource, ISyncUserDataProfile, USER_DATA_SYNC_LOG_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI, UriDto } from 'vs/base/common/uri';
@@ -649,7 +649,7 @@ class UserDataSyncTroubleshootViewDataProvider implements ITreeViewDataProvider 
 
 	private async getSyncLogs(): Promise<ITreeItem[]> {
 		const logsFolders: URI[] = [];
-		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.uriIdentityService.extUri.dirname(this.environmentService.userDataSyncLogResource)));
+		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.uriIdentityService.extUri.dirname(this.environmentService.logsHome)));
 		if (stat.children) {
 			logsFolders.push(...stat.children
 				.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name))
@@ -660,14 +660,16 @@ class UserDataSyncTroubleshootViewDataProvider implements ITreeViewDataProvider 
 
 		const result: ITreeItem[] = [];
 		for (const logFolder of logsFolders) {
-			const syncLogResource = this.uriIdentityService.extUri.joinPath(logFolder, this.uriIdentityService.extUri.basename(this.environmentService.userDataSyncLogResource));
-			if (await this.fileService.exists(syncLogResource)) {
+			const folderStat = await this.fileService.resolve(logFolder);
+			const childStat = folderStat.children?.find(stat => this.uriIdentityService.extUri.basename(stat.resource).startsWith(`${USER_DATA_SYNC_LOG_ID}.`));
+			if (childStat) {
+				const syncLogResource = childStat.resource;
 				result.push({
 					handle: syncLogResource.toString(),
 					collapsibleState: TreeItemCollapsibleState.None,
 					resourceUri: syncLogResource,
 					label: { label: this.uriIdentityService.extUri.basename(logFolder) },
-					description: this.uriIdentityService.extUri.isEqual(syncLogResource, this.environmentService.userDataSyncLogResource) ? localize({ key: 'current', comment: ['Represents current log file'] }, "Current") : undefined,
+					description: this.uriIdentityService.extUri.isEqual(logFolder, this.environmentService.logsHome) ? localize({ key: 'current', comment: ['Represents current log file'] }, "Current") : undefined,
 					command: { id: API_OPEN_EDITOR_COMMAND_ID, title: '', arguments: [syncLogResource, undefined, undefined] },
 				});
 			}

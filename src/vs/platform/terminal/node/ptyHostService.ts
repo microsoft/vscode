@@ -136,7 +136,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [Client, IPtyService] {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
-			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsPath],
+			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
 				VSCODE_PTY_LOG_NAME: this.loggerName,

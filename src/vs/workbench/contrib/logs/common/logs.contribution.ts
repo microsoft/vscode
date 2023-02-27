@@ -12,15 +12,18 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { IOutputChannelRegistry, IOutputService, Extensions } from 'vs/workbench/services/output/common/output';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService, ILoggerResource, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
+import { CONTEXT_LOG_LEVEL, ILogService, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { rendererLogId, showWindowLogActionId } from 'vs/workbench/common/logConstants';
 import { createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CounterSet } from 'vs/base/common/map';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -51,32 +54,56 @@ registerAction2(class extends Action2 {
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
+	private readonly contextKeys = new CounterSet<string>();
+	private readonly outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@ILoggerService loggerService: ILoggerService,
+		@ILoggerService private readonly loggerService: ILoggerService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
-		this.registerLogOutputChannels(loggerService.getRegisteredLoggers());
+		const contextKey = CONTEXT_LOG_LEVEL.bindTo(contextKeyService);
+		contextKey.set(LogLevelToString(loggerService.getLogLevel()));
+		loggerService.onDidChangeLogLevel(e => {
+			if (isLogLevel(e)) {
+				contextKey.set(LogLevelToString(loggerService.getLogLevel()));
+			}
+		});
+
+		this.onDidAddLoggers(loggerService.getRegisteredLoggers());
 		this._register(loggerService.onDidChangeLoggers(({ added, removed }) => {
-			this.registerLogOutputChannels(added);
-			this.deregisterLogOutputChannels(removed);
+			this.onDidAddLoggers(added);
+			this.onDidRemoveLoggers(removed);
 		}));
 		this._register(loggerService.onDidChangeVisibility(([resource, visibility]) => {
 			const logger = loggerService.getRegisteredLogger(resource);
 			if (logger) {
 				if (visibility) {
-					this.registerLogOutputChannels([logger]);
+					this.registerLogChannel(logger);
 				} else {
-					this.deregisterLogOutputChannels([logger]);
+					this.outputChannelRegistry.removeChannel(logger.id);
 				}
 			}
 		}));
 		this.registerShowWindowLogAction();
+		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 	}
 
-	private registerLogOutputChannels(loggers: Iterable<ILoggerResource>): void {
+	private onDidAddLoggers(loggers: Iterable<ILoggerResource>): void {
 		for (const logger of loggers) {
+			if (logger.when) {
+				const contextKeyExpr = ContextKeyExpr.deserialize(logger.when);
+				if (contextKeyExpr) {
+					for (const key of contextKeyExpr.keys()) {
+						this.contextKeys.add(key);
+					}
+					if (!this.contextKeyService.contextMatchesRules(contextKeyExpr)) {
+						continue;
+					}
+				}
+			}
 			if (logger.hidden) {
 				continue;
 			}
@@ -84,20 +111,41 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private deregisterLogOutputChannels(loggers: Iterable<ILoggerResource>): void {
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+	private onDidChangeContext(): void {
+		for (const logger of this.loggerService.getRegisteredLoggers()) {
+			if (logger.when) {
+				if (this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(logger.when))) {
+					this.registerLogChannel(logger);
+				} else {
+					this.outputChannelRegistry.removeChannel(logger.id);
+				}
+			}
+		}
+	}
+
+	private onDidRemoveLoggers(loggers: Iterable<ILoggerResource>): void {
 		for (const logger of loggers) {
-			outputChannelRegistry.removeChannel(logger.id);
+			if (logger.when) {
+				const contextKeyExpr = ContextKeyExpr.deserialize(logger.when);
+				if (contextKeyExpr) {
+					for (const key of contextKeyExpr.keys()) {
+						this.contextKeys.delete(key);
+					}
+				}
+			}
+			this.outputChannelRegistry.removeChannel(logger.id);
 		}
 	}
 
 	private registerLogChannel(logger: ILoggerResource): void {
+		if (this.outputChannelRegistry.getChannel(logger.id)) {
+			return;
+		}
 		const promise = createCancelablePromise(async token => {
 			await whenProviderRegistered(logger.resource, this.fileService);
-			const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
 			try {
 				await this.whenFileExists(logger.resource, 1, token);
-				outputChannelRegistry.registerChannel({ id: logger.id, label: logger.name ?? logger.id, file: logger.resource, log: true, extensionId: logger.extensionId });
+				this.outputChannelRegistry.registerChannel({ id: logger.id, label: logger.name ?? logger.id, file: logger.resource, log: true, extensionId: logger.extensionId });
 			} catch (error) {
 				if (!isCancellationError(error)) {
 					this.logService.error('Error while registering log channel', logger.resource.toString(), getErrorMessage(error));
