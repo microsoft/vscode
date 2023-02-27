@@ -7,7 +7,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -22,6 +22,29 @@ export interface IRequestService {
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+}
+
+class LoggableHeaders {
+
+	private headers: IHeaders | undefined;
+
+	constructor(private readonly original: IHeaders) { }
+
+	toJSON(): any {
+		if (!this.headers) {
+			const headers = Object.create(null);
+			for (const key in this.original) {
+				if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'proxy-authorization') {
+					headers[key] = '*****';
+				} else {
+					headers[key] = this.original[key];
+				}
+			}
+			this.headers = headers;
+		}
+		return this.headers;
+	}
+
 }
 
 export abstract class AbstractRequestService extends Disposable implements IRequestService {
@@ -44,7 +67,7 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	protected async logAndRequest(stack: string, options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
 		const prefix = `${stack} #${++this.counter}: ${options.url}`;
-		this.logger.trace(`${prefix} - begin`, options.type, options.headers);
+		this.logger.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		try {
 			const result = await request();
 			this.logger.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
