@@ -185,6 +185,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension?: DOM.Dimension;
+	private _position?: DOM.IDomPosition;
 	private _shadowElement?: HTMLElement;
 	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 
@@ -349,7 +350,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			this.updateShadowElement(this._shadowElement, this._dimension);
-			this.layoutContainerOverShadowElement(this._dimension);
+			this.layoutContainerOverShadowElement(this._dimension, this._position);
 		}));
 
 		this.notebookEditorService.addNotebookEditor(this);
@@ -1712,6 +1713,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
+			this._position = position;
 			return;
 		}
 
@@ -1730,6 +1732,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._dimension = dimension;
+		this._position = position;
 		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
