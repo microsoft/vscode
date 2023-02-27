@@ -36,8 +36,9 @@ export class StickyLineCandidate {
 }
 
 enum DefaultModel {
-	FOLDING_MODEL = 'Folding Model',
-	OUTLINE_MODEL = 'Outline Model'
+	OUTLINE_MODEL = 'Outline Model',
+	FOLDING_MODEL = 'Folding Provider Model',
+	INDENTATION_MODEL = 'Indentation Model'
 }
 
 export class StickyLineCandidateProvider extends Disposable {
@@ -127,16 +128,38 @@ export class StickyLineCandidateProvider extends Disposable {
 		}, 75) : undefined;
 
 		// get elements from outline or folding model depending on which model is set as the default
-		const firstStickyModelProvider = (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL ? this.stickyModelFromOutlineModel : this.stickyModelFromFoldingModel).bind(this);
-		const secondStickyModelProvider = (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL ? this.stickyModelFromFoldingModel : this.stickyModelFromOutlineModel).bind(this);
-
-		const status1 = await firstStickyModelProvider(model, modelVersionId, token);
-		if (status1 === undefined) {
-			return;
-		} else if (status1 === false) {
-			const status2 = await secondStickyModelProvider(model, modelVersionId, token);
-			if (status2 === undefined) { return; }
+		if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL) {
+			const status1 = await this.stickyModelFromOutlineModel(model, modelVersionId, token);
+			if (status1 === undefined) {
+				return;
+			} else if (status1 === false) {
+				const status2 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.FOLDING_MODEL);
+				if (status2 === undefined) {
+					return;
+				} else if (status2 === false) {
+					const status3 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.INDENTATION_MODEL);
+					if (status3 === undefined) {
+						return;
+					}
+				}
+			}
+		} else if (this._options!.defaultModel === DefaultModel.FOLDING_MODEL) {
+			const status1 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.FOLDING_MODEL);
+			if (status1 === undefined) {
+				return;
+			} else if (status1 === false) {
+				const status2 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.INDENTATION_MODEL);
+				if (status2 === undefined) {
+					return;
+				}
+			}
+		} else {
+			const status = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.INDENTATION_MODEL);
+			if (status === undefined) {
+				return;
+			}
 		}
+
 		clearTimeout(resetHandle);
 	}
 
@@ -155,17 +178,38 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromFoldingModel(model: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
+	private async stickyModelFromFoldingModel(model: ITextModel, modelVersionId: number, token: CancellationToken, modelProvider: DefaultModel): Promise<boolean | undefined | null> {
 		const foldingController = FoldingController.get(this._editor);
-		const foldingModel = await foldingController?.getFoldingModel();
+		let foldingModel: FoldingModel | undefined | null;
+
+		if (modelProvider === DefaultModel.FOLDING_MODEL) {
+			foldingModel = await foldingController?.getProviderFoldingModel();
+
+			// The folding model obtained from the provider can be null in which case return null
+			if (!foldingModel === null) {
+				return null;
+			}
+		} else if (modelProvider === DefaultModel.INDENTATION_MODEL) {
+
+			// There is always an indentation folding model
+			foldingModel = await foldingController?.getIndentationFoldingModel()!;
+		} else {
+			throw new Error('Invalid model specified');
+		}
+
+		// Return undefined when the token is cancelled
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (foldingModel && foldingModel.regions.length !== 0) {
-			const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel);
+
+		// Else the folding model exists, it can however be empty, have no regions
+		if (foldingModel!.regions.length !== 0) {
+			// If it has folding regions, construct the sticky outline model from it, return true
+			const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel!);
 			this._model = new StickyOutlineModel(model.uri, modelVersionId, foldingElement, undefined);
 			return true;
 		} else {
+			// If the folding model has no regions, return false
 			this._model = undefined;
 			return false;
 		}

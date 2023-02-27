@@ -100,6 +100,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private rangeProvider: RangeProvider | null;
 	private foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null;
 
+	private _storeProviderFoldingModel: boolean;
+	private _storeIndentationFoldingModel: boolean;
+	private providerFoldingModelPromise: Promise<FoldingModel | null> | null;
+	private indentationFoldingModelPromise: Promise<FoldingModel | null> | null;
+
 	private foldingModelPromise: Promise<FoldingModel | null> | null;
 	private updateScheduler: Delayer<FoldingModel | null> | null;
 	private readonly updateDebounceInfo: IFeatureDebounceInformation;
@@ -139,6 +144,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.rangeProvider = null;
 		this.foldingRegionPromise = null;
 		this.foldingModelPromise = null;
+
+		this.providerFoldingModelPromise = null;
+		this.indentationFoldingModelPromise = null;
+		this._storeProviderFoldingModel = false;
+		this._storeIndentationFoldingModel = false;
+
 		this.updateScheduler = null;
 		this.cursorChangedScheduler = null;
 		this.mouseDownInfo = null;
@@ -259,6 +270,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this.updateScheduler?.cancel();
 				this.updateScheduler = null;
 				this.foldingModel = null;
+				this.indentationFoldingModelPromise = null;
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
@@ -273,6 +285,14 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.rangeProvider?.dispose();
 		this.rangeProvider = null;
 		this.triggerFoldingModelChanged();
+	}
+
+	set storeProviderFoldingModel(value: boolean) {
+		this._storeProviderFoldingModel = value;
+	}
+
+	set storeIndentationFoldingModel(value: boolean) {
+		this._storeIndentationFoldingModel = value;
 	}
 
 	private getRangeProvider(editorModel: ITextModel): RangeProvider {
@@ -290,6 +310,16 @@ export class FoldingController extends Disposable implements IEditorContribution
 		return this.rangeProvider;
 	}
 
+	public getIndentationFoldingModel(): Promise<FoldingModel | null> | null {
+		console.log('getIndetationFoldingModel');
+		return this.indentationFoldingModelPromise;
+	}
+
+	public getProviderFoldingModel(): Promise<FoldingModel | null> | null {
+		console.log('getProviderFoldingModel');
+		return this.providerFoldingModelPromise;
+	}
+
 	public getFoldingModel(): Promise<FoldingModel | null> | null {
 		return this.foldingModelPromise;
 	}
@@ -301,51 +331,80 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 
 	public triggerFoldingModelChanged() {
+		console.log('Entered into trigger folding model changed event');
 		if (this.updateScheduler) {
 			if (this.foldingRegionPromise) {
 				this.foldingRegionPromise.cancel();
 				this.foldingRegionPromise = null;
 			}
-			this.foldingModelPromise = this.updateScheduler.trigger(() => {
-				const foldingModel = this.foldingModel;
-				if (!foldingModel) { // null if editor has been disposed, or folding turned off
-					return null;
-				}
-				const sw = new StopWatch(true);
-				const provider = this.getRangeProvider(foldingModel.textModel);
-				const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
-				return foldingRegionPromise.then(foldingRanges => {
-					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
-						let scrollState: StableEditorScrollState | undefined;
-
-						if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
-							const hasChanges = foldingRanges.setCollapsedAllOfType(FoldingRangeKind.Imports.value, true);
-							if (hasChanges) {
-								scrollState = StableEditorScrollState.capture(this.editor);
-								this._currentModelHasFoldedImports = hasChanges;
-							}
-						}
-
-						// some cursors might have moved into hidden regions, make sure they are in expanded regions
-						const selections = this.editor.getSelections();
-						const selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
-						foldingModel.update(foldingRanges, selectionLineNumbers);
-
-						scrollState?.restore(this.editor);
-
-						// update debounce info
-						const newValue = this.updateDebounceInfo.update(foldingModel.textModel, sw.elapsed());
-						if (this.updateScheduler) {
-							this.updateScheduler.defaultDelay = newValue;
-						}
-					}
-					return foldingModel;
-				});
-			}).then(undefined, (err) => {
+			this.foldingModelPromise = this._triggerFoldingModelChanged().then(undefined, (err) => {
 				onUnexpectedError(err);
 				return null;
 			});
+
+			if (this._storeProviderFoldingModel) {
+				if (this._useFoldingProviders) {
+					this.providerFoldingModelPromise = this.foldingModelPromise;
+				} else {
+					// Using the indentation provider for the folding ranges, but want the folding provider model
+					let provider;
+					const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, this.foldingModel!.textModel);
+					if (selectedProviders.length > 0) {
+						provider = new SyntaxRangeProvider(this.foldingModel!.textModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, indentRangeProvider);
+					} else {
+						provider = new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter);
+					}
+					this.providerFoldingModelPromise = this._triggerFoldingModelChanged(provider);
+				}
+			} else if (this._storeIndentationFoldingModel) {
+				if (this._useFoldingProviders) {
+					// Using the folding provider for the folding ranges, but want the indentation model
+					this.indentationFoldingModelPromise = this._triggerFoldingModelChanged(new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter));
+				} else {
+					this.indentationFoldingModelPromise = this.foldingModelPromise;
+				}
+			}
 		}
+	}
+
+	private _triggerFoldingModelChanged(provider?: RangeProvider) {
+		const foldingModel = this.updateScheduler!.trigger(() => {
+			const _foldingModel = this.foldingModel;
+			if (!_foldingModel) { // null if editor has been disposed, or folding turned off
+				return null;
+			}
+			const sw = new StopWatch(true);
+			const _provider: RangeProvider = provider ? provider : this.getRangeProvider(_foldingModel.textModel);
+			const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => _provider.compute(token));
+			return foldingRegionPromise.then(foldingRanges => {
+				if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
+					let scrollState: StableEditorScrollState | undefined;
+
+					if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
+						const hasChanges = foldingRanges.setCollapsedAllOfType(FoldingRangeKind.Imports.value, true);
+						if (hasChanges) {
+							scrollState = StableEditorScrollState.capture(this.editor);
+							this._currentModelHasFoldedImports = hasChanges;
+						}
+					}
+
+					// some cursors might have moved into hidden regions, make sure they are in expanded regions
+					const selections = this.editor.getSelections();
+					const selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
+					_foldingModel.update(foldingRanges, selectionLineNumbers);
+
+					scrollState?.restore(this.editor);
+
+					// update debounce info
+					const newValue = this.updateDebounceInfo.update(_foldingModel.textModel, sw.elapsed());
+					if (this.updateScheduler) {
+						this.updateScheduler.defaultDelay = newValue;
+					}
+				}
+				return _foldingModel;
+			});
+		});
+		return foldingModel;
 	}
 
 	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
