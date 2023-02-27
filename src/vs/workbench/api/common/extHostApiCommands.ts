@@ -21,6 +21,9 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
+import { Parser, ParsingError } from 'vs/platform/contextkey/common/contextkey';
+import { LexingError } from 'vs/platform/contextkey/common/scanner';
+import { localize } from 'vs/nls';
 
 //#region --- NEW world
 
@@ -463,7 +466,7 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	)
+	),
 ];
 
 //#endregion
@@ -474,7 +477,50 @@ const newCommands: ApiCommand[] = [
 export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
+
 		newCommands.forEach(commands.registerApiCommand, commands);
+
+		this._registerValidateWhenClausesCommand(commands);
+	}
+
+	private static _registerValidateWhenClausesCommand(commands: ExtHostCommands) {
+
+		const whenClauseValidationCommand = '_validateWhenClauses';
+		commands.registerCommand(false, whenClauseValidationCommand, (...args: any[]): any => {
+			if (args.length !== 1 || !(args[0] instanceof Array) || args[0].some(whenClause => typeof whenClause !== 'string')) {
+				throw new Error(`Invalid argument when running '${whenClauseValidationCommand}', received: ${JSON.stringify(args)}`);
+			}
+
+			const whenClauses = args[0];
+
+			const parser = new Parser({ regexParsingWithErrorRecovery: false });
+
+			return whenClauses.map(whenClause => {
+				parser.parse(whenClause);
+
+				if (parser.lexingErrors.length > 0) {
+					return parser.lexingErrors.map((se: LexingError) => {
+						return {
+							errorMessage: se.additionalInfo ?
+								localize('contextkey.scanner.errorForLinterWithHint', "Unexpected token. Hint: {0}", se.additionalInfo) :
+								localize('contextkey.scanner.errorForLinter', "Unexpected token."),
+							offset: se.offset,
+							length: se.lexeme.length,
+						};
+					});
+				} else if (parser.parsingErrors.length > 0) {
+					return parser.parsingErrors.map((pe: ParsingError) => {
+						return {
+							errorMessage: pe.additionalInfo ? `${pe.message}. ${pe.additionalInfo}` : pe.message,
+							offset: pe.offset,
+							length: pe.lexeme.length,
+						};
+					});
+				} else {
+					return [];
+				}
+			});
+		});
 	}
 
 }

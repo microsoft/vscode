@@ -14,8 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, Parser, ParsingError, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { LexingError } from 'vs/platform/contextkey/common/scanner';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -644,38 +643,4 @@ CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
 	}
 	result.sort((a, b) => a.key.localeCompare(b.key));
 	console.log(JSON.stringify(result, undefined, 2));
-});
-
-CommandsRegistry.registerCommand('_parseWhenClausesForErrors', (_accessor: ServicesAccessor, whenClauses: string[]): { errorMessage: string; offset: number; length: number }[][] => {
-
-	const parser = new Parser({ regexParsingWithErrorRecovery: false });
-
-	return whenClauses.map(whenClause => {
-		parser.parse(whenClause);
-
-		if (parser.lexingErrors.length > 0) {
-			return parser.lexingErrors.map((se: LexingError) => {
-				return {
-					errorMessage: se.additionalInfo ?
-						localize('contextkey.scanner.errorForLinterWithHint', "Unexpected token. Hint: {0}", se.additionalInfo) :
-						localize('contextkey.scanner.errorForLinter', "Unexpected token."),
-					offset: se.offset,
-					length: se.lexeme.length,
-				};
-			});
-		} else if (parser.parsingErrors.length > 0) {
-			return parser.parsingErrors.map((pe: ParsingError) => {
-				return {
-					errorMessage:
-						pe.additionalInfo ?
-							localize('contextkey.parser.errorForLinterWithHint', "{0}. {1}", pe.message, pe.additionalInfo) :
-							pe.message,
-					offset: pe.offset,
-					length: pe.lexeme.length,
-				};
-			});
-		} else {
-			return [];
-		}
-	});
 });
