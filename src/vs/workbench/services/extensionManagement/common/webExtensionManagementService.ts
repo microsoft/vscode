@@ -112,9 +112,20 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
-	async getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
-		const scannedExtension = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
-		return scannedExtension?.metadata;
+	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
+		const result: ILocalExtension[] = [];
+		const extensionsToInstall = (await this.webExtensionsScannerService.scanUserExtensions(fromProfileLocation))
+			.filter(e => extensions.some(id => areSameExtensions(id, e.identifier)));
+		if (extensionsToInstall.length) {
+			await Promise.allSettled(extensionsToInstall.map(async e => {
+				let local = await this.installFromLocation(e.location, toProfileLocation);
+				if (e.metadata) {
+					local = await this.updateMetadata(local, e.metadata, fromProfileLocation);
+				}
+				result.push(local);
+			}));
+		}
+		return result;
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
@@ -126,6 +137,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		const updatedLocalExtension = toLocalExtension(updatedExtension);
 		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
 		return updatedLocalExtension;
+	}
+
+	override async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		await this.webExtensionsScannerService.copyExtensions(fromProfileLocation, toProfileLocation, e => !e.metadata?.isApplicationScoped);
 	}
 
 	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
@@ -162,6 +177,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	download(): Promise<URI> { throw new Error('unsupported'); }
 	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 
+	async cleanUp(): Promise<void> { }
+
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = e.previous.extensionsResource;
 		const currentProfileLocation = e.profile.extensionsResource;
@@ -169,7 +186,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			throw new Error('This should not happen');
 		}
 		if (e.preserveData) {
-			await this.webExtensionsScannerService.copyExtensions(previousProfileLocation, currentProfileLocation, e => !e.metadata?.isApplicationScoped);
+			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
 			this._onDidChangeProfile.fire({ added: [], removed: [] });
 		} else {
 			const oldExtensions = await this.webExtensionsScannerService.scanUserExtensions(previousProfileLocation);
@@ -204,7 +221,7 @@ function getMetadata(options?: InstallOptions, existingExtension?: IExtension): 
 	return metadata;
 }
 
-class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtension; metadata: Metadata }> implements IInstallExtensionTask {
+class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
 
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
@@ -223,7 +240,7 @@ class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtensio
 		this.source = extension;
 	}
 
-	protected async doRun(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
+	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
 		const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(this.options.profileLocation);
 		const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, this.identifier));
 		if (existingExtension) {
@@ -249,7 +266,7 @@ class InstallExtensionTask extends AbstractExtensionTask<{ local: ILocalExtensio
 
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.options.profileLocation)
 			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata, this.options.profileLocation);
-		return { local: toLocalExtension(scannedExtension), metadata };
+		return toLocalExtension(scannedExtension);
 	}
 }
 

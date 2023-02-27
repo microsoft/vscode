@@ -16,14 +16,14 @@ steps:
     displayName: Download openssl prebuilt
     inputs:
       command: custom
-      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.1
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.3
       customRegistry: useFeed
       customFeed: 'Monaco/openssl-prebuilt'
       workingDir: $(Build.ArtifactStagingDirectory)
 
   - powershell: |
       mkdir $(Build.ArtifactStagingDirectory)/openssl
-      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.1.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.3.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
   - task: NodeTool@0

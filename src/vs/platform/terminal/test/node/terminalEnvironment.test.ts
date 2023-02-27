@@ -9,7 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
+import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 
 const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false }, windowsEnableConpty: true, environmentVariableCollections: undefined };
 const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false }, windowsEnableConpty: true, environmentVariableCollections: undefined };
@@ -23,7 +23,8 @@ const defaultEnvironment = {};
 suite('platform - terminalEnvironment', () => {
 	suite('getShellIntegrationInjection', () => {
 		suite('should not enable', () => {
-			test('when isFeatureTerminal or when no executable is provided', () => {
+			// This test is only expected to work on Windows 10 build 18309 and above
+			(getWindowsBuildNumber() < 18309 ? test.skip : test)('when isFeatureTerminal or when no executable is provided', () => {
 				ok(!getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService));
 				ok(getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: false }, enabledProcessOptions, defaultEnvironment, logService, productService));
 			});
@@ -34,7 +35,8 @@ suite('platform - terminalEnvironment', () => {
 			}
 		});
 
-		suite('pwsh', () => {
+		// These tests are only expected to work on Windows 10 build 18309 and above
+		(getWindowsBuildNumber() < 18309 ? suite.skip : suite)('pwsh', () => {
 			const expectedPs1 = process.platform === 'win32'
 				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1" } catch {}`
 				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"`;

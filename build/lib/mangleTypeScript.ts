@@ -494,7 +494,7 @@ export class Mangler {
 
 			} else {
 				// source map generator
-				const relativeFileName = path.relative(projectDir, item.fileName);
+				const relativeFileName = normalize(path.relative(projectDir, item.fileName));
 				const mappingsByLine = new Map<number, Mapping[]>();
 
 				// apply renames
@@ -569,6 +569,9 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
 	return Boolean(modifiers?.find(mode => mode.kind === kind));
 }
 
+function normalize(path: string): string {
+	return path.replace(/\\/g, '/');
+}
 
 async function _run() {
 

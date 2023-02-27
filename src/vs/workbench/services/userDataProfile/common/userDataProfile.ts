@@ -13,7 +13,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { ITreeItem, ITreeItemCheckboxState, ITreeItemLabel } from 'vs/workbench/common/views';
+import { ITreeItem, ITreeItemLabel } from 'vs/workbench/common/views';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -75,8 +75,7 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 }
 
 export interface IProfileImportOptions {
-	readonly donotPrompt?: boolean;
-	readonly previewAsTempProfile?: boolean;
+	readonly preview?: boolean;
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -108,7 +107,6 @@ export interface IProfileResource {
 
 export interface IProfileResourceTreeItem extends ITreeItem {
 	readonly type: ProfileResourceType;
-	checkbox: ITreeItemCheckboxState;
 	readonly label: ITreeItemLabel;
 	getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined>;
 	getContent(): Promise<string>;

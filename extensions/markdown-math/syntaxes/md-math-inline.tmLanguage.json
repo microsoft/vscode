@@ -29,7 +29,7 @@
 					]
 				},
 				"3": {
-					"name": "punctuation.definition.math.begin.markdown"
+					"name": "punctuation.definition.math.end.markdown"
 				}
 			}
 		},
@@ -49,7 +49,7 @@
 					]
 				},
 				"3": {
-					"name": "punctuation.definition.math.begin.markdown"
+					"name": "punctuation.definition.math.end.markdown"
 				}
 			}
 		},

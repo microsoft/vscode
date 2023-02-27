@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -65,6 +66,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	}
 
 	private registerViews(): void {
+		mark('code/willRegisterExplorerViews');
+
 		const viewDescriptors = viewsRegistry.getViews(VIEW_CONTAINER);
 
 		const viewDescriptorsToRegister: IViewDescriptor[] = [];
@@ -102,6 +105,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		if (viewDescriptorsToDeregister.length) {
 			viewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
+
+		mark('code/didRegisterExplorerViews');
 	}
 
 	private createOpenEditorsViewDescriptor(): IViewDescriptor {
@@ -144,6 +149,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
+			canMoveView: true,
 			canToggleVisibility: false,
 			focusCommand: {
 				id: 'workbench.explorer.fileView.focus'
@@ -194,37 +200,39 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
 		if (viewDescriptor.id === VIEW_ID) {
-			return this.instantiationService.createInstance(ExplorerView, options, {
-				willOpenElement: e => {
-					if (!(e instanceof MouseEvent)) {
-						return; // only delay when user clicks
-					}
-
-					const openEditorsView = this.getOpenEditorsView();
-					if (openEditorsView) {
-						let delay = 0;
-
-						const config = this.configurationService.getValue<IFilesConfiguration>();
-						if (!!config.workbench?.editor?.enablePreview) {
-							// delay open editors view when preview is enabled
-							// to accomodate for the user doing a double click
-							// to pin the editor.
-							// without this delay a double click would be not
-							// possible because the next element would move
-							// under the mouse after the first click.
-							delay = 250;
+			return this.instantiationService.createInstance(ExplorerView, {
+				...options, delegate: {
+					willOpenElement: e => {
+						if (!(e instanceof MouseEvent)) {
+							return; // only delay when user clicks
 						}
 
-						openEditorsView.setStructuralRefreshDelay(delay);
-					}
-				},
-				didOpenElement: e => {
-					if (!(e instanceof MouseEvent)) {
-						return; // only delay when user clicks
-					}
+						const openEditorsView = this.getOpenEditorsView();
+						if (openEditorsView) {
+							let delay = 0;
 
-					const openEditorsView = this.getOpenEditorsView();
-					openEditorsView?.setStructuralRefreshDelay(0);
+							const config = this.configurationService.getValue<IFilesConfiguration>();
+							if (!!config.workbench?.editor?.enablePreview) {
+								// delay open editors view when preview is enabled
+								// to accomodate for the user doing a double click
+								// to pin the editor.
+								// without this delay a double click would be not
+								// possible because the next element would move
+								// under the mouse after the first click.
+								delay = 250;
+							}
+
+							openEditorsView.setStructuralRefreshDelay(delay);
+						}
+					},
+					didOpenElement: e => {
+						if (!(e instanceof MouseEvent)) {
+							return; // only delay when user clicks
+						}
+
+						const openEditorsView = this.getOpenEditorsView();
+						openEditorsView?.setStructuralRefreshDelay(0);
+					}
 				}
 			});
 		}
@@ -269,6 +277,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
 	alwaysUseContainerInfo: true,
+	hideIfEmpty: true,
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,

@@ -16,7 +16,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
 import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
-import { Language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
 interface ILanguagePack {
@@ -50,11 +49,11 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 		});
 	}
 
-	async getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined> {
+	async getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined> {
 		const packs = await this.cache.getLanguagePacks();
-		const pack = packs[Language.value()];
+		const pack = packs[language];
 		if (!pack) {
-			this.logService.warn(`No language pack found for ${Language.value()}`);
+			this.logService.warn(`No language pack found for ${language}`);
 			return undefined;
 		}
 
@@ -64,7 +63,7 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 
 	async getInstalledLanguages(): Promise<Array<ILanguagePackItem>> {
 		const languagePacks = await this.cache.getLanguagePacks();
-		const languages = Object.keys(languagePacks).map(locale => {
+		const languages: ILanguagePackItem[] = Object.keys(languagePacks).map(locale => {
 			const languagePack = languagePacks[locale];
 			const baseQuickPick = this.createQuickPickItem(locale, languagePack.label);
 			return {
@@ -72,10 +71,7 @@ export class NativeLanguagePackService extends LanguagePackBaseService {
 				extensionId: languagePack.extensions[0].extensionIdentifier.id,
 			};
 		});
-		languages.push({
-			...this.createQuickPickItem('en', 'English'),
-			extensionId: 'default',
-		});
+		languages.push(this.createQuickPickItem('en', 'English'));
 		languages.sort((a, b) => a.label.localeCompare(b.label));
 		return languages;
 	}

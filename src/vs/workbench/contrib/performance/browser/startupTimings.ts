@@ -60,7 +60,8 @@ export abstract class StartupTimings {
 		if (activePanel) {
 			return `Current active panel : ${this._paneCompositeService.getPaneComposite(activePanel.getId(), ViewContainerLocation.Panel)?.name}`;
 		}
-		if (!await this._updateService.isLatestVersion()) {
+		const isLatestVersion = await this._updateService.isLatestVersion();
+		if (isLatestVersion === false) {
 			return 'Not on latest version, updates available';
 		}
 		return undefined;

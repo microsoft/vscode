@@ -173,12 +173,6 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly editSessionId?: string;
 
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
-	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
-
 	//#endregion
 
 

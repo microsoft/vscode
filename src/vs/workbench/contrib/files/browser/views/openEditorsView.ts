@@ -63,7 +63,7 @@ export class OpenEditorsView extends ViewPane {
 	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private dirtyCountElement!: HTMLElement;
-	private listRefreshScheduler: RunOnceScheduler;
+	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;
 	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
 	private listLabels: ResourceLabels | undefined;
@@ -93,31 +93,6 @@ export class OpenEditorsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
-		let labelChangeListeners: IDisposable[] = [];
-		this.listRefreshScheduler = new RunOnceScheduler(() => {
-			// No need to refresh the list if it's not rendered
-			if (!this.list) {
-				return;
-			}
-			labelChangeListeners = dispose(labelChangeListeners);
-			const previousLength = this.list.length;
-			const elements = this.getElements();
-			this.list.splice(0, this.list.length, elements);
-			this.focusActiveEditor();
-			if (previousLength !== this.list.length) {
-				this.updateSize();
-			}
-			this.needsRefresh = false;
-
-			if (this.sortOrder === 'alphabetical' || this.sortOrder === 'fullPath') {
-				// We need to resort the list if the editor label changed
-				elements.forEach(e => {
-					if (e instanceof OpenEditor) {
-						labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler.schedule()));
-					}
-				});
-			}
-		}, this.structuralRefreshDelay);
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
 
 		this.registerUpdateEvents();
@@ -136,13 +111,13 @@ export class OpenEditorsView extends ViewPane {
 				return;
 			}
 
-			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
+			this.listRefreshScheduler?.schedule(this.structuralRefreshDelay);
 		};
 
 		const groupDisposables = new Map<number, IDisposable>();
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
-				if (this.listRefreshScheduler.isScheduled()) {
+				if (this.listRefreshScheduler?.isScheduled()) {
 					return;
 				}
 				if (!this.isBodyVisible() || !this.list) {
@@ -234,6 +209,33 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.list);
 		this._register(this.listLabels);
 
+		// Register the refresh scheduler
+		let labelChangeListeners: IDisposable[] = [];
+		this.listRefreshScheduler = this._register(new RunOnceScheduler(() => {
+			// No need to refresh the list if it's not rendered
+			if (!this.list) {
+				return;
+			}
+			labelChangeListeners = dispose(labelChangeListeners);
+			const previousLength = this.list.length;
+			const elements = this.getElements();
+			this.list.splice(0, this.list.length, elements);
+			this.focusActiveEditor();
+			if (previousLength !== this.list.length) {
+				this.updateSize();
+			}
+			this.needsRefresh = false;
+
+			if (this.sortOrder === 'alphabetical' || this.sortOrder === 'fullPath') {
+				// We need to resort the list if the editor label changed
+				elements.forEach(e => {
+					if (e instanceof OpenEditor) {
+						labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler?.schedule()));
+					}
+				});
+			}
+		}, this.structuralRefreshDelay));
+
 		this.updateSize();
 
 		// Bind context keys
@@ -287,7 +289,7 @@ export class OpenEditorsView extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible && this.needsRefresh) {
-				this.listRefreshScheduler.schedule(0);
+				this.listRefreshScheduler?.schedule(0);
 			}
 		}));
 
@@ -420,7 +422,7 @@ export class OpenEditorsView extends ViewPane {
 		// Trigger a 'repaint' when decoration settings change or the sort order changed
 		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('explorer.openEditors.sortOrder')) {
 			this.sortOrder = this.configurationService.getValue('explorer.openEditors.sortOrder');
-			this.listRefreshScheduler.schedule();
+			this.listRefreshScheduler?.schedule();
 		}
 	}
 

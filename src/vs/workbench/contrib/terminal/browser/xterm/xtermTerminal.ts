@@ -12,7 +12,7 @@ import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -38,6 +38,16 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 
 const enum RenderConstants {
 	/**
@@ -139,6 +149,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
+
+	private _accessibileBuffer: AccessibleBuffer | undefined;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -277,6 +289,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		});
 	}
 
+	async focusAccessibleBuffer(): Promise<void> {
+		this._accessibileBuffer?.focus();
+	}
+
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._getSerializeAddonConstructor();
@@ -304,6 +320,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
+		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this, this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -752,5 +769,150 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	_writeText(data: string): void {
 		this.raw.write(data);
+	}
+}
+const enum ACCESSIBLE_BUFFER { Scheme = 'terminal-accessible-buffer' }
+class AccessibleBuffer extends DisposableStore {
+	private _accessibleBuffer: HTMLElement;
+	private _bufferEditor: CodeEditorWidget;
+	private _editorContainer: HTMLElement;
+	private _commandFinishedDisposable: IDisposable | undefined;
+	private _refreshSelection: boolean = true;
+	private _registered: boolean = false;
+	private _lastContentLength: number = 0;
+	private _font: ITerminalFont;
+
+	constructor(
+		private readonly _terminal: XtermTerminal,
+		private readonly _capabilities: ITerminalCapabilityStore,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super();
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
+		};
+		this._font = this._terminal.getFont();
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 6,
+			dragAndDrop: true,
+			cursorWidth: 1,
+			fontSize: this._font.fontSize,
+			lineHeight: this._font.charHeight ? this._font.charHeight * this._font.lineHeight : 1,
+			fontFamily: this._font.fontFamily,
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 2, bottom: 2 },
+			quickSuggestions: false,
+			scrollbar: { alwaysConsumeMouseWheel: false },
+			renderWhitespace: 'none',
+			dropIntoEditor: { enabled: true },
+			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+			cursorBlinking: configurationService.getValue('terminal.integrated.cursorBlinking'),
+			readOnly: true
+		};
+		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		this._accessibleBuffer.tabIndex = -1;
+		this._editorContainer = document.createElement('div');
+		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
+				this._font = this._terminal.getFont();
+			}
+		}));
+	}
+
+	async focus(): Promise<void> {
+		await this._updateBufferEditor();
+	}
+
+	private async _updateBufferEditor(): Promise<void> {
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
+		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER.Scheme, fragment }));
+		if (model) {
+			this._bufferEditor.setModel(model);
+		}
+
+		if (!this._registered) {
+			this.add(this._terminal.raw.registerBufferElementProvider({ provideBufferElements: () => this._editorContainer }));
+			// When this is created, the element isn't yet attached so the dimensions are tiny
+			this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
+			this._registered = true;
+		}
+
+		if (!this._commandFinishedDisposable && commandDetection) {
+			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
+			this.add(this._commandFinishedDisposable);
+		}
+
+		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
+			let lineNumber = 1;
+			const lineCount = model?.getLineCount();
+			if (lineCount && model) {
+				lineNumber = commandDetection ? lineCount - 1 : lineCount > 2 ? lineCount - 2 : 1;
+			}
+			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
+			this._refreshSelection = false;
+			this._lastContentLength = fragment.length;
+		}
+
+		// Updates xterm's accessibleBufferActive property
+		// such that mouse events do not cause the terminal buffer
+		// to steal the focus
+		this._accessibleBuffer.focus();
+		this._bufferEditor.focus();
+	}
+
+	async _getTextModel(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
+		}
+
+		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+
+	private _getShellIntegrationContent(): string {
+		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		const sb = new StringBuilder(10000);
+		let content = localize('terminal.integrated.noContent', "No terminal content available for this session. Run some commands to create content.");
+		if (!commands?.length) {
+			return content;
+		}
+		for (const command of commands) {
+			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
+			if (command.exitCode !== 0) {
+				sb.appendString(` exited with code ${command.exitCode}`);
+			}
+			sb.appendString('\n');
+			sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
+		}
+		content = sb.build();
+		return content;
+	}
+
+	private _getAllContent(): string {
+		const lines: string[] = [];
+		let currentLine: string = '';
+		const buffer = this._terminal.raw.buffer.active;
+		const end = buffer.length;
+		for (let i = 0; i < end; i++) {
+			const line = buffer.getLine(i);
+			if (!line) {
+				continue;
+			}
+			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			currentLine += line.translateToString(!isWrapped);
+			if (currentLine && !isWrapped || i === end - 1) {
+				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				currentLine = '';
+			}
+		}
+		return lines.join('\n');
 	}
 }

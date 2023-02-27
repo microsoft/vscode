@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
+import { PlatformName } from 'vs/base/common/platform';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -52,6 +53,7 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
@@ -84,6 +86,7 @@ export interface IProductConfiguration {
 	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip };
+	readonly virtualWorkspaceExtensionTips?: { [virtualWorkspaceName: string]: IVirtualWorkspaceExtensionTip };
 	readonly extensionKeywords?: { [extension: string]: readonly string[] };
 	readonly keymapExtensionTips?: readonly string[];
 	readonly webExtensionTips?: readonly string[];
@@ -196,6 +199,13 @@ export interface IExeBasedExtensionTip {
 export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
+}
+
+export interface IVirtualWorkspaceExtensionTip {
+	friendlyName: string;
+	extensionId: string;
+	supportedPlatforms?: PlatformName[];
 }
 
 export interface ISurveyData {

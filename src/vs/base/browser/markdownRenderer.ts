@@ -257,7 +257,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	markdownHtmlDoc.body.querySelectorAll('a')
 		.forEach(a => {
 			const href = a.getAttribute('href'); // Get the raw 'href' attribute value as text, not the resolved 'href'
-			a.removeAttribute('href'); // Clear out href. We use the `data-href` for handling clicks instead
+			a.setAttribute('href', ''); // Clear out href. We use the `data-href` for handling clicks instead
 			if (
 				!href
 				|| /^data:|javascript:/i.test(href)
@@ -388,6 +388,7 @@ export const allowedMarkdownAttr = [
 	'target',
 	'title',
 	'width',
+	'start',
 ];
 
 function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownStringTrustedOptions }): { config: dompurify.Config; allowedSchemes: string[] } {

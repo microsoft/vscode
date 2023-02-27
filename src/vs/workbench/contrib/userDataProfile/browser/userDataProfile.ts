@@ -8,7 +8,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -83,6 +83,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerActions(): void {
 		this.registerProfileSubMenu();
+		this._register(this.registerSwitchProfileAction());
 
 		this.registerProfilesActions();
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
@@ -98,11 +99,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerProfileSubMenu(): void {
 		const getProfilesTitle = () => {
-			if (this.userDataProfileService.currentProfile.isTransient) {
-				return localize('profiles temporary', "Profiles ({0}) - Temporary", this.userDataProfileService.currentProfile.name);
-			} else {
-				return localize('profiles', "Profiles ({0})", this.userDataProfileService.currentProfile.name);
-			}
+			return localize('profiles', "Profiles ({0})", this.userDataProfileService.currentProfile.name);
 		};
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 			get title() {
@@ -137,7 +134,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
-					title: profile.isTransient ? localize('profile temporary', "{0} - Temporary", profile.name) : profile.name,
+					title: profile.name,
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
@@ -151,6 +148,37 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async run(accessor: ServicesAccessor) {
 				if (that.userDataProfileService.currentProfile.id !== profile.id) {
 					return that.userDataProfileManagementService.switchProfile(profile);
+				}
+			}
+		});
+	}
+
+	private registerSwitchProfileAction(): IDisposable {
+		return registerAction2(class SwitchProfileAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.switchProfile`,
+					title: { value: localize('switchProfile', "Switch Profile..."), original: 'Switch Profile...' },
+					category: PROFILES_CATEGORY,
+					f1: true,
+					precondition: PROFILES_ENABLEMENT_CONTEXT,
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				const quickInputService = accessor.get(IQuickInputService);
+				const menuService = accessor.get(IMenuService);
+				const menu = menuService.createMenu(ProfilesMenu, accessor.get(IContextKeyService));
+				const actions = menu.getActions().find(([group]) => group === '0_profiles')?.[1] ?? [];
+				try {
+					const result = await quickInputService.pick(actions.map(action => ({
+						action,
+						label: action.checked ? `$(check) ${action.label}` : action.label,
+					})), {
+						placeHolder: localize('selectProfile', "Select Profile")
+					});
+					await result?.action.run();
+				} finally {
+					menu.dispose();
 				}
 			}
 		});
@@ -230,7 +258,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('export profile', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+						value: localize('export profile', "Export Profile..."),
 						original: `Export Profile (${that.userDataProfileService.currentProfile.name})...`
 					},
 					category: PROFILES_CATEGORY,

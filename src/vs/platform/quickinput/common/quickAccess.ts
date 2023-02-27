@@ -6,15 +6,16 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
-import { IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 /**
  * Provider specific options for this particular showing of the
  * quick access.
  */
-export interface IQuickAccessProviderRunOptions { }
+export interface IQuickAccessProviderRunOptions {
+	from?: string;
+}
 
 /**
  * The specific options for the AnythingQuickAccessProvider. Put here to share between layers.

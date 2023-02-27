@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConsoleLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogger } from 'vs/platform/log/common/log';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -13,7 +13,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 
 export class NativeLogService extends LogService {
 
-	constructor(logLevel: LogLevel, loggerService: LoggerChannelClient, environmentService: INativeWorkbenchEnvironmentService) {
+	constructor(loggerService: LoggerChannelClient, environmentService: INativeWorkbenchEnvironmentService) {
 
 		const disposables = new DisposableStore();
 
@@ -25,7 +25,7 @@ export class NativeLogService extends LogService {
 			consoleLogger = loggerService.createConsoleMainLogger();
 		} else {
 			// Normal mode: Log to console
-			consoleLogger = new ConsoleLogger(logLevel);
+			consoleLogger = new ConsoleLogger(fileLogger.getLevel());
 		}
 
 		super(fileLogger, [consoleLogger]);

@@ -6,6 +6,7 @@
 import { ILogService } from 'vs/platform/log/common/log';
 import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { errorHandler } from 'vs/base/common/errors';
 
 type TelemetrySampleData = {
 	selfTime: number;
@@ -37,15 +38,9 @@ export interface SampleData {
 	source: string;
 }
 
-export function reportSample(data: SampleData, telemetryService: ITelemetryService, logService: ILogService): void {
+export function reportSample(data: SampleData, telemetryService: ITelemetryService, logService: ILogService, sendAsErrorTelemtry: boolean): void {
 
 	const { sample, perfBaseline, source } = data;
-
-	// log a fake error with a clearer stack
-	const fakeError = new Error(`[PerfSampleError]|${sample.selfTime}ms`);
-	fakeError.name = 'PerfSampleError';
-	fakeError.stack = `${fakeError.message} by ${data.source} in ${sample.location}\n` + sample.caller.map(c => `\t at ${c.location} (${c.percentage}%)`).join('\n');
-	logService.error(fakeError);
 
 	// send telemetry event
 	telemetryService.publicLog2<TelemetrySampleData, TelemetrySampleDataClassification>(`unresponsive.sample`, {
@@ -59,4 +54,24 @@ export function reportSample(data: SampleData, telemetryService: ITelemetryServi
 		source
 	});
 
+	// log a fake error with a clearer stack
+	const fakeError = new PerformanceError(data);
+	if (sendAsErrorTelemtry) {
+		errorHandler.onUnexpectedError(fakeError);
+	} else {
+		logService.error(fakeError);
+	}
+}
+
+class PerformanceError extends Error {
+	readonly selfTime: number;
+
+	constructor(data: SampleData) {
+		super('[PerfSampleError]');
+		this.name = 'PerfSampleError';
+		this.selfTime = data.sample.selfTime;
+
+		const trace = [data.sample.absLocation, ...data.sample.caller.map(c => c.absLocation)];
+		this.stack = `${this.message} by ${data.source} in ${data.sample.location}\n\t at ${trace.join('\n\t at ')}`;
+	}
 }

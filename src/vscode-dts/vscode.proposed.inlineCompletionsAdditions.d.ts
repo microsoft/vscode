@@ -18,6 +18,13 @@ declare module 'vscode' {
 	export interface InlineCompletionItemProvider {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleDidShowCompletionItem?(completionItem: InlineCompletionItem): void;
+
+		/**
+		 * Is called when an inline completion item was accepted partially.
+		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
 	}
 
 	// When finalizing `commands`, make sure to add a corresponding constructor parameter.
