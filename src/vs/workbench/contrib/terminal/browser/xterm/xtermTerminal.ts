@@ -37,7 +37,7 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -48,6 +48,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 
 const enum RenderConstants {
 	/**
@@ -207,7 +208,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		this.target = location;
@@ -290,7 +292,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	async focusAccessibleBuffer(): Promise<void> {
-		this._accessibileBuffer?.focus();
+		const tabFocusMode = TabFocus.getTabFocusMode(this._contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? TabFocusContext.Terminal : TabFocusContext.Editor);
+		if (tabFocusMode) {
+			this._accessibileBuffer?.focus();
+		}
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -880,9 +885,8 @@ class AccessibleBuffer extends DisposableStore {
 	private _getShellIntegrationContent(): string {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
-		let content = localize('terminal.integrated.noContent', "No terminal content available for this session. Run some commands to create content.");
 		if (!commands?.length) {
-			return content;
+			return this._getAllContent();
 		}
 		for (const command of commands) {
 			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
@@ -892,8 +896,7 @@ class AccessibleBuffer extends DisposableStore {
 			sb.appendString('\n');
 			sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
 		}
-		content = sb.build();
-		return content;
+		return sb.build();
 	}
 
 	private _getAllContent(): string {
