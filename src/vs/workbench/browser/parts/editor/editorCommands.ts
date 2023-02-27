@@ -28,7 +28,7 @@ import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/acti
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
@@ -951,6 +951,7 @@ function registerCloseEditorCommands() {
 			const editorService = accessor.get(IEditorService);
 			const editorResolverService = accessor.get(IEditorResolverService);
 			const telemetryService = accessor.get(ITelemetryService);
+			const quickInputService = accessor.get(IQuickInputService);
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 
@@ -963,7 +964,11 @@ function registerCloseEditorCommands() {
 			if (!untypedEditor) {
 				return;
 			}
-			untypedEditor.options = { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK };
+			const pickedOptions = await editorResolverService.showEditorPicker(quickInputService, untypedEditor);
+			if (!pickedOptions) {
+				return;
+			}
+			untypedEditor.options = { ...editorService.activeEditorPane?.options, ...pickedOptions };
 			const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 			if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 				return;

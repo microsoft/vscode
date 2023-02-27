@@ -15,7 +15,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from 'vs/workbench/services/editor/common/editorResolverService';
-import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import type { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -60,12 +60,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		// Read in the cache on statup
@@ -125,16 +124,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			resource = URI.from({ scheme: Schemas.untitled });
 		} else if (resource.scheme === undefined || resource === null) {
 			return ResolvedStatus.NONE;
-		}
-
-		if (untypedEditor.options?.override === EditorResolution.PICK) {
-			const picked = await this.doPickEditor(untypedEditor);
-			// If the picker was cancelled we will stop resolving the editor
-			if (!picked) {
-				return ResolvedStatus.ABORT;
-			}
-			// Populate the options with the new ones
-			untypedEditor.options = picked;
 		}
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
@@ -585,26 +574,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const handle = this.notificationService.prompt(Severity.Warning,
 			localize('editorResolver.conflictingDefaults', 'There are multiple default editors available for the resource.'),
 			[{
-				label: localize('editorResolver.configureDefault', 'Configure Default'),
+				label: localize('editorResolver.openSettings', 'Open settings'),
 				run: async () => {
-					// Show the picker and tell it to update the setting to whatever the user selected
-					const picked = await this.doPickEditor(untypedInput, true);
-					if (!picked) {
-						return;
-					}
-					untypedInput.options = picked;
-					const replacementEditor = await this.resolveEditor(untypedInput, group);
-					if (replacementEditor === ResolvedStatus.ABORT || replacementEditor === ResolvedStatus.NONE) {
-						return;
-					}
-					// Replace the current editor with the picked one
-					group.replaceEditors([
-						{
-							editor: currentEditor,
-							replacement: replacementEditor.editor,
-							options: replacementEditor.options ?? picked,
-						}
-					]);
+					// Open the settings editor and focus the editorResolver setting
+					// Circular dependency textFileService -> fileDialogService -> editorService -> editorResolverService -> preferencesService -> textFileService: Error: textFileService -> fileDialogService -> editorService -> editorResolverService -> preferencesService -> textFileService
 				}
 			},
 			{
@@ -673,7 +646,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return quickPickEntries;
 	}
 
-	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
+	public async showEditorPicker(quickInputService: IQuickInputService, editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
 
 		type EditorPick = {
 			readonly item: IQuickPickItem;
@@ -691,7 +664,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
 
 		// Create the editor picker
-		const editorPicker = this.quickInputService.createQuickPick<IQuickPickItem>();
+		const editorPicker = quickInputService.createQuickPick<IQuickPickItem>();
 		const placeHolderMessage = showDefaultPicker ?
 			localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", `*${extname(resource)}`) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
@@ -750,7 +723,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
 			if (picked.item.id === EditorResolverService.configureDefaultID) {
-				return this.doPickEditor(editor, true);
+				return this.showEditorPicker(quickInputService, editor, true);
 			}
 
 			// Figure out options

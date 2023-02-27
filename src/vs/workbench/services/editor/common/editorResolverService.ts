@@ -13,13 +13,14 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IResourceMergeEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { AtLeastOne } from 'vs/base/common/types';
+import type { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const IEditorResolverService = createDecorator<IEditorResolverService>('editorResolverService');
 
@@ -179,6 +180,14 @@ export interface IEditorResolverService {
 	 * A set of all the editors that are registered to the editor resolver.
 	 */
 	getEditors(): RegisteredEditorInfo[];
+
+	/**
+	 * Shows a picker allowing the user to pick what editor type they want for a given resource
+	 * @param quickInputService The quick input service, needed to create the picker
+	 * @param editor The untyped editor we're presenting the picker for
+	 * @param showDefaultPicker Whether the picker is in the "configure default" state
+	 */
+	showEditorPicker(quickInputService: IQuickInputService, editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined>;
 }
 
 //#endregion

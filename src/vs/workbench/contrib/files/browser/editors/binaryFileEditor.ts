@@ -11,11 +11,12 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
 import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -29,7 +30,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(
 			BinaryFileEditor.ID,
@@ -57,14 +59,21 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				return; // we need untyped editor support
 			}
 
-			// Try to let the user pick an editor
-			let resolvedEditor: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({
+			const untypedEditorToResolve = {
 				...untypedActiveEditor,
 				options: {
-					...options,
-					override: EditorResolution.PICK
+					...options
 				}
-			}, this.group);
+			};
+
+			const resolvedOptions = await this.editorResolverService.showEditorPicker(this.quickInputService, untypedEditorToResolve);
+			if (!resolvedOptions) {
+				return; // user canceled
+			}
+			untypedEditorToResolve.options = resolvedOptions;
+
+			// Try to let the user pick an editor
+			let resolvedEditor: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor(untypedEditorToResolve, this.group);
 
 			if (resolvedEditor === ResolvedStatus.NONE) {
 				resolvedEditor = undefined;
