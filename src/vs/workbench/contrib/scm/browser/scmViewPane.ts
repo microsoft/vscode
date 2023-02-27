@@ -709,6 +709,16 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 				}
 			}
 
+			// Time
+			if (this.viewModel.sortKey === ViewModelSortKey.Time) {
+				const oneTooltip = (one as ISCMResource).decorations.tooltip ?? '';
+				const otherTooltip = (other as ISCMResource).decorations.tooltip ?? '';
+
+				if (oneTooltip !== otherTooltip) {
+					return compare(oneTooltip, otherTooltip);
+				}
+			}
+
 			// Path (default)
 			const onePath = (one as ISCMResource).sourceUri.fsPath;
 			const otherPath = (other as ISCMResource).sourceUri.fsPath;
@@ -893,7 +903,8 @@ const enum ViewModelMode {
 const enum ViewModelSortKey {
 	Path = 'path',
 	Name = 'name',
-	Status = 'status'
+	Status = 'status',
+	Time = 'time'
 }
 
 const Menus = {
@@ -1476,13 +1487,16 @@ class ViewModel {
 
 		// List
 		let viewSortKey: ViewModelSortKey;
-		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status' | 'time'>('scm.defaultViewSortKey');
 		switch (viewSortKeyString) {
 			case 'name':
 				viewSortKey = ViewModelSortKey.Name;
 				break;
 			case 'status':
 				viewSortKey = ViewModelSortKey.Status;
+				break;
+			case 'time':
+				viewSortKey = ViewModelSortKey.Time;
 				break;
 			default:
 				viewSortKey = ViewModelSortKey.Path;
@@ -1654,9 +1668,16 @@ class SetSortByStatusAction extends SetSortKeyAction {
 	}
 }
 
+class SetSortByTimeAction extends SetSortKeyAction {
+	constructor() {
+		super(ViewModelSortKey.Time, localize('sortChangesByTime', "Sort Changes by Time"));
+	}
+}
+
 registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
+registerAction2(SetSortByTimeAction);
 
 class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 
