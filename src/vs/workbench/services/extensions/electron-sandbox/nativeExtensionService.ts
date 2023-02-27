@@ -123,6 +123,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		);
 
 		this._extensionScanner = extensionScanner;
+		this.onDidChangeExtensions(e => {
+			this._extensionScanner.onExtensionsChanged();
+		});
 
 		// delay extension host creation and extension scanning
 		// until the workbench is running. we cannot defer the
@@ -147,7 +150,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
-		return this._extensionScanner.scannedExtensions;
+		return this._extensionScanner.getExtensions();
 	}
 
 	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
@@ -390,7 +393,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
-		this._extensionScanner.startScanningExtensions();
+		this._extensionScanner.getExtensions(); // Don't wait for this, just start the scanning
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
 
@@ -632,7 +635,7 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 			getInitData: async (): Promise<ILocalProcessExtensionHostInitData & IWebWorkerExtensionHostInitData> => {
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
-					const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._extensionScanner.scannedExtensions, /* ignore workspace trust */true);
+					const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._extensionScanner.getExtensions(), /* ignore workspace trust */true);
 					const runningLocation = runningLocations.computeRunningLocation(localExtensions, [], false);
 					const myExtensions = filterExtensionDescriptions(localExtensions, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 					return {
