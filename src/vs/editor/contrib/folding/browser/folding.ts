@@ -509,7 +509,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	public reveal(position: IPosition): void {
-		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth, 'foldingController');
 	}
 }
 

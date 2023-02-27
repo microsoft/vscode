@@ -642,7 +642,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}]);
 	}
 
-	private _sendRevealRange(modelRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	private _sendRevealRange(modelRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType, emitter?: string): void {
 		if (!this._modelData) {
 			return;
 		}
@@ -652,7 +652,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const validatedModelRange = this._modelData.model.validateRange(modelRange);
 		const viewRange = this._modelData.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
 
-		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType);
+		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType, emitter);
 	}
 
 	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
@@ -702,12 +702,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	public revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+	public revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth, emitter?: string): void {
 		this._revealPosition(
 			position,
 			VerticalRevealType.CenterIfOutsideViewport,
 			true,
-			scrollType
+			scrollType,
+			emitter
 		);
 	}
 
@@ -720,7 +721,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	private _revealPosition(position: IPosition, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType): void {
+	private _revealPosition(position: IPosition, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType, emitter?: string): void {
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}
@@ -729,7 +730,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 			verticalType,
 			revealHorizontal,
-			scrollType
+			scrollType,
+			emitter
 		);
 	}
 

@@ -2628,7 +2628,7 @@ declare namespace monaco.editor {
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a position centered vertically only if it lies outside the viewport.
 		 */
-		revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType?: ScrollType): void;
+		revealPositionInCenterIfOutsideViewport(position: IPosition, scrollType?: ScrollType, emitter?: string): void;
 		/**
 		 * Scroll vertically or horizontally as necessary and reveal a position close to the top of the viewport,
 		 * optimized for viewing a code definition.

@@ -269,7 +269,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	public override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		// Using the future viewport here in order to handle multiple
 		// incoming reveal range requests that might all desire to be animated
-		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.minimalReveal, e.range, e.selections, e.verticalType);
+		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.minimalReveal, e.range, e.selections, e.verticalType, e.emitter);
 
 		if (desiredScrollTop === -1) {
 			// marker to abort the reveal range request
@@ -676,7 +676,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, minimalReveal: boolean, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, minimalReveal: boolean, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType, emitter?: string): number {
 		const viewportStartY = viewport.top;
 		const viewportHeight = viewport.height;
 		const viewportEndY = viewportStartY + viewportHeight;
@@ -710,7 +710,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		if (!shouldIgnoreScrollOff) {
 			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
-			if (this._stickyScrollEnabled && source !== 'api') {
+			console.log('emitter : ', emitter);
+			if (this._stickyScrollEnabled && emitter !== 'foldingController') {
 				paddingTop = Math.max(context, this._maxNumberStickyLines) * this._lineHeight;
 			} else {
 				paddingTop = context * this._lineHeight;

@@ -219,7 +219,11 @@ export class ViewRevealRangeRequestEvent {
 		/**
 		 * The scroll type.
 		 */
-		public readonly scrollType: ScrollType
+		public readonly scrollType: ScrollType,
+		/**
+		 * Information on who sent the reveal range request
+		 */
+		public readonly emitter?: string
 	) { }
 }
 
