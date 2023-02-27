@@ -85,6 +85,7 @@ class CliMain extends Disposable {
 
 		const environmentService = new ServerEnvironmentService(this.args, productService);
 		services.set(IServerEnvironmentService, environmentService);
+
 		const logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
@@ -105,8 +106,13 @@ class CliMain extends Disposable {
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
-		await configurationService.initialize();
 		services.set(IConfigurationService, configurationService);
+
+		// Initialize
+		await Promise.all([
+			configurationService.initialize(),
+			userDataProfilesService.init()
+		]);
 
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));

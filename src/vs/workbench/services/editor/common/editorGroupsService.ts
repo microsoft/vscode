@@ -322,6 +322,11 @@ export interface IEditorGroupsService {
 	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
+	 * Returns an editor layout describing the current grid
+	 */
+	getLayout(): EditorGroupLayout;
+
+	/**
 	 * Enable or disable centered editor layout.
 	 */
 	centerLayout(active: boolean): void;

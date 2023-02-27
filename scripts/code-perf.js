@@ -7,23 +7,34 @@
 
 const path = require('path');
 const perf = require('@vscode/vscode-perf');
+const minimist = require('minimist');
 
 const VSCODE_FOLDER = path.join(__dirname, '..');
 
 async function main() {
 
 	const args = [...process.argv];
+	/** @type {string | undefined} */
+	let build = undefined;
 
 	if (args.indexOf('--help') === -1 && args.indexOf('-h') === -1) {
 		// get build arg from args
 		let buildArgIndex = args.indexOf('--build');
 		buildArgIndex = buildArgIndex === -1 ? args.indexOf('-b') : buildArgIndex;
 		if (buildArgIndex === -1) {
-			args.push('--build');
-			args.push(getLocalCLIPath());
+			let runtimeArgIndex = args.indexOf('--runtime');
+			runtimeArgIndex = runtimeArgIndex === -1 ? args.indexOf('-r') : runtimeArgIndex;
+			if (runtimeArgIndex !== -1 && args[runtimeArgIndex + 1] !== 'desktop') {
+				console.error('Please provide the --build argument. It is an executable file for desktop or a URL for web');
+				process.exit(1);
+			}
+			build = getLocalCLIPath();
 		} else {
-			const exePath = args[buildArgIndex + 1];
-			args.splice(buildArgIndex + 1, 1, getExePath(exePath));
+			build = args[buildArgIndex + 1];
+			if (build !== 'insider' && build !== 'stable' && build !== 'exploration') {
+				build = getExePath(args[buildArgIndex + 1]);
+			}
+			args.splice(buildArgIndex + 1, 1);
 		}
 
 		args.push('--folder');
@@ -32,7 +43,10 @@ async function main() {
 		args.push(path.join(VSCODE_FOLDER, 'package.json'));
 	}
 
-	await perf(args);
+	await perf.run(build ? {
+		...minimist(args),
+		build
+	} : undefined);
 }
 
 /**
@@ -69,7 +83,7 @@ function getExePath(buildPath) {
  * @returns {string}
  */
 function getLocalCLIPath() {
-	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code-cli.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code-cli.sh');
+	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code.sh');
 }
 
 main();

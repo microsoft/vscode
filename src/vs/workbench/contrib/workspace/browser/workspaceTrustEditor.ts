@@ -15,7 +15,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Schemas } from 'vs/base/common/network';
@@ -33,9 +33,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -577,7 +576,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 	private formatPath(uri: URI): string {
 		if (uri.scheme === Schemas.file) {
-			return uri.fsPath;
+			return normalizeDriveLetter(uri.fsPath);
 		}
 
 		// If the path is not a file uri, but points to a windows remote, we should create windows fs path
@@ -586,7 +585,7 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			const pathWithoutLeadingSeparator = uri.path.substring(1);
 			const isWindowsPath = hasDriveLetter(pathWithoutLeadingSeparator, true);
 			if (isWindowsPath) {
-				return win32.normalize(pathWithoutLeadingSeparator);
+				return normalizeDriveLetter(win32.normalize(pathWithoutLeadingSeparator), true);
 			}
 		}
 
@@ -690,7 +689,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
-		this.rootElement.style.visibility = 'hidden';
 
 		this.createHeaderElement(this.rootElement);
 
@@ -705,12 +703,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.createAffectedFeaturesElement(scrollableContent);
 		this.createConfigurationElement(scrollableContent);
 
-		this._register(attachStylerCallback(this.themeService, { debugIconStartForeground, editorErrorForeground, buttonBackground, buttonSecondaryBackground }, colors => {
-			this.rootElement.style.setProperty('--workspace-trust-selected-color', colors.buttonBackground?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-unselected-color', colors.buttonSecondaryBackground?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-check-color', colors.debugIconStartForeground?.toString() || '');
-			this.rootElement.style.setProperty('--workspace-trust-x-color', colors.editorErrorForeground?.toString() || '');
-		}));
+		this.rootElement.style.setProperty('--workspace-trust-selected-color', asCssVariable(buttonBackground));
+		this.rootElement.style.setProperty('--workspace-trust-unselected-color', asCssVariable(buttonSecondaryBackground));
+		this.rootElement.style.setProperty('--workspace-trust-check-color', asCssVariable(debugIconStartForeground));
+		this.rootElement.style.setProperty('--workspace-trust-x-color', asCssVariable(editorErrorForeground));
 
 		// Navigate page with keyboard
 		this._register(addDisposableListener(this.rootElement, EventType.KEY_DOWN, e => {
@@ -904,7 +900,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
-		this.rootElement.style.visibility = '';
 		this.rendering = false;
 	}
 

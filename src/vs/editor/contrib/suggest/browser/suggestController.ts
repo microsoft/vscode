@@ -907,7 +907,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'focusSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate(), ContextKeyExpr.equals('config.editor.suggest.selectQuickSuggestions', false)),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate()),
 	handler: x => x.focusSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -916,6 +916,15 @@ registerEditorCommand(new SuggestCommand({
 		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
 	},
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'focusAndAcceptSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate()),
+	handler: c => {
+		c.focusSuggestion();
+		c.acceptSelectedSuggestion(true, false);
+	}
 }));
 
 registerEditorCommand(new SuggestCommand({

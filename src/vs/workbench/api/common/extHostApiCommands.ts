@@ -338,6 +338,18 @@ const newCommands: ApiCommand[] = [
 			return result.map(typeConverters.InlayHint.to.bind(undefined, converter));
 		})
 	),
+	// --- folding
+	new ApiCommand(
+		'vscode.executeFoldingRangeProvider', '_executeFoldingRangeProvider', 'Execute folding range provider',
+		[ApiCommandArgument.Uri],
+		new ApiCommandResult<languages.FoldingRange[] | undefined, vscode.FoldingRange[] | undefined>('A promise that resolves to an array of FoldingRange objects', (result, args) => {
+			if (result) {
+				return result.map(typeConverters.FoldingRange.to);
+			}
+			return undefined;
+		})
+	),
+
 	// --- notebooks
 	new ApiCommand(
 		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',

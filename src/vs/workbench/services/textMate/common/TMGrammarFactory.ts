@@ -37,7 +37,7 @@ export class TMGrammarFactory extends Disposable {
 		super();
 		this._host = host;
 		this._initialState = vscodeTextmate.INITIAL;
-		this._scopeRegistry = this._register(new TMScopeRegistry());
+		this._scopeRegistry = new TMScopeRegistry();
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();

@@ -18,11 +18,11 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason, extensionIdentifiersArrayToSet } from 'vs/workbench/services/extensions/common/extensions';
+import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
@@ -42,6 +42,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -151,7 +152,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._readyToRunExtensions = new Barrier();
 		this._eagerExtensionsActivated = new Barrier();
 		this._globalRegistry = new ExtensionDescriptionRegistry(this._initData.allExtensions);
-		const myExtensionsSet = extensionIdentifiersArrayToSet(this._initData.myExtensions);
+		const myExtensionsSet = new ExtensionIdentifierSet(this._initData.myExtensions);
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
@@ -594,19 +595,50 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
+	private _activateAllStartupFinishedDeferred(extensions: Readonly<IRelaxedExtensionDescription>[], start: number = 0): void {
+		const timeBudget = 50; // 50 milliseconds
+		const startTime = Date.now();
+
+		setTimeout0(() => {
+			for (let i = start; i < extensions.length; i += 1) {
+				const desc = extensions[i];
+				for (const activationEvent of (desc.activationEvents ?? [])) {
+					if (activationEvent === 'onStartupFinished') {
+						if (Date.now() - startTime > timeBudget) {
+							// time budget for current task has been exceeded
+							// set a new task to activate current and remaining extensions
+							this._activateAllStartupFinishedDeferred(extensions, i);
+							break;
+						} else {
+							this._activateOneStartupFinished(desc, activationEvent);
+						}
+					}
+				}
+			}
+		});
+	}
+
 	private _activateAllStartupFinished(): void {
 		// startup is considered finished
 		this._mainThreadExtensionsProxy.$setPerformanceMarks(performance.getMarks());
 
-		for (const desc of this._myRegistry.getAllExtensionDescriptions()) {
-			if (desc.activationEvents) {
-				for (const activationEvent of desc.activationEvents) {
-					if (activationEvent === 'onStartupFinished') {
-						this._activateOneStartupFinished(desc, activationEvent);
+		this._extHostConfiguration.getConfigProvider().then((configProvider) => {
+			const shouldDeferActivation = configProvider.getConfiguration('extensions.experimental').get<boolean>('deferredStartupFinishedActivation');
+			const allExtensionDescriptions = this._myRegistry.getAllExtensionDescriptions();
+			if (shouldDeferActivation) {
+				this._activateAllStartupFinishedDeferred(allExtensionDescriptions);
+			} else {
+				for (const desc of allExtensionDescriptions) {
+					if (desc.activationEvents) {
+						for (const activationEvent of desc.activationEvents) {
+							if (activationEvent === 'onStartupFinished') {
+								this._activateOneStartupFinished(desc, activationEvent);
+							}
+						}
 					}
 				}
 			}
-		}
+		});
 	}
 
 	// Handle "eager" activation extensions
@@ -856,12 +888,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const globalRegistry = new ExtensionDescriptionRegistry(oldGlobalRegistry.getAllExtensionDescriptions());
 		globalRegistry.deltaExtensions(extensionsDelta.toAdd, extensionsDelta.toRemove);
 
-		const myExtensionsSet = extensionIdentifiersArrayToSet(oldMyRegistry.getAllExtensionDescriptions().map(extension => extension.identifier));
+		const myExtensionsSet = new ExtensionIdentifierSet(oldMyRegistry.getAllExtensionDescriptions().map(extension => extension.identifier));
 		for (const extensionId of extensionsDelta.myToRemove) {
-			myExtensionsSet.delete(ExtensionIdentifier.toKey(extensionId));
+			myExtensionsSet.delete(extensionId);
 		}
 		for (const extensionId of extensionsDelta.myToAdd) {
-			myExtensionsSet.add(ExtensionIdentifier.toKey(extensionId));
+			myExtensionsSet.add(extensionId);
 		}
 		const myExtensions = filterExtensions(globalRegistry, myExtensionsSet);
 
@@ -1033,9 +1065,9 @@ export class Extension<T extends object | null | undefined> implements vscode.Ex
 	}
 }
 
-function filterExtensions(globalRegistry: ExtensionDescriptionRegistry, desiredExtensions: Set<string>): IExtensionDescription[] {
+function filterExtensions(globalRegistry: ExtensionDescriptionRegistry, desiredExtensions: ExtensionIdentifierSet): IExtensionDescription[] {
 	return globalRegistry.getAllExtensionDescriptions().filter(
-		extension => desiredExtensions.has(ExtensionIdentifier.toKey(extension.identifier))
+		extension => desiredExtensions.has(extension.identifier)
 	);
 }
 

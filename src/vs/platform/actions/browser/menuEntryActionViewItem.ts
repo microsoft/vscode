@@ -28,8 +28,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { assertType } from 'vs/base/common/types';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
 	const groups = menu.getActions(options);
@@ -468,22 +468,18 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 
 	constructor(
 		action: SubmenuItemAction,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, action.actions.map(a => ({
 			text: a.id === Separator.ID ? '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500' : a.label,
 			isDisabled: !a.enabled,
-		})), 0, contextViewService, { ariaLabel: action.tooltip, optionsAsChildren: true });
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		})), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true });
 		this.select(Math.max(0, action.actions.findIndex(a => a.checked)));
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
-		}));
+		container.style.borderColor = asCssVariable(selectBorder);
 	}
 
 	protected override runAction(option: string, index: number): void {

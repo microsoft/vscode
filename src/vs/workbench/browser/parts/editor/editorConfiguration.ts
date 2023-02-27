@@ -158,7 +158,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 					default: getLargeFileConfirmationLimit(this.environmentService.remoteAuthority) / ByteSize.MB,
 					minimum: 1,
 					scope: ConfigurationScope.RESOURCE,
-					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor."),
+					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor. Note that this setting may not apply to all editor types and environments."),
 				}
 			}
 		};

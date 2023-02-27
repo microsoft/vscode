@@ -46,6 +46,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 70,
 			tags: ['accessibility']
 		},
+		'audioCues.debouncePositionChanges': {
+			'description': localize('audioCues.debouncePositionChanges', "Whether or not position changes should be debounced"),
+			'type': 'boolean',
+			'default': false,
+			tags: ['accessibility']
+		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
 			...audioCueFeatureBase
@@ -81,6 +87,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'audioCues.taskFailed': {
 			'description': localize('audioCues.taskFailed', "Plays a sound when a task fails (non-zero exit code)."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.terminalCommandFailed': {
+			'description': localize('audioCues.terminalCommandFailed', "Plays a sound when a terminal command fails (non-zero exit code)."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.terminalQuickFix': {

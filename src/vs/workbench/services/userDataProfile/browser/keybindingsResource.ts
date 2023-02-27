@@ -40,7 +40,7 @@ export class KeybindingsResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const keybindingsContent: IKeybindingsResourceContent = JSON.parse(content);
 		if (keybindingsContent.keybindings === null) {
-			this.logService.info(`Profile: No keybindings to apply...`);
+			this.logService.info(`Importing Profile (${profile.name}): No keybindings to apply...`);
 			return;
 		}
 		await this.fileService.writeFile(profile.keybindingsResource, VSBuffer.fromString(keybindingsContent.keybindings));
@@ -68,7 +68,7 @@ export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = ProfileResourceType.Keybindings;
 	readonly label = { label: localize('keybindings', "Keyboard Shortcuts") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,

@@ -6,9 +6,9 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -325,14 +325,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const icon = this.getIcon();
 		if (this.iconContainer) {
-			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
+			const fgColor = asCssValueWithDefault(styles.headerForeground, asCssVariable(foreground));
 			if (URI.isUri(icon)) {
 				// Apply background color to activity bar item provided with iconUrls
-				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.backgroundColor = fgColor;
 				this.iconContainer.style.color = '';
 			} else {
 				// Apply foreground color to activity bar items provided with codicons
-				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.color = fgColor;
 				this.iconContainer.style.backgroundColor = '';
 			}
 		}

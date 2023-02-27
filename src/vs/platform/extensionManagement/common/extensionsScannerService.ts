@@ -24,7 +24,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -266,7 +266,6 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		// unset if false
 		metaData.isMachineScoped = metaData.isMachineScoped || undefined;
 		metaData.isBuiltin = metaData.isBuiltin || undefined;
-		metaData.installedTimestamp = metaData.installedTimestamp || undefined;
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
@@ -361,32 +360,29 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			}
 			return true;
 		};
-		const result = new Map<string, IScannedExtension>();
+		const result = new ExtensionIdentifierMap<IScannedExtension>();
 		system?.forEach((extension) => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing || pick(existing, extension, false)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
 		});
 		user?.forEach((extension) => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing && system && extension.type === ExtensionType.System) {
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
 				return;
 			}
 			if (!existing || pick(existing, extension, false)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
 		});
 		development?.forEach(extension => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing || pick(existing, extension, true)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
-			result.set(extensionKey, extension);
+			result.set(extension.identifier.id, extension);
 		});
 		return [...result.values()];
 	}

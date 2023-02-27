@@ -698,6 +698,11 @@ export interface IEditorOptions {
 	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
 	dropIntoEditor?: IDropIntoEditorOptions;
+
+	/**
+	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 */
+	tabFocusMode?: boolean;
 }
 
 /**
@@ -3784,6 +3789,8 @@ export interface IInlineSuggestOptions {
 	 * Defaults to `prefix`.
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
+
+	showToolbar?: 'always' | 'onHover';
 }
 
 /**
@@ -3798,7 +3805,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: true,
-			mode: 'subwordSmart'
+			mode: 'subwordSmart',
+			showToolbar: 'onHover',
 		};
 
 		super(
@@ -3808,7 +3816,17 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
-				}
+				},
+				'editor.inlineSuggest.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover'],
+					enumDescriptions: [
+						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+					],
+					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
+				},
 			}
 		);
 	}
@@ -3821,6 +3839,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
 		};
 	}
 }
@@ -4267,13 +4286,13 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'string',
 					enum: ['always', 'never', 'whenTriggerCharacter', 'whenQuickSuggestion'],
 					enumDescriptions: [
-						nls.localize('suggest.insertMode.always', "Always activate the suggest widget when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.never', "Never activate the suggest when when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.whenTriggerCharacter', "Activate the suggest widget only when triggering IntelliSense from a trigger character."),
-						nls.localize('suggest.insertMode.whenQuickSuggestion', "Activate the suggest widget only when triggering IntelliSense as you type."),
+						nls.localize('suggest.insertMode.always', "Always select a suggestion when automatically triggering IntelliSense."),
+						nls.localize('suggest.insertMode.never', "Never select a suggestion when automatically triggering IntelliSense."),
+						nls.localize('suggest.insertMode.whenTriggerCharacter', "Select a suggestion only when triggering IntelliSense from a trigger character."),
+						nls.localize('suggest.insertMode.whenQuickSuggestion', "Select a suggestion only when triggering IntelliSense as you type."),
 					],
 					default: defaults.selectionMode,
-					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters. Note that the widget is always active when explicitly invoked, e.g via `Ctrl+Space`.")
+					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.")
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
@@ -4550,22 +4569,6 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 		return {
 			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
 		};
-	}
-}
-
-//#endregion
-
-//#region tabFocusMode
-
-class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode, boolean> {
-
-	constructor() {
-		super(EditorOption.tabFocusMode);
-	}
-
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
-		const readOnly = options.get(EditorOption.readOnly);
-		return (readOnly ? true : env.tabFocusMode);
 	}
 }
 
@@ -5605,7 +5608,9 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorTabFocusMode()),
+	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
+		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+	)),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),

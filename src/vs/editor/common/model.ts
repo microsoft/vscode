@@ -22,6 +22,7 @@ import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -871,7 +872,15 @@ export interface ITextModel {
 	 * @param source The source of the call that set the language.
 	 * @internal
 	 */
-	setMode(languageId: string, source?: string): void;
+	setLanguage(languageId: string, source?: string): void;
+
+	/**
+	 * Set the current language mode associated with the model.
+	 * @param languageSelection The new language selection.
+	 * @param source The source of the call that set the language.
+	 * @internal
+	 */
+	setLanguage(languageSelection: ILanguageSelection, source?: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.

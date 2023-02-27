@@ -271,10 +271,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';
 
 			const headerForeground = this.getColor(NOTIFICATIONS_CENTER_HEADER_FOREGROUND);
-			this.notificationsCenterHeader.style.color = headerForeground ? headerForeground.toString() : '';
+			this.notificationsCenterHeader.style.color = headerForeground ?? '';
 
 			const headerBackground = this.getColor(NOTIFICATIONS_CENTER_HEADER_BACKGROUND);
-			this.notificationsCenterHeader.style.background = headerBackground ? headerBackground.toString() : '';
+			this.notificationsCenterHeader.style.background = headerBackground ?? '';
 
 		}
 	}

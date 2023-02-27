@@ -207,7 +207,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 				// High confidence, set language id at TextEditorModel level to block future auto-detection
 				this.input.model.setLanguageId(candidateLanguage.id);
 			} else {
-				this.modelService.setMode(textModel, this.languageService.createById(candidateLanguage.id));
+				textModel.setLanguage(this.languageService.createById(candidateLanguage.id));
 			}
 
 			const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);

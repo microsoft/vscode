@@ -48,14 +48,17 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/;
-			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/;
-			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/;
-			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/;
-			const UTILITY_EXTENSION_HOST_HINT = /--utility-sub-type=node.mojom.NodeService/;
-			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
-			const WINDOWS_PTY = /\\pipe\\winpty-control/;
-			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
+			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/i; // TODO@bpasero remove me
+			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/i;
+			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/i;
+			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
+			const UTILITY_EXTENSION_HOST_HINT = /--vscode-utility-kind=extensionHost/i;
+			const UTILITY_FILE_WATCHER_HOST_HINT = /--vscode-utility-kind=fileWatcher/i;
+			const UTILITY_SHARED_PROCESS_HINT = /--vscode-utility-kind=shared-process/i;
+			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
+			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
+			const WINDOWS_PTY = /\\pipe\\winpty-control/i;
+			const WINDOWS_CONSOLE_HOST = /conhost\.exe/i;
 			const TYPE = /--type=([a-zA-Z-]+)/;
 
 			// find windows crash reporter
@@ -68,7 +71,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				return 'winpty-process';
 			}
 
-			//find windows console host process
+			// find windows console host process
 			if (WINDOWS_CONSOLE_HOST.exec(cmd)) {
 				return 'console-window-host (Windows internal process)';
 			}
@@ -98,6 +101,16 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (UTILITY_EXTENSION_HOST_HINT.exec(cmd)) {
 						return 'extension-host';
 					}
+
+					if (UTILITY_FILE_WATCHER_HOST_HINT.exec(cmd)) {
+						return 'file-watcher';
+					}
+
+					if (UTILITY_SHARED_PROCESS_HINT.exec(cmd)) {
+						return 'shared-process';
+					}
+
+					return 'utility-process';
 				} else if (matches[1] === 'extensionHost') {
 					return 'extension-host'; // normalize remote extension host type
 				}
@@ -116,9 +129,15 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			if (result) {
 				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-					return `electron_node ${result}`;
+					return `electron-nodejs (${result})`;
 				}
 			}
+
+			// find Electron node.js processes
+			if (NODEJS_PROCESS_HINT.exec(cmd)) {
+				return `electron-nodejs (${cmd})`;
+			}
+
 			return cmd;
 		}
 

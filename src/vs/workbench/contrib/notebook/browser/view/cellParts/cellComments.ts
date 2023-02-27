@@ -68,7 +68,8 @@ export class CellComments extends CellContentPart {
 			this.contextKeyService,
 			this.instantiationService,
 			commentThread,
-			null,
+			undefined,
+			undefined,
 			{
 				codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily
 			},

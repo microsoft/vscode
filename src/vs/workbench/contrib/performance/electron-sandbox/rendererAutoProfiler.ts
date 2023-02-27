@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IProfileAnalysisWorkerService, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -76,7 +76,7 @@ export class RendererProfiling {
 
 					try {
 						const profile = await nativeHostService.profileRenderer(sessionId, 5000);
-						const output = await profileAnalysisService.analyseBottomUp(profile, _url => '<<renderer>>', perfBaseline);
+						const output = await profileAnalysisService.analyseBottomUp(profile, _url => '<<renderer>>', perfBaseline, true);
 						if (output === ProfilingOutput.Interesting) {
 							this._store(profile, sessionId);
 							break;

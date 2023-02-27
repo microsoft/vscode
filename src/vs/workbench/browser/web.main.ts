@@ -73,7 +73,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { IUserDataProfilesService, PROFILES_ENABLEMENT_CONFIG } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { IRemoteExplorerService, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { DisposableTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
@@ -82,7 +82,6 @@ import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/co
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
 import { timeout } from 'vs/base/common/async';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { rendererLogId } from 'vs/workbench/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
 
@@ -272,10 +271,6 @@ export class BrowserMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService, logService));
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
-
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IWorkbenchFileService, fileService);
@@ -284,8 +279,6 @@ export class BrowserMain extends Disposable {
 		const loggerService = new FileLoggerService(logLevel, fileService);
 		serviceCollection.set(ILoggerService, loggerService);
 
-		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, bufferLogger, logService, loggerService, logsPath);
-
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
@@ -293,24 +286,16 @@ export class BrowserMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new BrowserUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		let isProfilesEnablementConfigured = false;
-		if (environmentService.remoteAuthority) {
-			// Always Disabled in web with remote connection
-			userDataProfilesService.setEnablement(false);
-		} else {
-			if (productService.quality === 'stable') {
-				// Enabled from Config
-				userDataProfilesService.setEnablement(window.localStorage.getItem(PROFILES_ENABLEMENT_CONFIG) === 'true');
-				isProfilesEnablementConfigured = true;
-			} else {
-				// Always Enabled
-				userDataProfilesService.setEnablement(true);
-			}
-		}
 
 		const currentProfile = userDataProfilesService.getProfileForWorkspace(workspace) ?? userDataProfilesService.defaultProfile;
 		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
+
+		// Remote Agent
+		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService));
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, bufferLogger, logService, loggerService, logsPath);
 
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
@@ -333,15 +318,6 @@ export class BrowserMain extends Disposable {
 				return service;
 			})
 		]);
-
-		if (isProfilesEnablementConfigured) {
-			userDataProfilesService.setEnablement(!!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG));
-			this._register(configurationService.onDidChangeConfiguration(e => {
-				if (e.source !== ConfigurationTarget.DEFAULT && e.affectsConfiguration(PROFILES_ENABLEMENT_CONFIG)) {
-					window.localStorage.setItem(PROFILES_ENABLEMENT_CONFIG, !!configurationService.getValue(PROFILES_ENABLEMENT_CONFIG) ? 'true' : 'false');
-				}
-			}));
-		}
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
