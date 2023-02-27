@@ -48,7 +48,13 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	updateEnabledApiProposals(_extension: IExtensionDescription): void {
+	updateEnabledApiProposals(extensions: IExtensionDescription[]): void {
+		for (const extension of extensions) {
+			this.doUpdateEnabledApiProposals(extension);
+		}
+	}
+
+	private doUpdateEnabledApiProposals(_extension: IExtensionDescription): void {
 
 		// this is a trick to make the extension description writeable...
 		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };

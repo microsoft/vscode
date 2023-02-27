@@ -9,7 +9,6 @@ import * as platform from 'vs/base/common/platform';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -46,7 +45,6 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 					const scannedExtensions = await channel.call<IRelaxedExtensionDescription[]>('scanExtensions', [platform.language, profileLocation, this.environmentService.extensionDevelopmentLocationURI, languagePack]);
 					scannedExtensions.forEach((extension) => {
 						extension.extensionLocation = URI.revive(extension.extensionLocation);
-						ImplicitActivationEvents.updateManifest(extension);
 					});
 					return scannedExtensions;
 				},
@@ -65,7 +63,7 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 					const extension = await channel.call<IRelaxedExtensionDescription>('scanSingleExtension', [extensionLocation, isBuiltin, platform.language]);
 					if (extension !== null) {
 						extension.extensionLocation = URI.revive(extension.extensionLocation);
-						ImplicitActivationEvents.updateManifest(extension);
+						// ImplicitActivationEvents.updateManifest(extension);
 					}
 					return extension;
 				},

@@ -36,7 +36,6 @@ import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IEx
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -630,7 +629,6 @@ class ExtensionsScanner extends Disposable {
 				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
-				ImplicitActivationEvents.updateManifest(manifest);
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
 				const extension = {
 					type,
