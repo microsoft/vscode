@@ -14,7 +14,7 @@ import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 class NotebookViewportContribution extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.viewportCustomMarkdown';
+	static id: string = 'workbench.notebook.viewportWarmup';
 	private readonly _warmupViewport: RunOnceScheduler;
 	private readonly _warmupDocument: RunOnceScheduler | null = null;
 
