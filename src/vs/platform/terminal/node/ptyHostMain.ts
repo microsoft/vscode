@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -30,9 +28,9 @@ const productService: IProductService = { _serviceBrand: undefined, ...product }
 const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 
 // Logging
-const loggerService = new LoggerService(LogLevel.Info);
+const loggerService = new LoggerService(LogLevel.Info, environmentService.logsHome);
 server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
-const logger = loggerService.createLogger(URI.file(join(environmentService.logsPath, `${TerminalLogConstants.FileName}.log`)), { name: process.env.VSCODE_PTY_LOG_NAME ?? localize('ptyHost', "Pty Host") });
+const logger = loggerService.createLogger(TerminalLogConstants.FileName, { name: process.env.VSCODE_PTY_LOG_NAME ?? localize('ptyHost', "Pty Host") });
 delete process.env.VSCODE_PTY_LOG_NAME;
 const logService = new LogService(logger, [new ConsoleLogger()]);
 

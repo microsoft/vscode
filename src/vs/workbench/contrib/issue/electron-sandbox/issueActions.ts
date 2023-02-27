@@ -10,7 +10,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';

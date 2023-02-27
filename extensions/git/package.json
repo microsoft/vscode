@@ -15,6 +15,7 @@
     "contribEditSessions",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "quickDiffProvider",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",

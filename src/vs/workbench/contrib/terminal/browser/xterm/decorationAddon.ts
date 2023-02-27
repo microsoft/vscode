@@ -26,6 +26,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -51,7 +52,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -217,7 +219,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		commandDetectionListeners.push(capability.onCommandFinished(command => this.registerCommandDecoration(command)));
+		commandDetectionListeners.push(capability.onCommandFinished(command => {
+			this.registerCommandDecoration(command);
+			if (command.exitCode) {
+				this._audioCueService.playAudioCue(AudioCue.terminalCommandFailed);
+			}
+		}));
 		// Command invalidated
 		commandDetectionListeners.push(capability.onCommandInvalidated(commands => {
 			for (const command of commands) {

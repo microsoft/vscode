@@ -158,7 +158,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') }));
+		this.lifecycleService.onWillShutdown((e) => {
+			if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
+				e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') });
+			}
+		});
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -223,17 +227,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
-			const cancellationTokenSource = new CancellationTokenSource();
-			await this.progressService.withProgress({
-				location: ProgressLocation.Window,
-				type: 'syncing',
-				title: localize('store working changes', 'Storing working changes...')
-			}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
-				cancellationTokenSource.cancel();
-				cancellationTokenSource.dispose();
-			});
-		}
+		const cancellationTokenSource = new CancellationTokenSource();
+		await this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			type: 'syncing',
+			title: localize('store working changes', 'Storing working changes...')
+		}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
+			cancellationTokenSource.cancel();
+			cancellationTokenSource.dispose();
+		});
 	}
 
 	private registerViews() {
@@ -798,7 +800,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					));
 
 					if (contribution.qualifiedName) {
-						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, command.category, when, contribution.remoteGroup);
+						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, contribution.category ?? command.category, when, contribution.remoteGroup);
 					}
 				}
 			}
@@ -986,6 +988,7 @@ interface ICommand {
 	when: string;
 	documentation?: string;
 	qualifiedName?: string;
+	category?: string;
 	remoteGroup?: string;
 }
 

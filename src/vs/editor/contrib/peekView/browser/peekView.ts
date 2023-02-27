@@ -112,6 +112,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	private disposed?: true;
 
 	protected _headElement?: HTMLDivElement;
+	protected _titleElement?: HTMLDivElement;
 	protected _primaryHeading?: HTMLElement;
 	protected _secondaryHeading?: HTMLElement;
 	protected _metaHeading?: HTMLElement;
@@ -180,18 +181,18 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _fillHead(container: HTMLElement, noCloseAction?: boolean): void {
-		const titleElement = dom.$('.peekview-title');
+		this._titleElement = dom.$('.peekview-title');
 		if ((this.options as IPeekViewOptions).supportOnTitleClick) {
-			titleElement.classList.add('clickable');
-			dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
+			this._titleElement.classList.add('clickable');
+			dom.addStandardDisposableListener(this._titleElement, 'click', event => this._onTitleClick(event));
 		}
-		dom.append(this._headElement!, titleElement);
+		dom.append(this._headElement!, this._titleElement);
 
-		this._fillTitleIcon(titleElement);
+		this._fillTitleIcon(this._titleElement);
 		this._primaryHeading = dom.$('span.filename');
 		this._secondaryHeading = dom.$('span.dirname');
 		this._metaHeading = dom.$('span.meta');
-		dom.append(titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
+		dom.append(this._titleElement, this._primaryHeading, this._secondaryHeading, this._metaHeading);
 
 		const actionsContainer = dom.$('.peekview-actions');
 		dom.append(this._headElement!, actionsContainer);

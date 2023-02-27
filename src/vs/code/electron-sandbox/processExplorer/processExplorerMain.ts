@@ -19,7 +19,7 @@ import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/dia
 import { ByteSize } from 'vs/platform/files/common/files';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';

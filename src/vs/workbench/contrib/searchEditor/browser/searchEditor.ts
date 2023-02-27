@@ -44,7 +44,7 @@ import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';

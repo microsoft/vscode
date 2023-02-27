@@ -171,6 +171,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
+	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void {
+		// throw new Error('Method not implemented.');
+	}
+
 	async focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
 	}

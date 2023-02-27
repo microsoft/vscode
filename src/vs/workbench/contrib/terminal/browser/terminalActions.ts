@@ -423,7 +423,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
+			await accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
 		}
 	});
 	registerAction2(class extends Action2 {

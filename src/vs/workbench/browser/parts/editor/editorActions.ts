@@ -30,9 +30,10 @@ import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1083,19 +1084,12 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-abstract class AbstractNavigateEditorAction extends Action {
+abstract class AbstractNavigateEditorAction extends Action2 {
 
-	constructor(
-		id: string,
-		label: string,
-		protected editorGroupService: IEditorGroupsService,
-		protected editorService: IEditorService
-	) {
-		super(id, label);
-	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
 
-	override async run(): Promise<void> {
-		const result = this.navigate();
+		const result = this.navigate(editorGroupService);
 		if (!result) {
 			return;
 		}
@@ -1105,33 +1099,38 @@ abstract class AbstractNavigateEditorAction extends Action {
 			return;
 		}
 
-		const group = this.editorGroupService.getGroup(groupId);
+		const group = editorGroupService.getGroup(groupId);
 		if (group) {
 			await group.openEditor(editor);
 		}
 	}
 
-	protected abstract navigate(): IEditorIdentifier | undefined;
+	protected abstract navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined;
 }
 
 export class OpenNextEditor extends AbstractNavigateEditorAction {
 
-	static readonly ID = 'workbench.action.nextEditor';
-	static readonly LABEL = localize('openNextEditor', "Open Next Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
+	constructor() {
+		super({
+			id: 'workbench.action.nextEditor',
+			title: { value: localize('openNextEditor', "Open Next Editor"), original: 'Open Next Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight]
+				}
+			},
+			category: Categories.View
+		});
 	}
 
-	protected navigate(): IEditorIdentifier | undefined {
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined {
 
 		// Navigate in active group if possible
-		const activeGroup = this.editorGroupService.activeGroup;
+		const activeGroup = editorGroupService.activeGroup;
 		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
 		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
 		if (activeEditorIndex + 1 < activeGroupEditors.length) {
@@ -1140,9 +1139,9 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 
 		// Otherwise try in next group that has editors
 		const handledGroups = new Set<number>();
-		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
+		let currentGroup: IEditorGroup | undefined = editorGroupService.activeGroup;
 		while (currentGroup && !handledGroups.has(currentGroup.id)) {
-			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
+			currentGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
 			if (currentGroup) {
 				handledGroups.add(currentGroup.id);
 
@@ -1159,22 +1158,27 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 
 export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 
-	static readonly ID = 'workbench.action.previousEditor';
-	static readonly LABEL = localize('openPreviousEditor', "Open Previous Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
+	constructor() {
+		super({
+			id: 'workbench.action.previousEditor',
+			title: { value: localize('openPreviousEditor', "Open Previous Editor"), original: 'Open Previous Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft]
+				}
+			},
+			category: Categories.View
+		});
 	}
 
-	protected navigate(): IEditorIdentifier | undefined {
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined {
 
 		// Navigate in active group if possible
-		const activeGroup = this.editorGroupService.activeGroup;
+		const activeGroup = editorGroupService.activeGroup;
 		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
 		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
 		if (activeEditorIndex > 0) {
@@ -1183,9 +1187,9 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 
 		// Otherwise try in previous group that has editors
 		const handledGroups = new Set<number>();
-		let currentGroup: IEditorGroup | undefined = this.editorGroupService.activeGroup;
+		let currentGroup: IEditorGroup | undefined = editorGroupService.activeGroup;
 		while (currentGroup && !handledGroups.has(currentGroup.id)) {
-			currentGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
+			currentGroup = editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
 			if (currentGroup) {
 				handledGroups.add(currentGroup.id);
 
@@ -1202,20 +1206,24 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 
 export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
 
-	static readonly ID = 'workbench.action.nextEditorInGroup';
-	static readonly LABEL = localize('nextEditorInGroup', "Open Next Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
+	constructor() {
+		super({
+			id: 'workbench.action.nextEditorInGroup',
+			title: { value: localize('nextEditorInGroup', "Open Next Editor in Group"), original: 'Open Next Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.PageDown),
+				mac: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow)
+				}
+			},
+			category: Categories.View
+		});
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
 		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
 
@@ -1225,20 +1233,24 @@ export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
 
 export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
 
-	static readonly ID = 'workbench.action.previousEditorInGroup';
-	static readonly LABEL = localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
+	constructor() {
+		super({
+			id: 'workbench.action.previousEditorInGroup',
+			title: { value: localize('openPreviousEditorInGroup', "Open Previous Editor in Group"), original: 'Open Previous Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.PageUp),
+				mac: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow)
+				}
+			},
+			category: Categories.View
+		});
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
 		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
 
@@ -1248,20 +1260,17 @@ export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
 
 export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
 
-	static readonly ID = 'workbench.action.firstEditorInGroup';
-	static readonly LABEL = localize('firstEditorInGroup', "Open First Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
+	constructor() {
+		super({
+			id: 'workbench.action.firstEditorInGroup',
+			title: { value: localize('firstEditorInGroup', "Open First Editor in Group"), original: 'Open First Editor in Group' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
 
 		return { editor: editors[0], groupId: group.id };
@@ -1270,20 +1279,26 @@ export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
 
 export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 
-	static readonly ID = 'workbench.action.lastEditorInGroup';
-	static readonly LABEL = localize('lastEditorInGroup', "Open Last Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
+	constructor() {
+		super({
+			id: 'workbench.action.lastEditorInGroup',
+			title: { value: localize('lastEditorInGroup', "Open Last Editor in Group"), original: 'Open Last Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Alt | KeyCode.Digit0,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Digit9],
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.Digit0,
+					secondary: [KeyMod.CtrlCmd | KeyCode.Digit9]
+				}
+			},
+			category: Categories.View
+		});
 	}
 
-	protected navigate(): IEditorIdentifier {
-		const group = this.editorGroupService.activeGroup;
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
 
 		return { editor: editors[editors.length - 1], groupId: group.id };
@@ -1516,43 +1531,50 @@ export class NavigateToLastNavigationLocationAction extends Action {
 	}
 }
 
-export class ReopenClosedEditorAction extends Action {
+export class ReopenClosedEditorAction extends Action2 {
 
 	static readonly ID = 'workbench.action.reopenClosedEditor';
-	static readonly LABEL = localize('reopenClosedEditor', "Reopen Closed Editor");
 
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ReopenClosedEditorAction.ID,
+			title: { value: localize('reopenClosedEditor', "Reopen Closed Editor"), original: 'Reopen Closed Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT
+			},
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.reopenLastClosedEditor();
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.reopenLastClosedEditor();
 	}
 }
 
-export class ClearRecentFilesAction extends Action {
+export class ClearRecentFilesAction extends Action2 {
 
 	static readonly ID = 'workbench.action.clearRecentFiles';
-	static readonly LABEL = localize('clearRecentFiles', "Clear Recently Opened");
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IDialogService private readonly dialogService: IDialogService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ClearRecentFilesAction.ID,
+			title: { value: localize('clearRecentFiles', "Clear Recently Opened"), original: 'Clear Recently Opened' },
+			f1: true,
+			category: Categories.File
+		});
 	}
 
-	override async run(): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+		const workspacesService = accessor.get(IWorkspacesService);
+		const historyService = accessor.get(IHistoryService);
 
 		// Ask for confirmation
-		const { confirmed } = await this.dialogService.confirm({
+		const { confirmed } = await dialogService.confirm({
 			type: 'warning',
 			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
 			detail: localize('confirmClearDetail', "This action is irreversible!"),
@@ -1564,64 +1586,77 @@ export class ClearRecentFilesAction extends Action {
 		}
 
 		// Clear global recently opened
-		this.workspacesService.clearRecentlyOpened();
+		workspacesService.clearRecentlyOpened();
 
 		// Clear workspace specific recently opened
-		this.historyService.clearRecentlyOpened();
+		historyService.clearRecentlyOpened();
 	}
 }
 
-export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action {
+export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showEditorsInActiveGroup';
-	static readonly LABEL = localize('showEditorsInActiveGroup', "Show Editors in Active Group By Most Recently Used");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ShowEditorsInActiveGroupByMostRecentlyUsedAction.ID,
+			title: { value: localize('showEditorsInActiveGroup', "Show Editors in Active Group By Most Recently Used"), original: 'Show Editors in Active Group By Most Recently Used' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 	}
 }
 
-export class ShowAllEditorsByAppearanceAction extends Action {
+export class ShowAllEditorsByAppearanceAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showAllEditors';
-	static readonly LABEL = localize('showAllEditors', "Show All Editors By Appearance");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ShowAllEditorsByAppearanceAction.ID,
+			title: { value: localize('showAllEditors', "Show All Editors By Appearance"), original: 'Show All Editors By Appearance' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab
+				}
+			},
+			category: Categories.File
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
 	}
 }
 
-export class ShowAllEditorsByMostRecentlyUsedAction extends Action {
+export class ShowAllEditorsByMostRecentlyUsedAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showAllEditorsByMostRecentlyUsed';
-	static readonly LABEL = localize('showAllEditorsByMostRecentlyUsed', "Show All Editors By Most Recently Used");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ShowAllEditorsByMostRecentlyUsedAction.ID,
+			title: { value: localize('showAllEditorsByMostRecentlyUsed', "Show All Editors By Most Recently Used"), original: 'Show All Editors By Most Recently Used' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 	}
 }
 
@@ -1737,77 +1772,73 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 	}
 }
 
-export class OpenNextRecentlyUsedEditorAction extends Action {
+export class OpenNextRecentlyUsedEditorAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openNextRecentlyUsedEditor';
-	static readonly LABEL = localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.openNextRecentlyUsedEditor',
+			title: { value: localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor"), original: 'Open Next Recently Used Editor' },
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openNextRecentlyUsedEditor();
-	}
-}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
 
-export class OpenPreviousRecentlyUsedEditorAction extends Action {
-
-	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditor';
-	static readonly LABEL = localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		this.historyService.openPreviouslyUsedEditor();
+		historyService.openNextRecentlyUsedEditor();
 	}
 }
 
-export class OpenNextRecentlyUsedEditorInGroupAction extends Action {
+export class OpenPreviousRecentlyUsedEditorAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.openPreviousRecentlyUsedEditor',
+			title: { value: localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor"), original: 'Open Previous Recently Used Editor' },
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openNextRecentlyUsedEditor(this.editorGroupsService.activeGroup.id);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		historyService.openPreviouslyUsedEditor();
 	}
 }
 
-export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action {
+export class OpenNextRecentlyUsedEditorInGroupAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
+			title: { value: localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group"), original: 'Open Next Recently Used Editor In Group' },
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.historyService.openPreviouslyUsedEditor(this.editorGroupsService.activeGroup.id);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		historyService.openNextRecentlyUsedEditor(editorGroupsService.activeGroup.id);
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+			title: { value: localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group"), original: 'Open Previous Recently Used Editor In Group' },
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		historyService.openPreviouslyUsedEditor(editorGroupsService.activeGroup.id);
 	}
 }
 

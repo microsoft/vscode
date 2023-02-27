@@ -1233,6 +1233,14 @@
     xml2js "^0.4.23"
     yargs "^17.5.1"
 
+"@vscode/policy-watcher@^1.1.4":
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.4.tgz#a47e30c6f02d025187d8900a3e21adb2626dece5"
+  integrity sha512-/xYsB7PmEeEpuRIKPAqDvK8baJ6AfOhHsnPPJrje7Bpf1z2GLwRFq7pm9KjBGtcwJGInuDxQERMtX0RIERi8YA==
+  dependencies:
+    bindings "^1.5.0"
+    node-addon-api "^6.0.0"
+
 "@vscode/ripgrep@^1.14.2":
   version "1.14.2"
   resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.2.tgz#47c0eec2b64f53d8f7e1b5ffd22a62e229191c34"
@@ -7752,11 +7760,6 @@ node-abi@^3.3.0:
   dependencies:
     semver "^7.3.5"
 
-node-addon-api@*:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-5.0.0.tgz#7d7e6f9ef89043befdb20c1989c905ebde18c501"
-  integrity sha512-CvkDw2OEnme7ybCykJpVcKH+uAOLV2qLqiyla128dN9TkEWfrYmxG6C2boDe5KcNQqZF3orkqzGgOMvZ/JNekA==
-
 node-addon-api@^3.0.2:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
@@ -7776,6 +7779,11 @@ node-addon-api@^4.3.0:
   version "4.3.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.3.0.tgz#52a1a0b475193e0928e98e0426a0d1254782b77f"
   integrity sha512-73sE9+3UaLYYFmDsFZnqCInzPyh3MqIwZO9cw58yIqAZhONrrabrYyYe3TuIqtIiOuTXVhsGau8hcrhhwSsDIQ==
+
+node-addon-api@^6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-6.0.0.tgz#cfb3574e6df708ff71a30db6c4762d9e06e11c27"
+  integrity sha512-GyHvgPvUXBvAkXa0YvYnhilSB1A+FRYMpIVggKzPZqdaZfevZOuzfWzyvgzOwRLHBeo/MMswmJFsrNF4Nw1pmA==
 
 node-fetch@2.6.8:
   version "2.6.8"
@@ -11003,10 +11011,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.0.0-dev.20230209:
-  version "5.0.0-dev.20230209"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230209.tgz#d7c763483e62f745f0bfa1610ffab76fbdce83ac"
-  integrity sha512-EKEs7zC40JV4BTgxULx8oDWSya4r2FeqSVpwuK7ZRu4OBErBo8n59wBAR6r+NBbkxG8JzxMOE2+fazbu/nLi9A==
+typescript@^5.0.0-dev.20230224:
+  version "5.0.0-dev.20230224"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230224.tgz#801908424fafe3f5728320348ad0dc966960fd69"
+  integrity sha512-ntlbPkFF0PM1+lmvLenUGwo+3EJPq5QAvAsw+6HA6KTOHpF3IcmYE57rcgpL54NLXhqz84RNTtcmb4dttBuBsA==
 
 typical@^4.0.0:
   version "4.0.0"
@@ -11425,14 +11433,6 @@ vscode-oniguruma@1.7.0:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.7.0.tgz#439bfad8fe71abd7798338d1cd3dc53a8beea94b"
   integrity sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==
 
-vscode-policy-watcher@^1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.1.1.tgz#3646d17de9f82c741437fd6d687fd0c414ea513d"
-  integrity sha512-ZwJKg8gpIQ3UO8gdTqBvbXJBOBUStWPArjQJuqGIz8TimgMy+4H7tScVjvlxmzb/sS6rErn3wGMn8gRH824nnw==
-  dependencies:
-    bindings "^1.5.0"
-    node-addon-api "*"
-
 vscode-proxy-agent@^0.12.0:
   version "0.12.0"
   resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.12.0.tgz#0775f464b9519b0c903da4dcf50851e1453f4e48"
@@ -11452,10 +11452,10 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-textmate@8.0.0:
-  version "8.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-8.0.0.tgz#2c7a3b1163ef0441097e0b5d6389cd5504b59e5d"
-  integrity sha512-AFbieoL7a5LMqcnOF04ji+rpXadgOXnZsxQr//r83kLPr7biP7am3g9zbaZIaBGwBRWeSvoMD4mgPdX3e4NWBg==
+vscode-textmate@9.0.0:
+  version "9.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-9.0.0.tgz#313c6c8792b0507aef35aeb81b6b370b37c44d6c"
+  integrity sha512-Cl65diFGxz7gpwbav10HqiY/eVYTO1sjQpmRmV991Bj7wAoOAjGQ97PpQcXorDE2Uc4hnGWLY17xme+5t6MlSg==
 
 vscode-uri@^3.0.7:
   version "3.0.7"
@@ -11863,15 +11863,15 @@ xterm-addon-webgl@0.15.0-beta.7:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.15.0-beta.7.tgz#ab247b499f61e8eebff92e08ec5ca999d87e06af"
   integrity sha512-7WCI/D6uFNp3y9TeTsbSo1h7gCy4h/yP2lWn8ZEjCaiGvO11DbKMq17fbiwaR3YmGWXoRKkcLaNIiqxFnjKO4w==
 
-xterm-headless@5.2.0-beta.28:
-  version "5.2.0-beta.28"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.2.0-beta.28.tgz#d2c149da51ef138f46268b755c4fdc4202eb771c"
-  integrity sha512-4XcjBhFwuyjpz2ubESwp75UceySOOKdJszKyyxOQ3/7L937uiVEBBLc8T231XU8lSwWUU7czyNjYyCfpszY4+Q==
+xterm-headless@5.2.0-beta.29:
+  version "5.2.0-beta.29"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.2.0-beta.29.tgz#dd08312fdb4292c217e685d9e2e8b1957364e298"
+  integrity sha512-1P4urIeDTkl2C+zGb4WUnKJMACZMPGYHwVXMjkB0WhMISbkt6M34MH9ljxHhnL99dHwlx2Lvi6wvhnpyZucWCg==
 
-xterm@5.2.0-beta.28:
-  version "5.2.0-beta.28"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.0-beta.28.tgz#852347e4eaf5aae7d82c90592a42adc9daab2a79"
-  integrity sha512-aLDxCuqjWHjvnhfWfkxy/y6coNrC+QIhbDe2sdfLPkrxhK6KnYE6qiZD5jXUIQXeq0KmSDcYi/esuKujvobC2A==
+xterm@5.2.0-beta.29:
+  version "5.2.0-beta.29"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.0-beta.29.tgz#99764aff5cd8cdb4335f5d59466b134cfcb45e3e"
+  integrity sha512-zx5RKcQqo78bza4R/m3WtxAJCBAF4U61fy6cxqb1PkqXF9/qdYlySUCVOauMxv+6n6cAxt3EQWwLlgvbvQBbsw==
 
 y18n@^3.2.1:
   version "3.2.2"

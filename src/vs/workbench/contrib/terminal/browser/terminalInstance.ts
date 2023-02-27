@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -473,7 +473,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			return findWidget;
 		});
-
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
@@ -1025,7 +1024,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
 				return false;
 			}
 
@@ -2664,12 +2663,17 @@ const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The
 const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
 const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
 const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
+const goToRecentNoShellIntegration = nls.localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command ({0}) enables screen readers to easily navigate to a directory that has been used in the terminal.');
+const goToRecentNoKbNoShellIntegration = nls.localize('goToRecentDirectoryNoKbNoShellIntegration', 'The Go to Recent Directory command enables screen readers to easily navigate to a directory that has been used in the terminal and is currently not triggerable by a keybinding.');
 const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
 const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
 const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
 const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
 const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
 const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
+const newWithProfile = nls.localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.');
+const newWithProfileNoKb = nls.localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.');
+const accessibilitySettings = nls.localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.');
 
 class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	readonly id = 'help';
@@ -2738,8 +2742,12 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+		} else {
+			content.push(this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecentNoShellIntegration, goToRecentNoKbNoShellIntegration));
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, newWithProfile, newWithProfileNoKb));
+		content.push(accessibilitySettings);
 		content.push(readMoreLink, dismiss);
 		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
 		const anchorElements = element.querySelectorAll('a');

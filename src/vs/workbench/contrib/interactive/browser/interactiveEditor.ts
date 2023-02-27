@@ -554,7 +554,7 @@ export class InteractiveEditor extends EditorPane {
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];
 				const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
-				textModel.setMode(newMode);
+				textModel.setLanguage(newMode);
 
 				NOTEBOOK_KERNEL.bindTo(this.#contextKeyService).set(selectedOrSuggested.id);
 			}

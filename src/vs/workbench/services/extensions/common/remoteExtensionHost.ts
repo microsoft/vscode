@@ -18,7 +18,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { connectRemoteAgentExtensionHost, IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,8 +26,9 @@ import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ExtensionHostExtensions, ExtensionHostLogFileName, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IRemoteExtensionHostInitData {
 	readonly connectionData: IRemoteConnectionData | null;
@@ -48,7 +49,7 @@ export interface IRemoteExtensionHostDataProvider {
 export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly remoteAuthority: string;
-	public readonly lazyStart = false;
+	public readonly startup = ExtensionHostStartup.EagerAutoStart;
 	public readonly extensions = new ExtensionHostExtensions();
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
@@ -240,6 +241,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				logNative: Boolean(this._environmentService.debugExtensionHost.debugId)
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
@@ -247,7 +249,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			logsLocation: remoteInitData.extensionHostLogsPath,
 			logFile: joinPath(remoteInitData.extensionHostLogsPath, `${ExtensionHostLogFileName}.log`),
 			logName: localize('remote extension host Log', "Remote Extension Host"),
-			autoStart: true,
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
 		};
 	}
