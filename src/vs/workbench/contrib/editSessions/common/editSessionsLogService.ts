@@ -18,7 +18,7 @@ export class EditSessionsLogService extends AbstractLogger implements IEditSessi
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
-		this.logger = this._register(loggerService.createLogger(environmentService.editSessionsLogResource, { id: editSessionsLogId, name: localize('cloudChangesLog', "Cloud Changes") }));
+		this.logger = this._register(loggerService.createLogger(editSessionsLogId, { name: localize('cloudChangesLog', "Cloud Changes") }));
 	}
 
 	trace(message: string, ...args: any[]): void {

@@ -12,8 +12,8 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
-	constructor(private readonly windowId: number | undefined, logLevel: LogLevel, loggers: ILoggerResource[], private readonly channel: IChannel) {
-		super(logLevel, loggers);
+	constructor(private readonly windowId: number | undefined, logLevel: LogLevel, logsHome: URI, loggers: ILoggerResource[], private readonly channel: IChannel) {
+		super(logLevel, logsHome, loggers);
 		this._register(channel.listen<LogLevel | [URI, LogLevel]>('onDidChangeLogLevel', windowId)(arg => {
 			if (isLogLevel(arg)) {
 				super.setLogLevel(arg);

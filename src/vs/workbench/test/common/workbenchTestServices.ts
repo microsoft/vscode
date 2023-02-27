@@ -23,6 +23,14 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import product from 'vs/platform/product/common/product';
 import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from 'vs/platform/log/common/log';
+
+export class TestLoggerService extends AbstractLoggerService {
+	constructor(logsHome?: URI) {
+		super(LogLevel.Info, logsHome ?? URI.file('tests').with({ scheme: 'vscode-tests' }));
+	}
+	protected doCreateLogger(): ILogger { return new NullLogger(); }
+}
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 

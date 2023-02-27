@@ -40,13 +40,12 @@ import { IShellEnvironmentService } from 'vs/workbench/services/environment/elec
 import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostExtensions, ExtensionHostLogFileName, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 
 export interface ILocalProcessExtensionHostInitData {
-	readonly autoStart: boolean;
 	readonly allExtensions: IExtensionDescription[];
 	readonly myExtensions: ExtensionIdentifier[];
 }
@@ -102,7 +101,6 @@ export class ExtensionHostProcess {
 export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
-	public readonly lazyStart = false;
 	public readonly extensions = new ExtensionHostExtensions();
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
@@ -130,6 +128,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 	constructor(
 		public readonly runningLocation: LocalProcessRunningLocation,
+		public readonly startup: ExtensionHostStartup.EagerAutoStart | ExtensionHostStartup.EagerManualStart,
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -468,6 +467,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
@@ -475,7 +475,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			logsLocation: this._environmentService.extHostLogsPath,
 			logFile: this._extensionHostLogFile,
 			logName: nls.localize('extension host Log', "Extension Host"),
-			autoStart: initData.autoStart,
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			uiKind: UIKind.Desktop
 		};
 	}
