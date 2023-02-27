@@ -38,7 +38,7 @@ const implicitActivationEvent = l10n.t("This activation event cannot be explicit
 const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
 const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75 as VS Code will generate these automatically from your package.json contribution declarations.");
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
-const parsingErrorHeader = l10n.t("Error when parsing when clause:");
+const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
 
 enum Context {
 	ICON,
