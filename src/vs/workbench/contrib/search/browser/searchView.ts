@@ -1642,7 +1642,6 @@ export class SearchView extends ViewPane {
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.tree.setSelection([]);
-		this.tree.setFocus([]);
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
 	}

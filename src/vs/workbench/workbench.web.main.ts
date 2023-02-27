@@ -152,7 +152,7 @@ import 'vs/workbench/contrib/tasks/browser/taskService';
 import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 
 // Issues
-import 'vs/workbench/contrib/issue/browser/issue.contribution';
+import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';

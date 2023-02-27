@@ -23,7 +23,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
-export class NativeIssueService implements IWorkbenchIssueService {
+export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(

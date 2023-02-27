@@ -22,7 +22,6 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { equals } from 'vs/base/common/arrays';
 
 
 //#region Interfaces
@@ -135,8 +134,6 @@ registerAction2(class RemoveAction extends Action2 {
 				viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
-		} else if (!equals(viewer.getFocus(), viewer.getSelection())) {
-			viewer.setSelection(viewer.getFocus());
 		}
 
 		viewer.domFocus();
