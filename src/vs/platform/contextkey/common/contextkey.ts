@@ -328,7 +328,7 @@ export class Parser {
 	// ContextKeyExpression's that we use as AST nodes do not expose constructors that do not normalize
 
 	// lifetime note: `_scanner` lives as long as the parser does, i.e., is not reset between calls to `parse`
-	private _scanner = new Scanner();
+	private readonly _scanner = new Scanner();
 
 	// lifetime note: `_tokens`, `_current`, and `_parsingErrors` must be reset between calls to `parse`
 	private _tokens: Token[] = [];
@@ -343,7 +343,7 @@ export class Parser {
 		return this._parsingErrors;
 	}
 
-	constructor(private _config: ParserConfig = defaultConfig) {
+	constructor(private readonly _config: ParserConfig = defaultConfig) {
 	}
 
 	/**
