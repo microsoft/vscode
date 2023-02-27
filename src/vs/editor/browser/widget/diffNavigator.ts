@@ -241,7 +241,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		}
 
 		const codeEditor = this._codeEditorService.getActiveCodeEditor();
-		if (codeEditor && insertedOrModified && this._accessibilityService.isScreenReaderOptimized()) {
+		if (jumpToChange && codeEditor && insertedOrModified && this._accessibilityService.isScreenReaderOptimized()) {
 			codeEditor.setSelection({ startLineNumber: lineNumber, startColumn: 0, endLineNumber: lineNumber, endColumn: Number.MAX_VALUE });
 			codeEditor.writeScreenReaderContent('diff-navigation');
 		}

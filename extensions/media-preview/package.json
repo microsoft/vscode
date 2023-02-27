@@ -19,13 +19,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCustomEditor:imagePreview.previewEditor",
-    "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut",
-    "onCustomEditor:vscode.audioPreview",
-    "onCustomEditor:vscode.videoPreview"
-  ],
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -50,7 +44,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{mp3,wav,ogg}"
+            "filenamePattern": "*.{mp3,wav,ogg,oga}"
           }
         ]
       },
@@ -101,7 +95,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "vscode-uri": "^3.0.6"
   },
   "repository": {

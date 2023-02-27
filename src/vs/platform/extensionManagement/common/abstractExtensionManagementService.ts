@@ -36,8 +36,8 @@ export interface IInstallExtensionTask {
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
 	readonly verificationStatus?: ExtensionVerificationStatus;
-	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
-	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
+	run(): Promise<ILocalExtension>;
+	waitUntilTaskIsFinished(): Promise<ILocalExtension>;
 	cancel(): void;
 }
 
@@ -142,8 +142,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			const installingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
 			if (installingExtension) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
-				const { local } = await installingExtension.task.waitUntilTaskIsFinished();
-				return local;
+				return installingExtension.task.waitUntilTaskIsFinished();
 			}
 		}
 
@@ -234,7 +233,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
 					try {
-						const { local } = await task.run();
+						const local = await task.run();
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, installExtensionTaskOptions, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							const isUpdate = task.operation === InstallOperation.Update;
@@ -654,12 +653,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
 	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
+	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
+	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
+	abstract cleanUp(): Promise<void>;
 
 	abstract onDidUpdateExtensionMetadata: Event<ILocalExtension>;
-	abstract getMetadata(extension: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined>;
 	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
@@ -686,7 +687,7 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
 	let errorcode: ExtensionManagementErrorCode | undefined;
 	let errorcodeDetail: string | undefined;
 

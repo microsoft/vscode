@@ -286,3 +286,9 @@
 .pane-body .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
+
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked {
+	border-color: var(--vscode-inputOption-activeBorder);
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+}

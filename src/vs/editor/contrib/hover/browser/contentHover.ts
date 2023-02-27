@@ -639,7 +639,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	}
 
 	private static _getLineDecorations(editor: IActiveCodeEditor, anchor: HoverAnchor): IModelDecoration[] {
-		if (anchor.type !== HoverAnchorType.Range) {
+		if (anchor.type !== HoverAnchorType.Range && !anchor.supportsMarkerHover) {
 			return [];
 		}
 

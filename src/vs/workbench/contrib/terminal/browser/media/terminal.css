@@ -555,7 +555,30 @@
 	min-width: 10%;
 	width: fit-content;
 	max-width: 70%;
+	min-height: fit-content;
+	height: fit-content !important;
 	vertical-align: middle;
 	border: 2px solid var(--vscode-contrastBorder);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+}
+
+.terminal-accessibility-help a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.terminal-accessibility-help a:hover {
+	cursor: pointer;
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.terminal-accessibility-help a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.terminal-accessibility-help a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+	text-decoration: underline;
+	outline-color: var(--vscode-focusBorder);
 }

@@ -17,12 +17,12 @@ import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } f
 import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
 import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 
-export interface IUserDataProfileManifestResourceMergeResult extends IAcceptResult {
+interface IUserDataProfileManifestResourceMergeResult extends IAcceptResult {
 	readonly local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };
 	readonly remote: { added: IUserDataProfile[]; removed: ISyncUserDataProfile[]; updated: IUserDataProfile[] } | null;
 }
 
-export interface IUserDataProfilesManifestResourcePreview extends IResourcePreview {
+interface IUserDataProfilesManifestResourcePreview extends IResourcePreview {
 	readonly previewResult: IUserDataProfileManifestResourceMergeResult;
 	readonly remoteProfiles: ISyncUserDataProfile[] | null;
 }

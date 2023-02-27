@@ -13,6 +13,9 @@ export const enum Testing {
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 	DecorationsContributionId = 'editor.contrib.testingDecorations',
+
+	ResultsPanelId = 'workbench.panel.testResults',
+	ResultsViewId = 'workbench.panel.testResults.view',
 }
 
 export const enum TestExplorerViewMode {

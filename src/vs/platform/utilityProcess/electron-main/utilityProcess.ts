@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app } from 'electron';
+import { BrowserWindow, Details, app, MessageChannelMain, MessagePortMain } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -14,21 +14,27 @@ import { UtilityProcess as ElectronUtilityProcess, UtilityProcessProposedApi, ca
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
+import { deepClone } from 'vs/base/common/objects';
 
 export interface IUtilityProcessConfiguration {
-
-	// --- message port response related
-
-	readonly responseWindowId: number;
-	readonly responseChannel: string;
-	readonly responseNonce: string;
-
-	// --- utility process options
 
 	/**
 	 * A way to group utility processes of same type together.
 	 */
 	readonly type: string;
+
+	/**
+	 * The entry point to load in the utility process.
+	 */
+	readonly entryPoint: string;
+
+	/**
+	 * An optional serializable object to be sent into the utility process
+	 * as first message alongside the message port.
+	 */
+	readonly payload?: unknown;
 
 	/**
 	 * Environment key-value pairs. Default is `process.env`.
@@ -56,6 +62,30 @@ export interface IUtilityProcessConfiguration {
 	 * with other components.
 	 */
 	readonly correlationId?: string;
+
+	/**
+	 * Optional pid of the parent process. If set, the
+	 * utility process will be terminated when the parent
+	 * process exits.
+	 */
+	readonly parentLifecycleBound?: number;
+}
+
+export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
+
+	// --- message port response related
+
+	readonly responseWindowId: number;
+	readonly responseChannel: string;
+	readonly responseNonce: string;
+
+	// --- utility process options
+
+	/**
+	 * If set to `true`, will terminate the utility process
+	 * when the associated browser window closes or reloads.
+	 */
+	readonly windowLifecycleBound?: boolean;
 }
 
 interface IUtilityProcessExitBaseEvent {
@@ -113,17 +143,15 @@ export class UtilityProcess extends Disposable {
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
 
-	private didExit: boolean = false;
-
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleMainService protected readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 	}
 
-	private log(msg: string, severity: Severity): void {
+	protected log(msg: string, severity: Severity): void {
 		let logMsg: string;
 		if (this.configuration?.correlationId) {
 			logMsg = `[UtilityProcess id: ${this.configuration?.correlationId}, type: ${this.configuration?.type}, pid: ${this.processPid ?? '<none>'}]: ${msg}`;
@@ -144,48 +172,44 @@ export class UtilityProcess extends Disposable {
 		}
 	}
 
-	private validateCanStart(configuration: IUtilityProcessConfiguration): BrowserWindow | undefined {
+	private validateCanStart(): boolean {
 		if (!canUseUtilityProcess) {
 			throw new Error('Cannot use UtilityProcess API from Electron!');
 		}
 
 		if (this.process) {
 			this.log('Cannot start utility process because it is already running...', Severity.Error);
-			return undefined;
+
+			return false;
 		}
 
-		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId)?.win;
-		if (!responseWindow || responseWindow.isDestroyed() || responseWindow.webContents.isDestroyed()) {
-			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
-			return undefined;
-		}
-
-		return responseWindow;
+		return true;
 	}
 
-	start(configuration: IUtilityProcessConfiguration): void {
-		const responseWindow = this.validateCanStart(configuration);
-		if (!responseWindow) {
-			return;
+	start(configuration: IUtilityProcessConfiguration): boolean {
+		const started = this.doStart(configuration, false);
+
+		if (started && configuration.payload) {
+			this.postMessage(configuration.payload);
+		}
+
+		return started;
+	}
+
+	protected doStart(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): boolean {
+		if (!this.validateCanStart()) {
+			return false;
 		}
 
 		this.configuration = configuration;
 
 		const serviceName = `${this.configuration.type}-${this.id}`;
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
-		const args = [...this.configuration.args ?? [], `--type=${this.configuration.type}`];
-		const execArgv = this.configuration.execArgv;
+		const args = this.configuration.args ?? [];
+		const execArgv = this.configuration.execArgv ?? []; // TODO@deepak1556 this should be [...this.configuration.execArgv ?? [], `--vscode-utility-kind=${this.configuration.type}`] but is causing https://github.com/microsoft/vscode/issues/154549
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const stdio = 'pipe';
-
-		let env: { [key: string]: any } | undefined = this.configuration.env;
-		if (env) {
-			env = { ...env }; // make a copy since we may be going to mutate it
-
-			for (const key of Object.keys(env)) {
-				env[key] = String(env[key]); // make sure all values are strings, otherwise the process will not start
-			}
-		}
+		const env = this.createEnv(configuration, isWindowSandboxed);
 
 		this.log('creating new...', Severity.Info);
 
@@ -199,13 +223,36 @@ export class UtilityProcess extends Disposable {
 		});
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName);
+		this.registerListeners(this.process, this.configuration, serviceName, isWindowSandboxed);
 
-		// Exchange message ports
-		this.exchangeMessagePorts(this.process, this.configuration, responseWindow);
+		return true;
 	}
 
-	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
+	private createEnv(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): { [key: string]: any } {
+		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+
+		// Apply supported environment variables from config
+		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		if (typeof configuration.parentLifecycleBound === 'number') {
+			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
+		}
+		if (isWindowSandboxed) {
+			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
+		}
+		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
+
+		// Remove any environment variables that are not allowed
+		removeDangerousEnvVariables(env);
+
+		// Ensure all values are strings, otherwise the process will not start
+		for (const key of Object.keys(env)) {
+			env[key] = String(env[key]);
+		}
+
+		return env;
+	}
+
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -219,7 +266,7 @@ export class UtilityProcess extends Disposable {
 			this._register(Event.fromNodeEventEmitter<string | Buffer>(process.stderr, 'data')(chunk => this._onStderr.fire(typeof chunk === 'string' ? chunk : stderrDecoder.write(chunk))));
 		}
 
-		//Messages
+		// Messages
 		this._register(Event.fromNodeEventEmitter(process, 'message')(msg => this._onMessage.fire(msg)));
 
 		// Spawn
@@ -233,9 +280,11 @@ export class UtilityProcess extends Disposable {
 		this._register(Event.fromNodeEventEmitter<number>(process, 'exit')(code => {
 			this.log(`received exit event with code ${code}`, Severity.Info);
 
-			this.didExit = true;
-
+			// Event
 			this._onExit.fire({ pid: this.processPid!, code, signal: 'unknown' });
+
+			// Cleanup
+			this.onDidExitOrCrashOrKill();
 		}));
 
 		// Child process gone
@@ -247,6 +296,7 @@ export class UtilityProcess extends Disposable {
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
+					sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window for the utility process was sandboxed or not.' };
 					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
@@ -255,24 +305,51 @@ export class UtilityProcess extends Disposable {
 					type: string;
 					reason: string;
 					code: number;
+					sandboxed: string;
 				};
-				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', { type: configuration.type, reason: details.reason, code: details.exitCode });
+				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', {
+					type: configuration.type,
+					reason: details.reason,
+					code: details.exitCode,
+					sandboxed: isWindowSandboxed ? '1' : '0' // TODO@bpasero remove this once sandbox is enabled by default
+				});
 
 				// Event
 				this._onCrash.fire({ pid: this.processPid!, code: details.exitCode, reason: details.reason });
+
+				// Cleanup
+				this.onDidExitOrCrashOrKill();
 			}
 		}));
 	}
 
-	private exchangeMessagePorts(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, responseWindow: BrowserWindow) {
-		const { port1: windowPort, port2: utilityProcessPort } = new MessageChannelMain();
+	once(message: unknown, callback: () => void): void {
+		const disposable = this._register(this._onMessage.event(msg => {
+			if (msg === message) {
+				disposable.dispose();
 
-		process.postMessage('null', [utilityProcessPort]);
-		responseWindow.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+				callback();
+			}
+		}));
+	}
+
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+		if (!this.process) {
+			return; // already killed, crashed or never started
+		}
+
+		this.process.postMessage(message, transfer);
+	}
+
+	connect(payload?: unknown): MessagePortMain {
+		const { port1: outPort, port2: utilityProcessPort } = new MessageChannelMain();
+		this.postMessage(payload, [utilityProcessPort]);
+
+		return outPort;
 	}
 
 	enableInspectPort(): boolean {
-		if (typeof this.processPid !== 'number') {
+		if (!this.process || typeof this.processPid !== 'number') {
 			return false;
 		}
 
@@ -296,35 +373,81 @@ export class UtilityProcess extends Disposable {
 
 	kill(): void {
 		if (!this.process) {
-			this.log('no running process to kill', Severity.Warning);
-			return;
+			return; // already killed, crashed or never started
 		}
 
 		this.log('attempting to kill the process...', Severity.Info);
 		const killed = this.process.kill();
 		if (killed) {
 			this.log('successfully killed the process', Severity.Info);
+			this.onDidExitOrCrashOrKill();
 		} else {
 			this.log('unable to kill the process', Severity.Warning);
 		}
 	}
 
+	private onDidExitOrCrashOrKill(): void {
+		this.process = undefined;
+	}
+
 	async waitForExit(maxWaitTimeMs: number): Promise<void> {
 		if (!this.process) {
-			this.log('no running process to wait for exit', Severity.Warning);
-			return;
-		}
-
-		if (this.didExit) {
-			return;
+			return; // already killed, crashed or never started
 		}
 
 		this.log('waiting to exit...', Severity.Info);
 		await Promise.race([Event.toPromise(this.onExit), timeout(maxWaitTimeMs)]);
 
-		if (!this.didExit) {
-			this.log('did not exit within ${maxWaitTimeMs}ms, will kill it now...', Severity.Info);
+		if (this.process) {
+			this.log(`did not exit within ${maxWaitTimeMs}ms, will kill it now...`, Severity.Info);
 			this.kill();
+		}
+	}
+}
+
+export class WindowUtilityProcess extends UtilityProcess {
+
+	constructor(
+		@ILogService logService: ILogService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+	) {
+		super(logService, telemetryService, lifecycleMainService);
+	}
+
+	override start(configuration: IWindowUtilityProcessConfiguration): boolean {
+		const responseWindow = this.windowsMainService.getWindowById(configuration.responseWindowId);
+		if (!responseWindow?.win || responseWindow.win.isDestroyed() || responseWindow.win.webContents.isDestroyed()) {
+			this.log('Refusing to start utility process because requesting window cannot be found or is destroyed...', Severity.Error);
+
+			return true;
+		}
+
+		// Start utility process
+		const started = super.doStart(configuration, responseWindow.isSandboxed);
+		if (!started) {
+			return false;
+		}
+
+		// Register to window events
+		this.registerWindowListeners(responseWindow.win, configuration);
+
+		// Establish & exchange message ports
+		const windowPort = this.connect(configuration.payload);
+		responseWindow.win.webContents.postMessage(configuration.responseChannel, configuration.responseNonce, [windowPort]);
+
+		return true;
+	}
+
+	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
+
+		// If the lifecycle of the utility process is bound to the window,
+		// we kill the process if the window closes or changes
+
+		if (configuration.windowLifecycleBound) {
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
+			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
 		}
 	}
 }

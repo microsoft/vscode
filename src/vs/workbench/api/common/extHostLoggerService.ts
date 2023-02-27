@@ -19,7 +19,7 @@ export class ExtHostLoggerService extends AbstractLoggerService implements ExtHo
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(initData.logLevel, initData.loggers.map(logger => revive(logger)));
+		super(initData.logLevel, initData.logsLocation, initData.loggers.map(logger => revive(logger)));
 		this._proxy = rpc.getProxy(MainContext.MainThreadLogger);
 	}
 

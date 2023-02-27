@@ -19,7 +19,7 @@ import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/termin
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
-import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { IMarker } from 'xterm';
@@ -655,11 +655,6 @@ export interface ITerminalInstance {
 	disableLayout: boolean;
 
 	/**
-	 * Access to the navigation mode accessibility feature.
-	 */
-	readonly navigationMode: INavigationMode | undefined;
-
-	/**
 	 * The description of the terminal, this is typically displayed next to {@link title}.
 	 */
 	description: string | undefined;
@@ -707,11 +702,6 @@ export interface ITerminalInstance {
 	 * @param reason The reason why the terminal is being disposed
 	 */
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
-
-	/**
-	 * Focuses the terminal buffer accessibility element
-	 */
-	focusAccessibilityBuffer(): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -1059,6 +1049,11 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
+
+	/**
+	 * Focuses the accessible buffer, updating its contents
+	 */
+	focusAccessibleBuffer(): Promise<void>;
 }
 
 export interface IInternalXtermTerminal {

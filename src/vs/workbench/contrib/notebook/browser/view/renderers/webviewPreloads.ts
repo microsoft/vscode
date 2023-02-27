@@ -67,6 +67,7 @@ export interface PreloadOptions {
 export interface RenderOptions {
 	readonly lineLimit: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 }
 
 interface PreloadContext {
@@ -89,6 +90,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 	const lineLimit = ctx.renderOptions.lineLimit;
 	const outputScrolling = ctx.renderOptions.outputScrolling;
+	const outputWordWrap = ctx.renderOptions.outputWordWrap;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -364,11 +366,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return false;
 			}
 
+			// scroll up
 			if (event.deltaY < 0 && node.scrollTop > 0) {
+				// there is still some content to scroll
 				return true;
 			}
 
+			// scroll down
 			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+				// per https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight
+				// scrollTop is not rounded but scrollHeight and clientHeight are
+				// so we need to check if the difference is less than some threshold
+				if (node.scrollHeight - node.scrollTop - node.clientHeight < 2) {
+					continue;
+				}
+
+				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
+				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+					continue;
+				}
+
 				return true;
 			}
 		}
@@ -1353,6 +1370,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				settings: {
 					get lineLimit() { return lineLimit; },
 					get outputScrolling() { return outputScrolling; },
+					get outputWordWrap() { return outputWordWrap; },
 				}
 			};
 
@@ -2151,11 +2169,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, preloadErrors: ReadonlyArray<Error | undefined>, signal: AbortSignal) {
+			const startTime = Date.now();
 			const outputElement = this.createOutputElement(data);
 			await outputElement.render(data.content, data.rendererId, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
 			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
+
+			if (!!data.executionId && !!data.rendererId) {
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+			}
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {

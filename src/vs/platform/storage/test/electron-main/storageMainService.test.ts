@@ -15,7 +15,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { IS_NEW_KEY, StorageScope } from 'vs/platform/storage/common/storage';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
@@ -108,7 +108,7 @@ suite('StorageMainService', function () {
 	function createStorageService(lifecycleMainService: ILifecycleMainService = new TestLifecycleMainService()): TestStorageMainService {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = new FileService(new NullLogService());
-		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesMainService(new StateMainService(environmentService, new NullLogService(), fileService), new UriIdentityService(fileService), environmentService, fileService, new NullLogService()), lifecycleMainService, fileService, new UriIdentityService(fileService));
+		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesMainService(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService), new UriIdentityService(fileService), environmentService, fileService, new NullLogService()), lifecycleMainService, fileService, new UriIdentityService(fileService));
 	}
 
 	test('basics (application)', function () {

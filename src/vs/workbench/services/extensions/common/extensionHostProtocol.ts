@@ -13,6 +13,7 @@ import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 export interface IExtensionDescriptionDelta {
 	readonly toRemove: ExtensionIdentifier[];
 	readonly toAdd: IExtensionDescription[];
+	readonly addActivationEvents: { [extensionId: string]: string[] };
 	readonly myToRemove: ExtensionIdentifier[];
 	readonly myToAdd: ExtensionIdentifier[];
 }
@@ -26,6 +27,7 @@ export interface IExtensionHostInitData {
 	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
+	activationEvents: { [extensionId: string]: string[] };
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
 	nlsBaseUrl?: URI;

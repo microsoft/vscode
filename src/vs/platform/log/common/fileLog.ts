@@ -13,7 +13,7 @@ import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, 
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
-export class FileLogger extends AbstractMessageLogger implements ILogger {
+class FileLogger extends AbstractMessageLogger implements ILogger {
 
 	private readonly initializePromise: Promise<void>;
 	private readonly queue: Queue<void>;
@@ -99,9 +99,10 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	constructor(
 		logLevel: LogLevel,
-		@IFileService private readonly fileService: IFileService,
+		logsHome: URI,
+		private readonly fileService: IFileService,
 	) {
-		super(logLevel);
+		super(logLevel, logsHome);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {

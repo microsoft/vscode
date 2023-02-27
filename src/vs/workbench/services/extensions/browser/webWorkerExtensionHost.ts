@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { joinPath } from 'vs/base/common/resources';
-import { localize } from 'vs/nls';
-import { generateUuid } from 'vs/base/common/uuid';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Barrier } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { COI, FileAccess } from 'vs/base/common/network';
+import * as platform from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { localize } from 'vs/nls';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { parentOriginHash } from 'vs/workbench/browser/iframe';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { parentOriginHash } from 'vs/workbench/browser/iframe';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ExtensionHostExtensions, ExtensionHostLogFileName, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IWebWorkerExtensionHostInitData {
-	readonly autoStart: boolean;
 	readonly allExtensions: IExtensionDescription[];
 	readonly myExtensions: ExtensionIdentifier[];
 }
@@ -44,7 +44,6 @@ export interface IWebWorkerExtensionHostDataProvider {
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
-	public readonly lazyStart: boolean;
 	public readonly extensions = new ExtensionHostExtensions();
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
@@ -59,7 +58,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	constructor(
 		public readonly runningLocation: LocalWebWorkerRunningLocation,
-		lazyStart: boolean,
+		public readonly startup: ExtensionHostStartup,
 		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -73,7 +72,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-		this.lazyStart = lazyStart;
 		this._isTerminating = false;
 		this._protocolPromise = null;
 		this._protocol = null;
@@ -309,6 +307,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				logNative: this._environmentService.debugRenderer
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,
@@ -317,7 +316,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
 			logName: localize('name', "Worker Extension Host"),
-			autoStart: initData.autoStart,
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

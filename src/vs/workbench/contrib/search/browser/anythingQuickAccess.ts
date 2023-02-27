@@ -323,7 +323,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// search without prior filtering, you could not paste a file name
 		// including the `@` character to open it (e.g. /some/file@path)
 		// refs: https://github.com/microsoft/vscode/issues/93845
-		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering, includeHelp: runOptions?.includeHelp }, disposables, token);
+		return this.doGetPicks(filter, { enableEditorSymbolSearch: lastWasFiltering, includeHelp: runOptions?.includeHelp, from: runOptions?.from }, disposables, token);
 	}
 
 	private doGetPicks(
@@ -361,7 +361,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		} else {
 			picks = [];
 			if (options.includeHelp) {
-				picks.push(...this.getHelpPicks(query, token));
+				picks.push(...this.getHelpPicks(query, token, options));
 			}
 			if (historyEditorPicks.length !== 0) {
 				picks.push({ type: 'separator', label: localize('recentlyOpenedSeparator', "recently opened") } as IQuickPickSeparator);
@@ -756,7 +756,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private helpQuickAccess = this.instantiationService.createInstance(HelpQuickAccessProvider);
 
-	private getHelpPicks(query: IPreparedQuery, token: CancellationToken): IAnythingQuickPickItem[] {
+	private getHelpPicks(query: IPreparedQuery, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IAnythingQuickPickItem[] {
 		if (query.normalized) {
 			return []; // If there's a filter, we don't show the help
 		}
@@ -780,9 +780,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				// If the user chooses 'Go to File' the help should go away as if they were
 				// entering a new mode
-				const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = provider.prefix === AnythingQuickAccessProvider.PREFIX
-					? undefined
-					: { includeHelp: true };
+				const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = {
+					...runOptions,
+					includeHelp: provider.prefix === AnythingQuickAccessProvider.PREFIX ? false : runOptions?.includeHelp
+				};
 
 				importantProviders.push({
 					...mapOfProviders.get(prefix)!,

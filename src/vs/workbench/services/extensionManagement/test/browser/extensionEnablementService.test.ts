@@ -319,10 +319,10 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
-	test('test enable an extension globally return truthy promise', () => {
-		return testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.DisabledGlobally)
-			.then(() => testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.EnabledGlobally))
-			.then(value => assert.ok(value));
+	test('test enable an extension globally return truthy promise', async () => {
+		await testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.DisabledGlobally);
+		const value = await testObject.setEnablement([aLocalExtension('pub.a')], EnablementState.EnabledGlobally);
+		assert.strictEqual(value[0], true);
 	});
 
 	test('test enable an extension globally triggers change event', () => {

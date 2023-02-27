@@ -155,6 +155,9 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		for (const [, registration] of this._kernelDetectionTasks.values()) {
 			registration.dispose();
 		}
+		for (const [, registration] of this._kernelSourceActionProviders.values()) {
+			registration.dispose();
+		}
 		this._editors.dispose();
 	}
 

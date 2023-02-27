@@ -26,9 +26,8 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean; sharedProcessUseUtilityProcess?: boolean } };
 	workbench?: { enableExperiments?: boolean };
-	extensions?: { experimental?: { useUtilityProcess?: boolean } };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
 
@@ -38,7 +37,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.titleBarStyle',
 		'window.experimental.windowControlsOverlay.enabled',
 		'window.experimental.useSandbox',
-		'extensions.experimental.useUtilityProcess',
+		'window.experimental.sharedProcessUseUtilityProcess',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -52,7 +51,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
-	private readonly extensionHostUtilityProcessEnabled = new ChangeObserver('boolean');
+	private readonly sharedProcessUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -98,8 +97,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
 
-			// Extension Host: Utility Process
-			processChanged(this.extensionHostUtilityProcessEnabled.handleChange(config.extensions?.experimental?.useUtilityProcess));
+			// Shared Process: Utility Process
+			processChanged(this.sharedProcessUtilityProcessEnabled.handleChange(config.window?.experimental?.sharedProcessUseUtilityProcess));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
@@ -142,18 +141,18 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 					localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.productService.nameLong) :
 					localize('relaunchSettingDetailWeb', "Press the reload button to reload {0} and enable the setting.", this.productService.nameLong),
 				isNative ?
-					localize('restart', "&&Restart") :
-					localize('restartWeb', "&&Reload"),
+					localize({ key: 'restart', comment: ['&& denotes a mnemonic'] }, "&&Restart") :
+					localize({ key: 'restartWeb', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
 				() => this.hostService.restart()
 			);
 		}
 	}
 
-	private async doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): Promise<void> {
+	private async doConfirm(message: string, detail: string, primaryButton: string, confirmedFn: () => void): Promise<void> {
 		if (this.hostService.hasFocus) {
-			const res = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton });
-			if (res.confirmed) {
-				confirmed();
+			const { confirmed } = await this.dialogService.confirm({ message, detail, primaryButton });
+			if (confirmed) {
+				confirmedFn();
 			}
 		}
 	}

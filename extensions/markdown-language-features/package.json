@@ -20,20 +20,9 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onCommand:markdown.preview.toggleLock",
-    "onCommand:markdown.preview.refresh",
-    "onCommand:markdown.showPreview",
-    "onCommand:markdown.showPreviewToSide",
-    "onCommand:markdown.showLockedPreviewToSide",
-    "onCommand:markdown.showSource",
-    "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onCommand:markdown.findAllFileReferences",
-    "onCommand:markdown.editor.insertLinkFromWorkspace",
-    "onCommand:markdown.editor.insertImageFromWorkspace",
-    "onWebviewPanel:markdown.preview",
-    "onCustomEditor:vscode.markdown.preview.editor"
+    "onWebviewPanel:markdown.preview"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -412,6 +401,22 @@
           "description": "%configuration.markdown.suggest.paths.enabled.description%",
           "scope": "resource"
         },
+        "markdown.suggest.paths.includeWorkspaceHeaderCompletions": {
+          "type": "string",
+          "default": "onDoubleHash",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions%",
+          "enum": [
+            "never",
+            "onDoubleHash",
+            "onSingleOrDoubleHash"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
+          ]
+        },
         "markdown.trace.extension": {
           "type": "string",
           "enum": [
@@ -577,6 +582,21 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "markdown.preferredMdPathExtensionStyle": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
+          "enum": [
+            "auto",
+            "includeExtension",
+            "removeExtension"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
+          ]
         }
       }
     },
@@ -627,7 +647,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "dompurify": "^2.4.1",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",

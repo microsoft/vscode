@@ -61,6 +61,9 @@ pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " 
 /// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
 pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
 
+/// Name shown in places where we need to tell a user what a process is, e.g. in sleep inhibition.
+pub const TUNNEL_ACTIVITY_NAME: &str = concatcp!(PRODUCT_NAME_LONG, " Tunnel");
+
 const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
 
 pub fn get_default_user_agent() -> String {

@@ -802,7 +802,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	) {
 		super();
 		this.onServiceChange();
-		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
+		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {

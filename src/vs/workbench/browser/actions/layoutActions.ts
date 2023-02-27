@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -792,13 +791,13 @@ class MoveFocusedViewAction extends Action2 {
 		const focusedViewId = viewId || FocusedViewContext.getValue(contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
-			dialogService.show(Severity.Error, localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
+			dialogService.error(localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
 			return;
 		}
 
 		const viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			dialogService.show(Severity.Error, localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
+			dialogService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
 		}
 
@@ -954,7 +953,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (!viewDescriptor) {
-			dialogService.show(Severity.Error, localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			dialogService.error(localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
 			return;
 		}
 

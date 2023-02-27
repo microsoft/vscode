@@ -5,7 +5,6 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as _ from 'underscore';
 const parseSemver = require('parse-semver');
 
 interface Tree {
@@ -75,7 +74,7 @@ export function getProductionDependencies(cwd: string): FlatDependency[] {
 	const deps = getYarnProductionDependencies(cwd);
 	const flatten = (dep: Dependency) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
 	deps.forEach(flatten);
-	return _.uniq(result);
+	return [...new Set(result)];
 }
 
 if (require.main === module) {
