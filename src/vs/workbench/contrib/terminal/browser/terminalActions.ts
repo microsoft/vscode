@@ -423,7 +423,12 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
-			await accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
+			try {
+				await accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
+			} catch {
+				// it's possible the terminal hasn't been opened yet, in which case a
+				// buffer element provider cannot be registered
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
