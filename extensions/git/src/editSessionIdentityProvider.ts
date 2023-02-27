@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { RefType } from './api/git';
 import { Model } from './model';
 
 export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentityProvider, vscode.Disposable {
@@ -13,6 +14,10 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 	constructor(private model: Model) {
 		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
+
+		vscode.workspace.onWillCreateEditSessionIdentity((e) => {
+			e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder));
+		});
 	}
 
 	dispose() {
@@ -31,7 +36,7 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 		return JSON.stringify({
 			remote: repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl ?? null,
-			ref: repository.HEAD?.name ?? null,
+			ref: repository.HEAD?.upstream?.name ?? null,
 			sha: repository.HEAD?.commit ?? null,
 		});
 	}
@@ -56,6 +61,38 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 			}
 		} catch (ex) {
 			return vscode.EditSessionIdentityMatch.Partial;
+		}
+	}
+
+	private async _onWillCreateEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
+		await this._doPublish(workspaceFolder);
+	}
+
+	private async _doPublish(workspaceFolder: vscode.WorkspaceFolder) {
+		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
+
+		const repository = this.model.getRepository(workspaceFolder.uri);
+		if (!repository) {
+			return;
+		}
+
+		await repository.status();
+
+		// If this branch hasn't been published to the remote yet,
+		// ensure that it is published before Continue On is invoked
+		if (!repository.HEAD?.upstream && repository.HEAD?.type === RefType.Head) {
+
+			const publishBranch = vscode.l10n.t('Publish Branch');
+			const selection = await vscode.window.showInformationMessage(
+				vscode.l10n.t('The current branch is not published to the remote. Would you like to publish it to access your changes elsewhere?'),
+				{ modal: true },
+				publishBranch
+			);
+			if (selection !== publishBranch) {
+				throw new vscode.CancellationError();
+			}
+
+			await vscode.commands.executeCommand('git.publish');
 		}
 	}
 }

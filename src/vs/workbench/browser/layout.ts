@@ -274,7 +274,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 
 		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if ([
+				LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE,
+				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
+				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
+				'window.menuBarVisibility',
+				'window.titleBarStyle',
+			].some(setting => e.affectsConfiguration(setting))) {
+				this.doUpdateLayoutConfiguration();
+			}
+		}));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
@@ -727,6 +737,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// first ensure the editor part is ready
 			await this.editorGroupService.whenReady;
+			mark('code/restoreEditors/editorGroupsReady');
 
 			// apply editor layout if any
 			if (this.state.initialization.layout?.editors) {
@@ -743,6 +754,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// fully loaded.
 
 			const editors = await this.state.initialization.editor.editorsToOpen;
+			mark('code/restoreEditors/editorsToOpenResolved');
 
 			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
@@ -779,8 +791,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// slow editors to resolve on startup
 			layoutRestoredPromises.push(
 				Promise.all([
-					openEditorsPromise,
-					this.editorGroupService.whenRestored
+					openEditorsPromise?.finally(() => mark('code/restoreEditors/editorsOpened')),
+					this.editorGroupService.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
 				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark

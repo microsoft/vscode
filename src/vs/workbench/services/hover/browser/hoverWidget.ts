@@ -152,6 +152,7 @@ export class HoverWidget extends Widget {
 				},
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
+					this.layout();
 					// This changes the dimensions of the hover so trigger a layout
 					this._onRequestLayout.fire();
 				}
@@ -501,13 +502,7 @@ export class HoverWidget extends Widget {
 			}
 		}
 
-		// Make sure not to accidentally enlarge the hover when setting a maxHeight for it
-		maxHeight = Math.min(maxHeight, this._hover.containerDomNode.clientHeight);
-
 		this._hover.containerDomNode.style.maxHeight = `${maxHeight}px`;
-		if (this._hover.contentsDomNode.clientHeight > maxHeight) {
-			this._hover.contentsDomNode.style.height = `${maxHeight}px`;
-		}
 		if (this._hover.contentsDomNode.clientHeight < this._hover.contentsDomNode.scrollHeight) {
 			// Add padding for a vertical scrollbar
 			const extraRightPadding = `${this._hover.scrollbar.options.verticalScrollbarSize}px`;

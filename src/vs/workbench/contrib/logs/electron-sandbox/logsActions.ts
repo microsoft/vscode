@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { joinPath } from 'vs/base/common/resources';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -24,7 +23,7 @@ export class OpenLogsFolderAction extends Action {
 	}
 
 	override run(): Promise<void> {
-		return this.nativeHostService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')).fsPath);
+		return this.nativeHostService.showItemInFolder(joinPath(this.environmentService.logsHome, 'main.log').fsPath);
 	}
 }
 

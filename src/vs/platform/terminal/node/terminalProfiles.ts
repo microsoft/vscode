@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 let logIfWslNotInstalled: boolean = true;
@@ -276,7 +276,7 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: testPwshSourcePaths || await getPowershellPaths(),
-		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
+		icon: Codicon.terminalPowershell
 	});
 }
 
@@ -335,11 +335,11 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 
 function getWslIcon(distroName: string): ThemeIcon {
 	if (distroName.includes('Ubuntu')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
+		return Codicon.terminalUbuntu;
 	} else if (distroName.includes('Debian')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
+		return Codicon.terminalDebian;
 	} else {
-		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+		return Codicon.terminalLinux;
 	}
 }
 
@@ -382,7 +382,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		return;
 	}
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null || (!('path' in value) && !('source' in value))) {
+		if (value === null || typeof value !== 'object' || (!('path' in value) && !('source' in value))) {
 			profilesMap.delete(profileName);
 		} else {
 			value.icon = value.icon || profilesMap.get(profileName)?.icon;

@@ -715,10 +715,12 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 					content: undefined,
 				}), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: userData.content === null ? null : JSON.parse(userData.content) });
+			} else {
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Invalid data.`, userData);
 			}
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.debug(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
 			} else {
 				this.logService.error(error);
 			}

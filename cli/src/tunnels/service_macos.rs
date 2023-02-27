@@ -9,11 +9,10 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+use super::shutdown_signal::ShutdownSignal;
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 
 use crate::{
-	commands::tunnels::ShutdownSignal,
 	constants::APPLICATION_NAME,
 	log,
 	state::LauncherPaths,
@@ -74,12 +73,7 @@ impl ServiceManager for LaunchdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
-		tokio::spawn(async move {
-			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).ok();
-		});
-
+		let rx = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
 		handle.run_service(self.log, launcher_paths, rx).await
 	}
 

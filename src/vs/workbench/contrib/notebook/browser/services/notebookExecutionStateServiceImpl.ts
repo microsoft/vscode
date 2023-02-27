@@ -9,6 +9,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -394,10 +395,12 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 			editType: CellEditType.PartialInternalMetadata,
 			handle: this.cellHandle,
 			internalMetadata: {
+				executionId: generateUuid(),
 				runStartTime: null,
 				runEndTime: null,
 				lastRunSuccess: null,
 				executionOrder: null,
+				renderDuration: null,
 			}
 		};
 		this._applyExecutionEdits([startExecuteEdit]);

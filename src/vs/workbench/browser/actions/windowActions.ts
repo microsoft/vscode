@@ -29,6 +29,7 @@ import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -43,17 +44,15 @@ interface IRecentlyOpenedPick extends IQuickPickItem {
 	remoteAuthority: string | undefined;
 }
 
-const fileCategory = { value: localize('file', "File"), original: 'File' };
-
 abstract class BaseOpenRecentAction extends Action2 {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
+		iconClass: ThemeIcon.asClassName(Codicon.removeClose),
 		tooltip: localize('remove', "Remove from Recently Opened")
 	};
 
 	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
-		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
+		iconClass: 'dirty-workspace ' + ThemeIcon.asClassName(Codicon.closeDirty),
 		tooltip: localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
 		alwaysVisible: true
 	};
@@ -157,14 +156,13 @@ abstract class BaseOpenRecentAction extends Action2 {
 				// Dirty Folder/Workspace
 				else if (context.button === this.dirtyRecentlyOpenedFolder || context.button === this.dirtyRecentlyOpenedWorkspace) {
 					const isDirtyWorkspace = context.button === this.dirtyRecentlyOpenedWorkspace;
-					const result = await dialogService.confirm({
-						type: 'question',
+					const { confirmed } = await dialogService.confirm({
 						title: isDirtyWorkspace ? localize('dirtyWorkspace', "Workspace with Unsaved Files") : localize('dirtyFolder', "Folder with Unsaved Files"),
 						message: isDirtyWorkspace ? localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
 						detail: isDirtyWorkspace ? localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
 					});
 
-					if (result.confirmed) {
+					if (confirmed) {
 						hostService.openWindow(
 							[context.item.openable], {
 							remoteAuthority: context.item.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
@@ -243,7 +241,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
 				original: 'Open Recent...'
 			},
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -269,7 +267,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 		super({
 			id: 'workbench.action.quickOpenRecent',
 			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}

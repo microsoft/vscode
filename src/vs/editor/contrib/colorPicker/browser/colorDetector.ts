@@ -6,6 +6,7 @@
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { noBreakWhitespace } from 'vs/base/common/strings';
@@ -45,6 +46,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _isEnabled: boolean;
 
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+
+	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -97,8 +100,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._editor.getOption(EditorOption.colorDecorators);
 	}
 
-	private getDecoratorLimit(): number {
-		return this._editor.getOption(EditorOption.colorDecoratorsLimit);
+	public get limitReporter() {
+		return this._decoratorLimitReporter;
 	}
 
 	static get(editor: ICodeEditor): ColorDetector | null {
@@ -191,7 +194,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 		const decorations: IModelDeltaDecoration[] = [];
 
-		for (let i = 0; i < colorData.length && decorations.length < this.getDecoratorLimit(); i++) {
+		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
+
+		for (let i = 0; i < colorData.length && decorations.length < limit; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
@@ -220,6 +225,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				}
 			});
 		}
+		const limited = limit < colorData.length ? limit : false;
+		this._decoratorLimitReporter.update(colorData.length, limited);
 
 		this._colorDecoratorIds.set(decorations);
 	}
@@ -250,6 +257,27 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	isColorDecoration(decoration: IModelDecoration): boolean {
 		return this._colorDecoratorIds.has(decoration);
+	}
+}
+
+export class DecoratorLimitReporter {
+	private _onDidChange = new Emitter<void>();
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _computed: number = 0;
+	private _limited: number | false = false;
+	public get computed(): number {
+		return this._computed;
+	}
+	public get limited(): number | false {
+		return this._limited;
+	}
+	public update(computed: number, limited: number | false) {
+		if (computed !== this._computed || limited !== this._limited) {
+			this._computed = computed;
+			this._limited = limited;
+			this._onDidChange.fire();
+		}
 	}
 }
 
