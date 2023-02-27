@@ -710,13 +710,11 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 		if (!shouldIgnoreScrollOff) {
 			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
-			console.log('context : ', context);
-			if (this._stickyScrollEnabled) {
+			if (this._stickyScrollEnabled && source === 'api') {
 				paddingTop = Math.max(context, this._maxNumberStickyLines) * this._lineHeight;
 			} else {
 				paddingTop = context * this._lineHeight;
 			}
-			console.log('paddingTop : ', paddingTop);
 			paddingBottom = Math.max(0, (context - 1)) * this._lineHeight;
 		} else {
 			if (!minimalReveal) {
