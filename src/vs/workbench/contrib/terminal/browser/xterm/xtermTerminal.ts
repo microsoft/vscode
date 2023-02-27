@@ -37,7 +37,7 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -48,7 +48,6 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 
 const enum RenderConstants {
 	/**
@@ -208,8 +207,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 		this.target = location;
@@ -292,10 +290,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	async focusAccessibleBuffer(): Promise<void> {
-		const tabFocusMode = TabFocus.getTabFocusMode(this._contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? TabFocusContext.Terminal : TabFocusContext.Editor);
-		if (tabFocusMode) {
-			this._accessibileBuffer?.focus();
-		}
+		this._accessibileBuffer?.focus();
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {

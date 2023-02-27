@@ -63,6 +63,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { editorTabFocusContextKey, terminalTabFocusContextKey } from 'vs/workbench/browser/parts/editor/tabFocus';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -417,7 +418,7 @@ export function registerTerminalActions() {
 					{
 						primary: KeyMod.Shift | KeyCode.Tab,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus)
+						when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus, ContextKeyExpr.or(terminalTabFocusContextKey, editorTabFocusContextKey))
 					}
 				],
 			});
