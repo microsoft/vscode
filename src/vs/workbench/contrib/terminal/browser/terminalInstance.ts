@@ -1972,6 +1972,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (accessibilityHelpKeybinding) {
 				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
 			}
+			if (this.shellType === WindowsShellType.CommandPrompt) {
+				labelParts.push(nls.localize('terminalCmdPrompt', "Consider using Powershell for an improved terminal experience."));
+			}
 			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
 		}
 	}
