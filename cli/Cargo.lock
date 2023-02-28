@@ -1334,15 +1334,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
-name = "openssl-src"
-version = "111.22.0+1.1.1q"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f31f0d509d1c1ae9cada2f9539ff8f37933831fd5098879e482aa687d659853"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "openssl-sys"
 version = "0.9.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1351,7 +1342,6 @@ dependencies = [
  "autocfg",
  "cc",
  "libc",
- "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -1908,7 +1898,7 @@ checksum = "9c8132065adcfd6e02db789d9285a0deb2f3fcb04002865ab67d5fb103533898"
 [[package]]
 name = "secret-service"
 version = "2.0.2"
-source = "git+https://github.com/microsoft/vscode-secret-service-rs?rev=30f0414108a122d6f2bfc28a5425d0dac9738518#30f0414108a122d6f2bfc28a5425d0dac9738518"
+source = "git+https://github.com/microsoft/vscode-secret-service-rs?rev=fbbaf222de10546609be26bb043e64356e855edb#fbbaf222de10546609be26bb043e64356e855edb"
 dependencies = [
  "lazy_static",
  "num",
@@ -2280,9 +2270,7 @@ checksum = "f714dd15bead90401d77e04243611caec13726c2408afd5b31901dfcdcb3b181"
 dependencies = [
  "futures-util",
  "log",
- "native-tls",
  "tokio",
- "tokio-native-tls",
  "tungstenite",
 ]
 
@@ -2366,7 +2354,6 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "native-tls",
  "rand 0.8.5",
  "sha-1",
  "thiserror",
