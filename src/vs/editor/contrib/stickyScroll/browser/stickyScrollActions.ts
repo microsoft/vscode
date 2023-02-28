@@ -61,11 +61,7 @@ export class FocusStickyScroll extends EditorAction2 {
 			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
 			menu: [
 				{ id: MenuId.CommandPalette },
-			],
-			keybinding: {
-				weight: weight,
-				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS
-			}
+			]
 		});
 	}
 
