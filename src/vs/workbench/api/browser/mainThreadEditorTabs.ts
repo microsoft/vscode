@@ -52,7 +52,14 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Main listener which responds to events from the editor service
-		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
+		this._dispoables.add(editorService.onDidEditorsChange((event) => {
+			try {
+				this._updateTabsModel(event);
+			} catch {
+				console.error('Failed to update model, rebuilding');
+				this._createTabsModel();
+			}
+		}));
 
 		// Structural group changes (add, remove, move, etc) are difficult to patch.
 		// Since they happen infrequently we just rebuild the entire model
