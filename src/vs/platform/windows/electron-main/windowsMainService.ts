@@ -1327,7 +1327,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (typeof windowConfig?.experimental?.sharedProcessUseUtilityProcess === 'boolean') {
 			preferUtilityProcess = windowConfig.experimental.sharedProcessUseUtilityProcess;
 		} else {
-			preferUtilityProcess = typeof product.quality === 'string' && product.quality !== 'stable';
+			preferUtilityProcess = product.quality !== 'stable';
 		}
 
 		// Build up the window configuration from provided options, config and environment
