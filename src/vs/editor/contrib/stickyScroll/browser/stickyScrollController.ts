@@ -58,6 +58,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _candidateDefinitionsLength: number = -1;
 
 	private _focusDisposableStore: DisposableStore | undefined;
+	private _focusedStickyElement: HTMLDivElement | undefined;
 	private _focusedStickyElementIndex: number | undefined;
 	private _stickyScrollFocusedContextKey: IContextKey<boolean>;
 
@@ -121,8 +122,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _disposeFocusStickyScrollStore() {
+		this._focusedStickyElement!.blur();
 		this._stickyScrollFocusedContextKey.set(false);
-		(this._stickyElements!.item(this._focusedStickyElementIndex!) as HTMLDivElement).blur();
 		this._focusDisposableStore!.dispose();
 	}
 
@@ -130,7 +131,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const focusState = this._stickyScrollFocusedContextKey.get();
 		const rootNode = this._stickyScrollWidget.getDomNode();
 		this._stickyElements = rootNode.children;
-		this._numberStickyElements = this._stickyElements.length;
+		this._numberStickyElements = this._stickyElements?.length;
 
 		if (focusState === true || this._numberStickyElements === 0) {
 			// If already focused or no line to focus on, return
@@ -140,7 +141,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollFocusedContextKey.set(true);
 
 		// The first line focused is the bottom most line
-		(rootNode.lastElementChild! as HTMLDivElement).focus();
+		this._focusedStickyElement = (rootNode.lastElementChild! as HTMLDivElement);
+		this._focusedStickyElement.focus();
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
 
 		// When scrolling, remove the focus
@@ -163,9 +165,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	// True is next, false is previous
 	private _focusNav(direction: boolean): void {
-		(this._stickyElements!.item(this._focusedStickyElementIndex!) as HTMLDivElement).blur();
+		this._focusedStickyElement!.blur();
 		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex! + 1 : this._focusedStickyElementIndex! - 1;
-		(this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement).focus();
+		this._focusedStickyElement = this._stickyElements!.item(this._focusedStickyElementIndex!) as HTMLDivElement;
+		this._focusedStickyElement.focus();
 	}
 
 	public goToFocused(): void {
