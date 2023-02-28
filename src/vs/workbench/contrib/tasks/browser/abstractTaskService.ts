@@ -67,7 +67,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
@@ -284,8 +285,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._updateSetup(folderSetup);
 			return this._updateWorkspaceTasks(TaskRunSource.FolderOpen);
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration(() => {
-			if (!this._taskSystem && !this._workspaceTasksPromise) {
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (!e.affectsConfiguration('tasks') || (!this._taskSystem && !this._workspaceTasksPromise)) {
 				return;
 			}
 
@@ -1205,11 +1206,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		if (this._inProgressTasks.has(task._label)) {
-			this._logService.info('Prevented duplicate task from running', task._label);
-			return;
-		}
-		this._inProgressTasks.add(task._label);
 		const resolver = this._createResolver();
 		let executeTaskResult: ITaskSummary | undefined;
 		try {
@@ -1225,8 +1221,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		} catch (error) {
 			this._handleError(error);
 			return Promise.reject(error);
-		} finally {
-			this._inProgressTasks.delete(task._label);
 		}
 	}
 
@@ -1818,17 +1812,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
 			return false;
 		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt && this._editorService.editors.some(e => e.isDirty())) {
-			const dialogOptions = await this._dialogService.show(
-				Severity.Info,
-				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
-				[nls.localize('saveBeforeRun.save', 'Save'), nls.localize('saveBeforeRun.dontSave', 'Don\'t save')],
-				{
-					detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
-					cancelId: 1
-				}
-			);
+			const { confirmed } = await this._dialogService.confirm({
+				message: nls.localize('TaskSystem.saveBeforeRun.prompt.title', "Save all editors?"),
+				detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
+				primaryButton: nls.localize({ key: 'saveBeforeRun.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
+				cancelButton: nls.localize('saveBeforeRun.dontSave', 'Don\'t save'),
+			});
 
-			if (dialogOptions.choice !== 0) {
+			if (!confirmed) {
 				return false;
 			}
 		}
@@ -1838,6 +1829,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private async _executeTask(task: Task, resolver: ITaskResolver, runSource: TaskRunSource): Promise<ITaskSummary> {
 		let taskToRun: Task = task;
+		const qualifiedLabel = task.getQualifiedLabel();
+		if (this._inProgressTasks.has(qualifiedLabel)) {
+			this._logService.info('Prevented duplicate task from running', qualifiedLabel);
+			return { exitCode: 0 };
+		}
+		this._inProgressTasks.add(qualifiedLabel);
 		if (await this._saveBeforeRun()) {
 			await this._configurationService.reloadConfiguration();
 			await this._updateWorkspaceTasks();
@@ -1852,8 +1849,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await ProblemMatcherRegistry.onReady();
 		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
 		if (executeResult) {
+			this._inProgressTasks.delete(qualifiedLabel);
 			return this._handleExecuteResult(executeResult, runSource);
 		}
+		this._inProgressTasks.delete(qualifiedLabel);
 		return { exitCode: 0 };
 	}
 
@@ -1913,6 +1912,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._taskSystem) {
 			return { success: true, task: undefined };
 		}
+		this._inProgressTasks.delete(task.getQualifiedLabel());
 		return this._taskSystem.terminate(task);
 	}
 
@@ -2362,6 +2362,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const taskSystemInfo: ITaskSystemInfo | undefined = workspaceFolder ? this._getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		const problemReporter = new ProblemReporter(this._outputChannel);
+		if (!taskSystemInfo) {
+			problemReporter.fatal(nls.localize('TaskSystem.workspaceFolderError', 'Workspace folder was undefined'));
+			return true;
+		}
 		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2824,8 +2828,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							return true;
 						}
 					}
-				} else if (type && t.type === type) {
+				} else if (type && t.type === type || (CustomTask.is(t) && t.customizes()?.type === type)) {
 					return true;
+
 				}
 				return false;
 			});

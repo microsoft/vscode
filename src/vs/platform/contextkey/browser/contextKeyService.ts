@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -619,7 +619,7 @@ function stringifyURIs(contextValue: any): any {
 	});
 }
 
-CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, setContext);
+CommandsRegistry.registerCommand('_setContext', setContext);
 
 CommandsRegistry.registerCommand({
 	id: 'getContextKeyInfo',

@@ -57,7 +57,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 
 	show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
-		return this.widget.getValue().show(initialInput, options);
+		return this.widget.value.show(initialInput, options);
 	}
 
 	hide() {
@@ -65,7 +65,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	}
 
 	replace(searchString: string | undefined) {
-		return this.widget.getValue().replace(searchString);
+		return this.widget.value.replace(searchString);
 	}
 }
 
@@ -85,7 +85,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -109,7 +109,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			}
 
 			const matches = this._findModel.findMatches;
-			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.modelMatchCount < match.matches.length) === undefined);
+			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.webviewMatches.length > 0) === undefined);
 
 			if (e.filters) {
 				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
@@ -200,13 +200,9 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		const cellFindMatches = this._findModel.findMatches;
 		const replaceStrings: string[] = [];
 		cellFindMatches.forEach(cellFindMatch => {
-			const findMatches = cellFindMatch.matches;
-			findMatches.forEach((findMatch, index) => {
-				if (index < cellFindMatch.modelMatchCount) {
-					const match = findMatch as FindMatch;
-					const matches = match.matches;
-					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
-				}
+			cellFindMatch.contentMatches.forEach(match => {
+				const matches = match.matches;
+				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
 			});
 		});
 
@@ -336,7 +332,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content

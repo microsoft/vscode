@@ -314,12 +314,12 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return resolverResult.options?.extensionHostEnv as any;
 	}
 
-	async getWslPath(original: string): Promise<string> {
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env?.os !== OperatingSystem.Windows) {
 			return original;
 		}
-		return this._remoteTerminalChannel?.getWslPath(original) || original;
+		return this._remoteTerminalChannel?.getWslPath(original, direction) || original;
 	}
 
 	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {

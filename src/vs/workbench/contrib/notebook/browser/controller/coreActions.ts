@@ -160,7 +160,7 @@ export abstract class NotebookAction extends Action2 {
 		return !!context && !!(context as INotebookActionContext).notebookEditor;
 	}
 
-	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): INotebookActionContext | undefined {
+	getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): INotebookActionContext | undefined {
 		return getContextFromActiveEditor(accessor.get(IEditorService));
 	}
 }

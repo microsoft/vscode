@@ -6,6 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { language } from 'vs/base/common/platform';
 import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -152,7 +153,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 				}
 
 				const completedAt = result.completedAt ? new Date(result.completedAt) : new Date();
-				const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString());
+				const text = localize('runFinished', 'Test run finished at {0}', completedAt.toLocaleString(language));
 				output.pushData(`\r\n\r\n\x1b[1m> ${text} <\x1b[0m\r\n\r\n`);
 				output.ended = true;
 				this.revealMarker(terminal, thenSelectMarker);

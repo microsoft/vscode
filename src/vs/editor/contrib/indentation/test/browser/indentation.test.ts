@@ -265,3 +265,54 @@ suite('Editor Contrib - Auto Indent On Paste', () => {
 		});
 	});
 });
+
+suite('Editor Contrib - Keep Indent On Paste', () => {
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	test('issue #167299: Blank line removes indent', () => {
+		const languageId = 'blankLineRemovesIndent';
+		const model = createTextModel("", languageId, {});
+		disposables.add(model);
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			disposables.add(languageService.registerLanguage({ id: languageId }));
+			disposables.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')']
+				],
+				indentationRules: javascriptIndentationRules,
+				onEnterRules: javascriptOnEnterRules
+			}));
+
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			const pasteText = [
+				'',
+				'export type IncludeReference =',
+				'	| BaseReference',
+				'	| SelfReference',
+				'	| RelativeReference;',
+				'',
+				'export const enum IncludeReferenceKind {',
+				'	Base,',
+				'	Self,',
+				'	RelativeReference,',
+				'}'
+			].join('\n');
+
+			viewModel.paste(pasteText, true, undefined, 'keyboard');
+			autoIndentOnPasteController.trigger(new Range(1, 1, 11, 2));
+			assert.strictEqual(model.getValue(), pasteText);
+		});
+	});
+});

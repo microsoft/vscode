@@ -11,16 +11,12 @@
 					"modifiedRange": "[6,10 -> 6,19]"
 				},
 				{
-					"originalRange": "[6,33 -> 6,33]",
-					"modifiedRange": "[6,41 -> 7,12]"
+					"originalRange": "[6,33 -> 6,34]",
+					"modifiedRange": "[6,41 -> 6,50]"
 				},
 				{
-					"originalRange": "[6,37 -> 6,37]",
-					"modifiedRange": "[7,16 -> 12,39]"
-				},
-				{
-					"originalRange": "[6,46 -> 6,46]",
-					"modifiedRange": "[12,48 -> 16,35]"
+					"originalRange": "[7,1 -> 7,1]",
+					"modifiedRange": "[7,1 -> 17,1]"
 				}
 			]
 		},

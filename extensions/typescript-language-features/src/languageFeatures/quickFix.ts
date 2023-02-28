@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
 import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
@@ -229,7 +228,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<VsCodeCodeAction[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -342,7 +341,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(tsAction.fixId)) {
+		if (!tsAction.fixId || results.hasFixAllAction(tsAction.fixId)) {
 			return results;
 		}
 
@@ -387,6 +386,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.constructorForDerivedNeedSuperCall, { priority: 2 }],
 	[fixNames.extendsInterfaceBecomesImplements, { priority: 2 }],
 	[fixNames.awaitInSyncFunction, { priority: 2 }],
+	[fixNames.removeUnnecessaryAwait, { priority: 2 }],
 	[fixNames.classIncorrectlyImplementsInterface, { priority: 3 }],
 	[fixNames.classDoesntImplementInheritedAbstractMember, { priority: 3 }],
 	[fixNames.unreachableCode, { priority: 2 }],

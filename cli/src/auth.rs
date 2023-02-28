@@ -5,11 +5,13 @@
 
 use crate::{
 	constants::{get_default_user_agent, PRODUCT_NAME_LONG},
-	info, log,
+	debug, info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
 	util::{
-		errors::{wrap, AnyError, RefreshTokenNotAvailableError, StatusError, WrappedError},
+		errors::{
+			wrap, AnyError, OAuthError, RefreshTokenNotAvailableError, StatusError, WrappedError,
+		},
 		input::prompt_options,
 	},
 	warning,
@@ -39,6 +41,12 @@ struct AuthenticationResponse {
 	access_token: String,
 	refresh_token: Option<String>,
 	expires_in: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct AuthenticationError {
+	error: String,
+	error_description: Option<String>,
 }
 
 #[derive(clap::ArgEnum, Serialize, Deserialize, Debug, Clone, Copy)]
@@ -104,7 +112,7 @@ pub struct StoredCredential {
 }
 
 impl StoredCredential {
-	pub async fn is_expired(&self, client: &reqwest::Client) -> bool {
+	pub async fn is_expired(&self, log: &log::Logger, client: &reqwest::Client) -> bool {
 		match self.provider {
 			AuthProvider::Microsoft => self
 				.expires_at
@@ -114,14 +122,29 @@ impl StoredCredential {
 			// Make an auth request to Github. Mark the credential as expired
 			// only on a verifiable 4xx code. We don't error on any failed
 			// request since then a drop in connection could "require" a refresh
-			AuthProvider::Github => client
-				.get("https://api.github.com/user")
-				.header("Authorization", format!("token {}", self.access_token))
-				.header("User-Agent", get_default_user_agent())
-				.send()
-				.await
-				.map(|r| r.status().is_client_error())
-				.unwrap_or(false),
+			AuthProvider::Github => {
+				let res = client
+					.get("https://api.github.com/user")
+					.header("Authorization", format!("token {}", self.access_token))
+					.header("User-Agent", get_default_user_agent())
+					.send()
+					.await;
+				let res = match res {
+					Ok(r) => r,
+					Err(e) => {
+						warning!(log, "failed to check Github token: {}", e);
+						return false;
+					}
+				};
+
+				if res.status().is_success() {
+					return false;
+				}
+
+				let err = StatusError::from_res(res).await;
+				debug!(log, "github token looks expired: {:?}", err);
+				true
+			}
 		}
 	}
 
@@ -445,7 +468,7 @@ impl Auth {
 		&self,
 		creds: &StoredCredential,
 	) -> Result<Option<StoredCredential>, AnyError> {
-		if !creds.is_expired(&self.client).await {
+		if !creds.is_expired(&self.log, &self.client).await {
 			return Ok(None);
 		}
 
@@ -480,12 +503,26 @@ impl Auth {
 			.send()
 			.await?;
 
-		if !response.status().is_success() {
-			return Err(StatusError::from_res(response).await?.into());
+		let status_code = response.status().as_u16();
+		let body = response.bytes().await?;
+		if let Ok(body) = serde_json::from_slice::<AuthenticationResponse>(&body) {
+			return Ok(StoredCredential::from_response(body, provider));
 		}
 
-		let body = response.json::<AuthenticationResponse>().await?;
-		Ok(StoredCredential::from_response(body, provider))
+		if let Ok(res) = serde_json::from_slice::<AuthenticationError>(&body) {
+			return Err(OAuthError {
+				error: res.error,
+				error_description: res.error_description,
+			}
+			.into());
+		}
+
+		return Err(StatusError {
+			body: String::from_utf8_lossy(&body).to_string(),
+			status_code,
+			url: provider.grant_uri().to_string(),
+		}
+		.into());
 	}
 
 	/// Implements the device code flow, returning the credentials upon success.
@@ -540,16 +577,21 @@ impl Auth {
 			};
 
 			let body = format!(
-                "client_id={}&grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code={}",
-                provider.client_id(),
-                init_code_json.device_code
-            );
+					"client_id={}&grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code={}",
+					provider.client_id(),
+					init_code_json.device_code
+			);
 
+			let mut interval_s = 5;
 			while Utc::now() < expires_at {
-				sleep(std::time::Duration::from_secs(5)).await;
+				sleep(std::time::Duration::from_secs(interval_s)).await;
 
 				match self.do_grant(provider, body.clone()).await {
 					Ok(creds) => return Ok(creds),
+					Err(AnyError::OAuthError(e)) if e.error == "slow_down" => {
+						interval_s += 5; // https://www.rfc-editor.org/rfc/rfc8628#section-3.5
+						trace!(self.log, "refresh poll failed, slowing down");
+					}
 					Err(e) => {
 						trace!(self.log, "refresh poll failed, retrying: {}", e);
 					}

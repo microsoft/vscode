@@ -14,6 +14,9 @@ import * as nls from 'vs/nls';
 import { Entry, open as _openZip, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 
+export const CorruptZipMessage: string = 'end of central directory record signature not found';
+const CORRUPT_ZIP_PATTERN = new RegExp(CorruptZipMessage);
+
 export interface IExtractOptions {
 	overwrite?: boolean;
 
@@ -63,7 +66,7 @@ function toExtractError(err: Error): ExtractError {
 
 	let type: ExtractErrorType | undefined = undefined;
 
-	if (/end of central directory record signature not found/.test(err.message)) {
+	if (CORRUPT_ZIP_PATTERN.test(err.message)) {
 		type = 'CorruptZip';
 	}
 

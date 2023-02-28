@@ -9,7 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
@@ -24,7 +24,7 @@ import { TextChange } from 'vs/editor/common/core/textChange';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import * as model from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
@@ -41,7 +41,8 @@ import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPai
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -193,7 +194,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
 			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
-				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
+				indentSize: 'tabSize', // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
@@ -201,15 +202,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			});
 		}
 
-		return new model.TextModelResolvedOptions({
-			tabSize: options.tabSize,
-			indentSize: options.indentSize,
-			insertSpaces: options.insertSpaces,
-			trimAutoWhitespace: options.trimAutoWhitespace,
-			defaultEOL: options.defaultEOL,
-			bracketPairColorizationOptions: options.bracketPairColorizationOptions,
-		});
-
+		return new model.TextModelResolvedOptions(options);
 	}
 
 	//#region Events
@@ -250,6 +243,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _buffer: model.ITextBuffer;
 	private _bufferDisposable: IDisposable;
 	private _options: model.TextModelResolvedOptions;
+	private _languageSelectionListener = this._register(new MutableDisposable<IDisposable>());
 
 	private _isDisposed: boolean;
 	private __isDisposing: boolean;
@@ -294,7 +288,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	constructor(
 		source: string | model.ITextBufferFactory,
-		languageId: string,
+		languageIdOrSelection: string | ILanguageSelection,
 		creationOptions: model.ITextModelCreationOptions,
 		associatedResource: URI | null = null,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -319,6 +313,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._bufferDisposable = disposable;
 
 		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
+
+		const languageId = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
+		if (typeof languageIdOrSelection !== 'string') {
+			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId));
+		}
 
 		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
 		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
@@ -371,6 +370,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
+
+		this._languageService.requestRichLanguageFeatures(languageId);
 	}
 
 	public override dispose(): void {
@@ -629,7 +630,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
 		this._assertNotDisposed();
 		const tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
-		const indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
+		const indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.originalIndentSize;
 		const insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		const trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 		const bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
@@ -1912,8 +1913,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this.tokenization.getLanguageId();
 	}
 
-	public setMode(languageId: string, source?: string): void {
+	public setLanguage(languageIdOrSelection: string | ILanguageSelection, source?: string): void {
+		if (typeof languageIdOrSelection === 'string') {
+			this._languageSelectionListener.clear();
+			this._setLanguage(languageIdOrSelection, source);
+		} else {
+			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId, source));
+			this._setLanguage(languageIdOrSelection.languageId, source);
+		}
+	}
+
+	private _setLanguage(languageId: string, source?: string): void {
 		this.tokenization.setLanguageId(languageId, source);
+		this._languageService.requestRichLanguageFeatures(languageId);
 	}
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {

@@ -12,9 +12,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -55,6 +54,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IAddFoldersRequest {
@@ -135,7 +137,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly experimental?: { useSandbox: boolean };
+	readonly experimental?: { useSandbox: boolean; sharedProcessUseUtilityProcess: boolean };
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -164,7 +166,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export function useWindowControlsOverlay(configurationService: IConfigurationService, productService: IProductService): boolean {
+export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (!isWindows || isWeb) {
 		return false; // only supported on a desktop Windows instance
 	}
@@ -178,9 +180,8 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return configuredUseWindowControlsOverlay;
 	}
 
-	// Default to true for Insider and Exploration to match with
-	// app.getPreferredSystemLanguages() only being available on those builds.
-	return productService.quality === 'insider' || productService.quality === 'exploration';
+	// Default to true.
+	return true;
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
@@ -284,6 +285,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
+		home: UriComponents;
 		all: readonly UriDto<IUserDataProfile>[];
 		profile: UriDto<IUserDataProfile>;
 	};
@@ -298,6 +300,10 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
+	loggers: {
+		global: UriDto<ILoggerResource>[];
+		window: UriDto<ILoggerResource>[];
+	};
 
 	fullscreen?: boolean;
 	maximized?: boolean;
@@ -312,6 +318,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	preferUtilityProcess: boolean; // TODO@bpasero remove me once full app sandbox landed
 }
 
 /**

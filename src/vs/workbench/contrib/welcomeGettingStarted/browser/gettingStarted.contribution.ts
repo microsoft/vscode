@@ -39,7 +39,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
+			title: { value: localize('miWelcome', "Welcome"), original: 'Welcome' },
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -117,14 +117,14 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('getStarted', "Get Started")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = { value: localize('getStarted', "Get Started"), original: 'Get Started' };
+const category = { value: localize('welcome', "Welcome"), original: 'Welcome' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -319,7 +319,7 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 			],
 			'default': 'welcomePage',

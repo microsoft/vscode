@@ -8,9 +8,9 @@ import * as fs from 'fs';
 import * as encoding from 'vs/workbench/services/textfile/common/encoding';
 import * as streams from 'vs/base/common/stream';
 import * as iconv from '@vscode/iconv-lite-umd';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { splitLines } from 'vs/base/common/strings';
+import { FileAccess } from 'vs/base/common/network';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -79,49 +79,49 @@ function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult
 suite('Encoding', () => {
 
 	test('detectBOM does not return error for non existing file', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/not-exist.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/not-exist.css').fsPath;
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, null);
 	});
 
 	test('detectBOM UTF-8', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf8.css').fsPath;
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, 'utf8bom');
 	});
 
 	test('detectBOM UTF-16 LE', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/some_utf16le.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16le.css').fsPath;
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, 'utf16le');
 	});
 
 	test('detectBOM UTF-16 BE', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16be.css').fsPath;
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, 'utf16be');
 	});
 
 	test('detectBOM ANSI', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_ansi.css').fsPath;
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, null);
 	});
 
-	test('detectBOM ANSI', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
+	test('detectBOM ANSI (2)', async function () {
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/empty.txt').fsPath;
 
 		const detectedEncoding = await detectEncodingByBOM(file);
 		assert.strictEqual(detectedEncoding, null);
 	});
 
 	test('detectEncodingFromBuffer (JSON saved as PNG)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.json.png');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.json.png').fsPath;
 
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
@@ -129,42 +129,42 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (PNG saved as TXT)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.png.txt');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.png.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.seemsBinary, true);
 	});
 
 	test('detectEncodingFromBuffer (XML saved as PNG)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.xml.png');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.xml.png').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.seemsBinary, false);
 	});
 
 	test('detectEncodingFromBuffer (QWOFF saved as TXT)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.qwoff.txt');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.qwoff.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.seemsBinary, true);
 	});
 
 	test('detectEncodingFromBuffer (CSS saved as QWOFF)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.css.qwoff');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.css.qwoff').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.seemsBinary, false);
 	});
 
 	test('detectEncodingFromBuffer (PDF)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.pdf');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.pdf').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.seemsBinary, true);
 	});
 
 	test('detectEncodingFromBuffer (guess UTF-16 LE from content without BOM)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/utf16_le_nobom.txt');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/utf16_le_nobom.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.encoding, encoding.UTF16le);
@@ -172,7 +172,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (guess UTF-16 BE from content without BOM)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/utf16_be_nobom.txt');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/utf16_be_nobom.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512);
 		const mimes = encoding.detectEncodingFromBuffer(buffer);
 		assert.strictEqual(mimes.encoding, encoding.UTF16be);
@@ -180,28 +180,28 @@ suite('Encoding', () => {
 	});
 
 	test('autoGuessEncoding (UTF8)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some_file.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_file.css').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
 		assert.strictEqual(mimes.encoding, 'utf8');
 	});
 
 	test('autoGuessEncoding (ASCII)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_ansi.css').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
 		assert.strictEqual(mimes.encoding, null);
 	});
 
 	test('autoGuessEncoding (ShiftJIS)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.shiftjis.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
 		assert.strictEqual(mimes.encoding, 'shiftjis');
 	});
 
 	test('autoGuessEncoding (CP1252)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.cp1252.txt');
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.cp1252.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
 		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
 		assert.strictEqual(mimes.encoding, 'windows1252');
@@ -284,7 +284,7 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - encoding, utf16be', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
+		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16be.css').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
 		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
@@ -298,7 +298,7 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - empty file', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/empty.txt');
+		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/empty.txt').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
 
@@ -326,7 +326,7 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - some stream (GBK issue #101856)', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/some_gbk.txt');
+		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_gbk.txt').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
 		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'gbk' });
@@ -338,7 +338,7 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/issue_102202.txt');
+		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/issue_102202.txt').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
 		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'utf-8' });
@@ -382,7 +382,7 @@ suite('Encoding', () => {
 	});
 
 	test('toEncodeReadable - encoding, utf16be', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
+		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16be.css').fsPath;
 		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
 
 		const expected = VSBuffer.wrap(

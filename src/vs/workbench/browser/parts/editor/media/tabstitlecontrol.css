@@ -171,10 +171,6 @@
 	position: static; /** disable sticky positions for sticky compact/shrink tabs if the available space is too little */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-left .action-label {
-	margin-right: 4px !important;
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-off::after {
 	content: '';

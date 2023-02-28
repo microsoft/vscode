@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface ActionSet<T> extends IDisposable {
@@ -15,8 +14,4 @@ export interface ActionSet<T> extends IDisposable {
 export interface IActionItem {
 	// TODO: Use generics
 	action: any;
-}
-
-export interface IActionKeybindingResolver {
-	getResolver(): (action: any) => ResolvedKeybinding | undefined;
 }

@@ -21,6 +21,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IView } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { VIEWPANE_FILTER_ACTION } from 'vs/workbench/browser/parts/views/viewPane';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 
@@ -52,6 +53,10 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 
 	layout(dimension: Dimension): void {
 		this.viewPaneContainer?.layout(dimension);
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.viewPaneContainer?.setBoundarySashes(sashes);
 	}
 
 	getOptimalWidth(): number {

@@ -11,7 +11,7 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
@@ -73,10 +73,10 @@ export interface IExtensionPoint<T> {
 
 export class ExtensionPointUserDelta<T> {
 
-	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
-		const result = new Set<string>();
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): ExtensionIdentifierSet {
+		const result = new ExtensionIdentifierSet();
 		for (let i = 0, len = arr.length; i < len; i++) {
-			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
+			result.add(arr[i].description.identifier);
 		}
 		return result;
 	}
@@ -92,8 +92,8 @@ export class ExtensionPointUserDelta<T> {
 		const previousSet = this._toSet(previous);
 		const currentSet = this._toSet(current);
 
-		const added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
-		const removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const added = current.filter(user => !previousSet.has(user.description.identifier));
+		const removed = previous.filter(user => !currentSet.has(user.description.identifier));
 
 		return new ExtensionPointUserDelta<T>(added, removed);
 	}
@@ -239,6 +239,14 @@ export const schema: IJSONSchema = {
 				markdownEnumDescriptions: Object.values(allApiProposals)
 			}
 		},
+		api: {
+			markdownDescription: nls.localize('vscode.extension.api', 'Describe the API provided by this extension. For more details visit: https://code.visualstudio.com/api/advanced-topics/remote-extensions#handling-dependencies-with-remote-extensions'),
+			type: 'string',
+			enum: ['none'],
+			enumDescriptions: [
+				nls.localize('vscode.extension.api.none', "Give up entirely the ability to export any APIs. This allows other extensions that depend on this extension to run in a separate extension host process or in a remote machine.")
+			]
+		},
 		activationEvents: {
 			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
 			type: 'array',
@@ -354,6 +362,11 @@ export const schema: IJSONSchema = {
 						label: 'onTerminalProfile',
 						body: 'onTerminalProfile:${1:terminalId}',
 						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
+						label: 'onTerminalQuickFixRequest',
+						body: 'onTerminalQuickFixRequest:${1:quickFixId}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalQuickFixRequest', 'An activation event emitted when a command matches the selector associated with this ID'),
 					},
 					{
 						label: 'onWalkthrough',
@@ -560,7 +573,7 @@ export const schema: IJSONSchema = {
 	}
 };
 
-export type toArray<T> = T extends Array<any> ? T : T[];
+export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
@@ -571,7 +584,7 @@ export interface IExtensionPointDescriptor<T> {
 	 * A function which runs before the extension point has been validated and which
 	 * can should collect automatic activation events from the contribution.
 	 */
-	activationEventsGenerator?: IActivationEventsGenerator<toArray<T>>;
+	activationEventsGenerator?: IActivationEventsGenerator<removeArray<T>>;
 }
 
 export class ExtensionsRegistryImpl {

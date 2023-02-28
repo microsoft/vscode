@@ -17,11 +17,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -33,6 +32,7 @@ interface Key {
 	arrowLast?: boolean;
 	withEditor?: boolean;
 }
+
 
 const keys: Key[] = [
 	{
@@ -105,6 +105,12 @@ const keys: Key[] = [
 ];
 
 const OVERLAY_VISIBLE = new RawContextKey<boolean>('interfaceOverviewVisible', false);
+
+/**
+ * welcomeOverlay background color.
+ */
+export const welcomeOverlayBackground = registerColor('welcomeOverlay.background', { light: '#FFFFFF85', dark: '#00000085', hcDark: null, hcLight: null }, localize('welcomeOverlayBackground', "welcomeOverlay Background color."));
+
 
 let welcomeOverlay: WelcomeOverlay;
 
@@ -222,7 +228,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${Codicon.warning.cssSelector}`);
+		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${ThemeIcon.asCSSSelector(Codicon.warning)}`);
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -269,19 +275,3 @@ class WelcomeOverlay extends Disposable {
 registerAction2(WelcomeOverlayAction);
 registerAction2(HideWelcomeOverlayAction);
 
-// theming
-
-registerThemingParticipant((theme, collector) => {
-	const key = theme.getColor(foreground);
-	if (key) {
-		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key { color: ${key}; }`);
-	}
-	const backgroundColor = Color.fromHex(theme.type === 'light' ? '#FFFFFF85' : '#00000085');
-	if (backgroundColor) {
-		collector.addRule(`.monaco-workbench > .welcomeOverlay { background: ${backgroundColor}; }`);
-	}
-	const shortcut = theme.getColor(textPreformatForeground);
-	if (shortcut) {
-		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key > .shortcut { color: ${shortcut}; }`);
-	}
-});

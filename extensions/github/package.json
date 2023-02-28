@@ -13,9 +13,7 @@
     "Other"
   ],
   "activationEvents": [
-    "*",
-    "onProfile",
-    "onProfile:github"
+    "*"
   ],
   "extensionDependencies": [
     "vscode.git-base"
@@ -29,8 +27,7 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditSessions",
-    "profileContentHandlers"
+    "contribEditSessions"
   ],
   "contributes": {
     "commands": [
@@ -48,14 +45,17 @@
       },
       {
         "command": "github.openOnVscodeDev",
-        "title": "Open on vscode.dev",
+        "title": "Open in vscode.dev",
         "icon": "$(globe)"
       }
     ],
     "continueEditSession": [
       {
         "command": "github.openOnVscodeDev",
-        "when": "github.hasGitHubRepo"
+        "when": "github.hasGitHubRepo",
+        "qualifiedName": "Continue Working in vscode.dev",
+        "category": "Remote Repositories",
+        "remoteGroup": "virtualfs_44_vscode-vfs_2_web@2"
       }
     ],
     "menus": {
@@ -79,16 +79,16 @@
       ],
       "file/share": [
         {
-            "command": "github.copyVscodeDevLinkFile",
-            "when": "github.hasGitHubRepo",
-            "group": "0_vscode@0"
+          "command": "github.copyVscodeDevLinkFile",
+          "when": "github.hasGitHubRepo",
+          "group": "0_vscode@0"
         }
       ],
       "editor/context/share": [
         {
-            "command": "github.copyVscodeDevLink",
-            "when": "github.hasGitHubRepo && resourceScheme != untitled",
-            "group": "0_vscode@0"
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled",
+          "group": "0_vscode@0"
         }
       ]
     },
@@ -118,12 +118,12 @@
       {
         "view": "scm",
         "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
       },
       {
         "view": "scm",
         "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0"
       }
     ],
     "markdown.previewStyles": [

@@ -5,10 +5,12 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export interface IRemoteTunnelAccount {
-	readonly authenticationProviderId: string;
+	readonly providerId: string;
 	readonly token: string;
+	readonly accountLabel: string;
 }
 
 export const IRemoteTunnelService = createDecorator<IRemoteTunnelService>('IRemoteTunnelService');
@@ -22,7 +24,9 @@ export interface IRemoteTunnelService {
 
 	getAccount(): Promise<IRemoteTunnelAccount | undefined>;
 	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
-	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<void>;
+	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<TunnelStatus>;
+
+	getHostName(): Promise<string | undefined>;
 
 }
 
@@ -55,12 +59,11 @@ export interface ConnectionInfo {
 	link: string;
 	domain: string;
 	hostName: string;
-	extensionId: string;
 }
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';
 export const CONFIGURATION_KEY_HOST_NAME = CONFIGURATION_KEY_PREFIX + '.hostNameOverride';
+export const CONFIGURATION_KEY_PREVENT_SLEEP = CONFIGURATION_KEY_PREFIX + '.preventSleep';
 
-export const LOG_FILE_NAME = 'remoteTunnelService.log';
-export const LOGGER_NAME = 'remoteTunnelService';
-export const LOG_CHANNEL_ID = 'remoteTunnelServiceLog';
+export const LOG_ID = 'remoteTunnelService';
+export const LOGGER_NAME = localize('remoteTunnelLog', "Remote Tunnel Service");

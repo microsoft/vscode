@@ -81,11 +81,13 @@ export interface ISourceAction {
 }
 
 export interface INotebookSourceActionChangeEvent {
-	notebook: URI;
+	notebook?: URI;
+	viewType: string;
 }
 
 export interface IKernelSourceActionProvider {
 	readonly viewType: string;
+	onDidChangeSourceActions?: Event<void>;
 	provideKernelSourceActions(): Promise<INotebookKernelSourceAction[]>;
 }
 

@@ -562,6 +562,11 @@ suite('Filters', () => {
 		assertMatches('.', 'log', 'log', anyScore);
 	});
 
+	test('anyScore should not require a strong first match', function () {
+		assertMatches('bar', 'foobAr', 'foo^b^A^r', anyScore);
+		assertMatches('bar', 'foobar', 'foo^b^a^r', anyScore);
+	});
+
 	test('configurable full match boost', function () {
 		const prefix = 'create';
 		const a = 'createModelServices';

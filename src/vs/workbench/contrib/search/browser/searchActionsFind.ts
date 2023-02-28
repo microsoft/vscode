@@ -11,7 +11,7 @@ import { IListService, WorkbenchCompressibleObjectTree } from 'vs/platform/list/
 import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -28,7 +28,7 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { category, getElementsToOperateOnInfo, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { category, getElementsToOperateOn, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 
 
 //#region Interfaces
@@ -110,7 +110,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
 				original: 'Reveal in Explorer View'
 			},
-			category: category,
+			category,
 			menu: [{
 				id: MenuId.SearchContext,
 				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
@@ -193,7 +193,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 					},
 				]
 			},
-			category: category,
+			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
@@ -342,7 +342,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 }
 
 function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
-	return getElementsToOperateOnInfo(viewer, currElement, sortConfig).elements
+	return getElementsToOperateOn(viewer, currElement, sortConfig)
 		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
 }

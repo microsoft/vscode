@@ -36,13 +36,6 @@ export interface IObjectTreeSetChildrenOptions<T> {
 	readonly diffIdentityProvider?: IIdentityProvider<T>;
 }
 
-export interface IObjectTreeViewState {
-	readonly focus: string[];
-	readonly selection: string[];
-	readonly expanded: string[];
-	readonly scrollTop: number;
-}
-
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
 	protected declare model: IObjectTreeModel<T, TFilterData>;

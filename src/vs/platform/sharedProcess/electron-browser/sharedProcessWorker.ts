@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 
 export enum SharedProcessWorkerMessages {
 
@@ -37,11 +37,11 @@ interface IBaseMessage {
 }
 
 export interface ISharedProcessToWorkerMessage extends IBaseMessage {
-	configuration: ISharedProcessWorkerConfiguration;
+	configuration: IUtilityProcessWorkerConfiguration;
 	environment?: ISharedProcessWorkerEnvironment;
 }
 
 export interface IWorkerToSharedProcessMessage extends IBaseMessage {
-	configuration?: ISharedProcessWorkerConfiguration;
+	configuration?: IUtilityProcessWorkerConfiguration;
 	message?: string;
 }

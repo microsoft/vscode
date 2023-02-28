@@ -7,7 +7,7 @@ import { Terminal } from 'xterm';
 import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import * as sinon from 'sinon';
-import { parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -254,6 +254,41 @@ suite('ShellIntegrationAddon', () => {
 				deepEqual(parseMarkSequence(['Id=4555', 'Hidden']), { id: "4555", hidden: true });
 			});
 		});
+	});
+});
+
+suite('deserializeMessage', () => {
+	// A single literal backslash, in order to avoid confusion about whether we are escaping test data or testing escapes.
+	const Backslash = '\\' as const;
+	const Newline = '\n' as const;
+	const Semicolon = ';' as const;
+
+	type TestCase = [title: string, input: string, expected: string];
+	const cases: TestCase[] = [
+		['empty', '', ''],
+		['basic', 'value', 'value'],
+		['space', 'some thing', 'some thing'],
+		['escaped backslash', `${Backslash}${Backslash}`, Backslash],
+		['non-initial escaped backslash', `foo${Backslash}${Backslash}`, `foo${Backslash}`],
+		['two escaped backslashes', `${Backslash}${Backslash}${Backslash}${Backslash}`, `${Backslash}${Backslash}`],
+		['escaped backslash amidst text', `Hello${Backslash}${Backslash}there`, `Hello${Backslash}there`],
+		['backslash escaped literally and as hex', `${Backslash}${Backslash} is same as ${Backslash}x5c`, `${Backslash} is same as ${Backslash}`],
+		['escaped semicolon', `${Backslash}x3b`, Semicolon],
+		['non-initial escaped semicolon', `foo${Backslash}x3b`, `foo${Semicolon}`],
+		['escaped semicolon (upper hex)', `${Backslash}x3B`, Semicolon],
+		['escaped backslash followed by literal "x3b" is not a semicolon', `${Backslash}${Backslash}x3b`, `${Backslash}x3b`],
+		['non-initial escaped backslash followed by literal "x3b" is not a semicolon', `foo${Backslash}${Backslash}x3b`, `foo${Backslash}x3b`],
+		['escaped backslash followed by escaped semicolon', `${Backslash}${Backslash}${Backslash}x3b`, `${Backslash}${Semicolon}`],
+		['escaped semicolon amidst text', `some${Backslash}x3bthing`, `some${Semicolon}thing`],
+		['escaped newline', `${Backslash}x0a`, Newline],
+		['non-initial escaped newline', `foo${Backslash}x0a`, `foo${Newline}`],
+		['escaped newline (upper hex)', `${Backslash}x0A`, Newline],
+		['escaped backslash followed by literal "x0a" is not a newline', `${Backslash}${Backslash}x0a`, `${Backslash}x0a`],
+		['non-initial escaped backslash followed by literal "x0a" is not a newline', `foo${Backslash}${Backslash}x0a`, `foo${Backslash}x0a`],
+	];
+
+	cases.forEach(([title, input, expected]) => {
+		test(title, () => strictEqual(deserializeMessage(input), expected));
 	});
 });
 

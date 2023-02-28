@@ -11,7 +11,7 @@ import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFile
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { FileOperationResult, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -288,14 +288,18 @@ suite('Files - FileEditorInput', () => {
 		resolved.dispose();
 	});
 
-	test('resolve handles too large files', async function () {
+	test('resolve throws for too large files', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
-
-		const resolved = await input.resolve();
-		assert.ok(resolved);
-		resolved.dispose();
+		let e: Error | undefined = undefined;
+		accessor.textFileService.setReadStreamErrorOnce(new TooLargeFileOperationError('error', FileOperationResult.FILE_TOO_LARGE, 1000));
+		try {
+			await input.resolve();
+		} catch (error) {
+			e = error;
+		}
+		assert.ok(e);
+		input.dispose();
 	});
 
 	test('attaches to model when created and reports dirty', async function () {

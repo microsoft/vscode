@@ -24,7 +24,6 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
 import { basename, dirname } from 'vs/base/common/resources';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
@@ -156,7 +155,7 @@ export class BulkEditPane extends ViewPane {
 		btnConfirm.label = localize('ok', 'Apply');
 		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
 
-		const btnCancel = buttonBar.addButton(defaultButtonStyles /*{  secondary: true } */);
+		const btnCancel = buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
 		btnCancel.label = localize('cancel', 'Discard');
 		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
 
@@ -263,7 +262,7 @@ export class BulkEditPane extends ViewPane {
 			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
-		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
+		this._dialogService.warn(message).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -280,6 +279,8 @@ export class BulkEditPane extends ViewPane {
 	toggleChecked() {
 		const [first] = this._tree.getFocus();
 		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
+			first.setChecked(!first.isChecked());
+		} else if (first instanceof CategoryElement) {
 			first.setChecked(!first.isChecked());
 		}
 	}

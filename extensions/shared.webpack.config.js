@@ -15,6 +15,13 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
 const { DefinePlugin, optimize } = require('webpack');
 
+const tsLoaderOptions = {
+	compilerOptions: {
+		'sourceMap': true,
+	},
+	onlyCompileBundledFiles: true,
+};
+
 function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 	/** @type WebpackConfig */
 	const defaultConfig = {
@@ -42,11 +49,7 @@ function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
 					// configure TypeScript loader:
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
-					options: {
-						compilerOptions: {
-							'sourceMap': true,
-						}
-					}
+					options: tsLoaderOptions
 				}, {
 					loader: path.resolve(__dirname, 'mangle-loader.js'),
 					options: {
@@ -125,11 +128,8 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 						// * enable sources maps for end-to-end source maps
 						loader: 'ts-loader',
 						options: {
-							compilerOptions: {
-								'sourceMap': true,
-							},
+							...tsLoaderOptions,
 							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
-							onlyCompileBundledFiles: true,
 						}
 					},
 					{

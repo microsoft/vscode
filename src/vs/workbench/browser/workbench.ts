@@ -17,7 +17,7 @@ import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/ed
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -224,7 +224,7 @@ export class Workbench extends Layout {
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -261,9 +261,13 @@ export class Workbench extends Layout {
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
-	private setFontAliasing(configurationService: IConfigurationService) {
+	private updateFontAliasing(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService) {
 		if (!isMacintosh) {
 			return; // macOS only
+		}
+
+		if (e && !e.affectsConfiguration('workbench.fontAliasing')) {
+			return;
 		}
 
 		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>('workbench.fontAliasing');
@@ -330,7 +334,7 @@ export class Workbench extends Layout {
 		}
 
 		// Apply font aliasing
-		this.setFontAliasing(configurationService);
+		this.updateFontAliasing(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
@@ -348,7 +352,9 @@ export class Workbench extends Layout {
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
+			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
+			mark(`code/didCreatePart/${id}`);
 		}
 
 		// Notification Handlers
@@ -422,15 +428,6 @@ export class Workbench extends Layout {
 				timeout(2000)
 			]).finally(() => {
 
-				// Set lifecycle phase to `Restored`
-				lifecycleService.phase = LifecyclePhase.Restored;
-
-				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
-				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
-				}, 2500));
-				eventuallyPhaseScheduler.schedule();
-
 				// Update perf marks only when the layout is fully
 				// restored. We want the time it takes to restore
 				// editors to be included in these numbers
@@ -445,6 +442,15 @@ export class Workbench extends Layout {
 				} else {
 					this.whenRestored.finally(() => markDidStartWorkbench());
 				}
+
+				// Set lifecycle phase to `Restored`
+				lifecycleService.phase = LifecyclePhase.Restored;
+
+				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+				}, 2500));
+				eventuallyPhaseScheduler.schedule();
 			})
 		);
 	}

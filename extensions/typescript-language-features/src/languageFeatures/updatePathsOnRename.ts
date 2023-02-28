@@ -57,12 +57,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
 			const [{ newUri, oldUri }] = e.files;
-			const newFilePath = this.client.toPath(newUri);
+			const newFilePath = this.client.toTsFilePath(newUri);
 			if (!newFilePath) {
 				return;
 			}
 
-			const oldFilePath = this.client.toPath(oldUri);
+			const oldFilePath = this.client.toTsFilePath(oldUri);
 			if (!oldFilePath) {
 				return;
 			}
@@ -76,7 +76,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			// Try to get a js/ts file that is being moved
 			// For directory moves, this returns a js/ts file under the directory.
 			const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
-			if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
+			if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
 				return;
 			}
 
@@ -155,11 +155,11 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: vscode.l10n.t("Always automatically update imports"),
+			title: vscode.l10n.t("Always"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: vscode.l10n.t("Never automatically update imports"),
+			title: vscode.l10n.t("Never"),
 		};
 
 		const response = await vscode.window.showInformationMessage(
@@ -185,15 +185,14 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
 				return true;
 			}
-			case neverItem:
-				{
-					const config = this.getConfiguration(newResources[0]);
-					config.update(
-						updateImportsOnFileMoveName,
-						UpdateImportsOnFileMoveSetting.Never,
-						this.getConfigTargetScope(config, updateImportsOnFileMoveName));
-					return false;
-				}
+			case neverItem: {
+				const config = this.getConfiguration(newResources[0]);
+				config.update(
+					updateImportsOnFileMoveName,
+					UpdateImportsOnFileMoveSetting.Never,
+					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
+				return false;
+			}
 			default: {
 				return false;
 			}

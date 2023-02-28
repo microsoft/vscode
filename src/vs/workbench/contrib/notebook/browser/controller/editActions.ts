@@ -224,7 +224,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: localize('clearAllCellsOutputs', 'Clear Outputs of All Cells'),
+			title: localize('clearAllCellsOutputs', 'Clear All Outputs'),
 			precondition: NOTEBOOK_HAS_OUTPUTS,
 			menu: [
 				{
@@ -370,9 +370,17 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
+		const kernelService = accessor.get(INotebookKernelService);
+
+		let languages = context.notebookEditor.activeKernel?.supportedLanguages;
+		if (!languages) {
+			const matchResult = kernelService.getMatchingKernel(context.notebookEditor.textModel);
+			const allSupportedLanguages = matchResult.all.flatMap(kernel => kernel.supportedLanguages);
+			languages = allSupportedLanguages.length > 0 ? allSupportedLanguages : languageService.getRegisteredLanguageIds();
+		}
 
 		const providerLanguages = new Set([
-			...(context.notebookEditor.activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds()),
+			...languages,
 			'markdown'
 		]);
 
@@ -421,10 +429,10 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 			...mainItems
 		];
 
-		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
+		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") });
 		const languageId = selection === autoDetectMode
 			? await languageDetectionService.detectLanguage(context.cell.uri)
-			: selection?.languageId;
+			: (selection as ILanguagePickInput)?.languageId;
 
 		if (languageId) {
 			await this.setLanguage(context, languageId);

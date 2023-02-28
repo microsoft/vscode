@@ -19,13 +19,14 @@ import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } 
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Action, ActionRunner, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenu } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
@@ -281,9 +282,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@IMenuService readonly menuService: IMenuService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
 		protected readonly _notebookEditor: INotebookEditor,
 	) {

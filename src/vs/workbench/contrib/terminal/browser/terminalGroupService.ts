@@ -444,7 +444,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
-		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
+		return this.groups.find(group => group.terminalInstances.includes(instance));
 	}
 
 	getGroupLabels(): string[] {

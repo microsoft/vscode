@@ -238,6 +238,7 @@ export const enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
 	NotFound = 'NotFound', /* 404 */
+	MethodNotFound = 'MethodNotFound', /* 405 */
 	Conflict = 'Conflict', /* 409 */
 	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
@@ -261,6 +262,7 @@ export const enum UserDataSyncErrorCode {
 	SessionExpired = 'SessionExpired',
 	ServiceChanged = 'ServiceChanged',
 	DefaultServiceChanged = 'DefaultServiceChanged',
+	LocalTooManyProfiles = 'LocalTooManyProfiles',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
@@ -325,17 +327,26 @@ export interface ISyncUserDataProfile {
 	readonly shortName?: string;
 }
 
-export interface ISyncExtension {
+export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
+
+export interface ILocalSyncExtension {
 	identifier: IExtensionIdentifier;
-	preRelease?: boolean;
-	version?: string;
+	pinned: boolean;
+	version: string;
+	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
 	state?: IStringDictionary<any>;
 }
 
-export interface ISyncExtensionWithVersion extends ISyncExtension {
+export interface IRemoteSyncExtension {
+	identifier: IExtensionIdentifier;
 	version: string;
+	pinned?: boolean;
+	preRelease?: boolean;
+	disabled?: boolean;
+	installed?: boolean;
+	state?: IStringDictionary<any>;
 }
 
 export interface IStorageValue {
@@ -509,6 +520,7 @@ export interface IUserDataSyncService {
 
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
+	cleanUpRemoteData(): Promise<void>;
 	resetLocal(): Promise<void>;
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
@@ -561,5 +573,6 @@ export interface IConflictSetting {
 
 //#endregion
 
+export const USER_DATA_SYNC_LOG_ID = 'userDataSync';
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_DIR_NAME = 'preview';

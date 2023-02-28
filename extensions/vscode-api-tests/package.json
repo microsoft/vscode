@@ -18,7 +18,6 @@
     "findTextInFiles",
     "fsChunks",
     "notebookCellExecutionState",
-    "notebookContentProvider",
     "notebookControllerKind",
     "notebookDeprecated",
     "notebookLiveShare",

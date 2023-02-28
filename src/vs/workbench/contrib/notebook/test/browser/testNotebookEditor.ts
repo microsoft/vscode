@@ -41,6 +41,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellStatusBarServiceImpl';
 import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -52,7 +53,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellUri, ICellDto2, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -213,6 +214,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		}
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
+		override onDidChangeCellState: Event<NotebookCellStateChangedEvent> = new Emitter<NotebookCellStateChangedEvent>().event;
 		override _getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
@@ -272,7 +274,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
 		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
 		override async find(query: string, options: INotebookSearchOptions): Promise<CellFindMatchWithIndex[]> {
-			const findMatches = viewModel.find(query, options).filter(match => match.matches.length > 0);
+			const findMatches = viewModel.find(query, options).filter(match => match.length > 0);
 			return findMatches;
 		}
 		override deltaCellDecorations() { return []; }

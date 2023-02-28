@@ -67,10 +67,6 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 		return element.getHeight(this.lineHeight);
 	}
 
-	hasDynamicHeight(element: CellViewModel): boolean {
-		return element.hasDynamicHeight();
-	}
-
 	getDynamicHeight(element: CellViewModel): number | null {
 		return element.getDynamicHeight();
 	}
@@ -146,6 +142,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
 		const cellInputCollapsedContainer = DOM.append(codeInnerContent, $('.input-collapse-container'));
+		cellInputCollapsedContainer.style.display = 'none';
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		editorPart.style.display = 'none';
 		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
@@ -263,6 +260,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const cellInputCollapsedContainer = DOM.append(cellContainer, $('.input-collapse-container'));
+		cellInputCollapsedContainer.style.display = 'none';
 		const executionOrderLabel = DOM.append(focusIndicatorLeft.domNode, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));

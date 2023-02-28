@@ -273,7 +273,6 @@ export class ReplaceInput extends Widget {
 
 	public set width(newWidth: number) {
 		this.inputBox.paddingRight = this.cachedOptionsWidth;
-		this.inputBox.width = newWidth;
 		this.domNode.style.width = newWidth + 'px';
 	}
 

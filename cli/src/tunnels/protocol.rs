@@ -4,37 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
-use crate::options::Quality;
+use crate::{constants::{VSCODE_CLI_VERSION, PROTOCOL_VERSION}, options::Quality};
 use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Debug)]
-#[serde(tag = "method", content = "params")]
-#[allow(non_camel_case_types)]
-pub enum ServerRequestMethod {
-	/// Request from the client to start the VS Code server. It will download the
-	/// requested version, if necessary.
-	serve(ServeParams),
-	/// Prunes unused servers on the CLI.
-	prune,
-	/// Empty ping/pong method used for liveness check.
-	ping(EmptyResult),
-	/// Forwards a port from the machine the CLI is running on.
-	forward(ForwardParams),
-	/// Stops forwarding a port from the machine the CLI is running on.
-	unforward(UnforwardParams),
-	/// Gets the hostname of the machine the CLI is running on.
-	gethostname(EmptyResult),
-	/// Checks for or applies an update to the CLI.
-	update(UpdateParams),
-	/// Sent when the remote instance of VS Code has a message for the server.
-	servermsg(ServerMessageParams),
-	/// Sent to make an http call on the local VS Code server.
-	callserverhttp(CallServerHttpParams),
-	/// Sent once with data in response to an `makehttpreq` from the server.
-	httpheaders(HttpHeadersParams),
-	/// Sent (repeatedly) with data in response to an `makehttpreq` from the server.
-	httpbody(HttpBodyParams),
-}
 
 #[derive(Serialize, Debug)]
 #[serde(tag = "method", content = "params", rename_all = "camelCase")]
@@ -83,12 +54,23 @@ pub struct ForwardResult {
 	pub uri: String,
 }
 
+/// The `install_local` method in the wsl control server
+#[derive(Deserialize, Debug)]
+pub struct InstallFromLocalFolderParams {
+	pub archive_path: String,
+	#[serde(flatten)]
+	pub inner: ServeParams,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct ServeParams {
 	pub socket_id: u16,
 	pub commit_id: Option<String>,
 	pub quality: Quality,
 	pub extensions: Vec<String>,
+	/// Optional preferred connection token.
+	#[serde(default)]
+	pub connection_token: Option<String>,
 	#[serde(default)]
 	pub use_local_download: bool,
 	/// If true, the client and server should gzip servermsg's sent in either direction.
@@ -97,7 +79,7 @@ pub struct ServeParams {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct EmptyResult {}
+pub struct EmptyObject {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateParams {
@@ -124,39 +106,11 @@ pub struct UpdateResult {
 	pub did_update: bool,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct ToServerRequest {
-	pub id: Option<u32>,
-	#[serde(flatten)]
-	pub params: ServerRequestMethod,
-}
-
 #[derive(Serialize, Debug)]
 pub struct ToClientRequest<'a> {
 	pub id: Option<u32>,
 	#[serde(flatten)]
 	pub params: ClientRequestMethod<'a>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SuccessResponse<T>
-where
-	T: Serialize,
-{
-	pub id: u32,
-	pub result: T,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ErrorResponse {
-	pub id: u32,
-	pub error: ResponseError,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ResponseError {
-	pub code: i32,
-	pub message: String,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -190,4 +144,13 @@ pub struct CallServerHttpResult {
 pub struct VersionParams {
 	pub version: &'static str,
 	pub protocol_version: u32,
+}
+
+impl Default for VersionParams {
+	fn default() -> Self {
+		Self {
+			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
+			protocol_version: PROTOCOL_VERSION,
+		}
+	}
 }

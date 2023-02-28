@@ -309,6 +309,9 @@ export class InstantiationService implements IInstantiationService {
 				set(_target: T, p: PropertyKey, value: any): boolean {
 					idle.value[p] = value;
 					return true;
+				},
+				getPrototypeOf(_target: T) {
+					return ctor.prototype;
 				}
 			});
 		}
@@ -327,7 +330,10 @@ export class InstantiationService implements IInstantiationService {
 //#region -- tracing ---
 
 const enum TraceType {
-	Creation, Invocation, Branch
+	None = 0,
+	Creation = 1,
+	Invocation = 2,
+	Branch = 3,
 }
 
 export class Trace {
@@ -335,7 +341,7 @@ export class Trace {
 	static all = new Set<string>();
 
 	private static readonly _None = new class extends Trace {
-		constructor() { super(-1, null); }
+		constructor() { super(TraceType.None, null); }
 		override stop() { }
 		override branch() { return this; }
 	};

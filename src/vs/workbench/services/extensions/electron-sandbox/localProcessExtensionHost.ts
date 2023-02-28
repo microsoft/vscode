@@ -3,50 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { CancellationError, SerializedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MessageType, isMessageOfType, IExtensionHostInitData, UIKind, NativeLogMarkers } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { parseExtensionDevOptions } from '../common/extensionDevOptions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation, ExtensionHostExtensions, localExtHostLog } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { CancellationError, SerializedError } from 'vs/base/common/errors';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IWorkspaceContextService, WorkbenchState, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 
 export interface ILocalProcessExtensionHostInitData {
-	readonly autoStart: boolean;
 	readonly allExtensions: IExtensionDescription[];
 	readonly myExtensions: ExtensionIdentifier[];
 }
@@ -99,10 +97,9 @@ export class ExtensionHostProcess {
 	}
 }
 
-export class SandboxLocalProcessExtensionHost implements IExtensionHost {
+export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
-	public readonly lazyStart = false;
 	public readonly extensions = new ExtensionHostExtensions();
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
@@ -126,10 +123,9 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 	private _extensionHostProcess: ExtensionHostProcess | null;
 	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
 
-	private readonly _extensionHostLogFile: URI;
-
 	constructor(
 		public readonly runningLocation: LocalProcessRunningLocation,
+		public readonly startup: ExtensionHostStartup.EagerAutoStart | ExtensionHostStartup.EagerManualStart,
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -139,6 +135,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService protected readonly _logService: ILogService,
+		@ILoggerService protected readonly _loggerService: ILoggerService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
@@ -159,8 +156,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 		this._inspectPort = null;
 		this._extensionHostProcess = null;
 		this._messageProtocol = null;
-
-		this._extensionHostLogFile = joinPath(this._environmentService.extHostLogsPath, `${ExtensionHostLogFileName}.log`);
 
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
@@ -287,7 +282,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
 			if (inspectorUrlMatch) {
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
-					console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
+					console.log(`%c[Extension Host] %cdebugger inspector at devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color:');
 				}
 				if (!this._inspectPort) {
 					this._inspectPort = Number(inspectorUrlMatch[2]);
@@ -416,9 +411,6 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 					// stop listening for messages here
 					disposable.dispose();
 
-					// Register log channel for exthost log
-					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: localExtHostLog, label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
-
 					// release this promise
 					resolve();
 					return;
@@ -445,6 +437,7 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
@@ -469,12 +462,13 @@ export class SandboxLocalProcessExtensionHost implements IExtensionHost {
 				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
-			logFile: this._extensionHostLogFile,
-			autoStart: initData.autoStart,
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			uiKind: UIKind.Desktop
 		};
 	}

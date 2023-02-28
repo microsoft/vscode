@@ -31,6 +31,7 @@ interface JavaScriptRenderingHook {
 interface RenderOptions {
 	readonly lineLimit: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 }
 
 function clearContainer(container: HTMLElement) {
@@ -47,6 +48,14 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 			URL.revokeObjectURL(src);
 		}
 	};
+
+	if (element.firstChild) {
+		const display = element.firstChild as HTMLElement;
+		if (display.firstChild && display.firstChild.nodeName === 'IMG' && display.firstChild instanceof HTMLImageElement) {
+			display.firstChild.src = src;
+			return disposable;
+		}
+	}
 
 	const image = document.createElement('img');
 	image.src = src;
@@ -126,6 +135,8 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 }
 
 function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
+	clearContainer(container);
+
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
@@ -141,9 +152,12 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 	if (err.stack) {
 		const stack = document.createElement('pre');
 		stack.classList.add('traceback');
+		if (ctx.settings.outputWordWrap) {
+			stack.classList.add('wordWrap');
+		}
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
-		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element);
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
 		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
@@ -172,10 +186,23 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 		const outputElement = (prev.firstChild as HTMLElement | null);
 		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
 			// same stream
-			const text = outputInfo.text();
 
-			const element = document.createElement('span');
-			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element);
+			// find child with same id
+			const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+			if (existing) {
+				clearContainer(existing);
+			}
+
+			const text = outputInfo.text();
+			const element = existing ?? document.createElement('span');
+			element.classList.add('output-stream');
+			if (ctx.settings.outputWordWrap) {
+				element.classList.add('wordWrap');
+			} else {
+				element.classList.remove('wordWrap');
+			}
+			element.setAttribute('output-item-id', outputInfo.id);
+			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -183,9 +210,13 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const element = document.createElement('span');
 	element.classList.add('output-stream');
+	if (ctx.settings.outputWordWrap) {
+		element.classList.add('wordWrap');
+	}
+	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
@@ -200,8 +231,11 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
+	if (ctx.settings.outputWordWrap) {
+		contentNode.classList.add('wordWrap');
+	}
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
 	container.appendChild(contentNode);
 }
 
@@ -218,7 +252,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-stream,
 	.traceback {
 		display: inline-block;
-		white-space: pre-wrap;
 		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
@@ -227,12 +260,17 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
-	}
-	output-plaintext,
-	.traceback {
 		word-wrap: break-word;
+		/* text/stream output container should scroll but preserve newline character */
+		white-space: pre;
 	}
-	.output > span.scrollable {
+	/* When wordwrap turned on, force it to pre-wrap */
+	.output-plaintext.wordWrap span,
+	.output-stream.wordWrap span,
+	.traceback.wordWrap span {
+		white-space: pre-wrap;
+	}
+	.output .scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
 		border: var(--vscode-editorWidget-border);
@@ -289,6 +327,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'image/jpeg':
 				case 'image/git':
 					{
+						disposables.get(outputInfo.id)?.dispose();
 						const disposable = renderImage(outputInfo, element);
 						disposables.set(outputInfo.id, disposable);
 					}

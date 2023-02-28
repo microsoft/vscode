@@ -8,22 +8,9 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 
-export const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
+const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
 	getId(element) {
 		return element.treeId + '\0' + (element instanceof TestTreeErrorMessage ? 'error' : element.test.expand);
-	}
-};
-
-/**
- * Removes nodes from the set whose parents don't exist in the tree. This is
- * useful to remove nodes that are queued to be updated or rendered, who will
- * be rendered by a call to setChildren.
- */
-export const pruneNodesWithParentsNotInTree = <T extends TestItemTreeElement>(nodes: Set<T | null>, tree: ObjectTree<TestExplorerTreeElement, any>) => {
-	for (const node of nodes) {
-		if (node && node.parent && !tree.hasElement(node.parent)) {
-			nodes.delete(node);
-		}
 	}
 };
 
@@ -70,6 +57,7 @@ const pruneNodesNotInTree = (nodes: Set<TestExplorerTreeElement | null>, tree: O
 export class NodeChangeList<T extends TestItemTreeElement> {
 	private changedParents = new Set<T | null>();
 	private updatedNodes = new Set<TestExplorerTreeElement>();
+	private resortedNodes = new Set<TestExplorerTreeElement | null>();
 	private omittedNodes = new WeakSet<TestExplorerTreeElement>();
 	private isFirstApply = true;
 
@@ -81,6 +69,10 @@ export class NodeChangeList<T extends TestItemTreeElement> {
 		this.changedParents.add(this.getNearestNotOmittedParent(node));
 	}
 
+	public sortKeyUpdated(node: TestExplorerTreeElement) {
+		this.resortedNodes.add(node.parent);
+	}
+
 	public applyTo(
 		tree: ObjectTree<TestExplorerTreeElement, any>,
 		renderNode: NodeRenderFn,
@@ -88,6 +80,7 @@ export class NodeChangeList<T extends TestItemTreeElement> {
 	) {
 		pruneNodesNotInTree(this.changedParents, tree);
 		pruneNodesNotInTree(this.updatedNodes, tree);
+		pruneNodesNotInTree(this.resortedNodes, tree);
 
 		const diffDepth = this.isFirstApply ? Infinity : 0;
 		this.isFirstApply = false;
@@ -112,8 +105,15 @@ export class NodeChangeList<T extends TestItemTreeElement> {
 			}
 		}
 
+		for (const node of this.resortedNodes) {
+			if (node && tree.hasElement(node)) {
+				tree.resort(node, false);
+			}
+		}
+
 		this.changedParents.clear();
 		this.updatedNodes.clear();
+		this.resortedNodes.clear();
 	}
 
 	private getNearestNotOmittedParent(node: TestExplorerTreeElement | null) {

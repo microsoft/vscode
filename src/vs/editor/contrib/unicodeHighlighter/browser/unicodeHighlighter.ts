@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { InUntrustedWorkspace, inUntrustedWorkspace, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -407,7 +407,7 @@ export class UnicodeHighlighterHover implements IHoverPart {
 
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
-	public readonly hoverOrdinal: number = 4;
+	public readonly hoverOrdinal: number = 5;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -803,5 +803,5 @@ registerEditorAction(DisableHighlightingOfAmbiguousCharactersAction);
 registerEditorAction(DisableHighlightingOfInvisibleCharactersAction);
 registerEditorAction(DisableHighlightingOfNonBasicAsciiCharactersAction);
 registerEditorAction(ShowExcludeOptions);
-registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter);
+registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter, EditorContributionInstantiation.AfterFirstRender);
 HoverParticipantRegistry.register(UnicodeHighlighterHoverParticipant);

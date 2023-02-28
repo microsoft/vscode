@@ -34,10 +34,10 @@ export class RunToolbar extends CellContentPart {
 		readonly contextKeyService: IContextKeyService,
 		readonly cellContainer: HTMLElement,
 		readonly runButtonContainer: HTMLElement,
-		@IMenuService readonly menuService: IMenuService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 

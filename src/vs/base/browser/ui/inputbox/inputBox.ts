@@ -265,6 +265,14 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public get step(): string {
+		return this.input.step;
+	}
+
+	public set step(newValue: string) {
+		this.input.step = newValue;
+	}
+
 	public get height(): number {
 		return typeof this.cachedHeight === 'number' ? this.cachedHeight : dom.getTotalHeight(this.element);
 	}
@@ -369,7 +377,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
+		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(styles.border, 'transparent')}`;
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -458,8 +466,8 @@ export class InputBox extends Widget {
 				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
-				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
-				spanElement.style.color = styles.foreground ? styles.foreground.toString() : '';
+				spanElement.style.backgroundColor = styles.background ?? '';
+				spanElement.style.color = styles.foreground ?? '';
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : '';
 
 				dom.append(div, spanElement);
@@ -543,10 +551,8 @@ export class InputBox extends Widget {
 		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
-		if (border) {
-			this.element.style.border = '1px solid ' + border;
-		}
-
+		// there's always a border, even if the color is not set.
+		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(border, 'transparent')}`;
 	}
 
 	public layout(): void {
@@ -667,14 +673,26 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 	}
 
-	public addToHistory(): void {
-		if (this.value && this.value !== this.getCurrentValue()) {
+	public addToHistory(always?: boolean): void {
+		if (this.value && (always || this.value !== this.getCurrentValue())) {
 			this.history.add(this.value);
 		}
 	}
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
+	}
+
+	public isAtFirstInHistory(): boolean {
+		return this.history.isFirst();
+	}
+
+	public isAtLastInHistory(): boolean {
+		return this.history.isLast();
+	}
+
+	public isNowhereInHistory(): boolean {
+		return this.history.isNowhere();
 	}
 
 	public showNextValue(): void {

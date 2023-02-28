@@ -57,12 +57,12 @@ function doAfterImagesLoaded(cb: () => void) {
 }
 
 onceDocumentLoaded(() => {
-	const scrollTo = !isNaN(state.line) ? state.line : state.scrollProgress;
+	const scrollProgress = state.scrollProgress;
 
-	if (typeof scrollTo === 'number' && !settings.settings.fragment) {
+	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
-			window.scrollTo(0, scrollTo * document.body.clientHeight);
+			window.scrollTo(0, scrollProgress * document.body.clientHeight);
 		});
 		return;
 	}

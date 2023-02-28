@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IResourceUndoRedoElement, IUndoRedoService, UndoRedoElementType, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -59,7 +58,6 @@ export class MergeEditorModel extends EditorModel {
 		private readonly diffComputer: IMergeDiffComputer,
 		private readonly options: { resetResult: boolean },
 		public readonly telemetry: MergeEditorTelemetry,
-		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
@@ -140,6 +138,9 @@ export class MergeEditorModel extends EditorModel {
 				} else if (range.input2Diffs.length === 0) {
 					newState = ModifiedBaseRangeState.base.withInputValue(1, true);
 					handled = true;
+				} else if (range.isEqualChange) {
+					newState = ModifiedBaseRangeState.base.withInputValue(1, true);
+					handled = true;
 				} else {
 					newState = ModifiedBaseRangeState.base;
 					handled = false;
@@ -182,6 +183,8 @@ export class MergeEditorModel extends EditorModel {
 			if (baseRange.input1Diffs.length === 0) {
 				appendLinesToResult(input2Lines, baseRange.input2Range);
 			} else if (baseRange.input2Diffs.length === 0) {
+				appendLinesToResult(input1Lines, baseRange.input1Range);
+			} else if (baseRange.isEqualChange) {
 				appendLinesToResult(input1Lines, baseRange.input1Range);
 			} else {
 				appendLinesToResult(baseLines, baseRange.baseRange);
@@ -553,10 +556,10 @@ export class MergeEditorModel extends EditorModel {
 
 	public setLanguageId(languageId: string, source?: string): void {
 		const language = this.languageService.createById(languageId);
-		this.modelService.setMode(this.base, language, source);
-		this.modelService.setMode(this.input1.textModel, language, source);
-		this.modelService.setMode(this.input2.textModel, language, source);
-		this.modelService.setMode(this.resultTextModel, language, source);
+		this.base.setLanguage(language, source);
+		this.input1.textModel.setLanguage(language, source);
+		this.input2.textModel.setLanguage(language, source);
+		this.resultTextModel.setLanguage(language, source);
 	}
 
 	public getInitialResultValue(): string {

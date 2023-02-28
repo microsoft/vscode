@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
+import { PlatformName } from 'vs/base/common/platform';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -52,6 +53,7 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
 	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
@@ -76,7 +78,6 @@ export interface IProductConfiguration {
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
-		readonly recommendationsUrl: string;
 		readonly nlsBaseUrl: string;
 	};
 
@@ -85,12 +86,15 @@ export interface IProductConfiguration {
 	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip };
+	readonly virtualWorkspaceExtensionTips?: { [virtualWorkspaceName: string]: IVirtualWorkspaceExtensionTip };
 	readonly extensionKeywords?: { [extension: string]: readonly string[] };
 	readonly keymapExtensionTips?: readonly string[];
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
 	readonly trustedExtensionAuthAccess?: readonly string[];
+
+	readonly commandPaletteSuggestedCommandIds?: string[];
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -133,10 +137,7 @@ export interface IProductConfiguration {
 	readonly serverDataFolderName?: string;
 
 	readonly tunnelApplicationName?: string;
-	readonly tunnelApplicationConfig?: {
-		authenticationProviders: IStringDictionary<{ scopes: string[] }>;
-		editorWebUrl: string;
-	};
+	readonly tunnelApplicationConfig?: ITunnelApplicationConfig;
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
@@ -164,9 +165,12 @@ export interface IProductConfiguration {
 
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
+}
 
-	// experimental
-	readonly enableSyncingProfiles?: boolean;
+export interface ITunnelApplicationConfig {
+	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
+	editorWebUrl: string;
+	extension: IRemoteExtensionTip;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };
@@ -195,6 +199,13 @@ export interface IExeBasedExtensionTip {
 export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
+}
+
+export interface IVirtualWorkspaceExtensionTip {
+	friendlyName: string;
+	extensionId: string;
+	supportedPlatforms?: PlatformName[];
 }
 
 export interface ISurveyData {

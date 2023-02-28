@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::auth;
-use crate::constants::{CONTROL_PORT, TUNNEL_SERVICE_USER_AGENT};
+use crate::constants::{
+	CONTROL_PORT, IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, PROTOCOL_VERSION_TAG_PREFIX,
+	TUNNEL_SERVICE_USER_AGENT,
+};
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
 	wrap, AnyError, DevTunnelError, InvalidTunnelName, TunnelCreationFailed, WrappedError,
@@ -28,8 +31,6 @@ use tunnels::management::{
 	new_tunnel_management, HttpError, TunnelLocator, TunnelManagementClient, TunnelRequestOptions,
 	NO_REQUEST_OPTIONS,
 };
-
-use super::name_generator;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -138,6 +139,8 @@ pub struct DevTunnels {
 pub struct ActiveTunnel {
 	/// Name of the tunnel
 	pub name: String,
+	/// Underlying dev tunnels ID
+	pub id: String,
 	manager: ActiveTunnelManager,
 }
 
@@ -378,7 +381,7 @@ impl DevTunnels {
 		preferred_name: Option<String>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
-		let (tunnel, persisted) = match self.launcher_tunnel.load() {
+		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
 				if let Some(name) = preferred_name {
 					if persisted.name.ne(&name) {
@@ -403,6 +406,12 @@ impl DevTunnels {
 				(full_tunnel, persisted)
 			}
 		};
+
+		if !tunnel.tags.iter().any(|t| t == PROTOCOL_VERSION_TAG) {
+			tunnel = self
+				.update_protocol_version_tag(tunnel, &HOST_TUNNEL_REQUEST_OPTIONS)
+				.await?;
+		}
 
 		let locator = TunnelLocator::try_from(&tunnel).unwrap();
 		let host_token = get_host_token_from_tunnel(&tunnel);
@@ -462,7 +471,11 @@ impl DevTunnels {
 		let mut tried_recycle = false;
 
 		let new_tunnel = Tunnel {
-			tags: vec![name.to_string(), VSCODE_CLI_TUNNEL_TAG.to_string()],
+			tags: vec![
+				name.to_string(),
+				PROTOCOL_VERSION_TAG.to_string(),
+				VSCODE_CLI_TUNNEL_TAG.to_string(),
+			],
 			..Default::default()
 		};
 
@@ -505,6 +518,40 @@ impl DevTunnels {
 				}
 			}
 		}
+	}
+
+	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
+	/// other version tags.
+	async fn update_protocol_version_tag(
+		&self,
+		tunnel: Tunnel,
+		options: &TunnelRequestOptions,
+	) -> Result<Tunnel, AnyError> {
+		debug!(
+			self.log,
+			"Updating tunnel protocol version tag to {}", PROTOCOL_VERSION_TAG
+		);
+		let mut new_tags: Vec<String> = tunnel
+			.tags
+			.into_iter()
+			.filter(|t| !t.starts_with(PROTOCOL_VERSION_TAG_PREFIX))
+			.collect();
+		new_tags.push(PROTOCOL_VERSION_TAG.to_string());
+
+		let tunnel_update = Tunnel {
+			tags: new_tags,
+			tunnel_id: tunnel.tunnel_id.clone(),
+			cluster_id: tunnel.cluster_id.clone(),
+			..Default::default()
+		};
+
+		let result = spanf!(
+			self.log,
+			self.log.span("dev-tunnel.protocol-tag-update"),
+			self.client.update_tunnel(&tunnel_update, options)
+		);
+
+		result.map_err(|e| wrap(e, "tunnel tag update failed").into())
 	}
 
 	/// Tries to delete an unused tunnel, and then creates a tunnel with the
@@ -589,9 +636,12 @@ impl DevTunnels {
 	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_all_server_tunnels().await?;
 		let is_name_free = |n: &str| {
-			!existing_tunnels
-				.iter()
-				.any(|v| v.tags.iter().any(|t| t == n))
+			!existing_tunnels.iter().any(|v| {
+				v.status
+					.as_ref()
+					.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count()))
+					.unwrap_or(0) > 0 && v.tags.iter().any(|t| t == n)
+			})
 		};
 
 		if let Some(machine_name) = preferred_name {
@@ -610,11 +660,19 @@ impl DevTunnels {
 			use_random_name = true;
 		}
 
-		let mut placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
-		if use_random_name {
-			while !is_name_free(&placeholder_name) {
-				placeholder_name = name_generator::generate_name(MAX_TUNNEL_NAME_LENGTH);
+		let mut placeholder_name =
+			clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
+		if !is_name_free(&placeholder_name) {
+			for i in 2.. {
+				let fixed_name = format!("{}{}", placeholder_name, i);
+				if is_name_free(&fixed_name) {
+					placeholder_name = fixed_name;
+					break;
+				}
 			}
+		}
+
+		if use_random_name || !*IS_INTERACTIVE_CLI {
 			return Ok(placeholder_name);
 		}
 
@@ -690,6 +748,7 @@ impl DevTunnels {
 
 		Ok(ActiveTunnel {
 			name: tunnel_details.name.clone(),
+			id: tunnel_details.id.clone(),
 			manager,
 		})
 	}
@@ -908,5 +967,51 @@ impl Backoff {
 
 	pub fn reset(&mut self) {
 		self.failures = 0;
+	}
+}
+
+/// Cleans up the hostname so it can be used as a tunnel name.
+/// See TUNNEL_NAME_PATTERN in the tunnels SDK for the rules we try to use.
+fn clean_hostname_for_tunnel(hostname: &str) -> String {
+	let mut out = String::new();
+	for char in hostname.chars().take(60) {
+		match char {
+			'-' | '_' | ' ' => {
+				out.push('-');
+			}
+			'0'..='9' | 'a'..='z' | 'A'..='Z' => {
+				out.push(char);
+			}
+			_ => {}
+		}
+	}
+
+	let trimmed = out.trim_matches('-');
+	if trimmed.len() < 2 {
+		"remote-machine".to_string() // placeholder if the result was empty
+	} else {
+		trimmed.to_owned()
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn test_clean_hostname_for_tunnel() {
+		assert_eq!(
+			clean_hostname_for_tunnel("hello123"),
+			"hello123".to_string()
+		);
+		assert_eq!(
+			clean_hostname_for_tunnel("-cool-name-"),
+			"cool-name".to_string()
+		);
+		assert_eq!(
+			clean_hostname_for_tunnel("cool!name with_chars"),
+			"coolname-with-chars".to_string()
+		);
+		assert_eq!(clean_hostname_for_tunnel("z"), "remote-machine".to_string());
 	}
 }

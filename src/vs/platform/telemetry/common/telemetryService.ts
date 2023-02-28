@@ -5,7 +5,6 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
-import { MutableObservableValue } from 'vs/base/common/observableValue';
 import { isWeb } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
@@ -15,7 +14,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
@@ -36,9 +35,9 @@ export class TelemetryService implements ITelemetryService {
 	private _commonProperties: Promise<{ [name: string]: any }>;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
+	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
 
-	public readonly telemetryLevel = new MutableObservableValue<TelemetryLevel>(TelemetryLevel.USAGE);
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -51,6 +50,7 @@ export class TelemetryService implements ITelemetryService {
 		this._appenders = config.appenders;
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
+		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -65,7 +65,16 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		this._updateTelemetryLevel();
-		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			// Check on the telemetry settings and update the state if changed
+			const affectsTelemetryConfig =
+				e.affectsConfiguration(TELEMETRY_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
+				|| e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID);
+			if (affectsTelemetryConfig) {
+				this._updateTelemetryLevel();
+			}
+		}));
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -83,11 +92,15 @@ export class TelemetryService implements ITelemetryService {
 			level = Math.min(level, maxCollectableTelemetryLevel);
 		}
 
-		this.telemetryLevel.value = level;
+		this._telemetryLevel = level;
 	}
 
 	get sendErrorTelemetry(): boolean {
 		return this._sendErrorTelemetry;
+	}
+
+	get telemetryLevel(): TelemetryLevel {
+		return this._telemetryLevel;
 	}
 
 	async getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -108,7 +121,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData): Promise<any> {
 		// don't send events when the user is optout
-		if (this.telemetryLevel.value < eventLevel) {
+		if (this._telemetryLevel < eventLevel) {
 			return Promise.resolve(undefined);
 		}
 
@@ -194,7 +207,7 @@ ${deprecatedSettingNote}
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
+	'order': 1,
 	'type': 'object',
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
 	'properties': {

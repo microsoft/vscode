@@ -11,7 +11,7 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IKeyMods } from 'vs/base/parts/quickinput/common/quickInput';
+import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,7 +25,8 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
@@ -102,6 +103,8 @@ export class TerminalService implements ITerminalService {
 		// Fallback to the last recorded active terminal if neither have focus
 		return this._activeInstance;
 	}
+
+	private _editingTerminal: ITerminalInstance | undefined;
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
@@ -525,6 +528,13 @@ export class TerminalService implements ITerminalService {
 		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
+	showTerminalAccessibilityHelp(): void {
+		this.getActiveOrCreateInstance().then((instance) => {
+			this._terminalGroupService.showPanel();
+			instance.showAccessibilityHelp();
+		});
+	}
+
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
@@ -629,18 +639,14 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			for (const instance of this.instances) {
+			for (const instance of this._terminalGroupService.instances) {
 				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			}
 			return;
 		}
 
-		// Force dispose of all terminal instances
-		const shouldPersistTerminalsForEvent = this._shouldReviveProcesses(e.reason);
-		for (const instance of this.instances) {
-			if (shouldPersistTerminalsForEvent) {
-				instance.shutdownPersistentProcessId = instance.persistentProcessId;
-			}
+		// Force dispose of all pane terminal instances
+		for (const instance of this._terminalGroupService.instances) {
 			instance.dispose(TerminalExitReason.Shutdown);
 		}
 
@@ -892,12 +898,12 @@ export class TerminalService implements ITerminalService {
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "Do you want to terminate the {0} active terminal sessions?", this.instances.length);
 		}
-		const res = await this._dialogService.confirm({
-			message,
-			primaryButton: nls.localize('terminate', "Terminate"),
+		const { confirmed } = await this._dialogService.confirm({
 			type: 'warning',
+			message,
+			primaryButton: nls.localize({ key: 'terminate', comment: ['&& denotes a mnemonic'] }, "&&Terminate")
 		});
-		return !res.confirmed;
+		return !confirmed;
 	}
 
 	getDefaultInstanceHost(): ITerminalInstanceHost {
@@ -936,7 +942,7 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 
-		const config = options?.config || this._terminalProfileService.availableProfiles?.find(p => p.profileName === this._terminalProfileService.getDefaultProfileName());
+		const config = options?.config || this._terminalProfileService.getDefaultProfile();
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
@@ -976,7 +982,7 @@ export class TerminalService implements ITerminalService {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {
-			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
+			const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Panel, options?.resource);
 			this._backgroundedTerminalInstances.push(instance);
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
@@ -1052,8 +1058,7 @@ export class TerminalService implements ITerminalService {
 		let instance;
 		const editorOptions = this._getEditorOptions(options?.location);
 		if (location === TerminalLocation.Editor) {
-			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-			instance.target = TerminalLocation.Editor;
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor, options?.resource);
 			this._terminalEditorService.openEditor(instance, editorOptions);
 		} else {
 			// TODO: pass resource?
@@ -1132,6 +1137,14 @@ export class TerminalService implements ITerminalService {
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalGroupService.setContainer(terminalContainer);
+	}
+
+	getEditingTerminal(): ITerminalInstance | undefined {
+		return this._editingTerminal;
+	}
+
+	setEditingTerminal(instance: ITerminalInstance | undefined) {
+		this._editingTerminal = instance;
 	}
 }
 

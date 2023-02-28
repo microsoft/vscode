@@ -4,6 +4,8 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
+		"allowJs": true,
+		"resolveJsonModule": true,
 		"outDir": "../out/vs",
 		"target": "es2021",
 		"types": [
@@ -23,8 +25,11 @@
 		]
 	},
 	"include": [
+		"./bootstrap.js",
+		"./bootstrap-amd.js",
+		"./server-main.js",
 		"./typings",
-		"./vs",
+		"./vs/**/*.ts",
 		"vscode-dts/vscode.proposed.*.d.ts",
 		"vscode-dts/vscode.d.ts"
 	]

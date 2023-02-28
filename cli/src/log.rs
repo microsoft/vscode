@@ -105,7 +105,7 @@ pub fn new_rpc_prefix() -> String {
 // Base logger implementation
 #[derive(Clone)]
 pub struct Logger {
-	tracer: Tracer,
+	tracer: Arc<Tracer>,
 	sink: Vec<Box<dyn LogSink>>,
 	prefix: Option<String>,
 }
@@ -135,6 +135,7 @@ impl Clone for Box<dyn LogSink> {
 	}
 }
 
+/// The basic log sink that writes output to stdout, with colors when relevant.
 #[derive(Clone)]
 pub struct StdioLogSink {
 	level: Level,
@@ -188,7 +189,7 @@ impl LogSink for FileLogSink {
 impl Logger {
 	pub fn test() -> Self {
 		Self {
-			tracer: TracerProvider::builder().build().tracer("codeclitest"),
+			tracer: Arc::new(TracerProvider::builder().build().tracer("codeclitest")),
 			sink: vec![],
 			prefix: None,
 		}
@@ -196,7 +197,7 @@ impl Logger {
 
 	pub fn new(tracer: Tracer, level: Level) -> Self {
 		Self {
-			tracer,
+			tracer: Arc::new(tracer),
 			sink: vec![Box::new(StdioLogSink { level })],
 			prefix: None,
 		}
@@ -243,6 +244,17 @@ impl Logger {
 
 		Logger {
 			sink: new_sinks,
+			..self.clone()
+		}
+	}
+
+	/// Creates a new logger with the sink replace with the given sink.
+	pub fn with_sink<T>(&self, sink: T) -> Logger
+	where
+		T: LogSink + 'static,
+	{
+		Logger {
+			sink: vec![Box::new(sink)],
 			..self.clone()
 		}
 	}

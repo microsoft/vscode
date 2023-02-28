@@ -8,7 +8,6 @@
 	"configuration.suggest.completeFunctionCalls": "Complete functions with their parameter signature.",
 	"configuration.suggest.includeAutomaticOptionalChainCompletions": "Enable/disable showing completions on potentially undefined values that insert an optional chain call. Requires strict null checks to be enabled.",
 	"configuration.suggest.includeCompletionsForImportStatements": "Enable/disable auto-import-style completions on partially-typed import statements.",
-	"configuration.suggest.includeCompletionsWithSnippetText": "Enable/disable snippet completions from TS Server.",
 	"typescript.tsdk.desc": "Specifies the folder path to the tsserver and `lib*.d.ts` files under a TypeScript install to use for IntelliSense, for example: `./node_modules/typescript/lib`.\n\n- When specified as a user setting, the TypeScript version from `typescript.tsdk` automatically replaces the built-in TypeScript version.\n- When specified as a workspace setting, `typescript.tsdk` allows you to switch to use that workspace version of TypeScript for IntelliSense with the `TypeScript: Select TypeScript version` command.\n\nSee the [TypeScript documentation](https://code.visualstudio.com/docs/typescript/typescript-compiling#_using-newer-typescript-versions) for more detail about managing TypeScript versions.",
 	"typescript.disableAutomaticTypeAcquisition": "Disables [automatic type acquisition](https://code.visualstudio.com/docs/nodejs/working-with-javascript#_typings-and-automatic-type-acquisition). Automatic type acquisition fetches `@types` packages from npm to improve IntelliSense for external libraries.",
 	"typescript.enablePromptUseWorkspaceTsdk": "Enables prompting of users to use the TypeScript version configured in the workspace for Intellisense.",
@@ -194,6 +193,8 @@
 	"typescript.goToSourceDefinition": "Go to Source Definition",
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members.",
 	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace.",
+
+	"typescript.experimental.tsserver.web.enableProjectWideIntellisense": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
 
 	"walkthroughs.nodejsWelcome.title": "Get started with JavaScript and Node.js",
 	"walkthroughs.nodejsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",

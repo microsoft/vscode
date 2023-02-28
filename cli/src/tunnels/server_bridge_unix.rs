@@ -37,7 +37,6 @@ const BUFFER_SIZE: usize = 65536;
 impl ServerBridge {
 	pub async fn new(
 		path: &Path,
-		index: u16,
 		mut target: ServerMessageSink,
 		decoder: ClientMessageDecoder,
 	) -> Result<Self, AnyError> {
@@ -50,11 +49,10 @@ impl ServerBridge {
 				match read.read(&mut read_buf).await {
 					Err(_) => return,
 					Ok(0) => {
-						let _ = target.closed_server_bridge(index).await;
 						return; // EOF
 					}
 					Ok(s) => {
-						let send = target.server_message(index, &read_buf[..s]).await;
+						let send = target.server_message(&read_buf[..s]).await;
 						if send.is_err() {
 							return;
 						}

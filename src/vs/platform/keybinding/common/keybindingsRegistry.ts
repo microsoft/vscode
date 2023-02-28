@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { createKeybinding, Keybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
+import { decodeKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -13,7 +12,7 @@ import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from '
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface IKeybindingItem {
-	keybinding: (SimpleKeybinding | ScanCodeBinding)[] | null;
+	keybinding: Keybinding | null;
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | null | undefined;
@@ -48,7 +47,7 @@ export interface IKeybindingRule extends IKeybindings {
 }
 
 export interface IExtensionKeybindingRule {
-	keybinding: (SimpleKeybinding | ScanCodeBinding)[];
+	keybinding: Keybinding | null;
 	id: string;
 	args?: any;
 	weight: number;
@@ -115,7 +114,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		const result = new DisposableStore();
 
 		if (actualKb && actualKb.primary) {
-			const kk = createKeybinding(actualKb.primary, OS);
+			const kk = decodeKeybinding(actualKb.primary, OS);
 			if (kk) {
 				result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, 0, rule.when));
 			}
@@ -124,7 +123,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				const kk = createKeybinding(k, OS);
+				const kk = decodeKeybinding(k, OS);
 				if (kk) {
 					result.add(this._registerDefaultKeybinding(kk, rule.id, rule.args, rule.weight, -i - 1, rule.when));
 				}
@@ -137,7 +136,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		const result: IKeybindingItem[] = [];
 		let keybindingsLen = 0;
 		for (const rule of rules) {
-			if (rule.keybinding.length > 0) {
+			if (rule.keybinding) {
 				result[keybindingsLen++] = {
 					keybinding: rule.keybinding,
 					command: rule.id,
@@ -162,46 +161,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		);
 	}
 
-	private static _mightProduceChar(keyCode: KeyCode): boolean {
-		if (keyCode >= KeyCode.Digit0 && keyCode <= KeyCode.Digit9) {
-			return true;
-		}
-		if (keyCode >= KeyCode.KeyA && keyCode <= KeyCode.KeyZ) {
-			return true;
-		}
-		return (
-			keyCode === KeyCode.Semicolon
-			|| keyCode === KeyCode.Equal
-			|| keyCode === KeyCode.Comma
-			|| keyCode === KeyCode.Minus
-			|| keyCode === KeyCode.Period
-			|| keyCode === KeyCode.Slash
-			|| keyCode === KeyCode.Backquote
-			|| keyCode === KeyCode.ABNT_C1
-			|| keyCode === KeyCode.ABNT_C2
-			|| keyCode === KeyCode.BracketLeft
-			|| keyCode === KeyCode.Backslash
-			|| keyCode === KeyCode.BracketRight
-			|| keyCode === KeyCode.Quote
-			|| keyCode === KeyCode.OEM_8
-			|| keyCode === KeyCode.IntlBackslash
-		);
-	}
-
-	private _assertNoCtrlAlt(keybinding: SimpleKeybinding, commandId: string): void {
-		if (keybinding.ctrlKey && keybinding.altKey && !keybinding.metaKey) {
-			if (KeybindingsRegistryImpl._mightProduceChar(keybinding.keyCode)) {
-				console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
-			}
-		}
-	}
-
 	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {
-		if (OS === OperatingSystem.Windows) {
-			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
-		}
 		const remove = this._coreKeybindings.push({
-			keybinding: keybinding.parts,
+			keybinding: keybinding,
 			command: commandId,
 			commandArgs: commandArgs,
 			when: when,

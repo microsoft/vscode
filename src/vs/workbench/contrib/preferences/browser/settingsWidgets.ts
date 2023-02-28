@@ -22,11 +22,11 @@ import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { defaultButtonStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const $ = DOM.$;
 
@@ -146,7 +146,6 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listElement = DOM.append(container, $('div'));
 		this.listElement.setAttribute('role', 'list');
 		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
-		this.listElement.setAttribute('tabindex', '0');
 		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
@@ -172,12 +171,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.renderList();
 	}
 
+	abstract isItemNew(item: TDataItem): boolean;
 	protected abstract getEmptyItem(): TDataItem;
 	protected abstract getContainerClasses(): string[];
 	protected abstract getActionsForItem(item: TDataItem, idx: number): IAction[];
 	protected abstract renderItem(item: TDataItem, idx: number): RowElementGroup;
 	protected abstract renderEdit(item: TDataItem, idx: number): HTMLElement;
-	protected abstract isItemNew(item: TDataItem): boolean;
 	protected abstract addTooltipsToRow(rowElement: RowElementGroup, item: TDataItem): void;
 	protected abstract getLocalizedStrings(): {
 		deleteActionTooltip: string;
@@ -202,6 +201,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
 		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
+		if (this.model.items.length) {
+			this.listElement.tabIndex = 0;
+		} else {
+			this.listElement.removeAttribute('tabIndex');
+		}
+
 		const header = this.renderHeader();
 		const ITEM_HEIGHT = 24;
 		let listHeight = ITEM_HEIGHT * this.model.items.length;
@@ -221,16 +226,17 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		const selectBoxOptions = value.options.map(({ value, description }) => ({ text: value, description }));
 		const selected = value.options.findIndex(option => value.data === option.value);
 
-		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
-		});
-
-		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
+		const styles = getSelectBoxStyles({
 			selectBackground: settingsSelectBackground,
 			selectForeground: settingsSelectForeground,
 			selectBorder: settingsSelectBorder,
 			selectListBorder: settingsSelectListBorder
-		}));
+		});
+
+
+		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, styles, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
 		return selectBox;
 	}
 
@@ -662,7 +668,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		return rowElement;
 	}
 
-	protected isItemNew(item: IListDataItem): boolean {
+	override isItemNew(item: IListDataItem): boolean {
 		return item.value.data === '';
 	}
 
@@ -822,7 +828,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		super.setValue(listData);
 	}
 
-	isItemNew(item: IObjectDataItem): boolean {
+	override isItemNew(item: IObjectDataItem): boolean {
 		return item.key.data === '' && item.value.data === '';
 	}
 
@@ -1174,7 +1180,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		super.setValue(listData);
 	}
 
-	isItemNew(item: IObjectDataItem): boolean {
+	override isItemNew(item: IObjectDataItem): boolean {
 		return !item.key.data && !item.value.data;
 	}
 

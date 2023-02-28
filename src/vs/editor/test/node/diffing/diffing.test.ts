@@ -47,34 +47,44 @@ suite('diff fixtures', () => {
 		const expectedFilePath = join(folderPath, `${diffingAlgoName}.expected.diff.json`);
 		const invalidFilePath = join(folderPath, `${diffingAlgoName}.invalid.diff.json`);
 
-		const expectedFileContentFromActual = JSON.stringify(actualDiffingResult, null, '\t');
-
-		const invalidExists = existsSync(invalidFilePath);
+		const actualJsonStr = JSON.stringify(actualDiffingResult, null, '\t');
 
 		if (!existsSync(expectedFilePath)) {
-			writeFileSync(expectedFilePath, expectedFileContentFromActual);
+			// New test, create expected file
+			writeFileSync(expectedFilePath, actualJsonStr);
+			// Create invalid file so that this test fails on a re-run
 			writeFileSync(invalidFilePath, '');
 			throw new Error('No expected file! Expected and invalid files were written. Delete the invalid file to make the test pass.');
-		} else {
-			const expectedFileContent = readFileSync(invalidExists ? invalidFilePath : expectedFilePath, 'utf8');
-			if (invalidExists && expectedFileContent === '') {
-				throw new Error('Delete the invalid file to make the test pass.');
+		} if (existsSync(invalidFilePath)) {
+			const invalidJsonStr = readFileSync(invalidFilePath, 'utf8');
+			if (invalidJsonStr === '') {
+				// Update expected file
+				writeFileSync(expectedFilePath, actualJsonStr);
+				throw new Error(`Delete the invalid ${invalidFilePath} file to make the test pass.`);
+			} else {
+				const expectedFileDiffResult: DiffingResult = JSON.parse(invalidJsonStr);
+				try {
+					assert.deepStrictEqual(actualDiffingResult, expectedFileDiffResult);
+				} catch (e) {
+					writeFileSync(expectedFilePath, actualJsonStr);
+					throw e;
+				}
+				// Test succeeded with the invalid file, restore expected file from invalid
+				writeFileSync(expectedFilePath, invalidJsonStr);
+				rmSync(invalidFilePath);
 			}
-			const expectedFileDiffResult: DiffingResult = JSON.parse(expectedFileContent);
-
+		} else {
+			const expectedJsonStr = readFileSync(expectedFilePath, 'utf8');
+			const expectedFileDiffResult: DiffingResult = JSON.parse(expectedJsonStr);
 			try {
 				assert.deepStrictEqual(actualDiffingResult, expectedFileDiffResult);
 			} catch (e) {
-				if (!invalidExists) {
-					writeFileSync(invalidFilePath, expectedFileContent);
-				}
-				writeFileSync(expectedFilePath, expectedFileContentFromActual);
+				// Backup expected file
+				writeFileSync(invalidFilePath, expectedJsonStr);
+				// Update expected file
+				writeFileSync(expectedFilePath, actualJsonStr);
 				throw e;
 			}
-		}
-
-		if (invalidExists) {
-			rmSync(invalidFilePath);
 		}
 	}
 
@@ -85,10 +95,6 @@ suite('diff fixtures', () => {
 			});
 		}
 	}
-
-	test(`debug`, () => {
-		runTest('penalize-fragmentation', 'experimental');
-	});
 });
 
 interface DiffingResult {

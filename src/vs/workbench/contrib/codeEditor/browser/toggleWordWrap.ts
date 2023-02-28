@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, registerDiffEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDiffEditorContribution, IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -315,7 +315,7 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, LifecyclePhase.Ready);
 
-registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController);
+registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController, EditorContributionInstantiation.Eager); // eager because it needs to change the editor word wrap configuration
 registerDiffEditorContribution(DiffToggleWordWrapController.ID, DiffToggleWordWrapController);
 registerEditorAction(ToggleWordWrapAction);
 

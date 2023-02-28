@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Action } from 'vs/base/common/actions';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { SerializedError } from 'vs/base/common/errors';
+import { FileAccess } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionService, ExtensionHostKind, MissingExtensionDependency, ExtensionActivationReason, ActivationKind, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileAccess } from 'vs/base/common/network';
+import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { ActivationKind, ExtensionActivationReason, IExtensionService, IInternalExtensionService, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import { extHostNamedCustomer, IExtHostContext, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {

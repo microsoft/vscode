@@ -29,7 +29,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(findState, { showCommonFindToggles: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
+		super(findState, { showCommonFindToggles: true, checkImeCompletionState: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
 
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
@@ -62,7 +62,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	override reveal(): void {
-		const initialInput = this._instance.hasSelection() && this._instance.selection!.indexOf('\n') === -1 ? this._instance.selection : undefined;
+		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
 		const xterm = this._instance.xterm;
 		if (xterm && this.inputValue && this.inputValue !== '') {
 			// trigger highlight all matches
@@ -78,7 +78,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	override show() {
-		const initialInput = this._instance.hasSelection() && this._instance.selection!.indexOf('\n') === -1 ? this._instance.selection : undefined;
+		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
 		super.show(initialInput);
 		this._findWidgetVisible.set(true);
 	}

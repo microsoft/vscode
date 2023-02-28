@@ -124,3 +124,11 @@ export interface IRemoteAuthorityResolverService {
 	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void;
 }
+
+export function getRemoteAuthorityPrefix(remoteAuthority: string): string {
+	const plusIndex = remoteAuthority.indexOf('+');
+	if (plusIndex === -1) {
+		return remoteAuthority;
+	}
+	return remoteAuthority.substring(0, plusIndex);
+}

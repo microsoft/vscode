@@ -7,7 +7,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
@@ -29,6 +29,7 @@ import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverT
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import 'vs/css!./hover';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -167,18 +168,18 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard()) {
+			// Sticky mode is on and the hover has been shown via keyboard
+			// so moving the mouse has no effect
+			return;
+		}
+
 		if (!this._isHoverEnabled) {
 			this._hideWidgets();
 			return;
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
-
-		if (this._isHoverSticky && contentWidget.isVisibleFromKeyboard()) {
-			// Sticky mode is on and the hover has been shown via keyboard
-			// so moving the mouse has no effect
-			return;
-		}
 
 		if (contentWidget.maybeShowAt(mouseEvent)) {
 			this._glyphWidget?.hide();
@@ -205,7 +206,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible())) {
+		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
 
@@ -315,7 +316,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ModesHoverController.ID, ModesHoverController);
+registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);

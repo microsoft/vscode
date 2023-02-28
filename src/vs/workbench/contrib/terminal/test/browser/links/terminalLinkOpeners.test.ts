@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
-import { TerminalCapability, ITerminalCommand, IXtermMarker, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapability, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -25,8 +25,9 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
+import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
-export interface ITerminalLinkActivationResult {
+interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
 	link: string;
 	selection?: ITextEditorSelection;
@@ -122,9 +123,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		});
 
 		test('should open single exact match against cwd when searching if it exists when command detection cwd is available', async () => {
-			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			// Set a fake detected command starting as line 0 to establish the cwd
 			commandDetection.setCommands([{
 				command: '',
@@ -153,9 +154,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		});
 
 		test('should open single exact match against cwd for paths containing a separator when searching if it exists, even when command detection isn\'t available', async () => {
-			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.txt' })
@@ -172,9 +173,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		});
 
 		test('should open single exact match against any folder for paths not containing a separator when there is a single search result, even when command detection isn\'t available', async () => {
-			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			capabilities.remove(TerminalCapability.CommandDetection);
 			opener.setFileQueryBuilder({ file: () => null! });
 			fileService.setFiles([
@@ -199,9 +200,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		});
 
 		test('should open single exact match against any folder for paths not containing a separator when there are multiple search results, even when command detection isn\'t available', async () => {
-			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			capabilities.remove(TerminalCapability.CommandDetection);
 			opener.setFileQueryBuilder({ file: () => null! });
 			fileService.setFiles([
@@ -229,9 +230,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		});
 
 		test('should not open single exact match for paths not containing a when command detection isn\'t available', async () => {
-			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/initial/cwd'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.txt' })
@@ -249,9 +250,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 
 		suite('macOS/Linux', () => {
 			setup(() => {
-				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve(''), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			});
 
 			test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
@@ -306,9 +307,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			});
 
 			test('should extract line and column from links in a workspace containing spaces', async () => {
-				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Linux);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/space folder', localFileOpener, localFolderOpener, OperatingSystem.Linux);
 				fileService.setFiles([
 					URI.from({ scheme: Schemas.file, path: '/space folder/foo/bar.txt' })
 				]);
@@ -330,15 +331,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 
 		suite('Windows', () => {
 			setup(() => {
-				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Windows);
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve(''), localFileOpener, localFolderOpener, OperatingSystem.Windows);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '', localFileOpener, localFolderOpener, OperatingSystem.Windows);
 			});
 
 			test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
-				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Windows);
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('c:\\Users'), localFileOpener, localFolderOpener, OperatingSystem.Windows);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, 'c:\\Users', localFileOpener, localFolderOpener, OperatingSystem.Windows);
 
 				const cwd = 'c:\\Users\\home\\folder';
 				const absoluteFile = 'c:\\Users\\home\\folder\\file.txt';
@@ -391,9 +392,9 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			});
 
 			test('should extract line and column from links in a workspace containing spaces', async () => {
-				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Windows);
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
 				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
-				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, Promise.resolve('c:/space folder'), localFileOpener, localFolderOpener, OperatingSystem.Windows);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, 'c:/space folder', localFileOpener, localFolderOpener, OperatingSystem.Windows);
 				fileService.setFiles([
 					URI.from({ scheme: Schemas.file, path: 'c:/space folder/foo/bar.txt' })
 				]);

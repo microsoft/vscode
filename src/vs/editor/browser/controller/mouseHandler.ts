@@ -20,6 +20,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
+import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -127,6 +128,19 @@ export class MouseHandler extends ViewEventHandler {
 			this._mouseDownOperation.onPointerUp();
 		}));
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, capturePointerId)));
+		this._setupMouseWheelZoomListener();
+
+		this._context.addEventHandler(this);
+	}
+
+	private _setupMouseWheelZoomListener(): void {
+
+		const classifier = MouseWheelClassifier.INSTANCE;
+
+		let prevMouseWheelTime = 0;
+		let gestureStartZoomLevel = EditorZoom.getZoomLevel();
+		let gestureHasZoomModifiers = false;
+		let gestureAccumulatedDelta = 0;
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 			this.viewController.emitMouseWheel(browserEvent);
@@ -134,25 +148,50 @@ export class MouseHandler extends ViewEventHandler {
 			if (!this._context.configuration.options.get(EditorOption.mouseWheelZoom)) {
 				return;
 			}
+
 			const e = new StandardWheelEvent(browserEvent);
-			const doMouseWheelZoom = (
+			classifier.acceptStandardWheelEvent(e);
+
+			if (classifier.isPhysicalMouseWheel()) {
+				if (hasMouseWheelZoomModifiers(browserEvent)) {
+					const zoomLevel: number = EditorZoom.getZoomLevel();
+					const delta = e.deltaY > 0 ? 1 : -1;
+					EditorZoom.setZoomLevel(zoomLevel + delta);
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			} else {
+				// we consider mousewheel events that occur within 50ms of each other to be part of the same gesture
+				// we don't want to consider mouse wheel events where ctrl/cmd is pressed during the inertia phase
+				// we also want to accumulate deltaY values from the same gesture and use that to set the zoom level
+				if (Date.now() - prevMouseWheelTime > 50) {
+					// reset if more than 50ms have passed
+					gestureStartZoomLevel = EditorZoom.getZoomLevel();
+					gestureHasZoomModifiers = hasMouseWheelZoomModifiers(browserEvent);
+					gestureAccumulatedDelta = 0;
+				}
+
+				prevMouseWheelTime = Date.now();
+				gestureAccumulatedDelta += e.deltaY;
+
+				if (gestureHasZoomModifiers) {
+					EditorZoom.setZoomLevel(gestureStartZoomLevel + gestureAccumulatedDelta / 5);
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}
+		};
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
+
+		function hasMouseWheelZoomModifiers(browserEvent: IMouseWheelEvent): boolean {
+			return (
 				platform.isMacintosh
 					// on macOS we support cmd + two fingers scroll (`metaKey` set)
 					// and also the two fingers pinch gesture (`ctrKey` set)
 					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
 					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
 			);
-			if (doMouseWheelZoom) {
-				const zoomLevel: number = EditorZoom.getZoomLevel();
-				const delta = e.deltaY > 0 ? 1 : -1;
-				EditorZoom.setZoomLevel(zoomLevel + delta);
-				e.preventDefault();
-				e.stopPropagation();
-			}
-		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
-
-		this._context.addEventHandler(this);
+		}
 	}
 
 	public override dispose(): void {

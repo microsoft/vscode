@@ -54,7 +54,7 @@ const markerCodeActionTrigger: CodeActionTrigger = {
 
 export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHover> {
 
-	public readonly hoverOrdinal: number = 5;
+	public readonly hoverOrdinal: number = 1;
 
 	private recentMarkerCodeActionsInfo: { marker: IMarker; hasCodeActions: boolean } | undefined = undefined;
 
@@ -66,7 +66,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range && !anchor.supportsMarkerHover) {
 			return [];
 		}
 

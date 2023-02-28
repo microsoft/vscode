@@ -58,6 +58,7 @@ export const FIND_IDS = {
 	StartFindWithArgs: 'editor.actions.findWithArgs',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
+	GoToMatchFindAction: 'editor.action.goToMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
@@ -447,6 +448,17 @@ export class FindModelBoundToEditorModel {
 
 	public moveToNextMatch(): void {
 		this._moveToNextMatch(this._editor.getSelection().getEndPosition());
+	}
+
+	private _moveToMatch(index: number): void {
+		const decorationRange = this._decorations.getDecorationRangeAt(index);
+		if (decorationRange) {
+			this._setCurrentFindMatch(decorationRange);
+		}
+	}
+
+	public moveToMatch(index: number): void {
+		this._moveToMatch(index);
 	}
 
 	private _getReplacePattern(): ReplacePattern {

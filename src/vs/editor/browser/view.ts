@@ -50,6 +50,8 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
 import { inputLatency } from 'vs/base/browser/performance';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
 
 
 export interface IContentWidgetData {
@@ -153,6 +155,7 @@ export class View extends ViewEventHandler {
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new WhitespaceOverlay(this._context));
 
 		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
@@ -426,6 +429,10 @@ export class View extends ViewEventHandler {
 		this._scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this._scrollbar.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {
 		this._context.viewModel.viewLayout.setScrollPosition({
 			scrollTop: scrollPosition.scrollTop,
@@ -478,6 +485,10 @@ export class View extends ViewEventHandler {
 		} else {
 			this._scheduleRender();
 		}
+	}
+
+	public writeScreenReaderContent(reason: string): void {
+		this._textAreaHandler.writeScreenReaderContent(reason);
 	}
 
 	public focus(): void {

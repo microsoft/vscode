@@ -19,7 +19,6 @@ import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
@@ -44,14 +43,13 @@ export class ContextMenuService implements IContextMenuService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IThemeService themeService: IThemeService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
 		// Custom context menu: Linux/Windows if custom title is enabled
 		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom') {
-			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService, menuService, contextKeyService);
+			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		}
 
 		// Native context menu: otherwise

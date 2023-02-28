@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -119,6 +119,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	checkGitVersion(info);
+	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);
 
 	return model;
 }
@@ -177,6 +178,12 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 
 	const logger = window.createOutputChannel('Git', { log: true });
 	disposables.push(logger);
+
+	const onDidChangeLogLevel = (logLevel: LogLevel) => {
+		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+	};
+	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
+	onDidChangeLogLevel(logger.logLevel);
 
 	const { aiKey } = require('../package.json') as { aiKey: string };
 	const telemetryReporter = new TelemetryReporter(aiKey);

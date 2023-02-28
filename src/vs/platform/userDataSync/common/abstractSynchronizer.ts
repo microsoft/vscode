@@ -20,7 +20,7 @@ import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileOperationError, FileOperationResult, IFileContent, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -540,8 +540,10 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		this.storageService.remove(this.lastSyncUserDataStateKey, StorageScope.APPLICATION);
 		try {
 			await this.fileService.del(this.lastSyncResource);
-		} catch (e) {
-			this.logService.error(e);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
 		}
 	}
 
@@ -713,10 +715,12 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 					content: undefined,
 				}), StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.writeLastSyncStoredRemoteUserData({ ref: userData.ref, syncData: userData.content === null ? null : JSON.parse(userData.content) });
+			} else {
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Invalid data.`, userData);
 			}
 		} catch (error) {
 			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.debug(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
+				this.logService.info(`${this.syncResourceLogLabel}: Migrating last sync user data. Resource does not exist.`);
 			} else {
 				this.logService.error(error);
 			}

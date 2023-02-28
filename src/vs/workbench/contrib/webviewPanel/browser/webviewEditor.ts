@@ -150,7 +150,7 @@ export class WebviewEditor extends EditorPane {
 		}
 
 		await super.setInput(input, options, context, token);
-		await input.resolve();
+		await input.resolve(options);
 
 		if (token.isCancellationRequested || this._isDisposed) {
 			return;

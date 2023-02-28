@@ -9,7 +9,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IExtensionTerminalProfile, IExtensionTerminalQuickFix, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -19,7 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
 import { deepStrictEqual } from 'assert';
 import { Emitter } from 'vs/base/common/event';
@@ -27,6 +27,7 @@ import { IProfileQuickPickItem, TerminalProfileQuickpick } from 'vs/workbench/co
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 
 class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService>{
 	hasRefreshedProfiles: Promise<void> | undefined;
@@ -89,7 +90,7 @@ class TestTerminalExtensionService extends TestExtensionService {
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
-	quickFixes: IExtensionTerminalQuickFix[] = [];
+	terminalQuickFixes: Promise<ITerminalCommandSelector[]> = Promise.resolve([]);
 	setProfiles(profiles: IExtensionTerminalProfile[]): void {
 		this.terminalProfiles = profiles;
 	}
@@ -133,7 +134,7 @@ let powershellProfile = {
 	profileName: 'PowerShell',
 	path: 'C:\\Powershell.exe',
 	isDefault: true,
-	icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
+	icon: Codicon.terminalPowershell
 };
 let jsdebugProfile = {
 	extensionIdentifier: 'ms-vscode.js-debug-nightly',
@@ -181,7 +182,7 @@ suite('TerminalProfileService', () => {
 			profileName: 'PowerShell',
 			path: 'C:\\Powershell.exe',
 			isDefault: true,
-			icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
+			icon: Codicon.terminalPowershell
 		};
 		jsdebugProfile = {
 			extensionIdentifier: 'ms-vscode.js-debug-nightly',
@@ -272,7 +273,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should fire onDidChangeAvailableProfiles only when available profiles have changed via user config', async () => {
-		powershellProfile.icon = ThemeIcon.asThemeIcon(Codicon.lightBulb);
+		powershellProfile.icon = Codicon.lightBulb;
 		let calls: ITerminalProfile[][] = [];
 		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
 		await configurationService.setUserConfiguration('terminal', {

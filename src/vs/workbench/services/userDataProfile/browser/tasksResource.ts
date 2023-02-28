@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ITasksResourceContent {
 	tasks: string | null;
@@ -38,7 +38,7 @@ export class TasksResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const tasksContent: ITasksResourceContent = JSON.parse(content);
 		if (!tasksContent.tasks) {
-			this.logService.info(`Profile: No tasks to apply...`);
+			this.logService.info(`Importing Profile (${profile.name}): No tasks to apply...`);
 			return;
 		}
 		await this.fileService.writeFile(profile.tasksResource, VSBuffer.fromString(tasksContent.tasks));
@@ -63,22 +63,29 @@ export class TasksResource implements IProfileResource {
 export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.Tasks;
-	readonly handle = this.profile.tasksResource.toString();
+	readonly handle = ProfileResourceType.Tasks;
 	readonly label = { label: localize('tasks', "User Tasks") };
-	readonly collapsibleState = TreeItemCollapsibleState.None;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
-	readonly command = {
-		id: API_OPEN_EDITOR_COMMAND_ID,
-		title: '',
-		arguments: [this.profile.tasksResource, undefined, undefined]
-	};
+	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	async getChildren(): Promise<undefined> { return undefined; }
+	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
+		return [{
+			handle: this.profile.tasksResource.toString(),
+			resourceUri: this.profile.tasksResource,
+			collapsibleState: TreeItemCollapsibleState.None,
+			parent: this,
+			command: {
+				id: API_OPEN_EDITOR_COMMAND_ID,
+				title: '',
+				arguments: [this.profile.tasksResource, undefined, undefined]
+			}
+		}];
+	}
 
 	async hasContent(): Promise<boolean> {
 		const tasksContent = await this.instantiationService.createInstance(TasksResource).getTasksResourceContent(this.profile);

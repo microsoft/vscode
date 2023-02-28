@@ -15,12 +15,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot } from 'vs/workbench/contrib/search/browser/searchModel';
 import { isEqual } from 'vs/base/common/resources';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -31,6 +29,7 @@ import { ISearchActionContext } from 'vs/workbench/contrib/search/browser/search
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { FileFocusKey, FolderFocusKey, MatchFocusKey } from 'vs/workbench/contrib/search/common/constants';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -88,7 +87,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	constructor(
 		private searchView: SearchView,
 		private labels: ResourceLabels,
-		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -100,7 +98,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
 		const compressed = node.element;
 		const folder = compressed.elements[compressed.elements.length - 1];
-		folder.compressionStartParent = compressed.elements[0];
 		const label = compressed.elements.map(e => e.name());
 
 		if (folder.resource) {
@@ -122,14 +119,13 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.labels.create(folderMatchElement, { supportDescriptionHighlights: true, supportHighlights: true });
 		disposables.add(label);
-		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
-		disposables.add(attachBadgeStyler(badge, this.themeService));
+		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 
 		const disposableElements = new DisposableStore();
 		disposables.add(disposableElements);
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true]]);
+		const contextKeyService = this.contextKeyService.createOverlay([[FolderFocusKey.key, true], [FileFocusKey.key, false], [MatchFocusKey.key, false]]);
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
@@ -137,7 +133,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
@@ -152,7 +148,6 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 
 	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
 		const folderMatch = node.element;
-		folderMatch.compressionStartParent = undefined;
 		if (folderMatch.resource) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource);
 			if (workspaceFolder && isEqual(workspaceFolder.uri, folderMatch.resource)) {
@@ -195,7 +190,6 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	constructor(
 		private searchView: SearchView,
 		private labels: ResourceLabels,
-		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -213,11 +207,10 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		const fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.labels.create(fileMatchElement);
 		disposables.add(label);
-		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
-		disposables.add(attachBadgeStyler(badge, this.themeService));
+		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
-		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true]]);
+		const contextKeyService = this.contextKeyService.createOverlay([[FileFocusKey.key, true], [FolderFocusKey.key, false], [MatchFocusKey.key, false]]);
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
@@ -225,7 +218,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 
@@ -249,6 +242,11 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
 		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+
+		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
+		// be hard to tell whether the node is collapsed or expanded.
+		const twistieContainer = templateData.el.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
+		twistieContainer?.classList.add('force-twistie');
 	}
 
 	disposeElement(element: ITreeNode<RenderableMatch, any>, index: number, templateData: IFileMatchTemplate): void {
@@ -291,7 +289,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 
 		const disposables = new DisposableStore();
 
-		const contextKeyService = this.contextKeyService.createOverlay([[MatchFocusKey.key, true]]);
+		const contextKeyService = this.contextKeyService.createOverlay([[MatchFocusKey.key, true], [FileFocusKey.key, false], [FolderFocusKey.key, false]]);
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
@@ -299,7 +297,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 		}));
 

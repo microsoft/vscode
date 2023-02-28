@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -15,7 +15,6 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/pla
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, createDecorator, IConstructorSignature, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -23,6 +22,7 @@ export interface IMenuItem {
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
+	isHiddenByDefault?: boolean;
 }
 
 export interface ISubmenuItem {
@@ -83,8 +83,8 @@ export class MenuId {
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
-	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
-	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
+	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
+	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -126,6 +126,7 @@ export class MenuId {
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
+	static readonly CommentEditorActions = new MenuId('CommentEditorActions');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentThreadAdditionalActions = new MenuId('CommentThreadAdditionalActions');
@@ -174,6 +175,7 @@ export class MenuId {
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
+	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -452,7 +454,7 @@ export class MenuItemAction implements IAction {
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
 		if (ThemeIcon.isThemeIcon(item.icon)) {
-			this.class = CSSIcon.asClassName(item.icon);
+			this.class = ThemeIcon.asClassName(item.icon);
 		}
 	}
 
@@ -545,7 +547,7 @@ interface IAction2CommonOptions extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
+	menu?: OneOrN<{ id: MenuId; precondition?: null } & Omit<IMenuItem, 'command'>>;
 
 	/**
 	 * One keybinding.
@@ -620,11 +622,11 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	// menu
 	if (Array.isArray(menu)) {
 		for (const item of menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command, ...item }));
+			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, precondition: item.precondition === null ? undefined : command.precondition }, ...item }));
 		}
 
 	} else if (menu) {
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, precondition: menu.precondition === null ? undefined : command.precondition }, ...menu }));
 	}
 	if (f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));

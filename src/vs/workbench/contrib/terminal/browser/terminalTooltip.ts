@@ -17,13 +17,13 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 	}
 	let shellIntegrationString = '';
 	if (shellIntegrationCapabilities.length > 0) {
-		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.enabled', "Shell integration activated")}`;
+		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('shellIntegration.enabled', "Shell integration activated")}`;
 	} else {
 		if (instance.shellLaunchConfig.ignoreShellIntegration) {
-			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
+			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
 		} else {
 			if (instance.usedShellIntegrationInjection) {
-				shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
+				shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
 			}
 		}
 	}

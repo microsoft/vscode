@@ -173,4 +173,24 @@ suite('UserDataProfilesManifestMerge', () => {
 		assert.strictEqual(actual.remote, null);
 	});
 
+	test('merge when profile is removed locally, but not exists in remote', () => {
+		const localProfiles: IUserDataProfile[] = [
+			toUserDataProfile('1', '1', URI.file('1')),
+		];
+		const base: ISyncUserDataProfile[] = [
+			{ id: '1', name: '1', collection: '1' },
+			{ id: '2', name: '2', collection: '2' },
+		];
+		const remoteProfiles: ISyncUserDataProfile[] = [
+			{ id: '1', name: '3', collection: '1' },
+		];
+
+		const actual = merge(localProfiles, remoteProfiles, base, []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, remoteProfiles);
+		assert.strictEqual(actual.remote, null);
+	});
+
 });

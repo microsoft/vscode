@@ -10,12 +10,11 @@ use std::{
 	process::Command,
 };
 
+use super::shutdown_signal::ShutdownSignal;
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 use zbus::{dbus_proxy, zvariant, Connection};
 
 use crate::{
-	commands::tunnels::ShutdownSignal,
 	constants::{APPLICATION_NAME, PRODUCT_NAME_LONG},
 	log,
 	state::LauncherPaths,
@@ -92,6 +91,19 @@ impl ServiceManager for SystemdService {
 
 		info!(self.log, "Successfully registered service...");
 
+		// note: enablement is implicit in recent systemd version, but required for older systems
+		// https://github.com/microsoft/vscode/issues/167489#issuecomment-1331222826
+		proxy
+			.enable_unit_files(
+				vec![SystemdService::service_name_string()],
+				/* 'runtime only'= */ false,
+				/* replace existing = */ true,
+			)
+			.await
+			.map_err(|e| wrap(e, "error enabling unit files for service"))?;
+
+		info!(self.log, "Successfully enabled unit files...");
+
 		proxy
 			.start_unit(SystemdService::service_name_string(), "replace".to_string())
 			.await
@@ -107,12 +119,7 @@ impl ServiceManager for SystemdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
-		tokio::spawn(async move {
-			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).ok();
-		});
-
+		let rx = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
 		handle.run_service(self.log, launcher_paths, rx).await
 	}
 
@@ -184,7 +191,7 @@ fn write_systemd_service_file(
       ExecStart={} \"{}\"\n\
       \n\
       [Install]\n\
-      WantedBy=multi-user.target\n\
+      WantedBy=default.target\n\
     ",
 		PRODUCT_NAME_LONG,
 		exe.into_os_string().to_string_lossy(),

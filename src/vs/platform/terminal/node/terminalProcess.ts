@@ -122,7 +122,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
-	get shellType(): TerminalShellType { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle); }
+	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle); }
+	get hasChildProcesses(): boolean { return this._childProcessMonitor?.hasChildProcesses || false; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -201,7 +202,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 		let injection: IShellIntegrationConfigInjection | undefined;
 		if (this._options.shellIntegration.enabled) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, { shellIntegration: this._options.shellIntegration, windowsEnableConpty: this._options.windowsEnableConpty }, this._ptyOptions.env, this._logService, this._productService);
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options, this._ptyOptions.env, this._logService, this._productService);
 			if (injection) {
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.UsedShellIntegrationInjection, value: true });
 				if (injection.envMixin) {

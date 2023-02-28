@@ -102,7 +102,8 @@ export interface IDiffNavigatorOptions {
 }
 
 export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
-	return new DiffNavigator(diffEditor, opts);
+	const instantiationService = StandaloneServices.initialize({});
+	return instantiationService.createInstance(DiffNavigator, diffEditor, opts);
 }
 
 /**
@@ -239,9 +240,8 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
  */
 export function setModelLanguage(model: ITextModel, mimeTypeOrLanguageId: string): void {
 	const languageService = StandaloneServices.get(ILanguageService);
-	const modelService = StandaloneServices.get(IModelService);
 	const languageId = languageService.getLanguageIdByMimeType(mimeTypeOrLanguageId) || mimeTypeOrLanguageId || PLAINTEXT_LANGUAGE_ID;
-	modelService.setMode(model, languageService.createById(languageId));
+	model.setLanguage(languageService.createById(languageId));
 }
 
 /**
