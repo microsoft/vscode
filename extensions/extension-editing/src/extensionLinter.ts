@@ -272,10 +272,10 @@ export class ExtensionLinter {
 	}
 
 	private async lintReadme() {
-		for (const document of Array.from(this.readmeQ)) {
+		for (const document of this.readmeQ) {
 			this.readmeQ.delete(document);
 			if (document.isClosed) {
-				return; // TODO@ulugbekna: are we sure we want to return here? it may be a copy-paste problem where it used to be written with forEach, so it `return`ed instead of `continue`ing
+				continue;
 			}
 
 			const folder = this.getUriFolder(document.uri);
