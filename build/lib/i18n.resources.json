@@ -263,10 +263,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcomeOverlay",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/welcomePage",
 			"project": "vscode-workbench"
 		},
