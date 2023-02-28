@@ -12263,7 +12263,7 @@ declare module 'vscode' {
 		 * If you want to monitor file events across all opened workspace folders:
 		 *
 		 * ```ts
-		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * vscode.workspace.createFileSystemWatcher('**​/*.js');
 		 * ```
 		 *
 		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).
