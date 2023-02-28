@@ -246,6 +246,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			if (e.hasTriggerModifier) {
 				// Control click
 				if (this._candidateDefinitionsLength > 1) {
+					if (this._focused) {
+						this._disposeFocusStickyScrollStore();
+					}
 					this._editor.revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
@@ -253,9 +256,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			} else if (!e.isRightClick) {
 				// Normal click
 				const position = { lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn };
+				if (this._focused) {
+					this._disposeFocusStickyScrollStore();
+				}
 				this._editor.revealPosition(position);
 				this._editor.setSelection(Range.fromPositions(position));
-				this._editor.focus();
 			}
 		}));
 		return linkGestureStore;
