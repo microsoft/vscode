@@ -523,6 +523,10 @@
 	background-color: var(--vscode-scrollbarSlider-background) !important;
 }
 
+.monaco-workbench .integrated-terminal .hoverHighlight {
+	background-color: var(--vscode-terminal-hoverHighlightBackground);
+}
+
 .monaco-workbench .editor-instance .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
