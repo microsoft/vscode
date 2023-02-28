@@ -60,7 +60,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _stickyElements: HTMLCollection | undefined;
 	private _focusDisposableStore: DisposableStore | undefined;
 	private _focusedStickyElementIndex: number = -1;
-	private _focusedStickyElementLineNumber: number = -1;
 	private _focused = false;
 
 	constructor(
@@ -95,6 +94,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		// Context key which indicates if the sticky scroll is focused or not
 		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService);
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
+
 		// Create a focus tracker to track the focus on the sticky scroll widget
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		// Focus placed elsewhere in the window
@@ -144,7 +144,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		(rootNode.lastElementChild! as HTMLDivElement).focus();
 		this._stickyElements = rootNode.children;
 		this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumbers.length - 1;
-		this._focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
 	}
 
 	public focusNext(): void {
@@ -162,7 +161,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	// True is next, false is previous
 	private _focusNav(direction: boolean): void {
 		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex + 1 : this._focusedStickyElementIndex - 1;
-		this._focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
 		(this._stickyElements!.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 	}
 
@@ -318,7 +316,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _renderStickyScroll() {
-		console.log('document.activeElement : ', document.activeElement);
 		if (!(this._editor.hasModel())) {
 			return;
 		}
@@ -326,27 +323,30 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();
-			// The stciky scroll is not visible because we have no lines
 			this._stickyScrollVisibleContextKey.set(!(this._widgetState.lineNumbers.length === 0));
-			this._stickyScrollWidget.setState(this._widgetState);
 
-			if (this._focused) {
-
+			// If the sticky scroll widget is focused then rerender the focus
+			if (!this._focused) {
+				this._stickyScrollWidget.setState(this._widgetState);
+			} else {
 				this._stickyElements = this._stickyScrollWidget.getDomNode().children;
+				// When there are no more sticky line, lose focus
 				if (this._stickyElements.length === 0) {
 					this._disposeFocusStickyScrollStore();
+					this._stickyScrollWidget.setState(this._widgetState);
 				} else {
-					const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(this._focusedStickyElementLineNumber);
-					console.log('this._stickyScrollWidget.lineNumbers : ', this._stickyScrollWidget.lineNumbers);
-					console.log('previousFocusedLineNumberExists : ', previousFocusedLineNumberExists);
-					if (previousFocusedLineNumberExists) {
-						this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumbers.indexOf(this._focusedStickyElementLineNumber);
-					} else {
-						// The focused line no longer exists, set the new focused line to be the last line
+					// Finding the focused line number before rendering
+					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
+					// Rendering
+					this._stickyScrollWidget.setState(this._widgetState);
+					// Checking if after rendering the line number is still in the sticky scroll widget
+					const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(focusedStickyElementLineNumber);
+					// If the line number is still there, do not change anything
+					// If the line number is not there, set the new focused line to be the last line
+					if (!previousFocusedLineNumberExists) {
 						this._focusedStickyElementIndex = this._stickyElements.length - 1;
-						this._focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
 					}
-					console.log('this._focusedStickyElementIndex : ', this._focusedStickyElementIndex!);
+					// Focus the line
 					(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 				}
 			}
