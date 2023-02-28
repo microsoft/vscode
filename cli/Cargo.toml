@@ -36,7 +36,7 @@ serde_bytes = "0.11.5"
 chrono = { version = "0.4", features = ["serde"] }
 gethostname = "0.2.3"
 libc = "0.2"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "3870e9133dfb9557774521bb447827f19b26e55d", default-features = false, features = ["connections"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "730aa86f8ccd9e2dd4541693fbce763357da93f4", default-features = false, features = ["connections"] }
 keyring = "1.1"
 dialoguer = "0.10"
 hyper = "0.14"

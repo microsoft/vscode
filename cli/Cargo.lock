@@ -2270,7 +2270,9 @@ checksum = "f714dd15bead90401d77e04243611caec13726c2408afd5b31901dfcdcb3b181"
 dependencies = [
  "futures-util",
  "log",
+ "native-tls",
  "tokio",
+ "tokio-native-tls",
  "tungstenite",
 ]
 
@@ -2354,6 +2356,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
+ "native-tls",
  "rand 0.8.5",
  "sha-1",
  "thiserror",
@@ -2364,11 +2367,12 @@ dependencies = [
 [[package]]
 name = "tunnels"
 version = "0.1.0"
-source = "git+https://github.com/microsoft/dev-tunnels?rev=3870e9133dfb9557774521bb447827f19b26e55d#3870e9133dfb9557774521bb447827f19b26e55d"
+source = "git+https://github.com/microsoft/dev-tunnels?rev=730aa86f8ccd9e2dd4541693fbce763357da93f4#730aa86f8ccd9e2dd4541693fbce763357da93f4"
 dependencies = [
  "async-trait",
  "chrono",
  "futures",
+ "hyper",
  "log",
  "reqwest",
  "russh",
