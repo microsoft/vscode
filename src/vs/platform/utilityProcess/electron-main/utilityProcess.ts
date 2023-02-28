@@ -88,6 +88,12 @@ export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfi
 	readonly windowLifecycleBound?: boolean;
 }
 
+function isWindowUtilityProcessConfiguration(config: IUtilityProcessConfiguration): config is IWindowUtilityProcessConfiguration {
+	const candidate = config as IWindowUtilityProcessConfiguration;
+
+	return typeof candidate.responseWindowId === 'number';
+}
+
 interface IUtilityProcessExitBaseEvent {
 
 	/**
@@ -284,7 +290,7 @@ export class UtilityProcess extends Disposable {
 			this.processPid = process.pid;
 
 			if (typeof process.pid === 'number') {
-				UtilityProcess.all.set(process.pid, { pid: process.pid, name: configuration.correlationId ? `${configuration.type} [${configuration.correlationId}]` : configuration.type });
+				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.type} [${configuration.responseWindowId}]` : configuration.type });
 			}
 
 			this.log('successfully created', Severity.Info);
