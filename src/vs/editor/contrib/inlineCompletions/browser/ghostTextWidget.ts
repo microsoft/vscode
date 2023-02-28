@@ -22,6 +22,7 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -156,7 +157,9 @@ export class GhostTextWidget extends Disposable {
 		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
-
+		const lineText = this.editor.getModel()!.getLineContent(ghostText.lineNumber);
+		console.log('should alert', ghostText.renderForScreenReader(lineText));
+		alert(ghostText.renderForScreenReader(lineText));
 		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
