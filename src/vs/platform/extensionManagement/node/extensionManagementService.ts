@@ -886,16 +886,23 @@ class InstallVSIXTask extends InstallExtensionTask {
 		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
 
+	protected override async doRun(token: CancellationToken): Promise<ILocalExtension> {
+		const local = await super.doRun(token);
+		this.updateMetadata(local, token);
+		return local;
+	}
+
 	protected async install(token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
 		const extensionKey = new ExtensionKey(this.identifier, this.manifest.version);
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, this.options.profileLocation);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
-		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
-		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
-		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
-		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
-		metadata.installedTimestamp = Date.now();
-		metadata.pinned = this.options.installGivenVersion ? true : undefined;
+		const metadata: Metadata = {
+			isApplicationScoped: isApplicationScopedExtension(this.manifest),
+			isMachineScoped: this.options.isMachineScoped || existing?.isMachineScoped,
+			isBuiltin: this.options.isBuiltin || existing?.isBuiltin,
+			installedTimestamp: Date.now(),
+			pinned: this.options.installGivenVersion ? true : undefined,
+		};
 
 		if (existing) {
 			this._operation = InstallOperation.Update;
@@ -925,25 +932,25 @@ class InstallVSIXTask extends InstallExtensionTask {
 		return [local, metadata];
 	}
 
-	private async getMetadata(id: string, version: string, token: CancellationToken): Promise<Metadata> {
+	private async updateMetadata(extension: ILocalExtension, token: CancellationToken): Promise<void> {
 		try {
-			let [galleryExtension] = await this.galleryService.getExtensions([{ id, version }], token);
+			let [galleryExtension] = await this.galleryService.getExtensions([{ id: extension.identifier.id, version: extension.manifest.version }], token);
 			if (!galleryExtension) {
-				[galleryExtension] = await this.galleryService.getExtensions([{ id }], token);
+				[galleryExtension] = await this.galleryService.getExtensions([{ id: extension.identifier.id }], token);
 			}
 			if (galleryExtension) {
-				return {
+				const metadata = {
 					id: galleryExtension.identifier.uuid,
 					publisherDisplayName: galleryExtension.publisherDisplayName,
 					publisherId: galleryExtension.publisherId,
 					isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion,
 					preRelease: galleryExtension.properties.isPreReleaseVersion || this.options.installPreReleaseVersion
 				};
+				await this.extensionsScanner.updateMetadata(extension, metadata, this.options.profileLocation);
 			}
 		} catch (error) {
 			/* Ignore Error */
 		}
-		return {};
 	}
 }
 

@@ -274,7 +274,7 @@ class CliMain extends Disposable {
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };
-			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], installOptions, !!this.argv['force']);
+			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension
