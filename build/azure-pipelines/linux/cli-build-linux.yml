@@ -91,6 +91,7 @@ steps:
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
+          RUSTFLAGS: "-L $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib"
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
           OPENSSL_STATIC: '1'
