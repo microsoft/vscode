@@ -884,9 +884,8 @@ class AccessibleBuffer extends DisposableStore {
 	private _getShellIntegrationContent(): string {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
-		let content = localize('terminal.integrated.noContent', "No terminal content available for this session. Run some commands to create content.");
 		if (!commands?.length) {
-			return content;
+			return this._getAllContent();
 		}
 		for (const command of commands) {
 			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
@@ -896,8 +895,7 @@ class AccessibleBuffer extends DisposableStore {
 			sb.appendString('\n');
 			sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
 		}
-		content = sb.build();
-		return content;
+		return sb.build();
 	}
 
 	private _getAllContent(): string {
