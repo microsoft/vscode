@@ -116,10 +116,6 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
-export const enum TerminalLogConstants {
-	FileName = 'ptyhost'
-}
-
 export const enum PosixShellType {
 	PowerShell = 'pwsh',
 	Bash = 'bash',
