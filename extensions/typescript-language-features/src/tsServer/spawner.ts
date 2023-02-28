@@ -232,7 +232,7 @@ export class TypeScriptServerSpawner {
 					tsServerLog = { type: 'file', uri: logFilePath };
 
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', logFilePath.path);
+					args.push('--logFile', logFilePath.fsPath);
 				}
 			}
 		}
