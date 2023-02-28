@@ -9,6 +9,7 @@ import { IQuickDiffService, QuickDiff, QuickDiffProvider } from 'vs/workbench/co
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { score } from 'vs/editor/common/languageSelector';
 import { Emitter } from 'vs/base/common/event';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffProvider) => number {
 	return (a, b) => {
@@ -53,8 +54,8 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 		};
 	}
 
-	private isQuickDiff(diff: { originalResource: URI | null; label: string }): diff is QuickDiff {
-		return !!diff.originalResource;
+	private isQuickDiff(diff: { originalResource?: URI; label?: string; isSCM?: boolean }): diff is QuickDiff {
+		return !!diff.originalResource && (typeof diff.label === 'string') && (typeof diff.isSCM === 'boolean');
 	}
 
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
@@ -62,9 +63,10 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 
 		const diffs = await Promise.all(Array.from(sorted.values()).map(async (provider) => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
-			const diff = {
-				originalResource: scoreValue > 0 ? await provider.getOriginalResource(uri) : null,
-				label: provider.label
+			const diff: Partial<QuickDiff> = {
+				originalResource: scoreValue > 0 ? withNullAsUndefined(await provider.getOriginalResource(uri)) : undefined,
+				label: provider.label,
+				isSCM: provider.isSCM
 			};
 			return diff;
 		}));

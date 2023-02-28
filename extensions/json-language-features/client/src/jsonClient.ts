@@ -45,7 +45,7 @@ interface DocumentSortingParams {
 	 */
 	readonly uri: string;
 	/**
-	 * The format options
+	 * The sort options
 	 */
 	readonly options: SortOptions;
 }
@@ -545,40 +545,48 @@ function getSettings(): Settings {
 		}
 	};
 
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri) => {
-		for (const setting of schemaSettings) {
-			const url = getSchemaId(setting, folderUri);
-			if (url) {
-				const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
-				schemas.push(schemaSetting);
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: Uri | undefined = undefined, settingsLocation = folderUri) => {
+		if (schemaSettings) {
+			for (const setting of schemaSettings) {
+				const url = getSchemaId(setting, settingsLocation);
+				if (url) {
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
+					schemas.push(schemaSetting);
+				}
 			}
 		}
 	};
 
-	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings);
-	}
 	const folders = workspace.workspaceFolders;
+
+	const schemaConfigInfo = workspace.getConfiguration('json', null).inspect<JSONSchemaSettings[]>('schemas');
+	if (schemaConfigInfo) {
+		if (schemaConfigInfo.workspaceValue && workspace.workspaceFile && folders && folders.length) {
+			const settingsLocation = Uri.joinPath(workspace.workspaceFile, '..');
+			for (const folder of folders) {
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, folder.uri, settingsLocation);
+			}
+		}
+		collectSchemaSettings(schemaConfigInfo.globalValue);
+	}
+
 	if (folders) {
 		for (const folder of folders) {
 			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
-			if (schemaConfigInfo && Array.isArray(schemaConfigInfo.workspaceFolderValue)) {
-				collectSchemaSettings(schemaConfigInfo.workspaceFolderValue, folder.uri);
-			}
+			collectSchemaSettings(schemaConfigInfo?.workspaceFolderValue, folder.uri);
 		}
 	}
 	return settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | undefined {
+function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string | undefined {
 	let url = schema.url;
 	if (!url) {
 		if (schema.schema) {
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
-	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.joinPath(folderUri, url).toString(false);
+	} else if (settingsLocation && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.joinPath(settingsLocation, url).toString(false);
 	}
 	return url;
 }

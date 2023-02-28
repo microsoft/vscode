@@ -1430,24 +1430,38 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
+		let preferredProvider: string | undefined;
+		if (!provider && inclusive) {
+			preferredProvider = this.quickDiffs.find(value => value.isSCM)?.label;
+		}
+
+		const possibleChanges: number[] = [];
 		for (let i = 0; i < this.changes.length; i++) {
 			if (provider && this.changes[i].label !== provider) {
 				continue;
 			}
-			const change = this.changes[i].change;
+			const change = this.changes[i];
+			const possibleChangesLength = possibleChanges.length;
 
 			if (inclusive) {
-				if (getModifiedEndLineNumber(change) >= lineNumber) {
-					return i;
+				if ((getModifiedEndLineNumber(change.change) >= lineNumber) && (change.change.modifiedStartLineNumber <= lineNumber)) {
+					if (preferredProvider && change.label !== preferredProvider) {
+						possibleChanges.push(i);
+					} else {
+						return i;
+					}
 				}
 			} else {
-				if (change.modifiedStartLineNumber > lineNumber) {
+				if (change.change.modifiedStartLineNumber > lineNumber) {
 					return i;
 				}
 			}
+			if ((possibleChanges.length > 0) && (possibleChanges.length === possibleChangesLength)) {
+				return possibleChanges[0];
+			}
 		}
 
-		return 0;
+		return possibleChanges.length > 0 ? possibleChanges[0] : 0;
 	}
 
 	findPreviousClosestChange(lineNumber: number, inclusive = true, provider?: string): number {

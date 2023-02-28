@@ -112,33 +112,32 @@
 		 * @param {string | undefined} language
 		 */
 		function getNLSConfiguration(commit, userDataPath, metaDataFile, locale, language) {
-			if (process.env['VSCODE_DEV']) {
+			const defaultResult = function (locale) {
+				perf.mark('code/didGenerateNls');
 				return Promise.resolve({ locale, availableLanguages: {} });
+			};
+			perf.mark('code/willGenerateNls');
+
+			// We are in development mode. So we don't have a built version
+			if (process.env['VSCODE_DEV']) {
+				return defaultResult(locale);
+			}
+
+			// Also in development mode if we don't have a commit
+			if (!commit) {
+				return defaultResult(locale);
 			}
 
 			// We have a built version so we have extracted nls file. Try to find
 			// the right file to use.
 
-			// If we didn't specify a language, use the default
-			if (!language) {
-				return Promise.resolve({ locale, availableLanguages: {} });
+			// If we didn't specify a language, or if we specified English or English US,
+			// use the default.
+			if (!language || language === 'en' || language === 'en-us') {
+				return defaultResult(locale);
 			}
 
-			// If we specified English or English US, return that as the available language.
-			if (language === 'en' || language === 'en-us') {
-				return Promise.resolve({ locale, availableLanguages: { '*': 'en' } });
-			}
-
-			perf.mark('code/willGenerateNls');
-
-			const defaultResult = function (locale) {
-				perf.mark('code/didGenerateNls');
-				return Promise.resolve({ locale, availableLanguages: {} });
-			};
 			try {
-				if (!commit) {
-					return defaultResult(locale);
-				}
 				return getLanguagePackConfigurations(userDataPath).then(configs => {
 					if (!configs) {
 						return defaultResult(locale);

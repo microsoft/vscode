@@ -9,7 +9,7 @@ import { isLinuxSnap } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 

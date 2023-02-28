@@ -4077,27 +4077,6 @@ declare module 'vscode' {
 	/**
 	 * Value-object describing what options formatting should use.
 	 */
-	export interface SortingOptions {
-
-		/**
-		 * Size of a tab in spaces.
-		 */
-		tabSize: number;
-
-		/**
-		 * Prefer spaces over tabs.
-		 */
-		insertSpaces: boolean;
-
-		/**
-		 * Signature for further properties.
-		 */
-		[key: string]: boolean | number | string;
-	}
-
-	/**
-	 * Value-object describing what options formatting should use.
-	 */
 	export interface FormattingOptions {
 
 		/**
@@ -10502,6 +10481,7 @@ declare module 'vscode' {
 		 * Retrieves the data transfer item for a given mime type.
 		 *
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 * Mimes type look ups are case-insensitive.
 		 *
 		 * Special mime types:
 		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
@@ -10511,7 +10491,8 @@ declare module 'vscode' {
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
-		 * @param mimeType The mime type to set the data for.
+		 *
+		 * @param mimeType The mime type to set the data for. Mimes types stored in lower case, with case-insensitive looks up.
 		 * @param value The data transfer item for the given mime type.
 		 */
 		set(mimeType: string, value: DataTransferItem): void;
@@ -16236,7 +16217,8 @@ declare module 'vscode' {
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
 		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
+		 * such as colors and text styles, are supported. New lines must be given
+		 * as CRLF (`\r\n`) rather than LF (`\n`).
 		 *
 		 * @param output Output text to append.
 		 * @param location Indicate that the output was logged at the given

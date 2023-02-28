@@ -24,7 +24,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,7 +36,6 @@ import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IEx
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -360,32 +359,29 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			}
 			return true;
 		};
-		const result = new Map<string, IScannedExtension>();
+		const result = new ExtensionIdentifierMap<IScannedExtension>();
 		system?.forEach((extension) => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing || pick(existing, extension, false)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
 		});
 		user?.forEach((extension) => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing && system && extension.type === ExtensionType.System) {
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
 				return;
 			}
 			if (!existing || pick(existing, extension, false)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
 		});
 		development?.forEach(extension => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing || pick(existing, extension, true)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
-			result.set(extensionKey, extension);
+			result.set(extension.identifier.id, extension);
 		});
 		return [...result.values()];
 	}
@@ -633,7 +629,6 @@ class ExtensionsScanner extends Disposable {
 				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
-				ImplicitActivationEvents.updateManifest(manifest);
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
 				const extension = {
 					type,
@@ -919,6 +914,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 
 		try {
+			this.logService.info('Invalidating Cache', actual, expected);
 			// Cache is invalid, delete it
 			await this.fileService.del(this.cacheFile);
 			this._onDidChangeCache.fire();

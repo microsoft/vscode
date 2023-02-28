@@ -1552,6 +1552,7 @@ declare namespace monaco.editor {
 		 * In this case, the range must be empty and set to the last line.
 		 */
 		blockIsAfterEnd?: boolean | null;
+		blockPadding?: [top: number, right: number, bottom: number, left: number] | null;
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
@@ -5872,10 +5873,17 @@ declare namespace monaco.languages {
 	export function getEncodedLanguageId(languageId: string): number;
 
 	/**
-	 * An event emitted when a language is needed for the first time (e.g. a model has it set).
+	 * An event emitted when a language is associated for the first time with a text model.
 	 * @event
 	 */
 	export function onLanguage(languageId: string, callback: () => void): IDisposable;
+
+	/**
+	 * An event emitted when a language is associated for the first time with a text model or
+	 * whena language is encountered during the tokenization of another language.
+	 * @event
+	 */
+	export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable;
 
 	/**
 	 * Set the editing configuration for a language.
