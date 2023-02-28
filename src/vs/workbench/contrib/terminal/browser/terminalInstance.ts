@@ -2687,7 +2687,8 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		private readonly _instance: ITerminalInstance,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._hasShellIntegration = _instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
@@ -2729,7 +2730,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
+		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService);
 		if (kb) {
 			return strings.format(msg, kb.getAriaLabel());
 		}
