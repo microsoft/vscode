@@ -62,7 +62,8 @@
 /* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	overflow: initial;
-	height: 26px; /* set initial height before measure */
+	height: 26px;
+	/* set initial height before measure */
 }
 
 .search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {
@@ -70,7 +71,8 @@
 }
 
 .search-view .monaco-inputbox > .ibwrapper > textarea.input {
-	scrollbar-width: none; /* Firefox: hide scrollbar */
+	scrollbar-width: none;
+	/* Firefox: hide scrollbar */
 }
 
 .search-view .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
@@ -124,7 +126,8 @@
 	width: 25px;
 	height: 16px;
 	color: inherit;
-	z-index: 2; /* Force it above the search results message, which has a negative top margin */
+	z-index: 2;
+	/* Force it above the search results message, which has a negative top margin */
 }
 
 .search-view .query-details .file-types {
@@ -157,6 +160,16 @@
 .search-view .messages {
 	margin-top: -5px;
 	cursor: default;
+}
+
+.monaco-workbench.vs-dark .search-view .messages {
+	color: var(--vscode-foreground);
+	opacity: 0.65;
+}
+
+.monaco-workbench.vs-dark .search-view .messages a.pointer {
+	opacity: 1 !important;
+	color: var(--vscode-textLink-foreground) !important;
 }
 
 .search-view .message {
