@@ -88,20 +88,17 @@ export class StickyLineCandidateProvider extends Disposable {
 			this._sessionStore.clear();
 			return;
 		} else {
+			this._foldingController = FoldingController.get(this._editor);
 			if (this._options.defaultModel === DefaultModel.FOLDING_MODEL) {
-				this._foldingController = FoldingController.get(this._editor);
 				if (this._foldingController) {
-					this._foldingController.storeProviderFoldingModel = true;
-					this._foldingController.storeIndentationFoldingModel = false;
+					console.log('Inside of first if in scroll provider');
+					this._foldingController.registerFoldingProviderModelListener();
 				}
 			} else if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
-				this._foldingController = FoldingController.get(this._editor);
 				if (this._foldingController) {
-					this._foldingController.storeProviderFoldingModel = false;
-					this._foldingController.storeIndentationFoldingModel = true;
+					console.log('Inside of second if in scroll provider');
+					this._foldingController.registerIndentationModelListener();
 				}
-			} else {
-				this._foldingController = null;
 			}
 			this._sessionStore.add(this._editor.onDidChangeModel(() => {
 				this.update();
@@ -218,6 +215,8 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (token.isCancellationRequested) {
 			return;
 		}
+
+		console.log('foldingModel : ', foldingModel);
 
 		// Else the folding model exists, it can however be empty, have no regions
 		if (foldingModel!.regions.length !== 0) {
