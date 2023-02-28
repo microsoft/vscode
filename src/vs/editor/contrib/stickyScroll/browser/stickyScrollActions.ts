@@ -58,7 +58,7 @@ export class FocusStickyScroll extends EditorAction2 {
 				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
 				original: 'Focus Sticky Scroll',
 			},
-			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.has('config.editor.stickyScroll.enabled'), EditorContextKeys.stickyScrollVisible),
 			menu: [
 				{ id: MenuId.CommandPalette },
 			]

@@ -32,10 +32,6 @@
 	cursor: pointer;
 }
 
-.monaco-editor .sticky-line-root:focus {
-	background-color: var(--vscode-editorStickyScrollHover-background);
-}
-
 .monaco-editor .sticky-widget {
 	width: 100%;
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
