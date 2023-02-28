@@ -716,6 +716,33 @@ export class Parser {
 	}
 }
 
+export function validateWhenClauses(whenClauses: string[]): any {
+
+	const parser = new Parser({ regexParsingWithErrorRecovery: false }); // we run with no recovery to guide users to use correct regexes
+
+	return whenClauses.map(whenClause => {
+		parser.parse(whenClause);
+
+		if (parser.lexingErrors.length > 0) {
+			return parser.lexingErrors.map((se: LexingError) => ({
+				errorMessage: se.additionalInfo ?
+					localize('contextkey.scanner.errorForLinterWithHint', "Unexpected token. Hint: {0}", se.additionalInfo) :
+					localize('contextkey.scanner.errorForLinter', "Unexpected token."),
+				offset: se.offset,
+				length: se.lexeme.length,
+			}));
+		} else if (parser.parsingErrors.length > 0) {
+			return parser.parsingErrors.map((pe: ParsingError) => ({
+				errorMessage: pe.additionalInfo ? `${pe.message}. ${pe.additionalInfo}` : pe.message,
+				offset: pe.offset,
+				length: pe.lexeme.length,
+			}));
+		} else {
+			return [];
+		}
+	});
+}
+
 export function expressionsAreEqualWithConstantSubstitution(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
 	const aExpr = a ? a.substituteConstants() : undefined;
 	const bExpr = b ? b.substituteConstants() : undefined;

@@ -3,27 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, ITypeHierarchyItemDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
-import * as search from 'vs/workbench/contrib/search/common/search';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
-import { Parser, ParsingError } from 'vs/platform/contextkey/common/contextkey';
-import { LexingError } from 'vs/platform/contextkey/common/scanner';
-import { localize } from 'vs/nls';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import type * as vscode from 'vscode';
 
 //#region --- NEW world
 
@@ -484,45 +482,8 @@ export class ExtHostApiCommands {
 	}
 
 	private static _registerValidateWhenClausesCommand(commands: ExtHostCommands) {
-
-		const whenClauseValidationCommand = '_validateWhenClauses';
-		commands.registerCommand(false, whenClauseValidationCommand, (...args: any[]): any => {
-			if (args.length !== 1 || !(args[0] instanceof Array) || args[0].some(whenClause => typeof whenClause !== 'string')) {
-				throw new Error(`Invalid argument when running '${whenClauseValidationCommand}', received: ${JSON.stringify(args)}`);
-			}
-
-			const whenClauses = args[0];
-
-			const parser = new Parser({ regexParsingWithErrorRecovery: false });
-
-			return whenClauses.map(whenClause => {
-				parser.parse(whenClause);
-
-				if (parser.lexingErrors.length > 0) {
-					return parser.lexingErrors.map((se: LexingError) => {
-						return {
-							errorMessage: se.additionalInfo ?
-								localize('contextkey.scanner.errorForLinterWithHint', "Unexpected token. Hint: {0}", se.additionalInfo) :
-								localize('contextkey.scanner.errorForLinter', "Unexpected token."),
-							offset: se.offset,
-							length: se.lexeme.length,
-						};
-					});
-				} else if (parser.parsingErrors.length > 0) {
-					return parser.parsingErrors.map((pe: ParsingError) => {
-						return {
-							errorMessage: pe.additionalInfo ? `${pe.message}. ${pe.additionalInfo}` : pe.message,
-							offset: pe.offset,
-							length: pe.lexeme.length,
-						};
-					});
-				} else {
-					return [];
-				}
-			});
-		});
+		commands.registerCommand(false, '_validateWhenClauses', validateWhenClauses);
 	}
-
 }
 
 function tryMapWith<T, R>(f: (x: T) => R) {
