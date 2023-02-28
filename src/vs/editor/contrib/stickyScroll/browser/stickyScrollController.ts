@@ -57,9 +57,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
 	private _candidateDefinitionsLength: number = -1;
 
-	private _focused: boolean = false;
 	private _focusDisposableStore: DisposableStore | undefined;
-	// private _focusedStickyElement: HTMLDivElement | undefined;
 	private _focusedStickyElementIndex: number | undefined;
 	private _stickyScrollFocusedContextKey: IContextKey<boolean>;
 
@@ -96,9 +94,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService);
 		// Create a focus tracker to track the focus on the sticky scroll widget
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
+		// Focus placed elsewhere in the window
 		this._register(focusTracker.onDidBlur(_ => {
 			this._disposeFocusStickyScrollStore();
 		}));
+		// Focusing for example through tabbing in the window
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
@@ -121,14 +121,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _disposeFocusStickyScrollStore() {
-		this._focused = false;
 		this._stickyScrollFocusedContextKey.set(false);
-		(this._stickyElements?.item(this._focusedStickyElementIndex!) as HTMLDivElement).blur();
+		(this._stickyElements!.item(this._focusedStickyElementIndex!) as HTMLDivElement).blur();
 		this._focusDisposableStore!.dispose();
 	}
 
 	public focus(): void {
-		this._focused = true;
 		const focusState = this._stickyScrollFocusedContextKey.get();
 		const rootNode = this._stickyScrollWidget.getDomNode();
 		this._stickyElements = rootNode.children;
@@ -142,25 +140,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollFocusedContextKey.set(true);
 
 		// The first line focused is the bottom most line
-		const _focusedStickyElement = rootNode.lastElementChild! as HTMLDivElement;
-		_focusedStickyElement.focus();
+		(rootNode.lastElementChild! as HTMLDivElement).focus();
 		this._focusedStickyElementIndex = this._numberStickyElements - 1;
-
-		// Whenever the mouse hovers on the sticky scroll remove the keyboard focus
-		this._focusDisposableStore.add(dom.addDisposableListener(rootNode, dom.EventType.MOUSE_OVER, () => {
-			_focusedStickyElement.blur();
-		}));
-		// Whenever the mouse leaves the sticky scroll, set the keyboard focus to be on the last line hovered
-		this._focusDisposableStore.add(dom.addDisposableListener(rootNode, dom.EventType.MOUSE_OUT, () => {
-			this._focusedStickyElementIndex = this._stickyScrollWidget.lastMouseFocusedStickyLineIndex;
-			this._stickyScrollWidget.lastMouseFocusedStickyLine?.focus();
-		}));
 
 		// When scrolling, remove the focus
 		this._focusDisposableStore.add(this._editor.onDidScrollChange(() => {
 			this._disposeFocusStickyScrollStore();
 		}));
-		// rootNode.focus();
 	}
 
 	public focusNext(): void {
@@ -177,7 +163,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	// True is next, false is previous
 	private _focusNav(direction: boolean): void {
-		(this._stickyElements?.item(this._focusedStickyElementIndex!) as HTMLDivElement).blur();
+		(this._stickyElements!.item(this._focusedStickyElementIndex!) as HTMLDivElement).blur();
 		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex! + 1 : this._focusedStickyElementIndex! - 1;
 		(this._stickyElements!.item(this._focusedStickyElementIndex!)! as HTMLDivElement).focus();
 	}
@@ -341,13 +327,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();
-			// When the sticky scroll widget is focused, call the setState function with an additional parameter indicating the line to focus
-			if (this._focused) {
-				this._stickyScrollWidget.setState(this._widgetState, this._focusedStickyElementIndex);
-				// this._focusedStickyElement = this._stickyScrollWidget.lastFocusedStickyLine;
-			} else {
-				this._stickyScrollWidget.setState(this._widgetState);
-			}
+			this._stickyScrollWidget.setState(this._widgetState);
 		}
 	}
 

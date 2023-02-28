@@ -44,7 +44,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._layoutInfo = this._editor.getLayoutInfo();
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.className = 'sticky-widget';
-		this._rootDomNode.tabIndex = 0;
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
 		this._rootDomNode.style.width = `${this._layoutInfo.width - this._layoutInfo.minimap.minimapCanvasOuterWidth - this._layoutInfo.verticalScrollbarWidth}px`;
 	}
@@ -81,28 +80,22 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
-	setState(state: StickyScrollWidgetState, indexOfLineToFocus?: number): void {
+	setState(state: StickyScrollWidgetState): void {
 		dom.clearNode(this._rootDomNode);
 		this._disposableStore.clear();
 		this._lineNumbers.length = 0;
 		this._lastLineRelativePosition = state.lastLineRelativePosition;
 		this._lineNumbers = state.lineNumbers;
-		this._renderRootNode(indexOfLineToFocus);
+		this._renderRootNode();
 	}
 
-	private _renderRootNode(indexOfLineToFocus?: number): void {
+	private _renderRootNode(): void {
 
 		if (!this._editor._getViewModel()) {
 			return;
 		}
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const childNode = this._renderChildNode(index, line);
-
-			// When a line is set to be focused, add the focus classname to it
-			if (indexOfLineToFocus && index === indexOfLineToFocus) {
-				childNode.focus();
-				this._lastFocusedStickyLine = childNode;
-			}
 			this._rootDomNode.appendChild(childNode);
 		}
 
@@ -192,6 +185,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		child.appendChild(lineHTMLNode);
 
 		child.className = 'sticky-line-root';
+		child.tabIndex = 0;
 		child.style.lineHeight = `${lineHeight}px`;
 		child.style.width = `${width}px`;
 		child.style.height = `${lineHeight}px`;
