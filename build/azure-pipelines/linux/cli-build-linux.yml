@@ -93,6 +93,7 @@ steps:
           CC_aarch64-unknown-linux-musl: musl-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
+          OPENSSL_STATIC: '1'
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -104,6 +105,7 @@ steps:
           CC_aarch64-unknown-linux-musl: musl-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
+          OPENSSL_STATIC: '1'
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -114,6 +116,7 @@ steps:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
+          OPENSSL_STATIC: '1'
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -123,6 +126,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
+          OPENSSL_STATIC: '1'
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -133,3 +137,4 @@ steps:
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
+          OPENSSL_STATIC: '1'
