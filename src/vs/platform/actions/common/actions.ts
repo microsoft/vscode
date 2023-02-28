@@ -68,6 +68,7 @@ export class MenuId {
 	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
 	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
+	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
