@@ -1000,6 +1000,13 @@
 /users/foo/src/vs/workbench/parts/welcome/gettingStarted/electron-browser/telemetryOptOut.ts
 /users/foo/src/vs/workbench/parts/welcome/gettingStarted/electron-browser/gettingStarted.ts
 /users/foo/src/vs/workbench/parts/welcome/code-icon.svg
+/users/foo/src/vs/workbench/parts/welcome/overlay
+/users/foo/src/vs/workbench/parts/welcome/overlay/browser
+/users/foo/src/vs/workbench/parts/welcome/overlay/browser/welcomeOverlay.css
+/users/foo/src/vs/workbench/parts/welcome/overlay/browser/welcomeOverlay.ts
+/users/foo/src/vs/workbench/parts/welcome/overlay/browser/media
+/users/foo/src/vs/workbench/parts/welcome/overlay/browser/media/commandpalette-dark.svg
+/users/foo/src/vs/workbench/parts/welcome/overlay/browser/media/commandpalette.svg
 /users/foo/src/vs/workbench/parts/url
 /users/foo/src/vs/workbench/parts/url/electron-browser
 /users/foo/src/vs/workbench/parts/url/electron-browser/url.contribution.ts
