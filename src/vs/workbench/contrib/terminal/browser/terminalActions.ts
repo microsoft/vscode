@@ -418,7 +418,7 @@ export function registerTerminalActions() {
 					{
 						primary: KeyMod.Shift | KeyCode.Tab,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus, ContextKeyExpr.or(terminalTabFocusContextKey, editorTabFocusContextKey))
+						when: ContextKeyExpr.or(terminalTabFocusContextKey, editorTabFocusContextKey)
 					}
 				],
 			});
