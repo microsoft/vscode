@@ -47,7 +47,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		if (typeof sharedProcessUseUtilityProcess === 'boolean') {
 			useUtilityProcess = sharedProcessUseUtilityProcess;
 		} else {
-			useUtilityProcess = typeof product.quality === 'string' && product.quality !== 'stable';
+			useUtilityProcess = product.quality !== 'stable';
 		}
 
 		return useUtilityProcess;
