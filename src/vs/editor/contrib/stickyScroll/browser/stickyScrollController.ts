@@ -51,16 +51,17 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _widgetState: StickyScrollWidgetState;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
-	private _stickyElements: HTMLCollection | undefined;
-	private _numberStickyElements: number | undefined;
-
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
 	private _candidateDefinitionsLength: number = -1;
 
-	private _focusDisposableStore: DisposableStore | undefined;
-	private _focusedStickyElementIndex: number | undefined;
 	private _stickyScrollFocusedContextKey: IContextKey<boolean>;
 	private _stickyScrollVisibleContextKey: IContextKey<boolean>;
+
+	private _stickyElements: HTMLCollection | undefined;
+	private _focusDisposableStore: DisposableStore | undefined;
+	private _focusedStickyElementIndex: number = -1;
+	private _focusedStickyElementLineNumber: number = -1;
+	private _focused = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -125,48 +126,50 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _disposeFocusStickyScrollStore() {
 		this._stickyScrollFocusedContextKey.set(false);
 		this._focusDisposableStore!.dispose();
+		this._focused = false;
 	}
 
 	public focus(): void {
 		const focusState = this._stickyScrollFocusedContextKey.get();
-		const rootNode = this._stickyScrollWidget.getDomNode();
-		this._stickyElements = rootNode.children;
-		this._numberStickyElements = this._stickyElements?.length;
-
-		if (focusState === true || this._numberStickyElements === 0) {
+		if (focusState === true) {
 			// If already focused or no line to focus on, return
 			return;
 		}
+		this._focused = true;
 		this._focusDisposableStore = new DisposableStore();
 		this._stickyScrollFocusedContextKey.set(true);
 
 		// The first line focused is the bottom most line
+		const rootNode = this._stickyScrollWidget.getDomNode();
 		(rootNode.lastElementChild! as HTMLDivElement).focus();
-		this._focusedStickyElementIndex = this._numberStickyElements - 1;
+		this._stickyElements = rootNode.children;
+		this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumbers.length - 1;
+		this._focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
 	}
 
 	public focusNext(): void {
-		if (this._focusedStickyElementIndex! < this._numberStickyElements! - 1) {
+		if (this._focusedStickyElementIndex < this._stickyElements!.length - 1) {
 			this._focusNav(true);
 		}
 	}
 
 	public focusPrevious(): void {
-		if (this._focusedStickyElementIndex! > 0) {
+		if (this._focusedStickyElementIndex > 0) {
 			this._focusNav(false);
 		}
 	}
 
 	// True is next, false is previous
 	private _focusNav(direction: boolean): void {
-		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex! + 1 : this._focusedStickyElementIndex! - 1;
-		(this._stickyElements!.item(this._focusedStickyElementIndex!) as HTMLDivElement).focus();
+		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex + 1 : this._focusedStickyElementIndex - 1;
+		this._focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
+		(this._stickyElements!.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 	}
 
 	public goToFocused(): void {
 		const lineNumbers = this._stickyScrollWidget.lineNumbers;
-		this._editor.revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex!], column: 1 });
 		this._disposeFocusStickyScrollStore();
+		this._editor.revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
 	}
 
 	private _createClickLinkGesture(): IDisposable {
@@ -315,7 +318,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _renderStickyScroll() {
-		console.log('active element : ', document.activeElement);
+		console.log('document.activeElement : ', document.activeElement);
 		if (!(this._editor.hasModel())) {
 			return;
 		}
@@ -323,13 +326,30 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();
-			if (this._widgetState.lineNumbers.length === 0) {
-				// The stciky scroll is not visible because we have no lines
-				this._stickyScrollVisibleContextKey.set(false);
-			} else {
-				this._stickyScrollVisibleContextKey.set(true);
-			}
+			// The stciky scroll is not visible because we have no lines
+			this._stickyScrollVisibleContextKey.set(!(this._widgetState.lineNumbers.length === 0));
 			this._stickyScrollWidget.setState(this._widgetState);
+
+			if (this._focused) {
+
+				this._stickyElements = this._stickyScrollWidget.getDomNode().children;
+				if (this._stickyElements.length === 0) {
+					this._disposeFocusStickyScrollStore();
+				} else {
+					const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(this._focusedStickyElementLineNumber);
+					console.log('this._stickyScrollWidget.lineNumbers : ', this._stickyScrollWidget.lineNumbers);
+					console.log('previousFocusedLineNumberExists : ', previousFocusedLineNumberExists);
+					if (previousFocusedLineNumberExists) {
+						this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumbers.indexOf(this._focusedStickyElementLineNumber);
+					} else {
+						// The focused line no longer exists, set the new focused line to be the last line
+						this._focusedStickyElementIndex = this._stickyElements.length - 1;
+						this._focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
+					}
+					console.log('this._focusedStickyElementIndex : ', this._focusedStickyElementIndex!);
+					(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
+				}
+			}
 		}
 	}
 
