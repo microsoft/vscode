@@ -99,6 +99,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(focusTracker.onDidBlur(_ => {
 			this._disposeFocusStickyScrollStore();
 		}));
+		this._register(focusTracker.onDidFocus(_ => {
+			this.focus();
+		}));
 
 		// Register the click link gesture to allow the user to click on the sticky scroll widget to go to the definition
 		this._register(this._createClickLinkGesture());
