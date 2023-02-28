@@ -12,7 +12,6 @@ import * as MarkdownItType from 'markdown-it';
 
 import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
-import { TextDecoder } from 'util';
 import { JsonStringScanner } from './jsonReconstruct';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
