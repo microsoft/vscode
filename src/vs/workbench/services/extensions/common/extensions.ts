@@ -304,8 +304,6 @@ export class ExtensionPointContribution<T> {
 	}
 }
 
-export const ExtensionHostLogFileName = 'exthost';
-
 export interface IWillActivateEvent {
 	readonly event: string;
 	readonly activation: Promise<void>;

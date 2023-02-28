@@ -10481,6 +10481,7 @@ declare module 'vscode' {
 		 * Retrieves the data transfer item for a given mime type.
 		 *
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 * Mimes type look ups are case-insensitive.
 		 *
 		 * Special mime types:
 		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
@@ -10490,7 +10491,8 @@ declare module 'vscode' {
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
-		 * @param mimeType The mime type to set the data for.
+		 *
+		 * @param mimeType The mime type to set the data for. Mimes types stored in lower case, with case-insensitive looks up.
 		 * @param value The data transfer item for the given mime type.
 		 */
 		set(mimeType: string, value: DataTransferItem): void;
@@ -12261,7 +12263,7 @@ declare module 'vscode' {
 		 * If you want to monitor file events across all opened workspace folders:
 		 *
 		 * ```ts
-		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * vscode.workspace.createFileSystemWatcher('**​/*.js');
 		 * ```
 		 *
 		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).

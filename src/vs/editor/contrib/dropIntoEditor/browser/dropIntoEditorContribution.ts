@@ -104,6 +104,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 						...(providerEdit.additionalEdit?.edits ?? [])
 					]
 				};
+				editor.focus();
 				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor });
 				return;
 			}

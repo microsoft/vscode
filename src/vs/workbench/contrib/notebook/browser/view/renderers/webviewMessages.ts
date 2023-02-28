@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import type { PreloadOptions, RenderOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface BaseToWebviewMessage {
@@ -374,6 +374,7 @@ export interface INotebookStylesMessage {
 export interface INotebookOptionsMessage {
 	readonly type: 'notebookOptions';
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 }
 
 export interface INotebookUpdateWorkspaceTrust {
