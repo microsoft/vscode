@@ -153,11 +153,11 @@ resources:
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-arm64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-armhf
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: centos7-devtoolset8-x64
