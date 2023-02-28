@@ -24,6 +24,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -46,7 +47,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEditorService editorService: IEditorService,
+		@ILogService private readonly _logService: ILogService,
+		@IEditorService editorService: IEditorService
 	) {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
@@ -56,7 +58,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			try {
 				this._updateTabsModel(event);
 			} catch {
-				console.error('Failed to update model, rebuilding');
+				this._logService.error('Failed to update model, rebuilding');
 				this._createTabsModel();
 			}
 		}));
@@ -241,7 +243,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabModelOperationKind.TAB_UPDATE
 			});
 		} else {
-			console.error('Invalid model for label change, rebuilding');
+			this._logService.error('Invalid model for label change, rebuilding');
 			this._createTabsModel();
 		}
 	}
@@ -346,7 +348,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		// Something wrong with the model state so we rebuild
 		if (!tabInfo) {
-			console.error('Invalid model for dirty change, rebuilding');
+			this._logService.error('Invalid model for dirty change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -372,7 +374,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tab = tabInfo?.tab;
 		// Something wrong with the model state so we rebuild
 		if (!group || !tab) {
-			console.error('Invalid model for sticky change, rebuilding');
+			this._logService.error('Invalid model for sticky change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -399,7 +401,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tab = tabInfo?.tab;
 		// Something wrong with the model state so we rebuild
 		if (!group || !tab) {
-			console.error('Invalid model for sticky change, rebuilding');
+			this._logService.error('Invalid model for sticky change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
@@ -417,7 +419,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tabs = this._groupLookup.get(groupId)?.tabs;
 		// Something wrong with the model state so we rebuild
 		if (!tabs) {
-			console.error('Invalid model for move change, rebuilding');
+			this._logService.error('Invalid model for move change, rebuilding');
 			this._createTabsModel();
 			return;
 		}
