@@ -12,7 +12,6 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { joinPath } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -40,7 +39,7 @@ import { IShellEnvironmentService } from 'vs/workbench/services/environment/elec
 import { MessagePortExtHostConnection, writeExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 import { IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
@@ -124,8 +123,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	private _extensionHostProcess: ExtensionHostProcess | null;
 	private _messageProtocol: Promise<IMessagePassingProtocol> | null;
 
-	private readonly _extensionHostLogFile: URI;
-
 	constructor(
 		public readonly runningLocation: LocalProcessRunningLocation,
 		public readonly startup: ExtensionHostStartup.EagerAutoStart | ExtensionHostStartup.EagerManualStart,
@@ -159,8 +156,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._inspectPort = null;
 		this._extensionHostProcess = null;
 		this._messageProtocol = null;
-
-		this._extensionHostLogFile = joinPath(this._environmentService.extHostLogsPath, `${ExtensionHostLogFileName}.log`);
 
 		this._toDispose.add(this._onExit);
 		this._toDispose.add(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
@@ -473,8 +468,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
-			logFile: this._extensionHostLogFile,
-			logName: nls.localize('extension host Log', "Extension Host"),
 			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			uiKind: UIKind.Desktop
 		};
