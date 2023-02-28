@@ -33,9 +33,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _hoverOnLine: number = -1;
 	private _hoverOnColumn: number = -1;
-	private _lastFocusedStickyLine: HTMLDivElement | undefined;
-	private _lastMouseFocusedStickyLine: HTMLDivElement | undefined;
-	private _lastMouseFocusedStickyLineIndex: number | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -62,18 +59,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	get codeLineCount(): number {
 		return this._lineNumbers.length;
-	}
-
-	get lastFocusedStickyLine(): HTMLDivElement | undefined {
-		return this._lastFocusedStickyLine;
-	}
-
-	get lastMouseFocusedStickyLine(): HTMLDivElement | undefined {
-		return this._lastMouseFocusedStickyLine;
-	}
-
-	get lastMouseFocusedStickyLineIndex(): number | undefined {
-		return this._lastMouseFocusedStickyLineIndex;
 	}
 
 	getCurrentLines(): readonly number[] {
@@ -202,10 +187,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		// Each child has a listener which fires when the mouse hovers over the child
 		this._disposableStore.add(dom.addDisposableListener(child, 'mouseover', (e) => {
-			// Store the last mouse focused sticky line as well as its index for the focus feature
-			this._lastMouseFocusedStickyLine = child;
-			this._lastMouseFocusedStickyLineIndex = index;
-
 			if (this._editor.hasModel()) {
 				const mouseOverEvent = new StandardMouseEvent(e);
 				const text = mouseOverEvent.target.innerText;
