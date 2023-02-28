@@ -1234,9 +1234,9 @@
     yargs "^17.5.1"
 
 "@vscode/policy-watcher@^1.1.4":
-  version "1.1.5"
-  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.5.tgz#217aaba3ca0d33ccdaf3bff0281fa11b073ce303"
-  integrity sha512-1Jt6imBKnw9vYpP5TpXZ9Q+Af4NBlKH9Z4bAHdC026CBz/5l6p3PwTWf0xyznFNg0DdXJmwZMF83bzW7zyvElw==
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.4.tgz#a47e30c6f02d025187d8900a3e21adb2626dece5"
+  integrity sha512-/xYsB7PmEeEpuRIKPAqDvK8baJ6AfOhHsnPPJrje7Bpf1z2GLwRFq7pm9KjBGtcwJGInuDxQERMtX0RIERi8YA==
   dependencies:
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
