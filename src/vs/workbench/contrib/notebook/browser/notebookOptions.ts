@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
@@ -158,8 +158,7 @@ export class NotebookOptions extends Disposable {
 		let outputLineHeightSettingValue: number;
 		const deprecatedOutputLineHeightSetting = this.configurationService.getValue<number>(NotebookSetting.outputLineHeightDeprecated);
 		if (deprecatedOutputLineHeightSetting !== undefined) {
-			this.configurationService.updateValue(NotebookSetting.outputLineHeightDeprecated, undefined);
-			this.configurationService.updateValue(NotebookSetting.outputLineHeight, deprecatedOutputLineHeightSetting);
+			this._migrateDeprecatedSetting(NotebookSetting.outputLineHeightDeprecated, NotebookSetting.outputLineHeight);
 			outputLineHeightSettingValue = deprecatedOutputLineHeightSetting;
 		} else {
 			outputLineHeightSettingValue = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
@@ -168,8 +167,7 @@ export class NotebookOptions extends Disposable {
 		let outputFontSize: number;
 		const deprecatedOutputFontSizeSetting = this.configurationService.getValue<number>(NotebookSetting.outputFontSizeDeprecated);
 		if (deprecatedOutputFontSizeSetting !== undefined) {
-			this.configurationService.updateValue(NotebookSetting.outputFontSizeDeprecated, undefined);
-			this.configurationService.updateValue(NotebookSetting.outputFontSize, deprecatedOutputFontSizeSetting);
+			this._migrateDeprecatedSetting(NotebookSetting.outputFontSizeDeprecated, NotebookSetting.outputFontSize);
 			outputFontSize = deprecatedOutputFontSizeSetting;
 		} else {
 			outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || fontSize;
@@ -178,8 +176,7 @@ export class NotebookOptions extends Disposable {
 		let outputFontFamily: string;
 		const deprecatedOutputFontFamilySetting = this.configurationService.getValue<string>(NotebookSetting.outputFontFamilyDeprecated);
 		if (deprecatedOutputFontFamilySetting !== undefined) {
-			this.configurationService.updateValue(NotebookSetting.outputFontFamilyDeprecated, undefined);
-			this.configurationService.updateValue(NotebookSetting.outputFontFamily, deprecatedOutputFontFamilySetting);
+			this._migrateDeprecatedSetting(NotebookSetting.outputFontFamilyDeprecated, NotebookSetting.outputFontFamily);
 			outputFontFamily = deprecatedOutputFontFamilySetting;
 		} else {
 			outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
@@ -241,6 +238,40 @@ export class NotebookOptions extends Disposable {
 			this._layoutConfiguration = configuration;
 			this._onDidChangeOptions.fire({ editorTopPadding: true });
 		}));
+	}
+
+	private _migrateDeprecatedSetting(deprecatedKey: string, key: string): void {
+		const deprecatedSetting = this.configurationService.inspect(deprecatedKey);
+
+		if (deprecatedSetting.application !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.APPLICATION);
+			this.configurationService.updateValue(key, deprecatedSetting.application.value, ConfigurationTarget.APPLICATION);
+		}
+
+		if (deprecatedSetting.user !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER);
+			this.configurationService.updateValue(key, deprecatedSetting.user.value, ConfigurationTarget.USER);
+		}
+
+		if (deprecatedSetting.userLocal !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER_LOCAL);
+			this.configurationService.updateValue(key, deprecatedSetting.userLocal.value, ConfigurationTarget.USER_LOCAL);
+		}
+
+		if (deprecatedSetting.userRemote !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER_REMOTE);
+			this.configurationService.updateValue(key, deprecatedSetting.userRemote.value, ConfigurationTarget.USER_REMOTE);
+		}
+
+		if (deprecatedSetting.workspace !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.WORKSPACE);
+			this.configurationService.updateValue(key, deprecatedSetting.workspace.value, ConfigurationTarget.WORKSPACE);
+		}
+
+		if (deprecatedSetting.workspaceFolder !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.WORKSPACE_FOLDER);
+			this.configurationService.updateValue(key, deprecatedSetting.workspaceFolder.value, ConfigurationTarget.WORKSPACE_FOLDER);
+		}
 	}
 
 	private _computeOutputLineHeight(lineHeight: number, outputFontSize: number): number {
