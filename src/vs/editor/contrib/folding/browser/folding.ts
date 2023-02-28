@@ -235,50 +235,56 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private onModelChanged(): void {
-		this.localToDispose.clear();
 
-		const model = this.editor.getModel();
-		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
-			// huge files get no view model, so they cannot support hidden areas
-			return;
-		}
+		// Suppose folding is not enabled but we still want to store the indentation model or the folding provider model
+		if (!this._isEnabled && (this._storeIndentationFoldingModel || this._storeProviderFoldingModel)) {
+			this.triggerFoldingModelChanged();
+		} else {
+			this.localToDispose.clear();
 
-		this._currentModelHasFoldedImports = false;
-		this.foldingModel = new FoldingModel(model, this.foldingDecorationProvider);
-		this.localToDispose.add(this.foldingModel);
-
-		this.hiddenRangeModel = new HiddenRangeModel(this.foldingModel);
-		this.localToDispose.add(this.hiddenRangeModel);
-		this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
-
-		this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
-
-		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
-		this.localToDispose.add(this.cursorChangedScheduler);
-		this.localToDispose.add(this.languageFeaturesService.foldingRangeProvider.onDidChange(() => this.onFoldingStrategyChanged()));
-		this.localToDispose.add(this.editor.onDidChangeModelLanguageConfiguration(() => this.onFoldingStrategyChanged())); // covers model language changes as well
-		this.localToDispose.add(this.editor.onDidChangeModelContent(e => this.onDidChangeModelContent(e)));
-		this.localToDispose.add(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
-		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this.localToDispose.add({
-			dispose: () => {
-				if (this.foldingRegionPromise) {
-					this.foldingRegionPromise.cancel();
-					this.foldingRegionPromise = null;
-				}
-				this.updateScheduler?.cancel();
-				this.updateScheduler = null;
-				this.foldingModel = null;
-				this.indentationFoldingModelPromise = null;
-				this.foldingModelPromise = null;
-				this.hiddenRangeModel = null;
-				this.cursorChangedScheduler = null;
-				this.rangeProvider?.dispose();
-				this.rangeProvider = null;
+			const model = this.editor.getModel();
+			if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
+				// huge files get no view model, so they cannot support hidden areas
+				return;
 			}
-		});
-		this.triggerFoldingModelChanged();
+
+			this._currentModelHasFoldedImports = false;
+			this.foldingModel = new FoldingModel(model, this.foldingDecorationProvider);
+			this.localToDispose.add(this.foldingModel);
+
+			this.hiddenRangeModel = new HiddenRangeModel(this.foldingModel);
+			this.localToDispose.add(this.hiddenRangeModel);
+			this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
+
+			this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
+
+			this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
+			this.localToDispose.add(this.cursorChangedScheduler);
+			this.localToDispose.add(this.languageFeaturesService.foldingRangeProvider.onDidChange(() => this.onFoldingStrategyChanged()));
+			this.localToDispose.add(this.editor.onDidChangeModelLanguageConfiguration(() => this.onFoldingStrategyChanged())); // covers model language changes as well
+			this.localToDispose.add(this.editor.onDidChangeModelContent(e => this.onDidChangeModelContent(e)));
+			this.localToDispose.add(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
+			this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+			this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+			this.localToDispose.add({
+				dispose: () => {
+					if (this.foldingRegionPromise) {
+						this.foldingRegionPromise.cancel();
+						this.foldingRegionPromise = null;
+					}
+					this.updateScheduler?.cancel();
+					this.updateScheduler = null;
+					this.foldingModel = null;
+					this.indentationFoldingModelPromise = null;
+					this.foldingModelPromise = null;
+					this.hiddenRangeModel = null;
+					this.cursorChangedScheduler = null;
+					this.rangeProvider?.dispose();
+					this.rangeProvider = null;
+				}
+			});
+			this.triggerFoldingModelChanged();
+		}
 	}
 
 	private onFoldingStrategyChanged() {
@@ -313,6 +319,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	public getIndentationFoldingModel(): Promise<FoldingModel | null> | null {
 		console.log('getIndetationFoldingModel');
 		return this.indentationFoldingModelPromise;
+
 	}
 
 	public getProviderFoldingModel(): Promise<FoldingModel | null> | null {
@@ -343,6 +350,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			});
 
 			if (this._storeProviderFoldingModel) {
+				console.log('Entered into store provider folding model');
 				if (this._useFoldingProviders) {
 					this.providerFoldingModelPromise = this.foldingModelPromise;
 				} else {
@@ -350,13 +358,15 @@ export class FoldingController extends Disposable implements IEditorContribution
 					let provider;
 					const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, this.foldingModel!.textModel);
 					if (selectedProviders.length > 0) {
-						provider = new SyntaxRangeProvider(this.foldingModel!.textModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, indentRangeProvider);
+						// Note that there already is a fallback in the following line
+						provider = new SyntaxRangeProvider(this.foldingModel!.textModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter));
 					} else {
 						provider = new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter);
 					}
 					this.providerFoldingModelPromise = this._triggerFoldingModelChanged(provider);
 				}
 			} else if (this._storeIndentationFoldingModel) {
+				console.log('Entered into store indentation folding model');
 				if (this._useFoldingProviders) {
 					// Using the folding provider for the folding ranges, but want the indentation model
 					this.indentationFoldingModelPromise = this._triggerFoldingModelChanged(new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter));
@@ -368,6 +378,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private _triggerFoldingModelChanged(provider?: RangeProvider) {
+		console.log('Entered into underscore trigger folding model changed');
 		const foldingModel = this.updateScheduler!.trigger(() => {
 			const _foldingModel = this.foldingModel;
 			if (!_foldingModel) { // null if editor has been disposed, or folding turned off

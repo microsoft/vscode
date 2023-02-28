@@ -58,6 +58,8 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	private _model: StickyOutlineModel | undefined;
 
+	private _foldingController: FoldingController | undefined | null;
+
 	constructor(
 		editor: ICodeEditor,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
@@ -86,6 +88,21 @@ export class StickyLineCandidateProvider extends Disposable {
 			this._sessionStore.clear();
 			return;
 		} else {
+			if (this._options.defaultModel === DefaultModel.FOLDING_MODEL) {
+				this._foldingController = FoldingController.get(this._editor);
+				if (this._foldingController) {
+					this._foldingController.storeProviderFoldingModel = true;
+					this._foldingController.storeIndentationFoldingModel = false;
+				}
+			} else if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
+				this._foldingController = FoldingController.get(this._editor);
+				if (this._foldingController) {
+					this._foldingController.storeProviderFoldingModel = false;
+					this._foldingController.storeIndentationFoldingModel = true;
+				}
+			} else {
+				this._foldingController = null;
+			}
 			this._sessionStore.add(this._editor.onDidChangeModel(() => {
 				this.update();
 			}));
@@ -179,11 +196,11 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	private async stickyModelFromFoldingModel(model: ITextModel, modelVersionId: number, token: CancellationToken, modelProvider: DefaultModel): Promise<boolean | undefined | null> {
-		const foldingController = FoldingController.get(this._editor);
+
 		let foldingModel: FoldingModel | undefined | null;
 
 		if (modelProvider === DefaultModel.FOLDING_MODEL) {
-			foldingModel = await foldingController?.getProviderFoldingModel();
+			foldingModel = await this._foldingController?.getProviderFoldingModel();
 
 			// The folding model obtained from the provider can be null in which case return null
 			if (!foldingModel === null) {
@@ -192,7 +209,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		} else if (modelProvider === DefaultModel.INDENTATION_MODEL) {
 
 			// There is always an indentation folding model
-			foldingModel = await foldingController?.getIndentationFoldingModel()!;
+			foldingModel = await this._foldingController?.getIndentationFoldingModel()!;
 		} else {
 			throw new Error('Invalid model specified');
 		}
