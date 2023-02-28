@@ -17,7 +17,6 @@ import { FileAccess } from 'vs/base/common/network';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
-import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -82,10 +81,6 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return this._getExtHost(id).onExit;
 	}
 
-	async canUseUtilityProcess(): Promise<boolean> {
-		return canUseUtilityProcess;
-	}
-
 	async createExtensionHost(useUtilityProcess: boolean): Promise<{ id: string }> {
 		if (this._shutdown) {
 			throw canceled();
@@ -93,9 +88,6 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		const id = String(++ExtensionHostStarter._lastId);
 		let extHost: WindowUtilityProcess | ExtensionHostProcess;
 		if (useUtilityProcess) {
-			if (!canUseUtilityProcess) {
-				throw new Error(`Cannot use UtilityProcess!`);
-			}
 			extHost = new WindowUtilityProcess(this._logService, this._windowsMainService, this._telemetryService, this._lifecycleMainService);
 		} else {
 			extHost = new ExtensionHostProcess(id, this._logService);

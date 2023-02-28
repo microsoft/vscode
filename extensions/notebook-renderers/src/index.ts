@@ -134,7 +134,33 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
+interface Event<T> {
+	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+}
+
+type IRichRenderContext = RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> };
+
+function createDisposableStore(): { push(...disposables: IDisposable[]): void; dispose(): void } {
+	const localDisposables: IDisposable[] = [];
+	const disposable = {
+		push: (...disposables: IDisposable[]) => {
+			localDisposables.push(...disposables);
+		},
+		dispose: () => {
+			localDisposables.forEach(d => d.dispose());
+		}
+	};
+
+	return disposable;
+}
+
+function renderError(
+	outputInfo: OutputItem,
+	container: HTMLElement,
+	ctx: IRichRenderContext
+): IDisposable {
+	const disposableStore = createDisposableStore();
+
 	clearContainer(container);
 
 	const element = document.createElement('div');
@@ -146,7 +172,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 		err = <ErrorLike>JSON.parse(outputInfo.text());
 	} catch (e) {
 		console.log(e);
-		return;
+		return disposableStore;
 	}
 
 	if (err.stack) {
@@ -155,6 +181,10 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 		if (ctx.settings.outputWordWrap) {
 			stack.classList.add('wordWrap');
 		}
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			stack.classList.toggle('wordWrap', e.outputWordWrap);
+		}));
+
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
 		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
@@ -170,13 +200,16 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 	}
 
 	container.classList.add('error');
+	return disposableStore;
 }
 
-function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
+	const disposableStore = createDisposableStore();
+
 	const outputContainer = container.parentElement;
 	if (!outputContainer) {
 		// should never happen
-		return;
+		return disposableStore;
 	}
 
 	const prev = outputContainer.previousSibling;
@@ -196,23 +229,23 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			const text = outputInfo.text();
 			const element = existing ?? document.createElement('span');
 			element.classList.add('output-stream');
-			if (ctx.settings.outputWordWrap) {
-				element.classList.add('wordWrap');
-			} else {
-				element.classList.remove('wordWrap');
-			}
+			element.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
+			disposableStore.push(ctx.onDidChangeSettings(e => {
+				element.classList.toggle('wordWrap', e.outputWordWrap);
+			}));
 			element.setAttribute('output-item-id', outputInfo.id);
 			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
 			outputElement.appendChild(element);
-			return;
+			return disposableStore;
 		}
 	}
 
 	const element = document.createElement('span');
 	element.classList.add('output-stream');
-	if (ctx.settings.outputWordWrap) {
-		element.classList.add('wordWrap');
-	}
+	element.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
+	disposableStore.push(ctx.onDidChangeSettings(e => {
+		element.classList.toggle('wordWrap', e.outputWordWrap);
+	}));
 	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
@@ -225,9 +258,13 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	if (error) {
 		container.classList.add('error');
 	}
+
+	return disposableStore;
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: RenderOptions }): void {
+function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: IRichRenderContext): IDisposable {
+	const disposableStore = createDisposableStore();
+
 	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
@@ -237,6 +274,7 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 	const text = outputInfo.text();
 	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
 	container.appendChild(contentNode);
+	return disposableStore;
 }
 
 export const activate: ActivationFunction<void> = (ctx) => {
@@ -244,7 +282,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const htmlHooks = new Set<HtmlRenderingHook>();
 	const jsHooks = new Set<JavaScriptRenderingHook>();
 
-	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions });
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> });
 
 	const style = document.createElement('style');
 	style.textContent = `
@@ -334,25 +372,33 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					break;
 				case 'application/vnd.code.notebook.error':
 					{
-						renderError(outputInfo, element, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderError(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'application/vnd.code.notebook.stdout':
 				case 'application/x.notebook.stdout':
 				case 'application/x.notebook.stream':
 					{
-						renderStream(outputInfo, element, false, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderStream(outputInfo, element, false, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'application/vnd.code.notebook.stderr':
 				case 'application/x.notebook.stderr':
 					{
-						renderStream(outputInfo, element, true, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderStream(outputInfo, element, true, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'text/plain':
 					{
-						renderText(outputInfo, element, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderText(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				default:

@@ -75,7 +75,7 @@ function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment 
 	}
 	for (const key of Object.keys(other)) {
 		const value = other[key];
-		if (value) {
+		if (value !== undefined && value !== null) {
 			env[key] = value;
 		}
 	}

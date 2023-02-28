@@ -807,8 +807,9 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const closeAll = instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
-		await closeAll.run();
+
+		const closeAll = new CloseAllEditorsAction();
+		await instantiationService.invokeFunction(accessor => closeAll.run(accessor));
 	}
 });
 

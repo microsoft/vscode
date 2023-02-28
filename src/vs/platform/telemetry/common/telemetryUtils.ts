@@ -115,7 +115,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			};
 			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: flattenKeys(event.affectedKeys)
+				configurationKeys: Array.from(event.affectedKeys)
 			});
 		}
 	});
@@ -273,24 +273,6 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 		} else {
 			result[index] = value;
 		}
-	}
-}
-
-function flattenKeys(value: Object | undefined): string[] {
-	if (!value) {
-		return [];
-	}
-	const result: string[] = [];
-	flatKeys(result, '', value);
-	return result;
-}
-
-function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
-	if (value && typeof value === 'object' && !Array.isArray(value)) {
-		Object.keys(value)
-			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
-	} else {
-		result.push(prefix);
 	}
 }
 
