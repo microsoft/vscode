@@ -100,7 +100,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 			// When a line is set to be focused, add the focus classname to it
 			if (indexOfLineToFocus && index === indexOfLineToFocus) {
-				childNode.classList.add('focus');
+				childNode.focus();
 				this._lastFocusedStickyLine = childNode;
 			}
 			this._rootDomNode.appendChild(childNode);

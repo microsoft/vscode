@@ -32,7 +32,7 @@
 	cursor: pointer;
 }
 
-.monaco-editor .sticky-line-root.focus {
+.monaco-editor .sticky-line-root:focus {
 	background-color: var(--vscode-editorStickyScrollHover-background);
 }
 
