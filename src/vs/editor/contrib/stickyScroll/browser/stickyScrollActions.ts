@@ -54,9 +54,9 @@ export class FocusStickyScroll extends EditorAction2 {
 		super({
 			id: 'editor.action.focusStickyScroll',
 			title: {
-				value: localize('focusStickyScroll', "Toggle Focus Sticky Scroll"),
-				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Focus Sticky Scroll"),
-				original: 'Toggle Focus Sticky Scroll',
+				value: localize('focusStickyScroll', "Focus Sticky Scroll"),
+				mnemonicTitle: localize({ key: 'mifocusStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Focus Sticky Scroll"),
+				original: 'Focus Sticky Scroll',
 			},
 			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
 			menu: [
