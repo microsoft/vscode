@@ -586,3 +586,19 @@
 	text-decoration: underline;
 	outline-color: var(--vscode-focusBorder);
 }
+
+/* Overrides for the a11y buffer as we're hosting monaco within it */
+.xterm .xterm-accessible-buffer {
+	padding: 0 !important;
+	overflow: initial !important;
+	overflow-x: initial !important;
+}
+.xterm .xterm-accessible-buffer:focus-within {
+	top: 0 !important;
+	left: 0 !important;
+	pointer-events: all !important;
+}
+.xterm > .xterm-accessible-buffer {
+	/* Reset cursor style as monaco controls it here */
+	cursor: default;
+}
