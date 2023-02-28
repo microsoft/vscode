@@ -771,7 +771,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.write(data);
 	}
 }
-const enum ACCESSIBLE_BUFFER { Scheme = 'terminal-accessible-buffer' }
+
+const enum AccessibleBufferConstants {
+	Scheme = 'terminal-accessible-buffer'
+}
+
 class AccessibleBuffer extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
@@ -832,7 +836,7 @@ class AccessibleBuffer extends DisposableStore {
 	private async _updateBufferEditor(): Promise<void> {
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
-		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER.Scheme, fragment }));
+		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
@@ -868,7 +872,7 @@ class AccessibleBuffer extends DisposableStore {
 		this._bufferEditor.focus();
 	}
 
-	async _getTextModel(resource: URI): Promise<ITextModel | null> {
+	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
