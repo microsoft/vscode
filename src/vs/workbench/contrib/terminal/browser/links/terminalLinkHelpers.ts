@@ -48,7 +48,12 @@ export function convertLinkRangeToBuffer(
 			break;
 		}
 		for (let x = 0; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
-			const cell = line.getCell(x)!;
+			const cell = line.getCell(x);
+			// This is unexpected but it means the character doesn't exist, so we shouldn't add to
+			// the offset
+			if (!cell) {
+				break;
+			}
 			const width = cell.getWidth();
 			if (width === 2) {
 				lineOffset++;

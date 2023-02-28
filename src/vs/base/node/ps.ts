@@ -48,13 +48,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/i; // TODO@bpasero remove me
-			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/i;
-			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/i;
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
-			const UTILITY_EXTENSION_HOST_HINT = /--vscode-utility-kind=extensionHost/i;
-			const UTILITY_FILE_WATCHER_HOST_HINT = /--vscode-utility-kind=fileWatcher/i;
-			const UTILITY_SHARED_PROCESS_HINT = /--vscode-utility-kind=shared-process/i;
 			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/i;
@@ -80,34 +74,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			let matches = TYPE.exec(cmd);
 			if (matches && matches.length === 2) {
 				if (matches[1] === 'renderer') {
-					if (SHARED_PROCESS_HINT.exec(cmd)) {
-						return 'shared-process';
-					}
-
-					if (ISSUE_REPORTER_HINT.exec(cmd)) {
-						return 'issue-reporter';
-					}
-
-					if (PROCESS_EXPLORER_HINT.exec(cmd)) {
-						return 'process-explorer';
-					}
-
 					return `window`;
 				} else if (matches[1] === 'utility') {
 					if (UTILITY_NETWORK_HINT.exec(cmd)) {
 						return 'utility-network-service';
-					}
-
-					if (UTILITY_EXTENSION_HOST_HINT.exec(cmd)) {
-						return 'extension-host';
-					}
-
-					if (UTILITY_FILE_WATCHER_HOST_HINT.exec(cmd)) {
-						return 'file-watcher';
-					}
-
-					if (UTILITY_SHARED_PROCESS_HINT.exec(cmd)) {
-						return 'shared-process';
 					}
 
 					return 'utility-process';

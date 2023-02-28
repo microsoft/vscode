@@ -2674,7 +2674,7 @@ const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Dete
 const newWithProfile = nls.localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.');
 const newWithProfileNoKb = nls.localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.');
 const accessibilitySettings = nls.localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.');
-
+const commandPrompt = nls.localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience");
 class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	readonly id = 'help';
 	private _container: HTMLElement | undefined;
@@ -2684,13 +2684,13 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private readonly _markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		instance: ITerminalInstance,
+		private readonly _instance: ITerminalInstance,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
-		this._hasShellIntegration = instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
+		this._hasShellIntegration = _instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode.setClassName('terminal-accessibility-help');
@@ -2702,10 +2702,10 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
-				instance.focus();
+				_instance.focus();
 			}
 		}));
-		this._register(instance.onDidFocus(() => this.hide()));
+		this._register(_instance.onDidFocus(() => this.hide()));
 		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
 	}
 
@@ -2739,6 +2739,9 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private _buildContent(): void {
 		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
+		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
+			content.push(commandPrompt);
+		}
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
