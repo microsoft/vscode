@@ -176,29 +176,6 @@ export function registerTerminalActions() {
 			instance.focusWhenReady();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowTerminalAccessibilityHelp,
-				title: { value: localize('workbench.action.terminal.showAccessibilityHelp', "Show Terminal Accessibility Help"), original: 'Show Terminal Accessibility Help' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported),
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.WorkbenchContrib,
-					linux: {
-						primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-						secondary: [KeyMod.Alt | KeyCode.F1]
-					},
-					when: TerminalContextKeys.focus
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).showTerminalAccessibilityHelp();
-		}
-	});
 
 	registerAction2(class extends Action2 {
 		constructor() {
