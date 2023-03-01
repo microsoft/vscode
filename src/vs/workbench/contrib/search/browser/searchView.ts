@@ -11,7 +11,6 @@ import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { Delayer } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
 import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -50,8 +49,7 @@ import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IFileIconTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -2034,15 +2032,6 @@ export class SearchView extends ViewPane {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	if (theme.type === 'dark') {
-		const foregroundColor = theme.getColor(foreground);
-		if (foregroundColor) {
-			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
-		}
-	}
-});
 
 class SearchLinkButton extends Disposable {
 	public readonly element: HTMLElement;
