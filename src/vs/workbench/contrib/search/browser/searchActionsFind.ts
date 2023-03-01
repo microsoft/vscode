@@ -217,6 +217,27 @@ registerAction2(class FindInFilesAction extends Action2 {
 	}
 });
 
+registerAction2(class FindInCurrentFolderAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.FindInCurrentFolderActionId,
+			title: {
+				value: nls.localize('findInCurrentFolder', "Find in Current Folder"),
+				original: 'Find in Current Folder'
+			},
+			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<any> {
+		searchWithFolderCommand(accessor, true, true);
+	}
+});
+
 registerAction2(class FindInFolderAction extends Action2 {
 	// from explorer
 	constructor() {
@@ -286,7 +307,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 });
 
 //#region Helpers
-async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) {
+async function searchWithFolderCommand(accessor: ServicesAccessor, useActiveResources: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) {
 	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
@@ -297,7 +318,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 
 	let resources: URI[];
 
-	if (isFromExplorer) {
+	if (useActiveResources) {
 		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
 	} else {
 		const searchView = getSearchView(accessor.get(IViewsService));
