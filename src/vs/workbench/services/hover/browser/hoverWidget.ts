@@ -128,6 +128,9 @@ export class HoverWidget extends Widget {
 			}
 		});
 
+		// Hide when the window loses focus
+		this._register(dom.addDisposableListener(window, 'blur', () => this.dispose()));
+
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
 		if (typeof options.content === 'string') {

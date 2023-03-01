@@ -5,6 +5,7 @@
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isWindows } from 'vs/base/common/platform';
@@ -587,18 +588,17 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		return this.getLoggerEntry(resourceOrId)?.logger;
 	}
 
-	createLogger(resource: URI, options?: ILoggerOptions): ILogger;
-	createLogger(id: string, options?: ILoggerOptions): ILogger;
 	createLogger(idOrResource: URI | string, options?: ILoggerOptions): ILogger {
 		const resource = this.toResource(idOrResource);
+		const id = isString(idOrResource) ? idOrResource : (options?.id ?? hash(resource.toString()).toString(16));
 		let logger = this._loggers.get(resource)?.logger;
 		const logLevel = options?.logLevel === 'always' ? LogLevel.Trace : options?.logLevel;
 		if (!logger) {
-			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, options);
+			logger = this.doCreateLogger(resource, logLevel ?? this.getLogLevel(resource) ?? this.logLevel, { ...options, id });
 		}
 		const loggerEntry: LoggerEntry = {
 			logger,
-			info: { resource, id: options?.id ?? resource.toString(), logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
+			info: { resource, id, logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
 		};
 		this.registerLogger(loggerEntry.info);
 		// TODO: @sandy081 Remove this once registerLogger can take ILogger

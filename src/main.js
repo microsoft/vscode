@@ -97,22 +97,15 @@ const language = getUserDefinedLocale(argvConfig);
 /**
  * @type {string | undefined}
  **/
-let osLocale = undefined;
-// This if statement can be simplified once
-// VS Code moves to Electron 22.
-// Ref https://github.com/microsoft/vscode/issues/159813
-// and https://github.com/electron/electron/pull/36035
-if ('getPreferredSystemLanguages' in app
-	&& typeof app.getPreferredSystemLanguages === 'function') {
-	// Use the most preferred OS language for language recommendation.
-	// The API might return an empty array on Linux, such as when
-	// the 'C' locale is the user's only configured locale.
-	// No matter the OS, if the array is empty, default back to 'en'.
-	osLocale = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-	if (osLocale) {
-		osLocale = processZhLocale(osLocale.toLowerCase());
-	}
+// Use the most preferred OS language for language recommendation.
+// The API might return an empty array on Linux, such as when
+// the 'C' locale is the user's only configured locale.
+// No matter the OS, if the array is empty, default back to 'en'.
+let osLocale = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+if (osLocale) {
+	osLocale = processZhLocale(osLocale.toLowerCase());
 }
+
 if (language && osLocale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);

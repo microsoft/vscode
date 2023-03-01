@@ -1334,15 +1334,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
-name = "openssl-src"
-version = "111.25.0+1.1.1t"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3173cd3626c43e3854b1b727422a276e568d9ec5fe8cec197822cf52cfb743d6"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "openssl-sys"
 version = "0.9.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1351,7 +1342,6 @@ dependencies = [
  "autocfg",
  "cc",
  "libc",
- "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -1908,7 +1898,7 @@ checksum = "9c8132065adcfd6e02db789d9285a0deb2f3fcb04002865ab67d5fb103533898"
 [[package]]
 name = "secret-service"
 version = "2.0.2"
-source = "git+https://github.com/microsoft/vscode-secret-service-rs?rev=30f0414108a122d6f2bfc28a5425d0dac9738518#30f0414108a122d6f2bfc28a5425d0dac9738518"
+source = "git+https://github.com/microsoft/vscode-secret-service-rs?rev=fbbaf222de10546609be26bb043e64356e855edb#fbbaf222de10546609be26bb043e64356e855edb"
 dependencies = [
  "lazy_static",
  "num",
@@ -2377,11 +2367,12 @@ dependencies = [
 [[package]]
 name = "tunnels"
 version = "0.1.0"
-source = "git+https://github.com/microsoft/dev-tunnels?rev=3870e9133dfb9557774521bb447827f19b26e55d#3870e9133dfb9557774521bb447827f19b26e55d"
+source = "git+https://github.com/microsoft/dev-tunnels?rev=730aa86f8ccd9e2dd4541693fbce763357da93f4#730aa86f8ccd9e2dd4541693fbce763357da93f4"
 dependencies = [
  "async-trait",
  "chrono",
  "futures",
+ "hyper",
  "log",
  "reqwest",
  "russh",
