@@ -70,6 +70,7 @@ import './mainThreadNotebookKernels';
 import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
 import './mainThreadInteractive';
+import './mainThreadInteractiveSession';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
