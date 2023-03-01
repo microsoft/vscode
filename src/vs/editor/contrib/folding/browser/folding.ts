@@ -269,6 +269,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 		// Suppose folding is not enabled but we still want to store the indentation model or the folding provider model -> this is the case for sticky scroll
 		if (!this._isEnabled && (this._storeIndentationFoldingModel || this._storeProviderFoldingModel)) {
+			console.log('Inside of the first if condition of on model changed');
 			const model = this.editor.getModel();
 			if (!model) {
 				return;
@@ -447,7 +448,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				let provider;
 				if (selectedProviders.length > 0) {
 					// Find the folding model using the provider
-					provider = new SyntaxRangeProvider(editorModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter));
+					provider = new SyntaxRangeProvider(editorModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter));
 				} else {
 					// Suppose there are no folding range providers, in that case use the indent range provider
 					// If the folding functionality is not enabled then find it
