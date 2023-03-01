@@ -59,6 +59,7 @@ export class StickyLineCandidateProvider extends Disposable {
 	private _model: StickyOutlineModel | undefined;
 
 	private _foldingController: FoldingController | undefined | null;
+	private _modelProviders: ((textModel: ITextModel, modelVersionId: number, token: CancellationToken) => Promise<boolean | null | undefined>)[] = [];
 
 	constructor(
 		editor: ICodeEditor,
@@ -67,6 +68,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		super();
 		this._editor = editor;
 		this._languageFeaturesService = languageFeaturesService;
+		this._foldingController = FoldingController.get(this._editor);
 		this._updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
@@ -88,16 +90,35 @@ export class StickyLineCandidateProvider extends Disposable {
 			this._sessionStore.clear();
 			return;
 		} else {
-			this._foldingController = FoldingController.get(this._editor);
-			if (this._foldingController &&
-				(this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL
-					|| this._options.defaultModel === DefaultModel.INDENTATION_MODEL)) {
 
-				// Register the fact that we are listening on the folding provider model
-				const foldingModelListenerTypeToRegister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.FOLDING_PROVIDER_MODEL : DefaultModel.INDENTATION_MODEL;
-				const foldingModelListenerTypeToUnregister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.INDENTATION_MODEL : DefaultModel.FOLDING_PROVIDER_MODEL;
-				this._foldingController.registerFoldingModelListenerOfType(foldingModelListenerTypeToRegister);
-				this._foldingController.unregisterFoldingModelListenerOfType(foldingModelListenerTypeToUnregister);
+			// Registering listeners when using the folding provider or the indentation model
+			if (this._foldingController) {
+
+				if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL) {
+					// Suppose the outline model is used, then we no longer need the folding provider model and indentation model listeners
+					this._foldingController.unregisterFoldingModelListenerOfType(DefaultModel.FOLDING_PROVIDER_MODEL);
+					this._foldingController.unregisterFoldingModelListenerOfType(DefaultModel.INDENTATION_MODEL);
+
+				} else if (this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL
+					|| this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
+					// Register the fact that we are listening on the folding provider model
+					const foldingModelListenerTypeToRegister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.FOLDING_PROVIDER_MODEL : DefaultModel.INDENTATION_MODEL;
+					const foldingModelListenerTypeToUnregister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.INDENTATION_MODEL : DefaultModel.FOLDING_PROVIDER_MODEL;
+					this._foldingController.registerFoldingModelListenerOfType(foldingModelListenerTypeToRegister);
+					this._foldingController.unregisterFoldingModelListenerOfType(foldingModelListenerTypeToUnregister);
+				}
+			}
+
+			// Specifying the order in which the model providers should be called
+			if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
+				this._modelProviders.unshift(this.stickyModelFromIndentationFoldingModel.bind(this));
+			}
+			else if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL) {
+				this._modelProviders.unshift(this.stickyModelFromFoldingProviderModel.bind(this));
+
+				if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL) {
+					this._modelProviders.unshift(this.stickyModelFromOutlineModel.bind(this));
+				}
 			}
 		}
 
@@ -140,23 +161,9 @@ export class StickyLineCandidateProvider extends Disposable {
 			}
 		}, 75) : undefined;
 
-		// get elements from outline or folding model depending on which model is set as the default
-		const foldingModelFunctions = [];
-
-		if (this._options!.defaultModel === DefaultModel.INDENTATION_MODEL) {
-			foldingModelFunctions.unshift(this.stickyModelFromIndentationFoldingModel.bind(this));
-		}
-		else if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL) {
-			foldingModelFunctions.unshift(this.stickyModelFromProviderFoldingModel.bind(this));
-
-			if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL) {
-				foldingModelFunctions.unshift(this.stickyModelFromOutlineModel.bind(this));
-			}
-		}
-
 		// Cycle through the array until one of the model providers provides a folding model
-		for (const foldingModelFunction of foldingModelFunctions) {
-			const status = await foldingModelFunction(model, modelVersionId, token);
+		for (const modelProvider of this._modelProviders) {
+			const status = await modelProvider(model, modelVersionId, token);
 			if (status === undefined) {
 				return;
 			} else if (status === true) {
@@ -182,8 +189,14 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromProviderFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
+	private async stickyModelFromFoldingProviderModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
 		if (this._foldingController) {
+			// First check if the folding controller has registered a listener on the folding provider model
+			// This can happen for example if the outline model is chosen by default, so the listener on the folding provider is not registered
+			// but the outline model does not exist, hence we need to register the listener on the folding provider model
+			if (!this._foldingController.storeFoldingProviderModel) {
+				this._foldingController.registerFoldingModelListenerOfType(DefaultModel.FOLDING_PROVIDER_MODEL);
+			}
 			const foldingModel = await this._foldingController.getProviderFoldingModel();
 			return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
 		} else {
@@ -193,6 +206,12 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
 		if (this._foldingController) {
+			// First check if the folding controller has registered a listener on the indentation model
+			// This can happen for example if the folding provider model is chosen by default, so the listener on the indentation model is not registered
+			// If the folding provider model does not exist, we need to register the listener on the indentation model
+			if (!this._foldingController.storeIndentationModel) {
+				this._foldingController.registerFoldingModelListenerOfType(DefaultModel.INDENTATION_MODEL);
+			}
 			const foldingModel = await this._foldingController.getIndentationFoldingModel();
 			return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
 		} else {

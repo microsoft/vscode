@@ -106,7 +106,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null;
 
 	private _storeFoldingProviderModel: boolean;
-	private _storeIndentationFoldingModel: boolean;
+	private _storeIndentationModel: boolean;
 	private foldingProviderModelPromise: Promise<FoldingModel | null> | null;
 	private indentationFoldingModelPromise: Promise<FoldingModel | null> | null;
 
@@ -153,7 +153,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.foldingProviderModelPromise = null;
 		this.indentationFoldingModelPromise = null;
 		this._storeFoldingProviderModel = false;
-		this._storeIndentationFoldingModel = false;
+		this._storeIndentationModel = false;
 
 		this.updateScheduler = null;
 		this.cursorChangedScheduler = null;
@@ -200,6 +200,14 @@ export class FoldingController extends Disposable implements IEditorContribution
 		return this._foldingLimitReporter;
 	}
 
+	public get storeFoldingProviderModel(): boolean {
+		return this._storeFoldingProviderModel;
+	}
+
+	public get storeIndentationModel(): boolean {
+		return this._storeIndentationModel;
+	}
+
 	public registerFoldingModelListenerOfType(foldingModelType: any) {
 
 		if (!Object.values(DefaultModel).includes(foldingModelType)) {
@@ -207,7 +215,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 
 		this._storeFoldingProviderModel = foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL ? true : this._storeFoldingProviderModel;
-		this._storeIndentationFoldingModel = foldingModelType === DefaultModel.INDENTATION_MODEL ? true : this._storeIndentationFoldingModel;
+		this._storeIndentationModel = foldingModelType === DefaultModel.INDENTATION_MODEL ? true : this._storeIndentationModel;
 
 		if (this._isEnabled && foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL && this._useFoldingProviders) {
 			this.foldingProviderModelPromise = this.foldingModelPromise;
@@ -225,7 +233,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	public unregisterFoldingModelListenerOfType(foldingModelType: any) {
 
 		this._storeFoldingProviderModel = foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL ? false : this._storeFoldingProviderModel;
-		this._storeIndentationFoldingModel = foldingModelType === DefaultModel.INDENTATION_MODEL ? false : this._storeIndentationFoldingModel;
+		this._storeIndentationModel = foldingModelType === DefaultModel.INDENTATION_MODEL ? false : this._storeIndentationModel;
 
 		this.foldingProviderModelPromise = foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL ? null : this.foldingProviderModelPromise;
 		this.indentationFoldingModelPromise = foldingModelType === DefaultModel.INDENTATION_MODEL ? null : this.indentationFoldingModelPromise;
@@ -275,7 +283,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		console.log('Inside of on model changed');
 
 		// Suppose folding is not enabled but we still want to store the indentation model or the folding provider model -> this is the case for sticky scroll
-		if (!this._isEnabled && (this._storeIndentationFoldingModel || this._storeFoldingProviderModel)) {
+		if (!this._isEnabled && (this._storeIndentationModel || this._storeFoldingProviderModel)) {
 			console.log('Inside of the first if condition of on model changed');
 			const model = this.editor.getModel();
 			if (!model) {
@@ -330,7 +338,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			});
 			this.triggerFoldingModelChanged();
 
-			if (this._storeIndentationFoldingModel || this._storeFoldingProviderModel) {
+			if (this._storeIndentationModel || this._storeFoldingProviderModel) {
 				console.log('Inside of the third condition of on model changed');
 				this.triggerFoldingModelChangedForListeners();
 			}
@@ -470,7 +478,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 		}
 		// We are interested in the indentation folding model
-		else if (this._storeIndentationFoldingModel) {
+		else if (this._storeIndentationModel) {
 			console.log('Entered into store indentation folding model');
 
 			// Suppose the folding functionality is enabled, if we are already using the indentation model, then the indentation model is already being calculates or has been found
