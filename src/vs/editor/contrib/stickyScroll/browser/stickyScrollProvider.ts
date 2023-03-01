@@ -150,13 +150,13 @@ export class StickyLineCandidateProvider extends Disposable {
 		const foldingModelFunctions = [];
 
 		if (this._options!.defaultModel === DefaultModel.INDENTATION_MODEL) {
-			foldingModelFunctions.unshift(this.stickyModelFromIndentationFoldingModel);
+			foldingModelFunctions.unshift(this.stickyModelFromIndentationFoldingModel.bind(this));
 		}
 		else if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_MODEL) {
-			foldingModelFunctions.unshift(this.stickyModelFromProviderFoldingModel);
+			foldingModelFunctions.unshift(this.stickyModelFromProviderFoldingModel.bind(this));
 
 			if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL) {
-				foldingModelFunctions.unshift(this.stickyModelFromOutlineModel);
+				foldingModelFunctions.unshift(this.stickyModelFromOutlineModel.bind(this));
 			}
 		}
 
@@ -188,14 +188,22 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromProviderFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken) {
-		const foldingModel = await this._foldingController?.getProviderFoldingModel();
-		return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+	private async stickyModelFromProviderFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
+		if (this._foldingController) {
+			const foldingModel = await this._foldingController.getProviderFoldingModel();
+			return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+		} else {
+			return;
+		}
 	}
 
-	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken) {
-		const foldingModel = await this._foldingController?.getIndentationFoldingModel();
-		return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
+		if (this._foldingController) {
+			const foldingModel = await this._foldingController.getIndentationFoldingModel();
+			return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+		} else {
+			return;
+		}
 	}
 
 	private async stickyModelFromFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingModel: FoldingModel | null | undefined): Promise<boolean | undefined | null> {

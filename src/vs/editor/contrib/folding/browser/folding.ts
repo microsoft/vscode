@@ -432,7 +432,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 
 		// We are interested in the provider folding model
-		const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, this.foldingModel!.textModel);
+		const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, editorModel);
 
 		if (this._storeProviderFoldingModel) {
 			console.log('Entered into store provider folding model');
