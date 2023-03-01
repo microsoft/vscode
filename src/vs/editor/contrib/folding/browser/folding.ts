@@ -197,10 +197,10 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	// TODO@Aiday: Find better names
 	public registerIndentationModelListener() {
-		// Register a lister on the indentation model
-
+		// Register a lister on the indentation model, even when the folding functionality is disabled
 		// Suppose the folding functionality is enabled and the indentation model is used by default, then the indentation model is already under calculation/found
 		this._storeIndentationFoldingModel = true;
+		this._storeProviderFoldingModel = false;
 		if (this._isEnabled && !this._useFoldingProviders) {
 			this.indentationFoldingModelPromise = this.foldingModelPromise;
 		}
@@ -211,11 +211,11 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	public registerFoldingProviderModelListener() {
-		// Register a listener on the folding provider model
-
+		// Register a listener on the folding provider model, even when the folding functionality is disabled
 		// Suppose the folding functionality is enabled and the folding provider model is used by default, then the folding provider model is already under calculation/found
 		this._storeProviderFoldingModel = true;
-		if (this._isEnabled && !this._useFoldingProviders) {
+		this._storeIndentationFoldingModel = false;
+		if (this._isEnabled && this._useFoldingProviders) {
 			this.providerFoldingModelPromise = this.foldingModelPromise;
 		}
 		// Else it needs to be found, so trigger the on model changed function
@@ -267,20 +267,20 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 		console.log('Inside of on model changed');
 
-		// Suppose folding is not enabled but we still want to store the indentation model or the folding provider model
+		// Suppose folding is not enabled but we still want to store the indentation model or the folding provider model -> this is the case for sticky scroll
 		if (!this._isEnabled && (this._storeIndentationFoldingModel || this._storeProviderFoldingModel)) {
-			console.log('Inside of the first if condition of on model changed');
 			const model = this.editor.getModel();
 			if (!model) {
 				return;
 			}
 			if (!this.updateScheduler) {
-
 				this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
 			}
-			this.triggerModifiedFoldingModelChanged();
+			this.triggerFoldingModelChangedForListeners();
 		} else {
+
 			console.log('Inside of the second if condition of on model changed');
+
 			this.localToDispose.clear();
 
 			const model = this.editor.getModel();
@@ -316,7 +316,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 					this.updateScheduler?.cancel();
 					this.updateScheduler = null;
 					this.foldingModel = null;
-					this.indentationFoldingModelPromise = null;
 					this.foldingModelPromise = null;
 					this.hiddenRangeModel = null;
 					this.cursorChangedScheduler = null;
@@ -328,7 +327,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 			if (this._storeIndentationFoldingModel || this._storeProviderFoldingModel) {
 				console.log('Inside of the third condition of on model changed');
-				this.triggerModifiedFoldingModelChanged();
+				this.triggerFoldingModelChangedForListeners();
 			}
 		}
 	}
@@ -337,14 +336,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.rangeProvider?.dispose();
 		this.rangeProvider = null;
 		this.triggerFoldingModelChanged();
-	}
-
-	set storeProviderFoldingModel(value: boolean) {
-		this._storeProviderFoldingModel = value;
-	}
-
-	set storeIndentationFoldingModel(value: boolean) {
-		this._storeIndentationFoldingModel = value;
 	}
 
 	private getRangeProvider(editorModel: ITextModel): RangeProvider {
@@ -382,44 +373,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.triggerFoldingModelChanged();
 	}
 
-	public triggerModifiedFoldingModelChanged() {
-		console.log('Entered into trigger modified folding model changed event');
-
-		const editorModel = this.editor.getModel();
-		if (editorModel === null) {
-			return;
-		}
-
-		// We are interested in the provider folding model
-		if (this._storeProviderFoldingModel) {
-			console.log('Entered into store provider folding model');
-
-			// If the folding function is enabled and the folding providers are used then the model of interest has already been found
-			if (this._isEnabled && this._useFoldingProviders) {
-				this.providerFoldingModelPromise = this.foldingModelPromise;
-			}
-			// Either the folding functionality is not enabled or the folding provider has not been used to find the folding ranges
-			else {
-				let provider;
-				const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, this.foldingModel!.textModel);
-				if (selectedProviders.length > 0) {
-					// Note that there already is a fallback in the following line
-					provider = new SyntaxRangeProvider(editorModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter));
-				} else {
-					provider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter);
-				}
-				this.providerFoldingModelPromise = this._triggerModifiedFoldingModelChanged(provider);
-			}
-		} else if (this._storeIndentationFoldingModel) {
-			console.log('Entered into store indentation folding model');
-			if (this._isEnabled && !this._useFoldingProviders) {
-				this.indentationFoldingModelPromise = this.foldingModelPromise;
-			} else {
-				// Using the folding provider for the folding ranges, but want the indentation model
-				this.indentationFoldingModelPromise = this._triggerModifiedFoldingModelChanged(new IndentRangeProvider(this.editor.getModel(), this.languageConfigurationService, this._foldingLimitReporter));
-			}
-		}
-	}
 
 	public triggerFoldingModelChanged() {
 		if (this.updateScheduler) {
@@ -469,10 +422,74 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 	}
 
-	private _triggerModifiedFoldingModelChanged(provider: RangeProvider) {
+
+	public triggerFoldingModelChangedForListeners(): void {
+		console.log('Entered into trigger modified folding model changed event for the listeners');
+
+		const editorModel = this.editor.getModel();
+		if (editorModel === null) {
+			return;
+		}
+
+		// We are interested in the provider folding model
+		const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, this.foldingModel!.textModel);
+
+		if (this._storeProviderFoldingModel) {
+			console.log('Entered into store provider folding model');
+
+			// If the folding function is enabled and the folding providers are used then the model of interest has already been found
+			if (this._isEnabled && this._useFoldingProviders) {
+				this.providerFoldingModelPromise = this.foldingModelPromise;
+				return;
+			}
+			// Either the folding functionality is not enabled or the folding provider has not been used to find the folding ranges
+			else {
+				let provider;
+				if (selectedProviders.length > 0) {
+					// Find the folding model using the provider
+					provider = new SyntaxRangeProvider(editorModel, selectedProviders, () => this.triggerFoldingModelChanged(), this._foldingLimitReporter, new IndentRangeProvider(this.foldingModel!.textModel, this.languageConfigurationService, this._foldingLimitReporter));
+				} else {
+					// Suppose there are no folding range providers, in that case use the indent range provider
+					// If the folding functionality is not enabled then find it
+					if (!this._isEnabled) {
+						provider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter);
+					}
+					// Else the folding functionality is already enabled and we can find the provider folding model promise
+					else {
+						this.providerFoldingModelPromise = this.foldingModelPromise;
+						return;
+					}
+
+				}
+				this.providerFoldingModelPromise = this._triggerFoldingModelChangedForListeners(provider);
+			}
+		}
+		// We are interested in the indentation folding model
+		else if (this._storeIndentationFoldingModel) {
+			console.log('Entered into store indentation folding model');
+
+			// Suppose the folding functionality is enabled, if we are already using the indentation model, then the indentation model is already being calculates or has been found
+			if (this._isEnabled && !this._useFoldingProviders) {
+				this.indentationFoldingModelPromise = this.foldingModelPromise;
+			} else {
+				// We are using the folding provider for the folding ranges, but we want the indentation model
+				// Suppose that the folding functionality is enabled, and there are no folding providers, then we already have found the indentation model
+				if (this._isEnabled && selectedProviders.length === 0) {
+					this.indentationFoldingModelPromise = this.foldingModelPromise;
+				} else {
+					// Otherwise either the folding functionality is disabled, or it is enabled and we are using the folding provider model
+					// In that case find the indentation model
+					this.indentationFoldingModelPromise = this._triggerFoldingModelChangedForListeners(new IndentRangeProvider(editorModel, this.languageConfigurationService, this._foldingLimitReporter));
+				}
+			}
+		}
+	}
+
+	private _triggerFoldingModelChangedForListeners(provider: RangeProvider) {
 		console.log('Entered into underscore modified trigger folding model changed');
+		// This function is similar to _triggerFoldingModelChanges except that it does not have all the listeners, these are unecessary
 		const foldingModel = this.updateScheduler!.trigger(() => {
-			// TODO: Improve, temporary folding model
+			// TODO@Aiday: Improve, temporary folding model
 			const _foldingModel: FoldingModel = new FoldingModel(this.editor.getModel() as ITextModel, this.foldingDecorationProvider);
 			const sw = new StopWatch(true);
 			const foldingRegionPromise = this.foldingRegionPromise = createCancelablePromise(token => provider.compute(token));

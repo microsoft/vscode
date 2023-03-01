@@ -89,29 +89,34 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		} else {
 			this._foldingController = FoldingController.get(this._editor);
-			if (this._options.defaultModel === DefaultModel.FOLDING_MODEL) {
-				if (this._foldingController) {
+			if (this._foldingController) {
+				if (this._options.defaultModel === DefaultModel.FOLDING_MODEL) {
+
 					console.log('Inside of first if in scroll provider');
+					// register the fact that we are listening on the folding provider model
 					this._foldingController.registerFoldingProviderModelListener();
 				}
-			} else if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
-				if (this._foldingController) {
+				else if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
+
 					console.log('Inside of second if in scroll provider');
+					// Register the fact that we are listening on the indentation model
 					this._foldingController.registerIndentationModelListener();
+
 				}
 			}
+
 			this._sessionStore.add(this._editor.onDidChangeModel(() => {
 				this.update();
 			}));
 			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
 			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
-
 				this.update();
 			}));
 			this.update();
 		}
 	}
+
 
 	public getVersionId() {
 		return this._model?.version;
@@ -142,35 +147,26 @@ export class StickyLineCandidateProvider extends Disposable {
 		}, 75) : undefined;
 
 		// get elements from outline or folding model depending on which model is set as the default
-		if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL) {
-			const status1 = await this.stickyModelFromOutlineModel(model, modelVersionId, token);
-			if (status1 === undefined) {
-				return;
-			} else if (status1 === false) {
-				const status2 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.FOLDING_MODEL);
-				if (status2 === undefined) {
-					return;
-				} else if (status2 === false) {
-					const status3 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.INDENTATION_MODEL);
-					if (status3 === undefined) {
-						return;
-					}
-				}
+		const foldingModelFunctions = [];
+
+		if (this._options!.defaultModel === DefaultModel.INDENTATION_MODEL) {
+			foldingModelFunctions.unshift(this.stickyModelFromIndentationFoldingModel);
+		}
+		else if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_MODEL) {
+			foldingModelFunctions.unshift(this.stickyModelFromProviderFoldingModel);
+
+			if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL) {
+				foldingModelFunctions.unshift(this.stickyModelFromOutlineModel);
 			}
-		} else if (this._options!.defaultModel === DefaultModel.FOLDING_MODEL) {
-			const status1 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.FOLDING_MODEL);
-			if (status1 === undefined) {
-				return;
-			} else if (status1 === false) {
-				const status2 = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.INDENTATION_MODEL);
-				if (status2 === undefined) {
-					return;
-				}
-			}
-		} else {
-			const status = await this.stickyModelFromFoldingModel(model, modelVersionId, token, DefaultModel.INDENTATION_MODEL);
+		}
+
+		// Cycle through the array until one of the model providers provides a folding model
+		for (const foldingModelFunction of foldingModelFunctions) {
+			const status = await foldingModelFunction(model, modelVersionId, token);
 			if (status === undefined) {
 				return;
+			} else if (status === true) {
+				break;
 			}
 		}
 
@@ -192,23 +188,20 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromFoldingModel(model: ITextModel, modelVersionId: number, token: CancellationToken, modelProvider: DefaultModel): Promise<boolean | undefined | null> {
+	private async stickyModelFromProviderFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken) {
+		const foldingModel = await this._foldingController?.getProviderFoldingModel();
+		return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+	}
 
-		let foldingModel: FoldingModel | undefined | null;
+	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken) {
+		const foldingModel = await this._foldingController?.getIndentationFoldingModel();
+		return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+	}
 
-		if (modelProvider === DefaultModel.FOLDING_MODEL) {
-			foldingModel = await this._foldingController?.getProviderFoldingModel();
+	private async stickyModelFromFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingModel: FoldingModel | null | undefined): Promise<boolean | undefined | null> {
 
-			// The folding model obtained from the provider can be null in which case return null
-			if (!foldingModel === null) {
-				return null;
-			}
-		} else if (modelProvider === DefaultModel.INDENTATION_MODEL) {
-
-			// There is always an indentation folding model
-			foldingModel = await this._foldingController?.getIndentationFoldingModel()!;
-		} else {
-			throw new Error('Invalid model specified');
+		if (foldingModel === null) {
+			return null;
 		}
 
 		// Return undefined when the token is cancelled
@@ -216,13 +209,11 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		}
 
-		console.log('foldingModel : ', foldingModel);
-
 		// Else the folding model exists, it can however be empty, have no regions
 		if (foldingModel!.regions.length !== 0) {
 			// If it has folding regions, construct the sticky outline model from it, return true
 			const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel!);
-			this._model = new StickyOutlineModel(model.uri, modelVersionId, foldingElement, undefined);
+			this._model = new StickyOutlineModel(textModel.uri, modelVersionId, foldingElement, undefined);
 			return true;
 		} else {
 			// If the folding model has no regions, return false
