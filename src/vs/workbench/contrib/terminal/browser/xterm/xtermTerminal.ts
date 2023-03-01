@@ -48,6 +48,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 const enum RenderConstants {
 	/**
@@ -150,7 +151,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 
-	private _accessibileBuffer: AccessibleBuffer | undefined;
+	private _accessibleBuffer: AccessibleBuffer | undefined;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -290,7 +291,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	async focusAccessibleBuffer(): Promise<void> {
-		this._accessibileBuffer?.focus();
+		this._accessibleBuffer?.focus();
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -320,7 +321,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
-		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this, this._capabilities);
+		this._accessibleBuffer = this._instantiationService.createInstance(AccessibleBuffer, this, this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -811,7 +812,6 @@ class AccessibleBuffer extends DisposableStore {
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false },
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
@@ -819,6 +819,9 @@ class AccessibleBuffer extends DisposableStore {
 			readOnly: true
 		};
 		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		// Prevent the accessible buffer letting mouse events to propogate to xterm.js while it's
+		// visible.
+		this.add(addDisposableListener(this._accessibleBuffer, 'mousedown', e => e.stopImmediatePropagation()));
 		this._accessibleBuffer.tabIndex = -1;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);

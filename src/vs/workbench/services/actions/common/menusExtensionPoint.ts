@@ -71,9 +71,21 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.explorerContext', "The file explorer context menu")
 	},
 	{
+		key: 'explorer/context/share',
+		id: MenuId.ExplorerContextShare,
+		description: localize('menus.explorerContextShare', "'Share' submenu in the file explorer context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'editor/title/context',
 		id: MenuId.EditorTitleContext,
 		description: localize('menus.editorTabContext', "The editor tabs context menu")
+	},
+	{
+		key: 'editor/title/context/share',
+		id: MenuId.EditorTitleContextShare,
+		description: localize('menus.editorTitleContextShare', "'Share' submenu inside the editor title context menu"),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'debug/callstack/context',
