@@ -260,7 +260,7 @@ export class StickyLineCandidateProvider extends Disposable {
 				return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
 			});
 		} else {
-			return false;
+			return;
 		}
 	}
 
