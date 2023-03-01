@@ -974,7 +974,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 
 			return {
 				insertText: result.insertText,
-				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService) : undefined,
+				additionalEdit: result.additionalEdit ? reviveWorkspaceEditDto(result.additionalEdit, this._uriIdentService, dataId => this.resolveFileData(request.id, dataId)) : undefined,
 			};
 		} finally {
 			request.dispose();
@@ -982,7 +982,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 	}
 
 	resolveFileData(requestId: number, dataId: string): Promise<VSBuffer> {
-		return this.dataTransfers.resolveDropFileData(requestId, dataId);
+		return this.dataTransfers.resolveFileData(requestId, dataId);
 	}
 }
 
@@ -1014,7 +1014,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 			return {
 				label: edit.label,
 				insertText: edit.insertText,
-				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService),
+				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
 			};
 		} finally {
 			request.dispose();
@@ -1022,7 +1022,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 	}
 
 	public resolveDocumentOnDropFileData(requestId: number, dataId: string): Promise<VSBuffer> {
-		return this.dataTransfers.resolveDropFileData(requestId, dataId);
+		return this.dataTransfers.resolveFileData(requestId, dataId);
 	}
 }
 

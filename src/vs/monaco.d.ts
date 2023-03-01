@@ -7432,7 +7432,6 @@ declare namespace monaco.languages {
 		folder?: boolean;
 		skipTrashBin?: boolean;
 		maxSize?: number;
-		contentsBase64?: string;
 	}
 
 	export interface IWorkspaceFileEdit {

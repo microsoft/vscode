@@ -590,11 +590,20 @@ export namespace WorkspaceEdit {
 			for (const entry of value._allEntries()) {
 
 				if (entry._type === types.FileEditType.File) {
+					let contents: { type: 'base64'; value: string } | { type: 'dataTransferItem'; id: string } | undefined;
+					if (entry.options?.contents) {
+						if (ArrayBuffer.isView(entry.options.contents)) {
+							contents = { type: 'base64', value: encodeBase64(VSBuffer.wrap(entry.options.contents)) };
+						} else {
+							contents = { type: 'dataTransferItem', id: (entry.options.contents as types.DataTransferItem).id };
+						}
+					}
+
 					// file operation
-					result.edits.push(<languages.IWorkspaceFileEdit>{
+					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
 						oldResource: entry.from,
 						newResource: entry.to,
-						options: { ...entry.options, contentsBase64: entry.options?.contents && encodeBase64(VSBuffer.wrap(entry.options.contents)) },
+						options: { ...entry.options, contents },
 						metadata: entry.metadata
 					});
 

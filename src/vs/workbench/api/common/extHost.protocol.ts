@@ -1738,7 +1738,10 @@ export type ICellEditOperationDto =
 
 export type IWorkspaceCellEditDto = Dto<Omit<notebookCommon.IWorkspaceNotebookCellEdit, 'cellEdit'>> & { cellEdit: ICellEditOperationDto };
 
-export type IWorkspaceFileEditDto = Dto<languages.IWorkspaceFileEdit>;
+export type IWorkspaceFileEditDto = Dto<
+	Omit<languages.IWorkspaceFileEdit, 'options'> & {
+		options?: Omit<languages.WorkspaceFileEditOptions, 'contents'> & { contents?: { type: 'base64'; value: string } | { type: 'dataTransferItem'; id: string } };
+	}>;
 
 export type IWorkspaceTextEditDto = Dto<languages.IWorkspaceTextEdit>;
 

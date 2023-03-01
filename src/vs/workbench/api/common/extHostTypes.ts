@@ -708,7 +708,7 @@ export interface IFileOperationOptions {
 	readonly ignoreIfExists?: boolean;
 	readonly ignoreIfNotExists?: boolean;
 	readonly recursive?: boolean;
-	readonly contents?: Uint8Array;
+	readonly contents?: Uint8Array | vscode.DataTransferItem;
 }
 
 export const enum FileEditType {
@@ -778,7 +778,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array | vscode.DataTransferItem }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 

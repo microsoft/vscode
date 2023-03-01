@@ -3710,7 +3710,7 @@ declare module 'vscode' {
 		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array | DataTransferItem }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
