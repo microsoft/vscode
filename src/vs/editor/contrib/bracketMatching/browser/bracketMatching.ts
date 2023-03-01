@@ -94,7 +94,7 @@ class RemoveBracketsAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		BracketMatchingController.get(editor)?.replaceBrackets('', '');
+		BracketMatchingController.get(editor)?.replaceBrackets('', '', this.id);
 	}
 }
 
@@ -270,7 +270,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			this._editor.revealRange(newSelections[0]);
 		}
 	}
-	public replaceBrackets(openingContent: string, closingContent: string): void {
+	public replaceBrackets(openingContent: string, closingContent: string, editSource?: string): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -284,8 +284,15 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				brackets = model.bracketPairs.findEnclosingBrackets(position);
 			}
 			if (brackets) {
-				this._editor.executeEdits(null,
-					[{ range: brackets[0], text: openingContent, }, { range: brackets[1], text: closingContent }]);
+				this._editor.pushUndoStop();
+				this._editor.executeEdits(
+					editSource,
+					[
+						{ range: brackets[0], text: openingContent },
+						{ range: brackets[1], text: closingContent }
+					]
+				);
+				this._editor.pushUndoStop();
 			}
 		});
 	}
